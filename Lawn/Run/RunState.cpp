@@ -207,11 +207,13 @@ void RunState::BeginLevelEndPicks()
 	static const int aPlants[] = { 2, 3, 4 };
 	int aPerLevel = (mMode >= RUN_MODE_FULL && mMode <= RUN_MODE_QUICK) ? aPlants[mMode] : 2;
 	mPendingPlantPicks = CanOfferPlantPick() ? aPerLevel : 0;
-	// 增益每关收尾的发屏数（2026-10-08 玩家反馈批定案）：普通档（10 关）每关固定 3；
-	// 快速档（5 关）逐关 3、4、5、5（= min(关序号 + 2, 5)——它的收尾点恰好 4 个：最后一关
-	// 打完直接亮奖杯屏，调用点自己挡掉末点的屏）；完整档保持批十曲线 min(关序号 + 2, 7)。
+	// 增益每关收尾的发屏数（2026-10-08 玩家反馈批定案，2026-10-12 用户令收紧完整档）：普通档
+	// （10 关）每关固定 3；快速档（5 关）逐关 3、4、5、5（= min(关序号 + 2, 5)——它的收尾点
+	// 恰好 4 个：最后一关打完直接亮奖杯屏，调用点自己挡掉末点的屏）；完整档（25 关）改
+	// **每关固定 1**（2026-10-12 用户令「25 关模式每关只给选一次 buff」——原批十曲线
+	// min(关序号 + 2, 7) 逐关递增作废：25 关长局里增益堆得太滥）。
 	// 调用点此刻 mLevelIndex 已经指向下一关，所以"下一关收尾该给的数"直接按它算。
-	// 无尽档固定 2 条/关（2026-10-10 用户定案）：难度走对数曲线逐关自涨，屏数不随关序号堆。
+	// 无尽档固定 2 条/关（2026-10-10 用户定案）：难度曲线逐关自涨，屏数不随关序号堆。
 	int aBuffs;
 	if (mMode == RUN_MODE_ENDLESS)
 	{
@@ -221,11 +223,14 @@ void RunState::BeginLevelEndPicks()
 	{
 		aBuffs = 3;
 	}
-	else
+	else if (mMode == RUN_MODE_FULL)
+	{
+		aBuffs = 1;
+	}
+	else	// RUN_MODE_QUICK：3、4、5、5
 	{
 		aBuffs = mLevelIndex + 2;
-		int aCap = (mMode == RUN_MODE_QUICK) ? 5 : 7;
-		if (aBuffs > aCap) aBuffs = aCap;
+		if (aBuffs > 5) aBuffs = 5;
 	}
 	mPendingBuffPicks = aBuffs;
 	TodLog("[run] level end picks: %d plant(s) + %d buff(s) (level %d, mode %d)", mPendingPlantPicks, mPendingBuffPicks, mLevelIndex, mMode);

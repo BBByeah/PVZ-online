@@ -1813,8 +1813,6 @@ void Board::InitLevel()
 	}
 	// 关卡玩法相关的初始化
 	mChallenge->InitLevel();
-	// @pvz-online: 关底巨型 boss（MOD_BUILD 38）最后落位——行表/波表此时都已就绪
-	SpawnRunBoss();
 }
 
 Reanimation* Board::CreateRakeReanim(float theRakeX, float theRakeY, int theRenderOrder)
@@ -5629,6 +5627,10 @@ void Board::SpawnZombieWave()
 	if (IsFlagWave(mCurrentWave))
 	{
 		mFlagRaiseCounter = FLAG_RAISE_TIME;
+		// @pvz-online: 关底巨型 boss 随旗波出场（MOD_BUILD 39 批，2026-10-11 用户定案
+		// 「出在第一旗=第一次大波」）；只在最后一关的第一次旗波真正刷出，其余旗波/关卡
+		// 由 SpawnRunBoss 内部自判早退（含 mRunBossZombieID 只刷一次守卫）。
+		SpawnRunBoss();
 	}
 	mCurrentWave++;
 	mTotalSpawnedWaves++;
@@ -5730,24 +5732,33 @@ void Board::PuzzleSaveStreak()
 	}
 }
 
-// @pvz-online: 关底巨型 boss（MOD_BUILD 38，2026-10-10 用户定案）——闯关最后一关开始时
-// 在第一席棋盘刷一只巨型红眼巨人，慢慢走过全场当关底。可调值都在这一处：
+// @pvz-online: 关底巨型 boss（MOD_BUILD 38，2026-10-10 用户定案；MOD_BUILD 39 批改版，
+// 2026-10-11 用户定案）——闯关最后一关的**第一次大波（旗波）**时在第一席棋盘刷一只
+// 巨型 boss：红眼巨人与橄榄球僵尸随机出一只，慢慢走过全场当关底。可调值都在这一处：
 //   体尺 2.0（视觉×2；碰撞矩形不随之放大，同原版迷你僵尸口径——小僵尸也没缩矩形）；
-//   血量 = 原血量 × 顺位乘数和 × 关卡基数 × 2，其中关卡基数（难度千分比）在
-//   ZombieInitialize 的闯关插桩段已经乘过，这里只补乘数和与 ×2 因子；
-//   战斗特性（全控制免疫/砸击破耐砸）的判定全走 IsRunBossZombie（按本 ID 认人），
-//   免疫点收口在 CanBeChilled（含冰冻/黄油入口门）/ApplyButter/StartMindControlled/
-//   SwitchLanes；砸击破耐砸在 UpdateZombieGargantuar。
+//   血量 = 原血量 × 顺位乘数和 × 关卡基数 × 3，其中关卡基数（难度千分比）在
+//   ZombieInitialize 的闯关插桩段已经乘过，这里只补乘数和与 ×3 因子；橄榄球连头盔
+//   同乘（mHelmHealth/mHelmMaxHealth 一起，头盔血线三档判定跟着走）；
+//   免疫口径（2026-10-11 用户定案「橄榄球 boss 只受减速影响」）的判定全走
+//   IsRunBossZombie（按本 ID 认人）；免疫点收口在 CanBeChilled/CanBeFrozen
+//   （橄榄球 boss 只受减速不受冰冻/黄油/定身——见该两函数）/ApplyButter/
+//   StartMindControlled/AnimateChewSound（魅惑菇副效果）/SwitchLanes/
+//   BlowAwayFliers（狂风，Plant.cpp）/磁力菇扫描（Plant.cpp）/SquishAllInSquare
+//   （地刺王一击清掉）；砸击破耐砸在 UpdateZombieGargantuar；橄榄球 boss 破阵=
+//   「极速啃食」在 Zombie::EatPlant（每口 200）。
+// 随机出一只 = 本 ID 只认一只（双 ID 不必）；每关只刷一次（mRunBossZombieID 在
+// InitLevel 重置）；mFromWave=旗波号（该波成员：入场 +40px、该波不提前加速）。
 // 漏怪按普通传递口径接力（末席漏它照旧全队败）；海草抓不到它——生成行恒为非水行。
 static const float	kRunBossScale = 2.0f;
-static const int	kRunBossHpFactor = 2;
+static const int	kRunBossHpFactor = 3;
 
 void Board::SpawnRunBoss()
 {
 	RunState* aRun = mApp->GetRunState();
 	if (aRun == nullptr || aRun->mBossFlag == 0) return;
 	if (aRun->mMode == RunState::RUN_MODE_ENDLESS) return;		// 无尽档没有关底
-	if (aRun->mLevelIndex + 1 < aRun->GetLevelCount()) return;	// 只在最后一关
+	if (aRun->GetPlayingLevelIndex() + 1 < aRun->GetLevelCount()) return;	// 只在最后一关
+	if (mRunBossZombieID != ZombieID::ZOMBIEID_NULL) return;	// 一关一只（旗波钩子每旗都会来问）
 	// 仅第一席：联机只有主机棋盘有 boss（单机恒有）
 	if (mApp->IsOnlineGame() && !mApp->mOnlineSession->IsHostSeat()) return;
 
@@ -5762,13 +5773,22 @@ void Board::SpawnRunBoss()
 	}
 	if (aRowCount == 0) return;
 
-	Zombie* aBoss = AddZombieInRow(ZombieType::ZOMBIE_REDEYE_GARGANTUAR, aRows[Rand(aRowCount)], 0);
+	// 两只 boss 随机出一只（用户 2026-10-11 定案）：红眼巨人=砸击破耐砸，橄榄球=极速啃食。
+	ZombieType aBossType = Rand(2) == 0
+		? ZombieType::ZOMBIE_REDEYE_GARGANTUAR
+		: ZombieType::ZOMBIE_FOOTBALL;
+	Zombie* aBoss = AddZombieInRow(aBossType, aRows[Rand(aRowCount)], mCurrentWave);
 	if (aBoss == nullptr) return;
 
 	aBoss->mScaleZombie = kRunBossScale;
 	int aMult = mApp->OnlineSeatMultiplier() * kRunBossHpFactor;
 	aBoss->mBodyHealth = aBoss->mBodyHealth * aMult;
 	aBoss->mBodyMaxHealth = aBoss->mBodyHealth;
+	if (aBossType == ZombieType::ZOMBIE_FOOTBALL)
+	{
+		aBoss->mHelmHealth = aBoss->mHelmHealth * aMult;
+		aBoss->mHelmMaxHealth = aBoss->mHelmHealth;
+	}
 	aBoss->UpdateAnimSpeed();
 	mRunBossZombieID = ZombieGetID(aBoss);
 }

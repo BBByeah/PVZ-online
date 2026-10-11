@@ -5076,13 +5076,21 @@ void Zombie::AnimateChewSound()
             mApp->PlayFoley(FoleyType::FOLEY_FLOOP);
             aPlant->Die();
 
-            StartMindControlled();
-            mApp->AddTodParticle(mPosX + 60.0f, mPosY + 40.0f, mRenderOrder + 1, ParticleEffect::PARTICLE_MIND_CONTROL);
-            TrySpawnLevelAward();
+            // @pvz-online: 关底 boss 免疫魅惑（MOD_BUILD 39 批，2026-10-11 用户定案）：
+            // 蘑菇照常被吃掉，但不转化；转化段的收尾副作用（粒子/奖励/爬行减速
+            // mVelX+mAnimTicksPerFrame）随转化一条龙走，对 boss 一并跳过——否则
+            // StartMindControlled 对 boss 早退后副作用仍执行，橄榄球 boss 会被
+            // 永久 4 倍爬行减速（巨人 boss 同理，一并修）。
+            if (!mBoard->IsRunBossZombie(this))
+            {
+                StartMindControlled();
+                mApp->AddTodParticle(mPosX + 60.0f, mPosY + 40.0f, mRenderOrder + 1, ParticleEffect::PARTICLE_MIND_CONTROL);
+                TrySpawnLevelAward();
 
-            mVelX = 0.17f;
-            mAnimTicksPerFrame = 18;
-            UpdateAnimSpeed();
+                mVelX = 0.17f;
+                mAnimTicksPerFrame = 18;
+                UpdateAnimSpeed();
+            }
         }
         else if (aPlant->mSeedType == SeedType::SEED_GARLIC)
         {
@@ -6762,7 +6770,10 @@ void Zombie::SquishAllInSquare(int theX, int theY, ZombieAttackType theAttackTyp
                 continue;
             }
 
-            if (aPlant->mSeedType != SeedType::SEED_SPIKEROCK)
+            // @pvz-online: 地刺王对普通巨人砸击免疫压扁（巨人改走 SpikeRockTakeDamage）；
+            // 关底 boss 口径是「真伤」整格秒杀——连地刺王一起压扁。否则 boss 砸地刺王
+            // 成了无操作，会无限循环砸同一格永久卡死（MOD_BUILD 39 批修复）。
+            if (aPlant->mSeedType != SeedType::SEED_SPIKEROCK || mBoard->IsRunBossZombie(this))
             {
                 mBoard->mPlantsEaten++;
                 aPlant->Squish();
@@ -7423,12 +7434,22 @@ void Zombie::EatPlant(Plant* thePlant)
         }
     }
 
-    thePlant->mPlantHealth -= DAMAGE_PER_EAT;
+    // @pvz-online: 关底橄榄球 boss「极速啃食」（MOD_BUILD 39 批，2026-10-11 用户定案）：
+    // 破阵=啃食轴拉大——每口 200（普通僵尸 4；25 口/秒 ⇒ 5000 血/秒，高坚果 8000 血
+    // 约 1.6 秒啃穿）。上面的冰冻慢啃（节拍减半）照旧折半——所以减速能压它的啃食速度。
+    // 巨人 boss 走砸击轴不受影响；普通橄榄球僵尸维持每口 4。
+    int aBiteDamage = DAMAGE_PER_EAT;
+    if (mZombieType == ZombieType::ZOMBIE_FOOTBALL && mBoard->IsRunBossZombie(this))
+    {
+        aBiteDamage = 200;
+    }
+
+    thePlant->mPlantHealth -= aBiteDamage;
     // @pvz-online: 第二 buff 批 3「耐砸」（忧郁菇，docs/06 §8.6 #42）：被击固定扣 200/口
     //（1000 血 = 5 口；1★）。巨人砸分支同额 -200/砸（见 Zombie::Update 的 Squish 分支）。
     if (thePlant->mSeedType == SeedType::SEED_GLOOMSHROOM && mApp->RunPlantBuff2Count(SeedType::SEED_GLOOMSHROOM) > 0)
     {
-        thePlant->mPlantHealth -= (200 - DAMAGE_PER_EAT);	// 上面已扣 DAMAGE_PER_EAT，补差到固定 200
+        thePlant->mPlantHealth -= (200 - aBiteDamage);	// 上面已扣 aBiteDamage，补差到固定 200
     }
     thePlant->mRecentlyEatenCountdown = 50;
     // @pvz-online: 第二 buff「荆棘之壁」（坚果墙 #3，docs/06 §8.6，2★ cap2）：啃食者受
@@ -8497,7 +8518,10 @@ Zombie::~Zombie()
 //0x531990
 bool Zombie::CanBeChilled()
 {
-    if (mBoard->IsRunBossZombie(this))  // @pvz-online: 关底巨型 boss 免疫减速/冰冻（MOD_BUILD 38）
+    // @pvz-online: 关底 boss 免疫减速/冰冻（MOD_BUILD 38；MOD_BUILD 39 批改口径，
+    // 2026-10-11 用户定案「橄榄球 boss 只受减速影响」）——红眼巨人 boss 全断；
+    // 橄榄球 boss 放行减速（chill 生效），冰冻/黄油/定身由 CanBeFrozen 顶栏挡下。
+    if (mBoard->IsRunBossZombie(this) && mZombieType != ZombieType::ZOMBIE_FOOTBALL)
         return false;
 
     if (mZombieType == ZombieType::ZOMBIE_ZAMBONI || IsBobsledTeamWithSled())
@@ -8527,6 +8551,12 @@ bool Zombie::CanBeChilled()
 //0x531A10
 bool Zombie::CanBeFrozen()
 {
+    // @pvz-online: 关底 boss 一律不可冰冻/黄油/定身（MOD_BUILD 38；MOD_BUILD 39 批把
+    // 橄榄球 boss 也纳入——它可被减速但冻不住）。寒冰菇打它 = 只挂减速：HitIceTrap 先
+    // ApplyChill 再走本判定早退，正好合「只受减速」口径。
+    if (mBoard->IsRunBossZombie(this))
+        return false;
+
     if (!CanBeChilled())
         return false;
 

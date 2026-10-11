@@ -67,6 +67,15 @@ ZombieDefinition gZombieDefs[NUM_ZOMBIE_TYPES] = {  //0x69DA80
     // 点数 4/6 = 对应头盔原值；名字复用路障/铁桶本地化串（图鉴页同文案，同桶钢门用法）。
     { ZOMBIE_CONE_NEWSPAPER,    REANIM_ZOMBIE_NEWSPAPER,    4,      99,     10,     1500,   _S("CONEHEAD_ZOMBIE") },
     { ZOMBIE_PAIL_NEWSPAPER,    REANIM_ZOMBIE_NEWSPAPER,    6,      99,     10,     1500,   _S("BUCKETHEAD_ZOMBIE") },
+    // @pvz-online: 铁门植物头 ×5（2026-10-11 防具植物僵尸批）——同闯关名单限定（startingLevel=99，
+    // 非闯关模式在 CanZombieSpawnOnLevel 早退）。点数 = 基准头 + 铁门(4) 相加、超 8 按 8 收
+    //（10 = 巨人档，会滑到"贵到抽不中"区间；8 = 介于橄榄球(7) 与巨人(10) 之间的精英档）。
+    // 名字复用基准头的本地化串（图鉴页同文案，同桶钢门用法）。
+    { ZOMBIE_PEA_HEAD_DOOR,     REANIM_ZOMBIE,              5,      99,     10,     1500,   _S("ZOMBIE") },
+    { ZOMBIE_WALLNUT_HEAD_DOOR, REANIM_ZOMBIE,              8,      99,     10,     1500,   _S("ZOMBIE") },
+    { ZOMBIE_JALAPENO_HEAD_DOOR, REANIM_ZOMBIE,             8,      99,     10,     1500,   _S("ZOMBIE") },
+    { ZOMBIE_GATLING_HEAD_DOOR, REANIM_ZOMBIE,              8,      99,     10,     1500,   _S("ZOMBIE") },
+    { ZOMBIE_SQUASH_HEAD_DOOR,  REANIM_ZOMBIE,              8,      99,     10,     1500,   _S("ZOMBIE") },
 };
 
 static ZombieType gBossZombieList[] = {  //0x69DE1C
@@ -750,6 +759,7 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
         break;
     
     case ZombieType::ZOMBIE_PEA_HEAD:  //0x52369B
+    case ZombieType::ZOMBIE_PEA_HEAD_DOOR:  // @pvz-online: 铁门版走同一分支 + 尾挂盾
     {
         LoadPlainZombieReanim();
         ReanimShowPrefix("anim_hair", RENDER_GROUP_HIDDEN);
@@ -772,10 +782,17 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
 
         mPhaseCounter = 150;
         mVariant = false;
+        if (theType == ZombieType::ZOMBIE_PEA_HEAD_DOOR)
+        {
+            mShieldType = ShieldType::SHIELDTYPE_DOOR;
+            mShieldHealth = 1100;
+            AttachShield();
+        }
         break;
     }
-    
+
     case ZombieType::ZOMBIE_WALLNUT_HEAD:  //0x523719
+    case ZombieType::ZOMBIE_WALLNUT_HEAD_DOOR:  // @pvz-online: 铁门版（坚果头盔 + 铁门盾正交共存）
     {
         LoadPlainZombieReanim();
         ReanimShowPrefix("anim_hair", RENDER_GROUP_HIDDEN);
@@ -794,6 +811,12 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
         mHelmType = HelmType::HELMTYPE_WALLNUT;
         mHelmHealth = 1100;
         mVariant = false;
+        if (theType == ZombieType::ZOMBIE_WALLNUT_HEAD_DOOR)
+        {
+            mShieldType = ShieldType::SHIELDTYPE_DOOR;
+            mShieldHealth = 1100;
+            AttachShield();
+        }
         break;
     }
 
@@ -821,6 +844,7 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
     }
 
     case ZombieType::ZOMBIE_JALAPENO_HEAD:  //0x523977
+    case ZombieType::ZOMBIE_JALAPENO_HEAD_DOOR:  // @pvz-online: 铁门版走同一分支 + 尾挂盾
     {
         LoadPlainZombieReanim();
         ReanimShowPrefix("anim_hair", RENDER_GROUP_HIDDEN);
@@ -840,10 +864,17 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
         mBodyHealth = 500;
         int aDistance = 275 + Rand(175);
         mPhaseCounter = (int)(aDistance / mVelX) * ZOMBIE_LIMP_SPEED_FACTOR;
+        if (theType == ZombieType::ZOMBIE_JALAPENO_HEAD_DOOR)
+        {
+            mShieldType = ShieldType::SHIELDTYPE_DOOR;
+            mShieldHealth = 1100;
+            AttachShield();
+        }
         break;
     }
 
     case ZombieType::ZOMBIE_GATLING_HEAD:  //0x523ABA
+    case ZombieType::ZOMBIE_GATLING_HEAD_DOOR:  // @pvz-online: 铁门版走同一分支 + 尾挂盾
     {
         LoadPlainZombieReanim();
         ReanimShowPrefix("anim_hair", RENDER_GROUP_HIDDEN);
@@ -866,10 +897,17 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
 
         mPhaseCounter = 150;
         mVariant = false;
+        if (theType == ZombieType::ZOMBIE_GATLING_HEAD_DOOR)
+        {
+            mShieldType = ShieldType::SHIELDTYPE_DOOR;
+            mShieldHealth = 1100;
+            AttachShield();
+        }
         break;
     }
 
     case ZombieType::ZOMBIE_SQUASH_HEAD:  //0x523BE7
+    case ZombieType::ZOMBIE_SQUASH_HEAD_DOOR:  // @pvz-online: 铁门版走同一分支 + 尾挂盾
     {
         LoadPlainZombieReanim();
         ReanimShowPrefix("anim_hair", RENDER_GROUP_HIDDEN);
@@ -892,6 +930,12 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
 
         mZombiePhase = ZombiePhase::PHASE_SQUASH_PRE_LAUNCH;
         mVariant = false;
+        if (theType == ZombieType::ZOMBIE_SQUASH_HEAD_DOOR)
+        {
+            mShieldType = ShieldType::SHIELDTYPE_DOOR;
+            mShieldHealth = 1100;
+            AttachShield();
+        }
         break;
     }
     case ZombieType::ZOMBIE_CACHED_POLEVAULTER_WITH_POLE:
@@ -1016,6 +1060,14 @@ void Zombie::SetupReanimLayers(Reanimation* aReanim, ZombieType theZombieType)
     {
         aReanim->AssignRenderGroupToPrefix("anim_bucket", RENDER_GROUP_NORMAL);
         aReanim->AssignRenderGroupToPrefix("anim_hair", RENDER_GROUP_HIDDEN);
+        SetupDoorArms(aReanim, true);
+    }
+    else if (theZombieType == ZombieType::ZOMBIE_PEA_HEAD_DOOR || theZombieType == ZombieType::ZOMBIE_WALLNUT_HEAD_DOOR ||
+        theZombieType == ZombieType::ZOMBIE_JALAPENO_HEAD_DOOR || theZombieType == ZombieType::ZOMBIE_GATLING_HEAD_DOOR ||
+        theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD_DOOR)
+    {
+        // @pvz-online: 铁门植物头 ×5——门臂轨道显示（门本体是 attach 盾，游戏内由
+        // AttachShield 管理；这里是图鉴缓存帧与初始化时的层对齐，同 ZOMBIE_DOOR）。
         SetupDoorArms(aReanim, true);
     }
     else if (theZombieType == ZombieType::ZOMBIE_NEWSPAPER)
@@ -1279,7 +1331,8 @@ void Zombie::PickRandomSpeed()
     {
         mVelX = RandRangeFloat(0.66f, 0.68f);
     }
-    else if (mZombiePhase == ZombiePhase::PHASE_LADDER_CARRYING || mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD)
+    else if (mZombiePhase == ZombiePhase::PHASE_LADDER_CARRYING || mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD ||
+        mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD_DOOR)
     {
         mVelX = RandRangeFloat(0.79f, 0.81f);
     }
@@ -4680,19 +4733,19 @@ void Zombie::UpdateActions()
     {
         UpdateZombieImp();
     }
-    if (mZombieType == ZombieType::ZOMBIE_PEA_HEAD)
+    if (mZombieType == ZombieType::ZOMBIE_PEA_HEAD || mZombieType == ZombieType::ZOMBIE_PEA_HEAD_DOOR)
     {
         UpdateZombiePeaHead();
     }
-    if (mZombieType == ZombieType::ZOMBIE_JALAPENO_HEAD)
+    if (mZombieType == ZombieType::ZOMBIE_JALAPENO_HEAD || mZombieType == ZombieType::ZOMBIE_JALAPENO_HEAD_DOOR)
     {
         UpdateZombieJalapenoHead();
     }
-    if (mZombieType == ZombieType::ZOMBIE_GATLING_HEAD)
+    if (mZombieType == ZombieType::ZOMBIE_GATLING_HEAD || mZombieType == ZombieType::ZOMBIE_GATLING_HEAD_DOOR)
     {
         UpdateZombieGatlingHead();
     }
-    if (mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD)
+    if (mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD || mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD_DOOR)
     {
         UpdateZombieSquashHead();
     }
@@ -6550,10 +6603,12 @@ void Zombie::DrawButter(Graphics* g, const ZombieDrawPosition& theDrawPos)
         aScale = 1.2f;
         break;
     case ZombieType::ZOMBIE_SQUASH_HEAD:
+    case ZombieType::ZOMBIE_SQUASH_HEAD_DOOR:
         aOffsetX += 6.0f;
         aOffsetY -= 9.0f;
         break;
     case ZombieType::ZOMBIE_WALLNUT_HEAD:
+    case ZombieType::ZOMBIE_WALLNUT_HEAD_DOOR:
         aOffsetX -= 6.0f;
         aOffsetY -= 1.0f;
         break;
@@ -7081,7 +7136,7 @@ void Zombie::StartWalkAnim(int theBlendTime)
     else
     {
         int aWalkAnimVariant = Rand(2);
-        if (mZombieType == ZombieType::ZOMBIE_PEA_HEAD)
+        if (mZombieType == ZombieType::ZOMBIE_PEA_HEAD || mZombieType == ZombieType::ZOMBIE_PEA_HEAD_DOOR)
         {
             aWalkAnimVariant = 0;
         }
@@ -8776,29 +8831,42 @@ void Zombie::RiseFromGrave(int theCol, int theRow)
 bool Zombie::IsZombotany(ZombieType theZombieType)
 {
     return
-        theZombieType == ZombieType::ZOMBIE_PEA_HEAD || 
-        theZombieType == ZombieType::ZOMBIE_WALLNUT_HEAD || 
-        theZombieType == ZombieType::ZOMBIE_TALLNUT_HEAD || 
-        theZombieType == ZombieType::ZOMBIE_JALAPENO_HEAD || 
+        theZombieType == ZombieType::ZOMBIE_PEA_HEAD ||
+        theZombieType == ZombieType::ZOMBIE_WALLNUT_HEAD ||
+        theZombieType == ZombieType::ZOMBIE_TALLNUT_HEAD ||
+        theZombieType == ZombieType::ZOMBIE_JALAPENO_HEAD ||
         theZombieType == ZombieType::ZOMBIE_GATLING_HEAD ||
-        theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD;
+        theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD ||
+        // @pvz-online: 铁门植物头 ×5（2026-10-11）：同属 ZomBotany 族——特殊头 reanim、
+        // 掉头/被烧/黄油等全链由此统一覆盖。
+        theZombieType == ZombieType::ZOMBIE_PEA_HEAD_DOOR ||
+        theZombieType == ZombieType::ZOMBIE_WALLNUT_HEAD_DOOR ||
+        theZombieType == ZombieType::ZOMBIE_JALAPENO_HEAD_DOOR ||
+        theZombieType == ZombieType::ZOMBIE_GATLING_HEAD_DOOR ||
+        theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD_DOOR;
 }
 
 //0x5320B0
 bool Zombie::ZombieTypeCanGoInPool(ZombieType theZombieType)
 {
-    return 
-        theZombieType == ZombieType::ZOMBIE_NORMAL || 
-        theZombieType == ZombieType::ZOMBIE_TRAFFIC_CONE || 
-        theZombieType == ZombieType::ZOMBIE_PAIL || 
-        theZombieType == ZombieType::ZOMBIE_FLAG || 
-        theZombieType == ZombieType::ZOMBIE_SNORKEL || 
-        theZombieType == ZombieType::ZOMBIE_DOLPHIN_RIDER || 
-        theZombieType == ZombieType::ZOMBIE_PEA_HEAD || 
-        theZombieType == ZombieType::ZOMBIE_WALLNUT_HEAD || 
-        theZombieType == ZombieType::ZOMBIE_JALAPENO_HEAD || 
-        theZombieType == ZombieType::ZOMBIE_GATLING_HEAD || 
-        theZombieType == ZombieType::ZOMBIE_TALLNUT_HEAD;
+    return
+        theZombieType == ZombieType::ZOMBIE_NORMAL ||
+        theZombieType == ZombieType::ZOMBIE_TRAFFIC_CONE ||
+        theZombieType == ZombieType::ZOMBIE_PAIL ||
+        theZombieType == ZombieType::ZOMBIE_FLAG ||
+        theZombieType == ZombieType::ZOMBIE_SNORKEL ||
+        theZombieType == ZombieType::ZOMBIE_DOLPHIN_RIDER ||
+        theZombieType == ZombieType::ZOMBIE_PEA_HEAD ||
+        theZombieType == ZombieType::ZOMBIE_WALLNUT_HEAD ||
+        theZombieType == ZombieType::ZOMBIE_JALAPENO_HEAD ||
+        theZombieType == ZombieType::ZOMBIE_GATLING_HEAD ||
+        theZombieType == ZombieType::ZOMBIE_TALLNUT_HEAD ||
+        // @pvz-online: 铁门植物头 ×5 并入（2026-10-11）——基准头在列表里的照抄口径；
+        // 窝瓜头基准不在（原版行为），其铁门版同样不并入。
+        theZombieType == ZombieType::ZOMBIE_PEA_HEAD_DOOR ||
+        theZombieType == ZombieType::ZOMBIE_WALLNUT_HEAD_DOOR ||
+        theZombieType == ZombieType::ZOMBIE_JALAPENO_HEAD_DOOR ||
+        theZombieType == ZombieType::ZOMBIE_GATLING_HEAD_DOOR;
 }
 
 bool Zombie::ZombieTypeCanGoOnHighGround(ZombieType theZombieType)
@@ -9061,11 +9129,11 @@ void Zombie::RemoveButter()
         Reanimation* aHeadReanim = mApp->ReanimationTryToGet(mSpecialHeadReanimID);
         if (aHeadReanim)
         {
-            if (mZombieType == ZombieType::ZOMBIE_PEA_HEAD && aHeadReanim->IsAnimPlaying("anim_shooting"))
+            if ((mZombieType == ZombieType::ZOMBIE_PEA_HEAD || mZombieType == ZombieType::ZOMBIE_PEA_HEAD_DOOR) && aHeadReanim->IsAnimPlaying("anim_shooting"))
             {
                 aHeadReanim->mAnimRate = 35.0f;
             }
-            else if (mZombieType == ZombieType::ZOMBIE_GATLING_HEAD && aHeadReanim->IsAnimPlaying("anim_shooting"))
+            else if ((mZombieType == ZombieType::ZOMBIE_GATLING_HEAD || mZombieType == ZombieType::ZOMBIE_GATLING_HEAD_DOOR) && aHeadReanim->IsAnimPlaying("anim_shooting"))
             {
                 aHeadReanim->mAnimRate = 38.0f;
             }
@@ -9253,7 +9321,7 @@ void Zombie::ApplyBurn(int theDirectDamage)
         return;
     }
 
-    if (mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD && !mHasHead)
+    if ((mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD || mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD_DOOR) && !mHasHead)
     {
         mApp->RemoveReanimation(mSpecialHeadReanimID);
         mSpecialHeadReanimID = ReanimationID::REANIMATIONID_NULL;
@@ -9544,7 +9612,7 @@ void Zombie::PlayDeathAnim(unsigned int theDamageFlags)
     {
         DropShield(1U);
     }
-    if (mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD && !mHasHead)
+    if ((mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD || mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD_DOOR) && !mHasHead)
     {
         mApp->RemoveReanimation(mSpecialHeadReanimID);
         mSpecialHeadReanimID = ReanimationID::REANIMATIONID_NULL;
@@ -9714,6 +9782,11 @@ void Zombie::UpdateDeath()
         case ZombieType::ZOMBIE_JALAPENO_HEAD:
         case ZombieType::ZOMBIE_GATLING_HEAD:
         case ZombieType::ZOMBIE_SQUASH_HEAD:
+        case ZombieType::ZOMBIE_PEA_HEAD_DOOR:
+        case ZombieType::ZOMBIE_WALLNUT_HEAD_DOOR:
+        case ZombieType::ZOMBIE_JALAPENO_HEAD_DOOR:
+        case ZombieType::ZOMBIE_GATLING_HEAD_DOOR:
+        case ZombieType::ZOMBIE_SQUASH_HEAD_DOOR:
         case ZombieType::ZOMBIE_DUCKY_TUBE:
             if (aBodyReanim->IsAnimPlaying("anim_superlongdeath"))
             {

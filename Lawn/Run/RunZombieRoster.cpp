@@ -14,8 +14,10 @@
 // 此后各格与屋顶基线同步收录。
 // 2026-10-05：新增路障报纸/桶报纸（头盔+报纸合成）——同桶钢门自场景 1 sub4 起收录，
 // 此后各格与屋顶基线同步。
+// 2026-10-11：新增铁门植物头五种（植物头 + 铁门盾 1100）——随植物僵尸开关投放
+//（同现有五种基准头，见 RunZombieAllowedOnLevel 的 OR 行），名单表本体不动。
 
-// 位图取位：位 = ZombieType 的枚举值（最大 36，一个 64 位整数装得下）。
+// 位图取位：位 = ZombieType 的枚举值（最大 41，一个 64 位整数装得下）。
 #define RZ(t) (1ULL << (int)ZombieType::t)
 
 // 场景 5（屋顶）基线：全名单去掉潜水/海豚（屋顶没有水，行过滤永远刷不出）与
@@ -77,13 +79,14 @@ bool RunZombieAllowedOnLevel(ZombieType theZombieType, int theRunLevelIndex, boo
 	unsigned long long aMask = RUN_ZOMBIE_ROSTER[aIndex / RunState::RUN_LEVELS_PER_SCENE][aIndex % RunState::RUN_LEVELS_PER_SCENE];
 
 	// @pvz-online: 植物僵尸开关（2026-10-09，批 C 的 mZombotany 在这里消费，MOD_BUILD 35）：
-	// 开了就把五种 ZomBotany OR 进当关名单——查询层放行、表本体不动，关 = 逐位复原
-	//（波表与关前一致）。五种 def pickWeight 全 >0；原版 ZomBotany 关卡已裁、它们
-	// startingLevel=99，除这里外没有入口。行/场硬约束照旧在名单之外生效（ZomBotany
-	// 用普僵身体、无水生属性，天然只落陆行）。
+	// 开了就把基准五种 ZomBotany 及其铁门版（2026-10-11 加入，共十种）OR 进当关名单——
+	// 查询层放行、表本体不动，关 = 逐位复原（波表与关前一致）。十种 def pickWeight 全 >0；
+	// 原版 ZomBotany 关卡已裁、它们 startingLevel=99，除这里外没有入口。行/场硬约束照旧在
+	// 名单之外生效（ZomBotany 用普僵身体、无水生属性，天然只落陆行）。
 	if (theZombotany)
 	{
-		aMask |= RZ(ZOMBIE_PEA_HEAD) | RZ(ZOMBIE_WALLNUT_HEAD) | RZ(ZOMBIE_JALAPENO_HEAD) | RZ(ZOMBIE_GATLING_HEAD) | RZ(ZOMBIE_SQUASH_HEAD);
+		aMask |= RZ(ZOMBIE_PEA_HEAD) | RZ(ZOMBIE_WALLNUT_HEAD) | RZ(ZOMBIE_JALAPENO_HEAD) | RZ(ZOMBIE_GATLING_HEAD) | RZ(ZOMBIE_SQUASH_HEAD) |
+			RZ(ZOMBIE_PEA_HEAD_DOOR) | RZ(ZOMBIE_WALLNUT_HEAD_DOOR) | RZ(ZOMBIE_JALAPENO_HEAD_DOOR) | RZ(ZOMBIE_GATLING_HEAD_DOOR) | RZ(ZOMBIE_SQUASH_HEAD_DOOR);
 	}
 
 	return (aMask & (1ULL << aType)) != 0ULL;
@@ -116,6 +119,11 @@ static const int RUN_ZOMBIE_PAIL_NEWSPAPER_WEIGHT = 500;
 static const int RUN_ZOMBIE_WALLNUT_HEAD_WEIGHT = 500;
 static const int RUN_ZOMBIE_PLANT_HEAD_LOW_WEIGHT = 250;
 
+// @pvz-online: 铁门植物头统一四分之一档（2026-10-11 防具植物僵尸批）：植物头 + 门盾
+// 1100 的双护具精英，是植物头里最"贵"的形态，出现得看得见但不刷屏；五样同一个常数，
+// 再调只动这一个。
+static const int RUN_ZOMBIE_PLANT_HEAD_DOOR_WEIGHT = 250;
+
 int RunZombieWeight(ZombieType theZombieType)
 {
 	if (GetZombieDefinition(theZombieType).mPickWeight <= 0)
@@ -146,6 +154,12 @@ int RunZombieWeight(ZombieType theZombieType)
 		theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD)
 	{
 		return RUN_ZOMBIE_PLANT_HEAD_LOW_WEIGHT;
+	}
+	if (theZombieType == ZombieType::ZOMBIE_PEA_HEAD_DOOR || theZombieType == ZombieType::ZOMBIE_WALLNUT_HEAD_DOOR ||
+		theZombieType == ZombieType::ZOMBIE_JALAPENO_HEAD_DOOR || theZombieType == ZombieType::ZOMBIE_GATLING_HEAD_DOOR ||
+		theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD_DOOR)
+	{
+		return RUN_ZOMBIE_PLANT_HEAD_DOOR_WEIGHT;
 	}
 	return RUN_ZOMBIE_PICK_WEIGHT;
 }

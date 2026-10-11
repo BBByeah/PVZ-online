@@ -11752,8 +11752,9 @@ int Board::NumberZombiesInWave(int theWaveIndex)
 
 bool Board::IsZombieTypeSpawnedOnly(ZombieType theZombieType)
 {
-	// @pvz-online: 桶钢门/路障报纸/桶报纸只走闯关名单投放——生存模式的随机给怪池不能抽到它们。
-	return (theZombieType == ZombieType::ZOMBIE_BACKUP_DANCER || theZombieType == ZombieType::ZOMBIE_BOBSLED || theZombieType == ZombieType::ZOMBIE_IMP || theZombieType == ZombieType::ZOMBIE_PAIL_DOOR || theZombieType == ZombieType::ZOMBIE_CONE_NEWSPAPER || theZombieType == ZombieType::ZOMBIE_PAIL_NEWSPAPER);
+	// @pvz-online: 桶钢门/路障报纸/桶报纸/铁门植物头五种只走闯关名单投放——生存模式的随机给怪池不能抽到它们。
+	return (theZombieType == ZombieType::ZOMBIE_BACKUP_DANCER || theZombieType == ZombieType::ZOMBIE_BOBSLED || theZombieType == ZombieType::ZOMBIE_IMP || theZombieType == ZombieType::ZOMBIE_PAIL_DOOR || theZombieType == ZombieType::ZOMBIE_CONE_NEWSPAPER || theZombieType == ZombieType::ZOMBIE_PAIL_NEWSPAPER ||
+		theZombieType == ZombieType::ZOMBIE_PEA_HEAD_DOOR || theZombieType == ZombieType::ZOMBIE_WALLNUT_HEAD_DOOR || theZombieType == ZombieType::ZOMBIE_JALAPENO_HEAD_DOOR || theZombieType == ZombieType::ZOMBIE_GATLING_HEAD_DOOR || theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD_DOOR);
 }
 
 bool Board::CheckForPostGameAchievements()

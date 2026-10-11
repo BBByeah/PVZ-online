@@ -1391,6 +1391,14 @@ enum ZombieType
     ZOMBIE_PAIL_DOOR,  // @pvz-online: 桶钢门（铁桶+铁门合成，双护具共存）
     ZOMBIE_CONE_NEWSPAPER,  // @pvz-online: 路障报纸（路障头盔+报纸盾合成）
     ZOMBIE_PAIL_NEWSPAPER,  // @pvz-online: 桶报纸（铁桶头盔+报纸盾合成）
+    // @pvz-online: 铁门植物头 ×5（2026-10-11 防具植物僵尸批）——五种植物头各配一面
+    // 铁门盾（SHIELDTYPE_DOOR 1100）。盾是独立 attach（身体 reanim 之外），与头位
+    // 的植物头 reanim 不冲突；同桶钢门口径闯关名单限定（def startingLevel=99）。
+    ZOMBIE_PEA_HEAD_DOOR,       // 豌豆头+铁门
+    ZOMBIE_WALLNUT_HEAD_DOOR,   // 坚果头+铁门
+    ZOMBIE_JALAPENO_HEAD_DOOR,  // 辣椒头+铁门
+    ZOMBIE_GATLING_HEAD_DOOR,   // 机枪头+铁门
+    ZOMBIE_SQUASH_HEAD_DOOR,    // 窝瓜头+铁门
     /* @Patoke: replanted/console shenanigans
     ZOMBIE_TARGET,
     ZOMBIE_TRASH_CAN,

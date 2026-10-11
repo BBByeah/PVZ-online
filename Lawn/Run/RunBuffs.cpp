@@ -229,16 +229,17 @@ static const RunPlantUpgradeDef gRunPlantUpgradeDefs[RUN_PLANT_UPGRADE_COUNT] =
 {
 	// 末列 = 稀有度档位（权重批 2026-10-09 填档，docs/06 §8.2.2/§8.7）。
 	// 质变口径批 2026-10-09 深夜重定（用户拍板：3★ = 单条质变、纯数值放大不算；docs/07）：
-	// 3★：寒冰射手5/大喷菇10/魅惑菇12/寒冰菇14/毁灭菇15/玉米投手34；
+	// 2026-10-11 晚变更：毁灭菇15 降 2★（用户令）；魅惑菇12 恢复进池（见下魅惑批注）。
+	// 3★：寒冰射手5/大喷菇10/魅惑菇12/寒冰菇14/玉米投手34；
 	// 1★：墓碑11/卷心菜32/咖啡豆35/金盏花38/吸金磁45（金盏花/吸金磁冻结——钱无用途，§8.3）
 	//     + 路灯花25（审计批 2026-10-09 降档：雾关外死格）
 	// 本批降 2★：豌豆0/双发7/三线18/西瓜39/机枪40（小喷菇8 夜批已降）。
 	// 审计批 2026-10-09 删条不进池：睡莲16/花盆33（血量行对 300 血底子 ≈ 无感，见
 	// RunPlantUpgradeInPool）——表行保留供存量档，池 56→54。
 	// 经济批 2026-10-09 同日删条：墓碑11（效用窄，用户令删）——池 54→53。
-	// 魅惑批 2026-10-11：魅惑菇12「Devotion」暂时下架（用户令：无上限连锁倒戈太强）——
-	// 行与 3★ 档位原样保留（id 稳定、旧档层数不动），不再进抽取池，效果块见
-	// Zombie.cpp::EatZombie（恢复 = 移除 InPool 排除 + 还原该块，docs/03 §5.73）。
+	// 魅惑批 2026-10-11：魅惑菇12「Devotion」曾当晚短暂下架（无上限连锁倒戈太强），
+	// 同晚用户令恢复——附加负面「魅惑菇种植冷却 ×6」作代价（挂点 Plant::GetRefreshTime，
+	// 750cs→4500cs）。连锁效果块在 Zombie.cpp::EatZombie，docs/03 §5.78。
 	{ SeedType::SEED_PEASHOOTER,   "Pea Volley",   "豌豆射手每次多发 1 颗\n（每层）",   "Peashooter fires 1 extra pea per shot\n(per stack)", 0.00f, 0, false, RUN_UPGRADE_KIND_SHOTCOUNT, 2 },
 	{ SeedType::SEED_SUNFLOWER,    "Harvest",      "种下立即产 1 次阳光\n每轮 50% 概率多产 1 阳光", "Yields sun once when planted\n50% chance of 1 extra sun per cycle", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_CHERRYBOMB,   "Wide Blast",   "樱桃炸弹爆炸范围 +50%\n（每层）",   "Cherry Bomb blast radius +50%\n(per stack)",        0.50f, 0, false, RUN_UPGRADE_KIND_EFFECT, 2 },
@@ -251,10 +252,10 @@ static const RunPlantUpgradeDef gRunPlantUpgradeDefs[RUN_PLANT_UPGRADE_COUNT] =
 	{ SeedType::SEED_SUNSHROOM,    "Bright Cap",   "产阳光间隔逐层 ×0.75",              "Sun production interval ×0.75/stack",                -0.25f, 2, true, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_FUMESHROOM,   "Fume Rush",    "攻击间隔 ×0.5\n（每层）",           "Attack interval ×0.5\n(per stack)",                 -0.50f, 0, true, RUN_UPGRADE_KIND_RHYTHM, 3 },
 	{ SeedType::SEED_GRAVEBUSTER,  "Quick Dig",    "吞掉墓碑额外产 25 阳光\n（每层）",  "Grave eaten yields +25 sun\n(per stack)",            0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 1 },
-	{ SeedType::SEED_HYPNOSHROOM,  "Devotion",     "被魅惑僵尸咬到的僵尸也变友军",      "Zombies bitten by a hypnotized zombie turn friendly", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
+	{ SeedType::SEED_HYPNOSHROOM,  "Devotion",     "被魅惑僵尸咬到的僵尸也变友军\n（魅惑菇冷却 ×6）", "Zombies bitten by a hypnotized zombie turn friendly\n(Hypno-shroom cooldown ×6)", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
 	{ SeedType::SEED_SCAREDYSHROOM, "Bravery",     "敌人贴近时不再缩头",                "No longer hides when zombies get close",             0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_ICESHROOM,    "Deep Freeze",  "全场冰冻 +6 秒\n（每层）",          "Board freeze +6 sec\n(per stack)",                   0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 3 },
-	{ SeedType::SEED_DOOMSHROOM,   "Annihilation", "爆炸造成 6000 伤害",                "Blast deals 6000 damage",                            0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
+	{ SeedType::SEED_DOOMSHROOM,   "Annihilation", "爆炸造成 6000 伤害",                "Blast deals 6000 damage",                            0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_LILYPAD,      "Tough Pad",    "血量 +150%\n（每层）",              "Health +150%\n(per stack)",                          1.50f, 2, false, RUN_UPGRADE_KIND_HEALTH, 2 },
 	{ SeedType::SEED_SQUASH,       "Heavy Squash", "砸击次数 +2\n（每层）",             "Smashes 2 extra times\n(per stack)",                 0.00f, 0, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_THREEPEATER,  "Triple Volley", "每条道多发 1 颗",                  "1 extra pea per lane",                               0.00f, 1, false, RUN_UPGRADE_KIND_SHOTCOUNT, 2 },
@@ -491,13 +492,12 @@ int GetRunChoiceMaxStacks(int theId)
 // 层数照常生效、id 空间与检查点一字不动——只是不再进抽取池。
 // 经济批 2026-10-09 追加：墓碑吞噬者「Quick Dig」删条（效用窄，用户令删）——处置同上，
 // 挂点（Plant.cpp::UpdateGraveBuster）保留供存量档。
-// 魅惑批 2026-10-11 追加：魅惑菇「Devotion」暂时下架（无上限连锁倒戈太强，用户令下架）——
-// 行保留供索引与旧档层数，效果挂点已从 Zombie.cpp::EatZombie 摘除（恢复 = 移除本条排除
-// + 还原该效果块，见 docs/03 §5.73）。
+// 魅惑批 2026-10-11 追加：魅惑菇「Devotion」曾短暂下架（无上限连锁倒戈太强），当晚即
+// 恢复进池——负面代价「魅惑菇种植冷却 ×6」见 Plant::GetRefreshTime（docs/03 §5.78）。
 bool RunPlantUpgradeInPool(SeedType thePlant)
 {
 	return thePlant != SeedType::SEED_FLOWERPOT && thePlant != SeedType::SEED_LILYPAD
-		&& thePlant != SeedType::SEED_GRAVEBUSTER && thePlant != SeedType::SEED_HYPNOSHROOM;
+		&& thePlant != SeedType::SEED_GRAVEBUSTER;
 }
 
 // 稀有度档位（权重批 2026-10-09，docs/06 §8.7）：全局/单株两类都查 mRarity。

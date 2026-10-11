@@ -6019,16 +6019,19 @@ int Plant::GetRefreshTime(SeedType theSeedType, SeedType theImitaterType)
         return 0;
     }
 
+    // @pvz-online: 「Devotion」（魅惑菇老表 #12）负面：拥有该词条时魅惑菇卡冷却 ×6
+    // （2026-10-11 晚恢复词条时加，750cs→4500cs）——模仿者复制的魅惑菇同乘。
+    SeedType aRealType = theSeedType;
     if (theSeedType == SeedType::SEED_IMITATER && theImitaterType != SeedType::SEED_NONE)
     {
-        const PlantDefinition& aPlantDef = GetPlantDefinition(theImitaterType);
-        return aPlantDef.mRefreshTime;
+        aRealType = theImitaterType;
     }
-    else
+    int aRefreshTime = GetPlantDefinition(aRealType).mRefreshTime;
+    if (aRealType == SeedType::SEED_HYPNOSHROOM && gLawnApp->RunPlantUpgradeCount(SeedType::SEED_HYPNOSHROOM) > 0)
     {
-        const PlantDefinition& aPlantDef = GetPlantDefinition(theSeedType);
-        return aPlantDef.mRefreshTime;
+        aRefreshTime *= 6;
     }
+    return aRefreshTime;
 }
 
 //0x467E60

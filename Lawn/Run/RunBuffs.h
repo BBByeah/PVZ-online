@@ -250,7 +250,7 @@ enum RunPlantBuff2Id
 	RUN_BUFF2_ROLLING,		// #39 西瓜投手：滚爆——落地后向前滚 1 格并再炸一次（cap1，1★）
 	RUN_BUFF2_FIREPEA,		// #40 机枪射手：火豆——子弹变火豆：伤害翻倍（原版火豆 40 伤，评审文案「+50%」低估，docs/07）、命中解除冰缓（cap1，2★）
 	RUN_BUFF2_LEGACY,		// #41 双子向日葵：遗泽——被吃掉时产 1 次阳光（cap1，2★）
-	RUN_BUFF2_ROCKFLESH,	// #42 忧郁菇：耐砸——血量变为 1000、每次被击固定扣 200（cap1，1★）
+	RUN_BUFF2_ROCKFLESH,	// #42 忧郁菇：耐砸——血量变为 500、每次被击固定扣 50（cap1，1★；2026-10-11 由 1000/200 改，硬吃次数 5→10）
 	RUN_BUFF2_DEEPFREEZE,	// #44 冰西瓜：冰封——+20%/层 概率冻结命中者 2 秒（cap3，3★）
 	RUN_BUFF2_GOLDTOUCH,	// #45 吸金磁：金石——+25%/层 概率银币升金币（cap3，1★；钱用途待定）
 	RUN_BUFF2_TWINCOB,		// #47 玉米加农炮：双联装——每轮多发 1 枚（cap1，1★）

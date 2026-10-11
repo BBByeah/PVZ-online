@@ -2212,8 +2212,8 @@ void Zombie::UpdateZombieGargantuar()
                     else if (aPlant->mSeedType == SeedType::SEED_GLOOMSHROOM && mApp->RunPlantBuff2Count(SeedType::SEED_GLOOMSHROOM) > 0)
                     {
                         // @pvz-online: 第二 buff 批 3「耐砸」（忧郁菇，docs/06 §8.6 #42）：巨人砸
-                        // 每次固定 -200（与被啃同额），砸空才没——像坚果耐砸分支一样不秒杀。
-                        aPlant->mPlantHealth -= 200;
+                        // 每次固定 -50（与被啃同额；2026-10-11 由 -200 改），砸空才没——像坚果耐砸分支一样不秒杀。
+                        aPlant->mPlantHealth -= 50;
                         if (aPlant->mPlantHealth <= 0)
                         {
                             SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
@@ -2278,8 +2278,8 @@ void Zombie::UpdateZombieGargantuar()
                 }
                 else if (aPlant->mSeedType == SeedType::SEED_GLOOMSHROOM && mApp->RunPlantBuff2Count(SeedType::SEED_GLOOMSHROOM) > 0)
                 {
-                    // @pvz-online: 第二 buff 批 3「耐砸」（忧郁菇）——同上一份（DO_FIX_BUGS 版）的分支。
-                    aPlant->mPlantHealth -= 200;
+                    // @pvz-online: 第二 buff 批 3「耐砸」（忧郁菇）——同上一份（DO_FIX_BUGS 版）的分支（每次固定 -50）。
+                    aPlant->mPlantHealth -= 50;
                     if (aPlant->mPlantHealth <= 0)
                     {
                         SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
@@ -7445,11 +7445,11 @@ void Zombie::EatPlant(Plant* thePlant)
     }
 
     thePlant->mPlantHealth -= aBiteDamage;
-    // @pvz-online: 第二 buff 批 3「耐砸」（忧郁菇，docs/06 §8.6 #42）：被击固定扣 200/口
-    //（1000 血 = 5 口；1★）。巨人砸分支同额 -200/砸（见 Zombie::Update 的 Squish 分支）。
+    // @pvz-online: 第二 buff 批 3「耐砸」（忧郁菇，docs/06 §8.6 #42）：被击固定扣 50/口
+    //（500 血 = 10 口；1★；2026-10-11 由 200 改）。巨人砸分支同额 -50/砸（见 Zombie::Update 的 Squish 分支）。
     if (thePlant->mSeedType == SeedType::SEED_GLOOMSHROOM && mApp->RunPlantBuff2Count(SeedType::SEED_GLOOMSHROOM) > 0)
     {
-        thePlant->mPlantHealth -= (200 - aBiteDamage);	// 上面已扣 aBiteDamage，补差到固定 200
+        thePlant->mPlantHealth -= (50 - aBiteDamage);	// 上面已扣 aBiteDamage，补差到固定 50
     }
     thePlant->mRecentlyEatenCountdown = 50;
     // @pvz-online: 第二 buff「荆棘之壁」（坚果墙 #3，docs/06 §8.6，2★ cap2）：啃食者受

@@ -350,7 +350,7 @@ static const RunPlantUpgradeDef gRunPlantBuff2Defs[RUN_PLANT_BUFF2_COUNT] =
 	{ SeedType::SEED_MELONPULT,     "Rolling Burst", "滚爆", "落地后向前滚 1 格\n并再炸一次",         "Rolls 1 tile and bursts again",                       0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
 	{ SeedType::SEED_GATLINGPEA,    "Fire Peas", "火豆",     "子弹变火豆：伤害翻倍\n命中解除冰冻减速", "Peas become fire peas: double damage\nRemoves chill on hit", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_TWINSUNFLOWER, "Legacy", "遗泽",        "被吃掉时产 1 次阳光",                  "Yields sun once when eaten",                          0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_GLOOMSHROOM,   "Rock Flesh", "耐砸",    "血量变为 1000\n每次被击固定扣 200",     "Health becomes 1000\nTakes flat 200 per hit",         0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_GLOOMSHROOM,   "Rock Flesh", "耐砸",    "血量变为 500\n每次被击固定扣 50",      "Health becomes 500\nTakes flat 50 per hit",          0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
 	{ SeedType::SEED_WINTERMELON,   "Deep Freeze", "冰封",   "+20% 概率冻结命中者 2 秒\n（每层）",    "+20% chance to freeze on hit\nfor 2 sec (per stack)", 0.00f, 3, false, RUN_UPGRADE_KIND_EFFECT, 3 },
 	{ SeedType::SEED_GOLD_MAGNET,   "Gold Touch", "金石",    "+25% 概率银币升金币\n（每层）",         "+25% chance silver becomes gold\n(per stack)",        0.00f, 3, false, RUN_UPGRADE_KIND_EFFECT, 1 },
 	{ SeedType::SEED_COBCANNON,     "Twin Cob", "双联装",      "每轮多发 1 枚",                        "Fires 1 extra cob per volley",                        0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },

@@ -106,6 +106,9 @@
 // 2026-10-10 全局降权（用户令「1 2星全局buff权重降低至原来一半」，见 docs/07 条目）：
 //   1★/2★ 全局条在 k/e 之后再乘 0.5（新常量 RUN_GLOBAL_LOWTIER_HALF_PERMILLE = 500，
 //   作用在最终权重上）；3★「排山倒海」不动。全局 9 条权重和 303 → 155（当前基值口径）。
+// 2026-10-11 急袭上限 4 层（用户令「攻速buff上限改为四层」，见 docs/07 同日条目）：
+//   急袭 mMaxStacks 0（无限）→ 4——×0.75 叠乘满层 ≈ ×3.16 攻速；已叠超 4 层的旧档
+//   保留层数不追溯（§2.2 口径），文案「至多 4 层」由 GetRunChoiceDesc 机械追加。
 static const RunBuffDef gRunBuffDefs[RUN_BUFF_COUNT] =
 {
 	// 末列 = 稀有度档位（权重批 2026-10-09 填档，docs/06 §8.2.1/§8.7；
@@ -115,7 +118,7 @@ static const RunBuffDef gRunBuffDefs[RUN_BUFF_COUNT] =
 	{ "Firepower", "火力",    "所有子弹伤害 +30%",      "All projectile damage +30%",       0.30f,  0, 0, false, 2 },
 	{ "Deep Roots", "扎根",   "所有植物血量 +75%",      "All plant health +75%",            0.75f,  0, 0, false, 1 },
 	{ "Abundance", "丰饶",    "产阳光间隔逐层 ×0.75",   "Sun production interval ×0.75/stack", -0.25f, 0, 4, true, 2 },
-	{ "Swift Strikes", "急袭","植物攻击间隔逐层 ×0.75", "Plant attack interval ×0.75/stack",-0.25f,  0, 0, true, 2 },
+	{ "Swift Strikes", "急袭","植物攻击间隔逐层 ×0.75", "Plant attack interval ×0.75/stack",-0.25f,  0, 4, true, 2 },
 	{ "Quick Seeds", "速种",  "种植冷却逐层 ×0.8",      "Planting cooldown ×0.8/stack",    -0.20f,  0, 0, true, 2 },
 	{ "Skyfall", "天降",      "夜晚也降阳光，降阳光速率 ×2", "Sky sun also falls at night, 2x drop rate", -0.5f, 0, 1, false, 1 },
 	{ "Demolition", "爆破",   "一次性植物伤害 +60%",    "Instant plant damage +60%",        0.60f,  0, 0, false, 1 },

@@ -105,6 +105,24 @@ RunState::RunState()
 	StartNew(0);
 }
 
+// 无尽档「开局全植物」口径（2026-10-11 用户令，见 BeginStartPicks/StartNew）：把 0..47
+// 常规植物补齐进卡池——模仿者不给（与词条候选同口径，它要先指定模仿对象）。StartNew 用它
+// 给新局一次铺满；Load 用它把「两株起家」年代存下的旧无尽档在读档时一次补齐（同一个
+// 无尽口径，不追溯非无尽档）。
+static void FillPoolWithAllPlants(std::vector<SeedType>& thePool)
+{
+	bool aOwned[NUM_SEEDS_IN_CHOOSER];
+	memset(aOwned, 0, sizeof(aOwned));
+	for (size_t i = 0; i < thePool.size(); i++)
+	{
+		if (thePool[i] >= 0 && thePool[i] < NUM_SEEDS_IN_CHOOSER) aOwned[thePool[i]] = true;
+	}
+	for (int i = 0; i < (int)SeedType::SEED_IMITATER; i++)
+	{
+		if (!aOwned[i]) thePool.push_back((SeedType)i);
+	}
+}
+
 void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag)
 {
 	mRunSeed = theRunSeed;
@@ -120,8 +138,18 @@ void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theR
 	mBossFlag = (theRunMode != RUN_MODE_ENDLESS && theBossFlag != 0) ? 1 : 0;
 	mLevelIndex = 0;
 	mPool.clear();
-	mPool.push_back(SeedType::SEED_SUNFLOWER);
-	mPool.push_back(SeedType::SEED_PEASHOOTER);
+	if (theRunMode == RUN_MODE_ENDLESS)
+	{
+		// 无尽档开局就全植物（2026-10-11 用户令「开局全植物」）：0..47 常规植物一次给满。
+		// 卡池 48 > 10 格，往后每关都过原版选卡界面挑 10 株上场；CanOfferPlantPick 恒假，
+		// 植物三选一屏自然不再发。
+		FillPoolWithAllPlants(mPool);
+	}
+	else
+	{
+		mPool.push_back(SeedType::SEED_SUNFLOWER);
+		mPool.push_back(SeedType::SEED_PEASHOOTER);
+	}
 	mBuffs.clear();
 	memset(mFailCounts, 0, sizeof(mFailCounts));
 	mMowerUsedRows = 0;
@@ -145,8 +173,10 @@ void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theR
 
 // 一局的两处选卡口：开局先挑四株 + 两个增益（进第 1 关前手里就有 6 株；2026-10-03 多人
 // 实测反馈"开局难度略高"后用户定案加厚，原来只挑两株）。批十 2026-10-05：快速版 5 关全是
-// 每场景收尾的难关，开局再多给两株两增益（4+2 株、2+2 增益）。每过一关的奖励屏见
-// BeginLevelEndPicks。屏的先后由 IsPlantPick 决定：先植物屏、再增益屏。
+// 每场景收尾的难关，开局再多给两株两增益（4+2 株、2+2 增益）。2026-10-11 无尽档（用户令
+// 「开局全植物，第一关前选四buff，之后每关选2」）：开局增益同样 2+2；植物屏因卡池开局
+// 即满（StartNew 给全 48 株）自动归零，这一档开局的四次选卡全是增益。
+// 每过一关的奖励屏见 BeginLevelEndPicks。屏的先后由 IsPlantPick 决定：先植物屏、再增益屏。
 // 卡池拿满 48 株后植物屏没得抽——那之后只发增益屏。
 void RunState::BeginStartPicks()
 {
@@ -156,7 +186,7 @@ void RunState::BeginStartPicks()
 	// 候选去重批：冷却集只在一批屏内滚动（上一屏 → 下一屏），换批即清。
 	mPickSeenBuffCount = 0;
 	mPickCooldownBuffCount = 0;
-	int aExtra = (mMode == RUN_MODE_QUICK) ? 2 : 0;
+	int aExtra = (mMode == RUN_MODE_QUICK || mMode == RUN_MODE_ENDLESS) ? 2 : 0;
 	mPendingPlantPicks = CanOfferPlantPick() ? 4 + aExtra : 0;
 	mPendingBuffPicks = 2 + aExtra;
 	TodLog("[run] start picks: %d plant(s) + %d buff(s) (mode %d)", mPendingPlantPicks, mPendingBuffPicks, mMode);
@@ -173,7 +203,7 @@ void RunState::BeginLevelEndPicks()
 
 	// 每关后的植物奖励数（2026-10-09 定案）：完整 2 株/关不变、普通 6→3、快速 10→4——
 	// 大幅收紧让植物保持稀缺（一局拿不满 48 株），单株增益候选池不被一口气铺宽。
-	// 植物候选抽干时自动只发增益屏（见 CanOfferPlantPick）。
+	// 植物候选抽干时自动只发增益屏（见 CanOfferPlantPick）——无尽档开局池就满，这笔恒不发。
 	static const int aPlants[] = { 2, 3, 4 };
 	int aPerLevel = (mMode >= RUN_MODE_FULL && mMode <= RUN_MODE_QUICK) ? aPlants[mMode] : 2;
 	mPendingPlantPicks = CanOfferPlantPick() ? aPerLevel : 0;
@@ -1002,6 +1032,9 @@ bool RunState::Load(int theProfileId)
 	memcpy(mFailCounts, aFailCounts, sizeof(mFailCounts));
 	mMowerUsedRows = aMowerUsedRows;
 	mPool = aPool;
+	// 无尽档读档补齐全植物（2026-10-11 开局全植物批）：老档是「两株起家」年代存的，
+	// 续档时一次补齐到与开新局同一口径（非无尽档不追溯，池子原样）。
+	if (mMode == RUN_MODE_ENDLESS) FillPoolWithAllPlants(mPool);
 	mBuffs = aBuffs;
 	// 检查点里没有"补发追赶"这回事（它只活在联机对齐的那一刻），读进来一律清掉。
 	mCatchUpLevel = -1;

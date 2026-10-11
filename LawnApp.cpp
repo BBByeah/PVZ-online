@@ -1915,6 +1915,7 @@ void LawnApp::StartRun(int theRunMode, int theRunDiff, int theRunScale, int theR
 		mRunState->mRunSeed, mRunState->mMode, mRunState->mDiff,
 		mRunState->mScale, mRunState->mTempo, mRunState->mZombotany, mRunState->mEndlessScene, mRunState->mBossFlag);
 	// 手里的两株不够开局：先挑四株 + 两个增益（共六次三选一），选完 RunPickChosen 才进第 1 关。
+	// 无尽档不挑植物（StartNew 已给满卡池）：开屏是四个增益 + 原版选卡界面挑 10 株。
 	mRunState->BeginStartPicks();
 }
 

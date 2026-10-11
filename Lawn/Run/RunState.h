@@ -112,7 +112,7 @@ public:
 	// 随 START_LEVEL 广播（MOD_BUILD 37）与检查点 v12 走；三条进路（建档/线传/读档）都验 0..4。
 	int							mEndlessScene;
 	int							mLevelIndex;	// 0..(关数-1) = 当前（或待打的）关序号；>= 关数 = 已通关（关数见 GetLevelCount）
-	std::vector<SeedType>		mPool;			// 这一局的卡池（按加入顺序；起始 = 向日葵 + 豌豆射手）
+	std::vector<SeedType>		mPool;			// 这一局的卡池（按加入顺序；起始 = 向日葵 + 豌豆射手；无尽档起始 = 全部 48 株，2026-10-11）
 	std::vector<BuffStack>		mBuffs;			// 这一局拿到的 buff（同名可叠加）
 	int							mFailCounts[RUN_LEVEL_COUNT];	// 每关失败次数（首版只存不用，平衡阶段再定惩罚）
 	// @pvz-online: 末位推车的"整局一次性"记账：bit = 行号。联机闯关里末位玩家的哪几行推车
@@ -138,7 +138,8 @@ public:
 	RunState();
 
 	// 全新一局：卡池回到两株、失败计数清零、从第 1 关开打。
-	// 无尽档（theRunMode == RUN_MODE_ENDLESS）：theEndlessScene 锁场景（0..4，越界钳 0）。
+	// 无尽档（theRunMode == RUN_MODE_ENDLESS）：theEndlessScene 锁场景（0..4，越界钳 0）；
+	// 卡池直接给满全部 48 株常规植物（2026-10-11 用户令「开局全植物」——模仿者照旧不给）。
 	void				StartNew(int theRunSeed, int theRunMode = RUN_MODE_FULL, int theRunDiff = RUN_DIFF_STD,
 							int theRunScale = RUN_SCALE_STD, int theRunTempo = RUN_TEMPO_STD, int theZombotany = 0,
 							int theEndlessScene = 0, int theBossFlag = 0);
@@ -160,9 +161,10 @@ public:
 	static int			TempoPermilleFor(int theRunTempo);
 
 	// 该选植物 / 该选 buff 了（一局开始时先挑四株 + 两个增益——进第 1 关前手里就有 6 株；
-	// 快速版开局加厚成六株 + 四个增益，批十 2026-10-05）。每过一关再挑一批：植物按时长档
+	// 快速版开局加厚成六株 + 四个增益，批十 2026-10-05；无尽档开局只发四个增益，2026-10-11
+	// ——卡池开局即满、植物屏自动归零）。每过一关再挑一批：植物按时长档
 	// 倍乘（完整 2 / 普通 6 / 快速 10 株），增益每关收尾的发屏数按时长档定（2026-10-08
-	// 玩家反馈批：普通固定 3、快速 3/4/5/5、完整保持 3→7 封顶，见 BeginLevelEndPicks）。
+	// 玩家反馈批：普通固定 3、快速 3/4/5/5、完整保持 3→7 封顶、无尽固定 2）。
 	// 只负责"欠几屏"，候选由 RollChoices 现抽。
 	// 卡池拿满 48 株时植物屏没得抽，这两处会自动少发/不发植物屏（见 CanOfferPlantPick）。
 	void				BeginStartPicks();

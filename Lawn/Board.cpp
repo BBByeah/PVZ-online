@@ -7738,6 +7738,35 @@ void Board::DrawHouseDoorTop(Graphics* g)
 // GOTY @Patoke: 0x41A700
 void Board::DrawLevel(Graphics* g)
 {
+	// @pvz-online: 无尽档显示当前关卡数（2026-10-12 用户令）：原行画 "LEVEL 3-1"（引擎原型
+	// 关号——无尽锁场景后只在 5 个原型里循环，看不出打到第几关）。无尽档整行改为「第 n 关」
+	//（n = 闯关关序号，1 起；补发追赶期间 = 目标关，同 GetPlayingLevelIndex 口径）。
+	// 中文档宽字符直绘、英文档回落位图（同 AwardScreen / DrawWatchNotice 的中英分派口径）。
+	// 其余模式一字不动。
+	RunState* aRunState = mApp->GetRunState();
+	if (aRunState != nullptr && aRunState->IsEndless())
+	{
+		int aShownLevel = aRunState->GetPlayingLevelIndex() + 1;
+		int aPosX = HasProgressMeter() ? 593 : 780;
+		int aPosY = 595;
+		if (ModText::IsChinese())
+		{
+			char aBuffer[64];
+			snprintf(aBuffer, sizeof(aBuffer), "第 %d 关", aShownLevel);
+			std::wstring aText = ModText::WideFromUtf8(aBuffer);
+			ModText::Font* aFont = ModText::GetFont(16, false);
+			int aTextW = ModText::TextWidth(aFont, aText);
+			ModText::DrawTextWide(g, aFont, aPosX - aTextW, aPosY - ModText::Ascent(aFont),
+				aText, Color(224, 187, 98), g->mClipRect);
+		}
+		else
+		{
+			TodDrawString(g, StrFormat("Level %d", aShownLevel), aPosX, aPosY,
+				Sexy::FONT_HOUSEOFTERROR16, Color(224, 187, 98), DrawStringJustification::DS_ALIGN_RIGHT);
+		}
+		return;
+	}
+
 	// ====================================================================================================
 	// ▲ 获取完整的关卡名称的字符串
 	// ====================================================================================================

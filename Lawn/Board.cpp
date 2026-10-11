@@ -5759,8 +5759,10 @@ void Board::SpawnRunBoss()
 	if (aRun->mMode == RunState::RUN_MODE_ENDLESS) return;		// 无尽档没有关底
 	if (aRun->GetPlayingLevelIndex() + 1 < aRun->GetLevelCount()) return;	// 只在最后一关
 	if (mRunBossZombieID != ZombieID::ZOMBIEID_NULL) return;	// 一关一只（旗波钩子每旗都会来问）
-	// 仅第一席：联机只有主机棋盘有 boss（单机恒有）
-	if (mApp->IsOnlineGame() && !mApp->mOnlineSession->IsHostSeat()) return;
+	// 仅一号位：联机恒出在 1 号位玩家的棋盘（2026-10-12 用户令由「房主棋盘」改为
+	// 「一号位棋盘」——换位后房主可能不在 1 号位，boss 固定跟席位 1 走，不跟房主；
+	// 单机恒有）。1 号位空席（人离房释放了）时本关不刷。
+	if (mApp->IsOnlineGame() && mApp->mOnlineSession->GetLocalSeat() != NetProto::SEAT_HOST) return;
 
 	int aRows[MAX_GRID_SIZE_Y];
 	int aRowCount = 0;

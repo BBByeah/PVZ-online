@@ -251,7 +251,7 @@ public:
 	// @pvz-online: 难度阶梯（M4-a）取用口。正在打的那一关的序号，口径与 GetLevel /
 	// GetLevelSeed 一致（追赶期间 = 目标关）；场景档 0..4；难度 = 千分比表
 	// {1000,1330,1768,2352,3129}——每过一个场景血量与数量同乘 ×1.33（2026-10-05 由 ×1.5 回调）。
-	// 无尽档：场景恒为 mEndlessScene，难度 = 该场景基准 + 600·ln(1+关序号) 的对数阶增量。
+	// 无尽档：min(1.1^(n-1), (1+ln n)²) 全量乘数（2026-10-12 用户定案，见 EndlessDifficultyPermille）。
 	// 全整数运算，联机两端逐位一致（见 GetDifficultyPermille 实现处的说明）。
 	int					GetPlayingLevelIndex() const;
 	int					GetSceneIndex() const;

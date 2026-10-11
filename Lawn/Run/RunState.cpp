@@ -703,28 +703,44 @@ int RunState::GetSceneIndex() const
 	return aIndex / LevelsPerScene(mMode);
 }
 
-// @pvz-online: 无尽档的难度增量（2026-10-10 用户定案"对数阶曲线"，前期涨得动、后期趋缓）：
-// 600·ln(1 + 关序号) 的千分比。ln 用整数近似——t = floor(log2(n+1))、frac = 小数部分千分比，
-// lnMilli = 693·t + 693·frac/1000（ln2 ≈ 0.693）；全程整数乘除，联机两端逐位一致。
-// 样例（n → 增量）：0→0、1→415、3→831、7→1247、15→1663、24→1896、100→2734、255→3326、
-// 1023→4158；n=59999（软上限）→ 6582。初值待实机验收调，见 docs/07。
-static int EndlessGrowthPermille(int theLevelIndex)
+// @pvz-online: 无尽档的难度乘数（2026-10-12 用户定案，整个替换原「场景基准 + 600·ln(1+关序号)」
+// 对数阶增量」；血量和出怪点数同走本乘数，场景基准不再叠加）：
+//   乘数 = min(1.1^(n-1), (1+ln n)²)，n = 关序号（1 起：aLevel=0 是第 1 关）。
+// 前 32 关走指数支 1.1^(n-1)（×1.1/关）；约第 33 关两曲线交叉后走对数支 (1+ln n)²，后期趋缓。
+// 全程整数千分比乘除——指数递推 ×1100/1000 逐层截尾，ln 用 t = floor(log2 n)、frac = 小数部分
+// 千分比、693·t + 693·frac/1000（ln2 ≈ 0.693）的近似；联机两端逐位一致。
+// 指数支涨过 1000000 千分比即停算（此时对数支恒更低，结果无差）。
+// 样例（n → 乘数千分比）：1→1000、2→1100、10→2356、20→6105、32→19149、33→20124、100→30769。
+static int EndlessDifficultyPermille(int theLevelIndex)
 {
-	if (theLevelIndex <= 0) return 0;
-	unsigned int aN = (unsigned int)theLevelIndex + 1;	// n+1
+	int aN = theLevelIndex + 1;			// 关序号 n（1 起）
+	if (aN <= 1) return 1000;			// n=1：两支都是 ×1.0
+
+	// 指数支：1.1^(n-1) 的千分比。
+	int aPow = 1000;
+	for (int i = 1; i < aN; i++)
+	{
+		if (aPow >= 1000000) break;
+		aPow = aPow * 1100 / 1000;
+	}
+
+	// 对数支：(1 + ln n)² 的千分比。
 	int aT = 0;
-	while ((1u << (aT + 1)) <= aN) aT++;
-	unsigned int aPow = 1u << aT;
-	int aFrac = (int)(((aN - aPow) * 1000) / aPow);
+	while ((1u << (aT + 1)) <= (unsigned int)aN) aT++;
+	unsigned int aPow2 = 1u << aT;
+	int aFrac = (int)((((unsigned int)aN - aPow2) * 1000) / aPow2);
 	int aLnMilli = 693 * aT + 693 * aFrac / 1000;
-	return 600 * aLnMilli / 1000;
+	int aBase = 1000 + aLnMilli;
+	int aSq = aBase * aBase / 1000;
+
+	return (aPow < aSq) ? aPow : aSq;
 }
 
 // 难度阶梯（M4-a，用户定案）：每过一个场景血量与数量同乘 ×1.33 → 1.0/1.33/1.77/2.35/3.13
 //（2026-10-04 按玩家反馈"后期难度不足"由 ×1.2 上调、2026-10-05 回调为 ×1.33，见 docs/07 批六/批九；截尾口径同旧表）。
 // 写成整数千分比表：两边全靠整数乘除，逐位一致——浮点乘的 0.000001 之差就可能让同一只
 // 僵尸在两台机器上一个剩 1 点血、一个已经死了。
-// 无尽档：场景基准 + 对数阶增量（见 EndlessGrowthPermille）。
+// 无尽档：min(1.1^(n-1), (1+ln n)²) 全量乘数（见 EndlessDifficultyPermille），不再叠场景基准。
 int RunState::GetDifficultyPermille() const
 {
 	static const int aPermille[RUN_SCENE_COUNT] = { 1000, 1330, 1768, 2352, 3129 };
@@ -732,7 +748,7 @@ int RunState::GetDifficultyPermille() const
 	{
 		int aLevel = GetPlayingLevelIndex();
 		if (aLevel < 0) aLevel = 0;
-		return aPermille[mEndlessScene] + EndlessGrowthPermille(aLevel);
+		return EndlessDifficultyPermille(aLevel);
 	}
 	return aPermille[GetSceneIndex()];
 }

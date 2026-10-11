@@ -2720,17 +2720,25 @@ bool Board::CanZombieSpawnOnLevel(ZombieType theZombieType, int theLevel)
 		bool aZombotany = aRunState != nullptr && aRunState->mZombotany != 0;
 		// @pvz-online: 无尽名单快速解锁（2026-10-10 用户定案"快点解锁"）。无尽锁死一个场景、
 		// 原型按 关序号%5 轮转，若按引擎关号查名单，永远只有本场景 5 格。改查"虚拟关号"：
-		// 先吃满本场景 5 格，此后每 2 关多解锁一格，全表 25 格封顶（后续场景的巨人/水怪/
-		// 投石车等按序渗入）。推导只用 RunState 同步字段（mEndlessScene/mLevelIndex），
-		// 六席各端逐位一致、无随机。波表与种子仍按原型关（GetLevel 不动），名单只管"允许谁"。
+		// 先吃满本场景 5 格，此后每 2 关多解锁一格，到雾场景末格封顶（索引 19，2026-10-12 起；
+		// 后续场景的巨人/水怪/投石车等按序渗入）。推导只用 RunState 同步字段
+		//（mEndlessScene/mLevelIndex），六席各端逐位一致、无随机。波表与种子仍按原型关
+		//（GetLevel 不动），名单只管"允许谁"。
 		if (aRunState != nullptr && aRunState->IsEndless())
 		{
 			int aVirtualIndex = aRunState->mEndlessScene * RunState::RUN_LEVELS_PER_SCENE
 				+ (RunState::RUN_LEVELS_PER_SCENE - 1) + aRunState->mLevelIndex / 2;
-			if (aVirtualIndex > RunState::RUN_LEVEL_COUNT - 1) aVirtualIndex = RunState::RUN_LEVEL_COUNT - 1;
+			// @pvz-online: 封顶 = 屋顶前最后一格（雾 sub5，索引 19；2026-10-12 用户拍板）。
+			// 格 20-24 是屋顶场景的剔除名单（无潜水/海豚/冰车/雪橇），无尽单行道穿过它会让
+			// 非屋顶卡"越打越丢怪"（雾卡第 3 关起丢 4 种、泳池第 13 关起、夜 23/昼 33）。
+			// 封在 19：五卡只增不减；屋顶卡实际种类逐位不变——那 4 种本来就由下面的场景闸
+			// 拦下（格 19 经闸 = 现屋顶名单 21 种）。
+			const int aEndlessRosterCap = RunState::RUN_LEVEL_COUNT - RunState::RUN_LEVELS_PER_SCENE - 1;
+			if (aVirtualIndex > aEndlessRosterCap) aVirtualIndex = aEndlessRosterCap;
 			// 场景不相容类型拦在闸外（名单 v2 的"有意剔除"口径照旧）：
 			// 水生三样只在有水场景（泳池/雾）放行——无水草坪没有行可落；
-			// 冰车/雪橇屋顶不放（RUN_ZOMBIE_ROOF 同口径，2026-10-03 名单 v2 定案）。
+			// 冰车/雪橇屋顶不放（RUN_ZOMBIE_ROOF 同口径，2026-10-03 名单 v2 定案）——
+			// 2026-10-12 起这行也是屋顶卡唯一的剔除机制（虚拟格封顶 19，不再经过屋顶名单）。
 			if (theZombieType == ZombieType::ZOMBIE_DUCKY_TUBE || theZombieType == ZombieType::ZOMBIE_SNORKEL
 				|| theZombieType == ZombieType::ZOMBIE_DOLPHIN_RIDER)
 			{

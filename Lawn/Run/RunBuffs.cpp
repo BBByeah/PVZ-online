@@ -4,7 +4,8 @@
 
 // 说明文案中英各一份（语言批 2026-10-03 起），取用时按 ModText::IsChinese 择一；
 // 绘制走宽字符路径（位图字体没有中文字形）。
-// 按钮上的名字（mName）各语言同字（英文），仍走位图字体。
+// 按钮上的名字（mName）各语言同字（英文），仍走位图字体；2026-10-11 起表行另带中文名
+// （mNameZh）——词条查看器中文档显示（GetRunChoiceDisplayName），按钮与图鉴标题不动。
 // 数值列要和 mDesc 里的百分比对得上，改一边就改另一边；封顶条目的上限后缀
 // 由 GetRunChoiceDesc 按 mMaxStacks 机械追加，别手写进 mDesc。
 // 结构体尾部省略的字段 = mMaxStacks 0（无限）、mMultiplicative false（线性）。
@@ -111,15 +112,15 @@ static const RunBuffDef gRunBuffDefs[RUN_BUFF_COUNT] =
 	// 全局批同日调整：扎根/爆破/精准降 1★；质变口径批 2026-10-09 深夜：火力/丰饶/急袭
 	// 3★→2★——全局 3★ 清空）：
 	// 3★ 排山倒海（批 A 2026-10-09 追加） · 2★ 火力/丰饶/急袭/速种 · 1★ 扎根/天降/爆破/精准
-	{ "Firepower",    "所有子弹伤害 +30%",      "All projectile damage +30%",       0.30f,  0, 0, false, 2 },
-	{ "Deep Roots",   "所有植物血量 +75%",      "All plant health +75%",            0.75f,  0, 0, false, 1 },
-	{ "Abundance",    "产阳光间隔逐层 ×0.75",   "Sun production interval ×0.75/stack", -0.25f, 0, 4, true, 2 },
-	{ "Swift Strikes","植物攻击间隔逐层 ×0.75", "Plant attack interval ×0.75/stack",-0.25f,  0, 0, true, 2 },
-	{ "Quick Seeds",  "种植冷却逐层 ×0.8",      "Planting cooldown ×0.8/stack",    -0.20f,  0, 0, true, 2 },
-	{ "Skyfall",      "夜晚也降阳光，降阳光速率 ×2", "Sky sun also falls at night, 2x drop rate", -0.5f, 0, 1, false, 1 },
-	{ "Demolition",   "一次性植物伤害 +60%",    "Instant plant damage +60%",        0.60f,  0, 0, false, 1 },
-	{ "Precision",    "所有伤害 +15%",          "All damage +15%",                  0.15f,  0, 0, false, 1 },
-	{ "Mirror Rows",  "种下植物时，上下相邻的空格\n免费种上一株同款", "Planting also grows a free copy\nin the empty cell above/below", 0.0f, 0, 1, false, 3 },
+	{ "Firepower", "火力",    "所有子弹伤害 +30%",      "All projectile damage +30%",       0.30f,  0, 0, false, 2 },
+	{ "Deep Roots", "扎根",   "所有植物血量 +75%",      "All plant health +75%",            0.75f,  0, 0, false, 1 },
+	{ "Abundance", "丰饶",    "产阳光间隔逐层 ×0.75",   "Sun production interval ×0.75/stack", -0.25f, 0, 4, true, 2 },
+	{ "Swift Strikes", "急袭","植物攻击间隔逐层 ×0.75", "Plant attack interval ×0.75/stack",-0.25f,  0, 0, true, 2 },
+	{ "Quick Seeds", "速种",  "种植冷却逐层 ×0.8",      "Planting cooldown ×0.8/stack",    -0.20f,  0, 0, true, 2 },
+	{ "Skyfall", "天降",      "夜晚也降阳光，降阳光速率 ×2", "Sky sun also falls at night, 2x drop rate", -0.5f, 0, 1, false, 1 },
+	{ "Demolition", "爆破",   "一次性植物伤害 +60%",    "Instant plant damage +60%",        0.60f,  0, 0, false, 1 },
+	{ "Precision", "精准",    "所有伤害 +15%",          "All damage +15%",                  0.15f,  0, 0, false, 1 },
+	{ "Mirror Rows", "排山倒海",  "种下植物时，上下相邻的空格\n免费种上一株同款", "Planting also grows a free copy\nin the empty cell above/below", 0.0f, 0, 1, false, 3 },
 };
 
 const RunBuffDef& GetRunBuffDef(int theId)
@@ -240,54 +241,54 @@ static const RunPlantUpgradeDef gRunPlantUpgradeDefs[RUN_PLANT_UPGRADE_COUNT] =
 	// 魅惑批 2026-10-11：魅惑菇12「Devotion」曾当晚短暂下架（无上限连锁倒戈太强），
 	// 同晚用户令恢复——附加负面「魅惑菇种植冷却 ×6」作代价（挂点 Plant::GetRefreshTime，
 	// 750cs→4500cs）。连锁效果块在 Zombie.cpp::EatZombie，docs/03 §5.78。
-	{ SeedType::SEED_PEASHOOTER,   "Pea Volley",   "豌豆射手每次多发 1 颗\n（每层）",   "Peashooter fires 1 extra pea per shot\n(per stack)", 0.00f, 0, false, RUN_UPGRADE_KIND_SHOTCOUNT, 2 },
-	{ SeedType::SEED_SUNFLOWER,    "Harvest",      "种下立即产 1 次阳光\n每轮 50% 概率多产 1 阳光", "Yields sun once when planted\n50% chance of 1 extra sun per cycle", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_CHERRYBOMB,   "Wide Blast",   "樱桃炸弹爆炸范围 +50%\n（每层）",   "Cherry Bomb blast radius +50%\n(per stack)",        0.50f, 0, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_WALLNUT,      "Thick Shell",  "巨人砸击时像地刺王一样耐砸\n（每次 -200 血）", "Survives Gargantuar smashes like a Spikerock\n(-200 HP per smash)", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_POTATOMINE,   "Seismic Mine", "爆炸眩晕半径内僵尸 2 秒\n（每层）", "Blast stuns zombies in radius 2 sec\n(per stack)",   0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_SNOWPEA,      "Blizzard",     "发射冰西瓜",                        "Fires winter melons",                                0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
-	{ SeedType::SEED_CHOMPER,      "Ravenous",     "咀嚼时间减半",                      "Chew time halved",                                   -0.50f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_REPEATER,     "Pea Barrage",  "每次射击多发 2 颗\n（每层）",       "Fires 2 extra peas per shot\n(per stack)",           0.00f, 0, false, RUN_UPGRADE_KIND_SHOTCOUNT, 2 },
-	{ SeedType::SEED_PUFFSHROOM,   "Spore Volley", "每次多发 2 颗\n（每层）",           "Fires 2 extra spores per shot\n(per stack)",       0.00f, 0, false, RUN_UPGRADE_KIND_SHOTCOUNT, 2 },
-	{ SeedType::SEED_SUNSHROOM,    "Bright Cap",   "产阳光间隔逐层 ×0.75",              "Sun production interval ×0.75/stack",                -0.25f, 2, true, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_FUMESHROOM,   "Fume Rush",    "攻击间隔 ×0.5\n（每层）",           "Attack interval ×0.5\n(per stack)",                 -0.50f, 0, true, RUN_UPGRADE_KIND_RHYTHM, 3 },
-	{ SeedType::SEED_GRAVEBUSTER,  "Quick Dig",    "吞掉墓碑额外产 25 阳光\n（每层）",  "Grave eaten yields +25 sun\n(per stack)",            0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 1 },
-	{ SeedType::SEED_HYPNOSHROOM,  "Devotion",     "被魅惑僵尸咬到的僵尸也变友军\n（魅惑菇冷却 ×6）", "Zombies bitten by a hypnotized zombie turn friendly\n(Hypno-shroom cooldown ×6)", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
-	{ SeedType::SEED_SCAREDYSHROOM, "Bravery",     "敌人贴近时不再缩头",                "No longer hides when zombies get close",             0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_ICESHROOM,    "Deep Freeze",  "全场冰冻 +6 秒\n（每层）",          "Board freeze +6 sec\n(per stack)",                   0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 3 },
-	{ SeedType::SEED_DOOMSHROOM,   "Annihilation", "爆炸造成 6000 伤害",                "Blast deals 6000 damage",                            0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_LILYPAD,      "Tough Pad",    "血量 +150%\n（每层）",              "Health +150%\n(per stack)",                          1.50f, 2, false, RUN_UPGRADE_KIND_HEALTH, 2 },
-	{ SeedType::SEED_SQUASH,       "Heavy Squash", "砸击次数 +2\n（每层）",             "Smashes 2 extra times\n(per stack)",                 0.00f, 0, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_THREEPEATER,  "Triple Volley", "每条道多发 1 颗",                  "1 extra pea per lane",                               0.00f, 1, false, RUN_UPGRADE_KIND_SHOTCOUNT, 2 },
-	{ SeedType::SEED_TANGLEKELP,   "Entangle",     "多缠 1 只僵尸\n（每层）",           "Grabs 1 extra zombie\n(per stack)",                  0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_JALAPENO,     "Inferno",      "种植冷却逐层 ×0.8\n（每层）",       "Planting cooldown ×0.8/stack",                       -0.20f, 3, true, RUN_UPGRADE_KIND_COOLDOWN, 2 },
-	{ SeedType::SEED_SPIKEWEED,    "Barbed Spikes", "扎过的僵尸减速 +3 秒\n（每层）",   "Zombies it pricks slowed +3 sec\n(per stack)",       0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_TORCHWOOD,    "Kindling",     "火弹伤害加成 +50%\n（每层）",       "Fire pea damage +50%\n(per stack)",                  0.50f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_TALLNUT,      "Iron Shell",   "巨人砸击时像地刺王一样耐砸\n（每次 -200 血）", "Survives Gargantuar smashes like a Spikerock\n(-200 HP per smash)", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_SEASHROOM,    "Brine Spore",  "种植冷却逐层 ×0.8\n（每层）",       "Planting cooldown ×0.8/stack",                       -0.20f, 3, true, RUN_UPGRADE_KIND_COOLDOWN, 2 },
-	{ SeedType::SEED_PLANTERN,     "Lantern Light", "照亮范围 +1 格\n（每层）",         "Illumination radius +1 tile\n(per stack)",           0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 1 },
-	{ SeedType::SEED_CACTUS,       "Prickly",      "尖刺无限穿透",                       "Spikes pierce all zombies",                          0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_BLOVER,       "Gale",         "吹风后全场僵尸减速 5 秒\n（每层）", "Slows all zombies 5 sec after blowing\n(per stack)", 0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_SPLITPEA,     "Backspike",    "背向豌豆每次 +1 颗\n（每层）",      "1 extra backward pea per shot\n(per stack)",         0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_STARFRUIT,    "Homing Stars", "子弹变为追踪弹",                    "Shots become homing",                                0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_PUMPKINSHELL, "Hard Rind",    "血量 +150%\n（每层）",              "Health +150%\n(per stack)",                          1.50f, 2, false, RUN_UPGRADE_KIND_HEALTH, 2 },
-	{ SeedType::SEED_MAGNETSHROOM, "Magnet Pull",  "吸取间隔逐层 ×0.8\n（每层）",       "Recharge interval ×0.8/stack",                       -0.20f, 3, true, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_CABBAGEPULT,  "Free Toss",    "种植费用变为 0",                    "Planting cost becomes 0",                            0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
-	{ SeedType::SEED_FLOWERPOT,    "Rich Soil",    "血量 +150%\n（每层）",              "Health +150%\n(per stack)",                          1.50f, 2, false, RUN_UPGRADE_KIND_HEALTH, 2 },
-	{ SeedType::SEED_KERNELPULT,   "Artillery",    "种下后变为玉米加农炮",              "Becomes a Cob Cannon when planted",                  0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
-	{ SeedType::SEED_INSTANT_COFFEE,"Rich Roast",  "唤醒产阳光 +25\n（每层）",          "Waking sun +25\n(per stack)",                        0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 1 },
-	{ SeedType::SEED_GARLIC,       "Iron Clove",   "巨人砸击时像地刺王一样耐砸",        "Survives Gargantuar smashes like a Spikerock",       0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_UMBRELLA,     "Canopy",       "血量 +150%\n（每层）",              "Health +150%\n(per stack)",                          1.50f, 2, false, RUN_UPGRADE_KIND_HEALTH, 2 },
-	{ SeedType::SEED_MARIGOLD,     "Golden Bloom", "每次多产 1 枚\n（每层）",           "1 extra coin per cycle\n(per stack)",                0.00f, 3, false, RUN_UPGRADE_KIND_EFFECT, 1 },
-	{ SeedType::SEED_MELONPULT,    "Melon Barrage","每次多发 1 个西瓜\n（每层）",       "Fires 1 extra melon per volley\n(per stack)",        0.00f, 0, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_GATLINGPEA,   "Overclock",    "攻击间隔 ×0.5",                     "Attack interval ×0.5",                               -0.50f, 1, false, RUN_UPGRADE_KIND_RHYTHM, 2 },
-	{ SeedType::SEED_TWINSUNFLOWER, "Twin Bloom",  "每轮固定多产 2 阳光\n（每层）",       "2 extra sun every cycle\n(per stack)",               0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_GLOOMSHROOM,  "Gloom",        "光环范围 +1 格",                    "Aura radius +1 tile",                                0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_CATTAIL,      "Quick Claw",   "攻击目标 +1 个\n（每层）",          "Targets +1 zombie\n(per stack)",                     0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_WINTERMELON,  "Deep Splash",  "溅射半径 +50%\n（每层）",           "Splash radius +50%\n(per stack)",                    0.50f, 0, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_GOLD_MAGNET,  "Gilded Pull",  "吸取间隔逐层 ×0.8\n（每层）",       "Recharge interval ×0.8/stack",                       -0.20f, 3, true, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_SPIKEROCK,    "Royal Thorns", "血量 +150%\n（每层）",              "Health +150%\n(per stack)",                          1.50f, 2, false, RUN_UPGRADE_KIND_HEALTH, 2 },
-	{ SeedType::SEED_COBCANNON,    "Rapid Reload", "装填时间逐层 ×0.8\n（每层）",       "Reload time ×0.8/stack",                             -0.20f, 3, true, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_PEASHOOTER,   "Pea Volley", "连发",   "豌豆射手每次多发 1 颗\n（每层）",   "Peashooter fires 1 extra pea per shot\n(per stack)", 0.00f, 0, false, RUN_UPGRADE_KIND_SHOTCOUNT, 2 },
+	{ SeedType::SEED_SUNFLOWER,    "Harvest", "丰收",      "种下立即产 1 次阳光\n每轮 50% 概率多产 1 阳光", "Yields sun once when planted\n50% chance of 1 extra sun per cycle", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_CHERRYBOMB,   "Wide Blast", "巨爆",   "樱桃炸弹爆炸范围 +50%\n（每层）",   "Cherry Bomb blast radius +50%\n(per stack)",        0.50f, 0, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_WALLNUT,      "Thick Shell", "耐砸",  "巨人砸击时像地刺王一样耐砸\n（每次 -200 血）", "Survives Gargantuar smashes like a Spikerock\n(-200 HP per smash)", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_POTATOMINE,   "Seismic Mine", "震雷", "爆炸眩晕半径内僵尸 2 秒\n（每层）", "Blast stuns zombies in radius 2 sec\n(per stack)",   0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_SNOWPEA,      "Blizzard", "冰西瓜化",     "发射冰西瓜",                        "Fires winter melons",                                0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
+	{ SeedType::SEED_CHOMPER,      "Ravenous", "狼吞",     "咀嚼时间减半",                      "Chew time halved",                                   -0.50f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_REPEATER,     "Pea Barrage", "弹幕",  "每次射击多发 2 颗\n（每层）",       "Fires 2 extra peas per shot\n(per stack)",           0.00f, 0, false, RUN_UPGRADE_KIND_SHOTCOUNT, 2 },
+	{ SeedType::SEED_PUFFSHROOM,   "Spore Volley", "孢子弹幕", "每次多发 2 颗\n（每层）",           "Fires 2 extra spores per shot\n(per stack)",       0.00f, 0, false, RUN_UPGRADE_KIND_SHOTCOUNT, 2 },
+	{ SeedType::SEED_SUNSHROOM,    "Bright Cap", "亮顶",   "产阳光间隔逐层 ×0.75",              "Sun production interval ×0.75/stack",                -0.25f, 2, true, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_FUMESHROOM,   "Fume Rush", "疾雾",    "攻击间隔 ×0.5\n（每层）",           "Attack interval ×0.5\n(per stack)",                 -0.50f, 0, true, RUN_UPGRADE_KIND_RHYTHM, 3 },
+	{ SeedType::SEED_GRAVEBUSTER,  "Quick Dig", "掘金",    "吞掉墓碑额外产 25 阳光\n（每层）",  "Grave eaten yields +25 sun\n(per stack)",            0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_HYPNOSHROOM,  "Devotion", "倒戈",     "被魅惑僵尸咬到的僵尸也变友军\n（魅惑菇冷却 ×6）", "Zombies bitten by a hypnotized zombie turn friendly\n(Hypno-shroom cooldown ×6)", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
+	{ SeedType::SEED_SCAREDYSHROOM, "Bravery", "无畏",     "敌人贴近时不再缩头",                "No longer hides when zombies get close",             0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_ICESHROOM,    "Deep Freeze", "深冻",  "全场冰冻 +6 秒\n（每层）",          "Board freeze +6 sec\n(per stack)",                   0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 3 },
+	{ SeedType::SEED_DOOMSHROOM,   "Annihilation", "湮灭", "爆炸造成 6000 伤害",                "Blast deals 6000 damage",                            0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_LILYPAD,      "Tough Pad", "厚叶",    "血量 +150%\n（每层）",              "Health +150%\n(per stack)",                          1.50f, 2, false, RUN_UPGRADE_KIND_HEALTH, 2 },
+	{ SeedType::SEED_SQUASH,       "Heavy Squash", "连砸", "砸击次数 +2\n（每层）",             "Smashes 2 extra times\n(per stack)",                 0.00f, 0, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_THREEPEATER,  "Triple Volley", "齐射", "每条道多发 1 颗",                  "1 extra pea per lane",                               0.00f, 1, false, RUN_UPGRADE_KIND_SHOTCOUNT, 2 },
+	{ SeedType::SEED_TANGLEKELP,   "Entangle", "多缠",     "多缠 1 只僵尸\n（每层）",           "Grabs 1 extra zombie\n(per stack)",                  0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_JALAPENO,     "Inferno", "炼狱",      "种植冷却逐层 ×0.8\n（每层）",       "Planting cooldown ×0.8/stack",                       -0.20f, 3, true, RUN_UPGRADE_KIND_COOLDOWN, 2 },
+	{ SeedType::SEED_SPIKEWEED,    "Barbed Spikes", "倒刺", "扎过的僵尸减速 +3 秒\n（每层）",   "Zombies it pricks slowed +3 sec\n(per stack)",       0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_TORCHWOOD,    "Kindling", "引燃",     "火弹伤害加成 +50%\n（每层）",       "Fire pea damage +50%\n(per stack)",                  0.50f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_TALLNUT,      "Iron Shell", "耐砸",   "巨人砸击时像地刺王一样耐砸\n（每次 -200 血）", "Survives Gargantuar smashes like a Spikerock\n(-200 HP per smash)", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_SEASHROOM,    "Brine Spore", "盐孢",  "种植冷却逐层 ×0.8\n（每层）",       "Planting cooldown ×0.8/stack",                       -0.20f, 3, true, RUN_UPGRADE_KIND_COOLDOWN, 2 },
+	{ SeedType::SEED_PLANTERN,     "Lantern Light", "灯火", "照亮范围 +1 格\n（每层）",         "Illumination radius +1 tile\n(per stack)",           0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_CACTUS,       "Prickly", "锐刺",      "尖刺无限穿透",                       "Spikes pierce all zombies",                          0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_BLOVER,       "Gale", "余风",         "吹风后全场僵尸减速 5 秒\n（每层）", "Slows all zombies 5 sec after blowing\n(per stack)", 0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_SPLITPEA,     "Backspike", "背刺",    "背向豌豆每次 +1 颗\n（每层）",      "1 extra backward pea per shot\n(per stack)",         0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_STARFRUIT,    "Homing Stars", "追踪星", "子弹变为追踪弹",                    "Shots become homing",                                0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_PUMPKINSHELL, "Hard Rind", "硬壳",    "血量 +150%\n（每层）",              "Health +150%\n(per stack)",                          1.50f, 2, false, RUN_UPGRADE_KIND_HEALTH, 2 },
+	{ SeedType::SEED_MAGNETSHROOM, "Magnet Pull", "充磁",  "吸取间隔逐层 ×0.8\n（每层）",       "Recharge interval ×0.8/stack",                       -0.20f, 3, true, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_CABBAGEPULT,  "Free Toss", "免投",    "种植费用变为 0",                    "Planting cost becomes 0",                            0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_FLOWERPOT,    "Rich Soil", "沃土",    "血量 +150%\n（每层）",              "Health +150%\n(per stack)",                          1.50f, 2, false, RUN_UPGRADE_KIND_HEALTH, 2 },
+	{ SeedType::SEED_KERNELPULT,   "Artillery", "加农炮转化",    "种下后变为玉米加农炮",              "Becomes a Cob Cannon when planted",                  0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
+	{ SeedType::SEED_INSTANT_COFFEE,"Rich Roast", "醇香",  "唤醒产阳光 +25\n（每层）",          "Waking sun +25\n(per stack)",                        0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_GARLIC,       "Iron Clove", "铁蒜",   "巨人砸击时像地刺王一样耐砸",        "Survives Gargantuar smashes like a Spikerock",       0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_UMBRELLA,     "Canopy", "华盖",       "血量 +150%\n（每层）",              "Health +150%\n(per stack)",                          1.50f, 2, false, RUN_UPGRADE_KIND_HEALTH, 2 },
+	{ SeedType::SEED_MARIGOLD,     "Golden Bloom", "鎏金", "每次多产 1 枚\n（每层）",           "1 extra coin per cycle\n(per stack)",                0.00f, 3, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_MELONPULT,    "Melon Barrage", "瓜幕","每次多发 1 个西瓜\n（每层）",       "Fires 1 extra melon per volley\n(per stack)",        0.00f, 0, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_GATLINGPEA,   "Overclock", "超频",    "攻击间隔 ×0.5",                     "Attack interval ×0.5",                               -0.50f, 1, false, RUN_UPGRADE_KIND_RHYTHM, 2 },
+	{ SeedType::SEED_TWINSUNFLOWER, "Twin Bloom", "绽放",  "每轮固定多产 2 阳光\n（每层）",       "2 extra sun every cycle\n(per stack)",               0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_GLOOMSHROOM,  "Gloom", "幽环",        "光环范围 +1 格",                    "Aura radius +1 tile",                                0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_CATTAIL,      "Quick Claw", "快爪",   "攻击目标 +1 个\n（每层）",          "Targets +1 zombie\n(per stack)",                     0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_WINTERMELON,  "Deep Splash", "扩溅",  "溅射半径 +50%\n（每层）",           "Splash radius +50%\n(per stack)",                    0.50f, 0, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_GOLD_MAGNET,  "Gilded Pull", "镀金",  "吸取间隔逐层 ×0.8\n（每层）",       "Recharge interval ×0.8/stack",                       -0.20f, 3, true, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_SPIKEROCK,    "Royal Thorns", "棘冠", "血量 +150%\n（每层）",              "Health +150%\n(per stack)",                          1.50f, 2, false, RUN_UPGRADE_KIND_HEALTH, 2 },
+	{ SeedType::SEED_COBCANNON,    "Rapid Reload", "速装", "装填时间逐层 ×0.8\n（每层）",       "Reload time ×0.8/stack",                             -0.20f, 3, true, RUN_UPGRADE_KIND_EFFECT, 2 },
 };
 
 const RunPlantUpgradeDef& GetRunPlantUpgradeDef(int theIndex)
@@ -314,45 +315,45 @@ int RunPlantUpgradeIndexFor(SeedType thePlant)
 // 才翻真（批 0 全不进池，纯结构批）。
 static const RunPlantUpgradeDef gRunPlantBuff2Defs[RUN_PLANT_BUFF2_COUNT] =
 {
-	{ SeedType::SEED_PEASHOOTER,    "Piercing Pea",  "豌豆无限穿透",                        "Peas pierce all zombies",                            0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_SUNFLOWER,     "First Light",   "种下立即产 1 次阳光",                  "Yields sun once when planted",                        0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_CHERRYBOMB,    "Scorched Earth","被炸中的僵尸持续燃烧\n每秒 300 伤害，共 3 秒（每层）", "Hit zombies keep burning\n300 damage/sec for 3 sec (per stack)", 0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_WALLNUT,       "Thorn Wall",    "啃食者每秒受 40 伤害\n（每层）",        "Biters take 40 damage/sec\n(per stack)",              0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_POTATOMINE,    "Mine Regrow",   "引爆后 3 秒原位重新埋雷\n每层可多补 1 次", "Re-buries itself 3 sec after blast\n+1 regrow per stack", 0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_SNOWPEA,       "Frost Pierce",  "雪豆无限穿透",                        "Frost peas pierce all zombies",                       0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_CHOMPER,       "Chain Bite",    "吞完后范围内仍有僵尸立即再咬\n（每层多连锁 1 次）", "Bites again if zombies remain\n+1 chain per stack",   0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_REPEATER,      "Suppress Fire", "攻击间隔 ×0.7\n（每层）",              "Attack interval ×0.7\n(per stack)",                   -0.30f, 2, true, RUN_UPGRADE_KIND_RHYTHM, 2 },
-	{ SeedType::SEED_PUFFSHROOM,    "Death Spore",   "被啃掉时原地爆炸\n900 伤害（每层）",     "Explodes when eaten\n900 damage (per stack)",         0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_SUNSHROOM,     "Boosted Grow",  "种下后第二次产阳光前长大\n（首产 15、此后 25）", "Grows up before 2nd sun cycle\n(15 first, 25 after)", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_FUMESHROOM,    "Fetid Breath",  "命中减速 20%，持续 3 秒",              "Hits slow zombies 20% for 3 sec",                     0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_GRAVEBUSTER,   "Swift Dig",     "吞噬速度 ×0.5",                       "Dig speed ×0.5",                                      -0.50f, 2, true, RUN_UPGRADE_KIND_EFFECT, 1 },
-	{ SeedType::SEED_HYPNOSHROOM,   "Fragrance",     "被魅惑僵尸的血量与伤害 ×2\n（每层）",         "Hypnotized zombies: ×2 health & damage\n(per stack)",      1.00f, 2, true, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_SCAREDYSHROOM, "Bedrock",       "血量变为 4000",                       "Health becomes 4000",                                 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
-	{ SeedType::SEED_ICESHROOM,     "Frost Armor",   "冰冻结束后全场减速 35%\n持续 20 秒",    "After freeze: all zombies slowed 35%\nfor 20 sec",    0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
-	{ SeedType::SEED_DOOMSHROOM,    "Doom Radius",   "爆炸半径 +50%\n（每层）",              "Blast radius +50%\n(per stack)",                      0.50f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_SQUASH,        "Leap Shock",    "砸击次数 ×2（每层）\n并可跳砸上下行",    "Smashes ×2 (per stack)\nCan leap to adjacent rows",   1.00f, 2, true, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_THREEPEATER,   "Trident",       "三线子弹无限穿透",                     "Peas pierce all zombies",                             0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_JALAPENO,      "Chain Burn",    "爆炸次数 +1\n（间隔 1 秒）",            "Burns 1 extra time\n(1 sec apart)",                   0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_SPIKEWEED,     "Open Wound",    "被扎的僵尸受全伤害 +30%",              "Pricked zombies take +30% damage",                    0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_TORCHWOOD,     "Flame Splash",  "过火子弹命中溅射\n造成原伤 1/3",        "Fire peas splash for 1/3 damage",                     0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_SEASHROOM,     "Death Brine",   "被啃掉时原地爆炸\n900 伤害（每层）",     "Explodes when eaten\n900 damage (per stack)",         0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_PLANTERN,      "Twilight",      "照亮格内植物攻速 ×0.75",               "Plants in light attack ×0.75 speed",                  -0.25f, 2, true, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_CACTUS,        "Tri-Spike",     "改为三行发射\n（本行与上下各一行）",     "Fires in 3 rows\n(own row ± 1)",                      0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_BLOVER,        "Gale Force",    "吹风把全场僵尸推离 1 格\n（每层）",      "Blowing pushes all zombies back 1 tile\n(per stack)", 0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_SPLITPEA,      "Free Plant",    "种植费用变为 0",                       "Planting cost becomes 0",                             0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
-	{ SeedType::SEED_PUMPKINSHELL,  "Regrow",        "每 15 秒回复 10% 血量",                "Heals 10% HP every 15 sec",                           0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_MAGNETSHROOM,  "Magnet Throw",  "吸到的防具就地掷回\n1200 伤害（每层）",  "Throws stolen armor back\n1200 damage (per stack)",   0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_CABBAGEPULT,   "Heavy Toss",    "伤害 +50%",                           "Damage +50%",                                         0.50f, 3, false, RUN_UPGRADE_KIND_EFFECT, 1 },
-	{ SeedType::SEED_KERNELPULT,    "Butter Feast",  "黄油概率 +25%\n黄油时长 +1 秒（每层）",  "Butter chance +25%\nButter duration +1 sec (per stack)", 0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_GARLIC,        "Guide Garlic",  "血量仅 20\n被吃时全行僵尸换道",         "Only 20 HP\nZombies in the row switch lanes when bitten", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_MARIGOLD,      "Fortune",       "+10% 概率产金币/钻石\n（每层）",        "+10% chance of gold/diamond\n(per stack)",            0.00f, 3, false, RUN_UPGRADE_KIND_EFFECT, 1 },
-	{ SeedType::SEED_MELONPULT,     "Rolling Burst", "落地后向前滚 1 格\n并再炸一次",         "Rolls 1 tile and bursts again",                       0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
-	{ SeedType::SEED_GATLINGPEA,    "Fire Peas",     "子弹变火豆：伤害翻倍\n命中解除冰冻减速", "Peas become fire peas: double damage\nRemoves chill on hit", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_TWINSUNFLOWER, "Legacy",        "被吃掉时产 1 次阳光",                  "Yields sun once when eaten",                          0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_GLOOMSHROOM,   "Rock Flesh",    "血量变为 1000\n每次被击固定扣 200",     "Health becomes 1000\nTakes flat 200 per hit",         0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
-	{ SeedType::SEED_WINTERMELON,   "Deep Freeze",   "+20% 概率冻结命中者 2 秒\n（每层）",    "+20% chance to freeze on hit\nfor 2 sec (per stack)", 0.00f, 3, false, RUN_UPGRADE_KIND_EFFECT, 3 },
-	{ SeedType::SEED_GOLD_MAGNET,   "Gold Touch",    "+25% 概率银币升金币\n（每层）",         "+25% chance silver becomes gold\n(per stack)",        0.00f, 3, false, RUN_UPGRADE_KIND_EFFECT, 1 },
-	{ SeedType::SEED_COBCANNON,     "Twin Cob",      "每轮多发 1 枚",                        "Fires 1 extra cob per volley",                        0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_PEASHOOTER,    "Piercing Pea", "穿刺豌豆",  "豌豆无限穿透",                        "Peas pierce all zombies",                            0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_SUNFLOWER,     "First Light", "初阳",   "种下立即产 1 次阳光",                  "Yields sun once when planted",                        0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_CHERRYBOMB,    "Scorched Earth", "焦土","被炸中的僵尸持续燃烧\n每秒 300 伤害，共 3 秒（每层）", "Hit zombies keep burning\n300 damage/sec for 3 sec (per stack)", 0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_WALLNUT,       "Thorn Wall", "荆棘之壁",    "啃食者每秒受 40 伤害\n（每层）",        "Biters take 40 damage/sec\n(per stack)",              0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_POTATOMINE,    "Mine Regrow", "自动补雷",   "引爆后 3 秒原位重新埋雷\n每层可多补 1 次", "Re-buries itself 3 sec after blast\n+1 regrow per stack", 0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_SNOWPEA,       "Frost Pierce", "寒冰贯通",  "雪豆无限穿透",                        "Frost peas pierce all zombies",                       0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_CHOMPER,       "Chain Bite", "连锁吞",    "吞完后范围内仍有僵尸立即再咬\n（每层多连锁 1 次）", "Bites again if zombies remain\n+1 chain per stack",   0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_REPEATER,      "Suppress Fire", "火力压制", "攻击间隔 ×0.7\n（每层）",              "Attack interval ×0.7\n(per stack)",                   -0.30f, 2, true, RUN_UPGRADE_KIND_RHYTHM, 2 },
+	{ SeedType::SEED_PUFFSHROOM,    "Death Spore", "亡语孢子",   "被啃掉时原地爆炸\n900 伤害（每层）",     "Explodes when eaten\n900 damage (per stack)",         0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_SUNSHROOM,     "Boosted Grow", "催长",  "种下后第二次产阳光前长大\n（首产 15、此后 25）", "Grows up before 2nd sun cycle\n(15 first, 25 after)", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_FUMESHROOM,    "Fetid Breath", "腐臭之息",  "命中减速 20%，持续 3 秒",              "Hits slow zombies 20% for 3 sec",                     0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_GRAVEBUSTER,   "Swift Dig", "疾掘",     "吞噬速度 ×0.5",                       "Dig speed ×0.5",                                      -0.50f, 2, true, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_HYPNOSHROOM,   "Fragrance", "迷魂香",     "被魅惑僵尸的血量与伤害 ×2\n（每层）",         "Hypnotized zombies: ×2 health & damage\n(per stack)",      1.00f, 2, true, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_SCAREDYSHROOM, "Bedrock", "磐石",       "血量变为 4000",                       "Health becomes 4000",                                 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_ICESHROOM,     "Frost Armor", "霜甲",   "冰冻结束后全场减速 35%\n持续 20 秒",    "After freeze: all zombies slowed 35%\nfor 20 sec",    0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
+	{ SeedType::SEED_DOOMSHROOM,    "Doom Radius", "灭世半径",   "爆炸半径 +50%\n（每层）",              "Blast radius +50%\n(per stack)",                      0.50f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_SQUASH,        "Leap Shock", "飞跃震击",    "砸击次数 ×2（每层）\n并可跳砸上下行",    "Smashes ×2 (per stack)\nCan leap to adjacent rows",   1.00f, 2, true, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_THREEPEATER,   "Trident", "贯穿",       "三线子弹无限穿透",                     "Peas pierce all zombies",                             0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_JALAPENO,      "Chain Burn", "连烧",    "爆炸次数 +1\n（间隔 1 秒）",            "Burns 1 extra time\n(1 sec apart)",                   0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_SPIKEWEED,     "Open Wound", "伤口加深",    "被扎的僵尸受全伤害 +30%",              "Pricked zombies take +30% damage",                    0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_TORCHWOOD,     "Flame Splash", "烈焰溅射",  "过火子弹命中溅射\n造成原伤 1/3",        "Fire peas splash for 1/3 damage",                     0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_SEASHROOM,     "Death Brine", "亡语孢子",   "被啃掉时原地爆炸\n900 伤害（每层）",     "Explodes when eaten\n900 damage (per stack)",         0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_PLANTERN,      "Twilight", "暮光",      "照亮格内植物攻速 ×0.75",               "Plants in light attack ×0.75 speed",                  -0.25f, 2, true, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_CACTUS,        "Tri-Spike", "三向尖刺",     "改为三行发射\n（本行与上下各一行）",     "Fires in 3 rows\n(own row ± 1)",                      0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_BLOVER,        "Gale Force", "狂风",    "吹风把全场僵尸推离 1 格\n（每层）",      "Blowing pushes all zombies back 1 tile\n(per stack)", 0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_SPLITPEA,      "Free Plant", "免植",    "种植费用变为 0",                       "Planting cost becomes 0",                             0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_PUMPKINSHELL,  "Regrow", "再生",        "每 15 秒回复 10% 血量",                "Heals 10% HP every 15 sec",                           0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_MAGNETSHROOM,  "Magnet Throw", "卸甲飞掷",  "吸到的防具就地掷回\n1200 伤害（每层）",  "Throws stolen armor back\n1200 damage (per stack)",   0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_CABBAGEPULT,   "Heavy Toss", "重投",    "伤害 +50%",                           "Damage +50%",                                         0.50f, 3, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_KERNELPULT,    "Butter Feast", "黄油盛宴",  "黄油概率 +25%\n黄油时长 +1 秒（每层）",  "Butter chance +25%\nButter duration +1 sec (per stack)", 0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_GARLIC,        "Guide Garlic", "引路蒜",  "血量仅 20\n被吃时全行僵尸换道",         "Only 20 HP\nZombies in the row switch lanes when bitten", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_MARIGOLD,      "Fortune", "富贵",       "+10% 概率产金币/钻石\n（每层）",        "+10% chance of gold/diamond\n(per stack)",            0.00f, 3, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_MELONPULT,     "Rolling Burst", "滚爆", "落地后向前滚 1 格\n并再炸一次",         "Rolls 1 tile and bursts again",                       0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_GATLINGPEA,    "Fire Peas", "火豆",     "子弹变火豆：伤害翻倍\n命中解除冰冻减速", "Peas become fire peas: double damage\nRemoves chill on hit", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_TWINSUNFLOWER, "Legacy", "遗泽",        "被吃掉时产 1 次阳光",                  "Yields sun once when eaten",                          0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_GLOOMSHROOM,   "Rock Flesh", "耐砸",    "血量变为 1000\n每次被击固定扣 200",     "Health becomes 1000\nTakes flat 200 per hit",         0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_WINTERMELON,   "Deep Freeze", "冰封",   "+20% 概率冻结命中者 2 秒\n（每层）",    "+20% chance to freeze on hit\nfor 2 sec (per stack)", 0.00f, 3, false, RUN_UPGRADE_KIND_EFFECT, 3 },
+	{ SeedType::SEED_GOLD_MAGNET,   "Gold Touch", "金石",    "+25% 概率银币升金币\n（每层）",         "+25% chance silver becomes gold\n(per stack)",        0.00f, 3, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_COBCANNON,     "Twin Cob", "双联装",      "每轮多发 1 枚",                        "Fires 1 extra cob per volley",                        0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
 };
 
 const RunPlantUpgradeDef& GetRunPlantBuff2Def(int theIndex)
@@ -434,6 +435,24 @@ const char* GetRunChoiceName(int theId)
 	if (theId >= RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT) return GetRunPlantBuff2Def(theId - RUN_BUFF_COUNT - RUN_PLANT_UPGRADE_COUNT).mName;
 	if (theId >= RUN_BUFF_COUNT) return GetRunPlantUpgradeDef(theId - RUN_BUFF_COUNT).mName;
 	return GetRunBuffDef(theId).mName;
+}
+
+// 词条查看器专用（2026-10-11 语言显示批）：按当前语言取条目显示名——中文档 mNameZh /
+// 英文档 mName。三选一屏按钮与图鉴标题不经过这里：那边是位图字体/既有排版，只认英文名。
+const char* GetRunChoiceDisplayName(int theId)
+{
+	if (theId >= RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT)
+	{
+		const RunPlantUpgradeDef& aDef = GetRunPlantBuff2Def(theId - RUN_BUFF_COUNT - RUN_PLANT_UPGRADE_COUNT);
+		return ModText::IsChinese() ? aDef.mNameZh : aDef.mName;
+	}
+	if (theId >= RUN_BUFF_COUNT)
+	{
+		const RunPlantUpgradeDef& aDef = GetRunPlantUpgradeDef(theId - RUN_BUFF_COUNT);
+		return ModText::IsChinese() ? aDef.mNameZh : aDef.mName;
+	}
+	const RunBuffDef& aDef = GetRunBuffDef(theId);
+	return ModText::IsChinese() ? aDef.mNameZh : aDef.mName;
 }
 
 // 封顶条目的说明尾部机械追加语言相称的上限后缀（方案 §2.5）：基础文案只管效果，

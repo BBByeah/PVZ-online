@@ -35,7 +35,8 @@ enum RunBuffId
 
 struct RunBuffDef
 {
-	const char*	mName;
+	const char*	mName;		// 英文名（三选一屏按钮/图鉴标题用：位图字体没有中文字形）
+	const char*	mNameZh;	// 中文名（2026-10-11 语言显示批：词条查看器中文档显示，见 GetRunChoiceDisplayName）
 	const char*	mDesc;		// 中文说明（UTF-8，宽字符路径绘制）
 	const char*	mDescEn;	// 英文说明（同上；语言批 2026-10-03 起按 ModText::IsChinese 择一）
 	// 每层的乘数修正：线性条目 = 1 + mPerStackMul × 层数（+0.10 = ×1.10，−0.20 = ×0.80）；
@@ -148,7 +149,8 @@ enum RunPlantUpgradeKind
 struct RunPlantUpgradeDef
 {
 	SeedType	mPlant;			// 这门升级挂在哪种植物上（一株最多一条）
-	const char*	mName;
+	const char*	mName;			// 英文名（三选一屏按钮/图鉴标题用：位图字体没有中文字形）
+	const char*	mNameZh;		// 中文名（2026-10-11 语言显示批：词条查看器中文档显示，见 GetRunChoiceDisplayName）
 	const char*	mDesc;			// 中文说明（UTF-8）
 	const char*	mDescEn;		// 英文说明（UTF-8；同上按当前语言择一）
 	// 同 RunBuffDef.mPerStackMul；纯计数型（+1 发 / +1 阳光）填 0，
@@ -171,6 +173,10 @@ int RunPlantUpgradeIndexFor(SeedType thePlant);
 // 三选一屏统一取文案：两类 id 都能查，屏上不用分支。mName 各语言同字（英文名，
 // 位图字体按钮用），说明按当前语言择一。
 const char* GetRunChoiceName(int theId);
+// 条目显示名（按当前语言择一，2026-10-11 语言显示批，docs/03 §5.79）：中文档取 mNameZh /
+// 英文档取 mName——词条查看器（局内菜单「本局词条」）专用；三选一屏按钮与图鉴标题仍走
+// GetRunChoiceName 的英文名（位图字体没有中文字形）。
+const char* GetRunChoiceDisplayName(int theId);
 // 封顶条目（mMaxStacks > 0）的返回值尾部带语言相称的上限后缀（中文「，至多 N 层」/
 // 英文 ", up to N stacks"，机械追加，见实现处）。
 // 返回进程内静态缓冲——取到就画，别存指针。

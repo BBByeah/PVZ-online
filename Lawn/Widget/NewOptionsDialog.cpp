@@ -809,6 +809,7 @@ void NewOptionsDialog::DrawRunInfo(Sexy::Graphics* g)
     // 列几何按 1:1 截图实测定（2026-10-03）：13pt 下 CJK ≈26px、拉丁 ≈11-13px/字符，
     // 最长全局条目「Swift Strikes×2」≈180px。列步进 190、每列可写 182——两列间 8px
     // 空隙、右列距面板右缘 ≥10px；仍装不下的由 NewOptionsDrawCjkFit 截名保计数。
+    // （条目名 2026-10-11 起随语言档：中文档走中文名，比英文名更短，只会更松。）
     int aColX[2] = { aPanelX + 12, aPanelX + 12 + 190 };
     int aColW = 182;
     int aBottom = aPanelY + aPanelH - 14 - aLineHeight;   // 给底部提示留一行
@@ -827,7 +828,7 @@ void NewOptionsDialog::DrawRunInfo(Sexy::Graphics* g)
         char aSuffix[16];
         snprintf(aSuffix, sizeof(aSuffix), "×%d", aStacks);
         NewOptionsDrawCjkFit(g, aFont, aColX[aShown % 2], aY, aColW,
-            GetRunBuffDef(i).mName, aSuffix, anEntryColor);
+            GetRunChoiceDisplayName(i), aSuffix, anEntryColor);
         if (aShown % 2 == 1) aY += aLineHeight;
         aShown++;
     }
@@ -839,9 +840,10 @@ void NewOptionsDialog::DrawRunInfo(Sexy::Graphics* g)
     }
     aY += 8;
 
-    // 【单株强化】：植物名 + 词条名×层数，整幅宽单列——「植物名+英文词条名+×N」最长
+    // 【单株强化】：植物名 + 词条名×层数，整幅宽单列——「植物名+词条名+×N」英文档最长
     // 约 310px（玉米加农炮 Rapid Reload×3），两列 182px 根本装不下：截图实证会互相
     // 压字、右列冲出面板右缘被对话框边缘裁断。单列 372px 全放得下，一格一行也更易读。
+    // 中文档名更短（最长「玉米加农炮 加农炮转化×3」≈190px），单列绰绰有余。
     // @pvz-online: 2026-10-04 起按页切（用户定案）：一页 = 到 aBottom 为止放得下的行数，
     // 页数现算存 mRunInfoPageCount；翻页口 = PgUp/PgDn/←/→、滚轮、页脚两端箭头（见
     // KeyDown/MouseWheel/MouseDown/RunInfoArrowRect）。一页装得下的局界面同旧版。
@@ -867,12 +869,13 @@ void NewOptionsDialog::DrawRunInfo(Sexy::Graphics* g)
         if (aRun->mBuffs[i].mId < RUN_BUFF_COUNT || aRun->mBuffs[i].mCount == 0) continue;
         if (aSeen++ < aFirst) continue;
         // 第二 buff 批 0：id 可能落在第二表（≥ RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT），
-        // GetRunChoicePlant 两表各查各的 mPlant——直接查所属植物，别按老表下标解。
+        // GetRunChoicePlant 两表各查各的 mPlant——直接查所属植物，别按老表下标解；条目名
+        // 同样按 id 走 GetRunChoiceDisplayName（随语言档，2026-10-11 起）。
         const char* aPlantName = GetRunPlantName(GetRunChoicePlant(aRun->mBuffs[i].mId));
         char aText[128];
         char aSuffix[16];
         snprintf(aText, sizeof(aText), "%s %s", aPlantName != NULL ? aPlantName : "?",
-            GetRunChoiceName(aRun->mBuffs[i].mId));
+            GetRunChoiceDisplayName(aRun->mBuffs[i].mId));
         snprintf(aSuffix, sizeof(aSuffix), "×%d", (int)aRun->mBuffs[i].mCount);
         NewOptionsDrawCjkFit(g, aFont, aColX[0], aY, aFullW, aText, aSuffix, anEntryColor);
         aY += aLineHeight;

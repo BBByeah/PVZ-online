@@ -6,6 +6,7 @@
 - 开发入口：[DEVELOPMENT.md](DEVELOPMENT.md)
 - 移植进度：[PORTING-STATUS.md](PORTING-STATUS.md)
 - 移植计划：[docs/ANDROID-PORT-PLAN.md](docs/ANDROID-PORT-PLAN.md)
+- 下一批任务：[docs/NEXT-BATCH.md](docs/NEXT-BATCH.md)
 - 中英文资源与语言选项：[docs/LOCALIZATION.md](docs/LOCALIZATION.md)
 
 源码固定来源、许可和原版资源要求见上述记录与下方上游说明。PR 目标为 `android-port`，不要把整个分支合入 Windows 的 `pvz-online` 分支。

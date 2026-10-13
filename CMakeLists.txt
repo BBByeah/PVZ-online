@@ -38,6 +38,13 @@ set(CMAKE_C_FLAGS   "${universal_cflags} ${warn_flags}")
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
+# @pvz-online: Release 也带符号（崩溃取证用）。/Zi + /DEBUG + /MAP 只影响产物侧
+# 车文件（.pdb/.map），不改变代码生成；map 随玩家包放 exe 旁边供现场解符号，pdb 留本机。
+if(MSVC AND CMAKE_BUILD_TYPE STREQUAL "Release")
+    string(APPEND CMAKE_CXX_FLAGS_RELEASE " /Zi")
+    string(APPEND CMAKE_C_FLAGS_RELEASE   " /Zi")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS_RELEASE " /DEBUG /MAP")
+endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
 if(NOT MSVC)

@@ -2419,17 +2419,19 @@ void LawnApp::RunPickRefreshed()
 }
 
 // 玩家点了「重摇」（花园批 2026-10-13 用户拍板的三选一金币出路）：免费「换一批」用掉之后，
-// 花 RunState::RUN_PAID_REROLL_COST 金币再摇一批——扣的是存档钱包 mCoins（与商店/金僵尸
+// 花金币再摇一批——价 = RunState::GetPaidRerollCost（底价 100，同一屏每摇一次 ×10：
+// 100/1000/10000…；进新一屏回底价，同日用户令）。扣的是存档钱包 mCoins（与商店/金僵尸
 // 同源，纯本地）：联机双端各花各的钱、各摇各的屏，不涉协议。走"关屏 + 重抽"，与
 // RunPickRefreshed 同路，屏由 UpdateRunPick ① 按新候选重开。
-// 守卫：金币不够不扣不摇；免费名额还在（mPickReRolled 假）说明按钮该走老路，这里拒收防误调。
+// 守卫：金币不够当前价不扣不摇；免费名额还在（mPickReRolled 假）说明按钮该走老路，这里拒收防误调。
 void LawnApp::RunPickPaidReroll()
 {
 	if (mRunState == nullptr || mPlayerInfo == nullptr) return;
 	if (!mRunState->mPickReRolled) return;
-	if (mPlayerInfo->mCoins < RunState::RUN_PAID_REROLL_COST) return;
+	int aCost = mRunState->GetPaidRerollCost();
+	if (mPlayerInfo->mCoins < aCost) return;
 
-	mPlayerInfo->AddCoins(-RunState::RUN_PAID_REROLL_COST);
+	mPlayerInfo->AddCoins(-aCost);
 	KillDialog(Dialogs::DIALOG_RUN_PICK);
 	mRunState->PaidReroll();
 }

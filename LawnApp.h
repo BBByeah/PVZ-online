@@ -348,8 +348,9 @@ public:
 	void							RunPickSkipped();
 	void							RunPickRefreshed();
 	// @pvz-online: 三选一「重摇」（花园批 2026-10-13 用户拍板）：免费「换一批」用掉后花
-	// RunState::RUN_PAID_REROLL_COST 金币再摇一批——扣存档钱包 mCoins（同商店），关屏重抽。
-	// 金币不够 / 免费名额还在则原样返回（按钮侧已置灰，这里是双保险）。
+	// RunState::GetPaidRerollCost 的当前价（底价 100，同屏 ×10/次阶梯）再摇一批——扣存档
+	// 钱包 mCoins（同商店），关屏重抽。金币不够当前价 / 免费名额还在则原样返回（按钮侧已置灰，
+	// 这里是双保险）。
 	void							RunPickPaidReroll();
 	// @pvz-online: R4 闯关输一关：失败计数 +1 并立刻写检查点（首版只存不用，
 	// 惩罚留平衡阶段）。由 Board::ZombiesWon 在判负的那一下调。

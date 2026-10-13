@@ -201,16 +201,19 @@ RunPickDialog::RunPickDialog(LawnApp* theApp, RunState* theRun) : LawnDialog(
 	mSkipButton = MakeButton(RunPickDialog_Skip, this, ModText::Tr("放弃", "Skip"));
 	// 「换一批」/「重摇」（Refresh，2026-10-08 玩家反馈定案；花园批 2026-10-13 加付费态）：
 	// 这一屏的候选重抽一遍，单按钮两态——免费机会还在 = 「换一批」；已用过 = 「重摇 -N」，
-	// 花金币（RunState::RUN_PAID_REROLL_COST）再摇一批，钱不够时置灰。置灰走框架的
+	// N = RunState::GetPaidRerollCost 的当前价（底价 100，同一屏里每摇一次 ×10：100/1000/
+	// 10000…，进新一屏回底价——同日用户令），钱不够当前价时置灰。置灰走框架的
 	// Widget::mDisabled，点在派发层就被拦下（和本作其它置灰石钮同口径：不变暗、只是按不动）；
-	// 重开这一屏时按当时的记账重算（两态跟着 mPickReRolled 走，见 RunState::PaidReroll）。
+	// 重开这一屏时按当时的记账重算（两态跟着 mPickReRolled 走，价跟着阶梯计数走，
+	// 见 RunState::PaidReroll）。
 	mRefreshButton = MakeButton(RunPickDialog_Refresh, this, ModText::Tr("换一批", "Refresh"));
 	if (theRun->mPickReRolled)
 	{
+		int aCost = theRun->GetPaidRerollCost();
 		char aRefreshUtf8[64];
-		snprintf(aRefreshUtf8, sizeof(aRefreshUtf8), ModText::Tr("重摇 -%d", "Reroll -%d"), RunState::RUN_PAID_REROLL_COST);
+		snprintf(aRefreshUtf8, sizeof(aRefreshUtf8), ModText::Tr("重摇 -%d", "Reroll -%d"), aCost);
 		mRefreshButton->SetLabel(aRefreshUtf8);
-		if (theApp->mPlayerInfo == nullptr || theApp->mPlayerInfo->mCoins < RunState::RUN_PAID_REROLL_COST)
+		if (theApp->mPlayerInfo == nullptr || theApp->mPlayerInfo->mCoins < aCost)
 			mRefreshButton->mDisabled = true;
 	}
 

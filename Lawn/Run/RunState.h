@@ -62,9 +62,12 @@ public:
 	// 格子填它——不是合法 id（全局 9 + 单株 48 + 第二 buff 39 都够不到），选择函数与
 	// 屏上按钮一律忽略。
 	static const unsigned short RUN_BUFF_CHOICE_NONE = 0xFFFF;
-	// @pvz-online: 三选一「重摇」价格（花园批 2026-10-13 用户拍板的三选一金币出路）：免费
-	// 「换一批」用掉之后再摇一批要花的金币数（扣存档钱包 mCoins，与商店同源；对齐金僵尸
-	// 掉落的 100）。纯本地下注，不进协议——联机双端各花各的钱、各摇各的屏。
+	// @pvz-online: 三选一「重摇」底价（花园批 2026-10-13 用户拍板的三选一金币出路；同日
+	// 用户令改阶梯价）：免费「换一批」用掉之后再摇一批要花的金币——同一屏里每摇一次 ×10
+	// （100 → 1000 → 10000…公式不设上限，实际被钱包上限 99999 自然封死在第三步之后），
+	// 进新的三选一屏即回到底价重新起算（与免费「换一批」每屏回满同节奏，见 GetPaidRerollCost）。
+	// 扣存档钱包 mCoins，与商店同源；对齐金僵尸掉落的 100。纯本地下注，不进协议——联机
+	// 双端各花各的钱、各摇各的屏。
 	static const int	RUN_PAID_REROLL_COST	= 100;
 
 	// @pvz-online: 出怪编排旋钮（M4-a，用户定案）：点数不封顶、数量封顶；点数多就出强僵尸。
@@ -99,6 +102,10 @@ public:
 	// 也让「换一批」重开的那一屏不会被再抽一次）；mPickReRolled = 这一屏的刷新机会用掉没有。
 	bool						mChoicesRolled;
 	bool						mPickReRolled;
+	// @pvz-online: 「重摇」阶梯价的记账（花园批同日用户令）：本屏已经花金币重摇过几次——
+	// 当前价 = 底价 × 10^本数（见 GetPaidRerollCost）。和上两个标志一样纯内存、不落检查点；
+	// 新的一屏（RollChoices 非重抽路径）清零，与免费名额同节奏回满。
+	int							mPaidRerollCount;
 	// @pvz-online: 候选去重批的记账（2026-10-10 用户定案「同屏排除+一屏冷却」，一屏/一批
 	// 生灭、纯内存不落检查点）。mPickSeenBuffs = 本屏露过脸的全部增益 id（含「换一批」
 	// 刷掉的那批，最多 3+3，抽的当下就记）；mPickCooldownBuffs = 上一屏露过脸又没拿的
@@ -207,8 +214,12 @@ public:
 	// @pvz-online: 「重摇」（花园批 2026-10-13）：免费「换一批」用掉之后再摇一批——同一条
 	// RollChoices(true) 重抽链（摘本屏现三条），差别只在记账：不看也不设 mPickReRolled
 	// （免费名额早已用掉，这次记的是"花过钱"）。扣币在 LawnApp::RunPickPaidReroll 那边，
-	// 这里只管重抽。
+	// 这里只管重抽；顺便把本屏的重摇计数 +1（阶梯价，见下）。
 	void				PaidReroll();
+	// @pvz-online: 这一屏当前的重摇价（花园批同日用户令：「每次*10，从100开始 100 1000 10000
+	// 这样，不设上限」+ 拍板每屏重置）= 底价 × 10^本屏已花币重摇次数。LawnApp 扣费与
+	// RunPickDialog 标价/置灰共用这一个出口，保证三处永远同价。
+	int					GetPaidRerollCost() const;
 	// 玩家点了第 theIndex 张卡：植物进卡池、buff 叠一层，各欠的数减一。
 	void				TakePlantChoice(int theIndex);
 	void				TakeBuffChoice(int theIndex);

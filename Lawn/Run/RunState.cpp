@@ -160,6 +160,7 @@ void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theR
 	mPendingBuffPicks = 0;
 	mChoicesRolled = false;
 	mPickReRolled = false;
+	mPaidRerollCount = 0;		// 重摇阶梯价：新局从头起算（实际每屏还会在 RollChoices 清零）
 	mPickSeenBuffCount = 0;		// 候选去重批：新局无露脸/冷却
 	mPickCooldownBuffCount = 0;
 	mPickCounter = 0;
@@ -285,6 +286,9 @@ void RunState::RollChoices(bool theReroll)
 	// 每抽一次刷新机会回满——「换一批」自己会把它用掉（见 RerollChoices）。
 	mChoicesRolled = true;
 	mPickReRolled = false;
+	// 「重摇」阶梯价按屏起算（花园批同日用户令，拍板"每屏重置"）：非重抽 = 这是一屏新的
+	// 候选，价格回底价；重抽（免费/付费）都在同一屏里，计数照旧累着。
+	if (!theReroll) mPaidRerollCount = 0;
 
 	unsigned int aSeed = (unsigned int)mRunSeed
 		^ (0x9E3779B9u * (unsigned int)(mLevelIndex + 1))
@@ -524,15 +528,27 @@ void RunState::RerollChoices()
 
 // @pvz-online: 「重摇」（花园批 2026-10-13）：与 RerollChoices 同一条重抽链（进 RollChoices(true)
 // 前把本屏现三条整体摘出候选，池子够时必出全新三条），差别只在记账——免费名额不看也不设
-// （它早用过了），这是花金币买的又一次。扣费与守卫在 LawnApp::RunPickPaidReroll。
-// 注意 RollChoices 内部会把 mPickReRolled 复位（它是"下一屏回满免费机会"的机制，:287）——
-// 这里要立刻压回 true，否则付费摇完屏重开会变回免费「换一批」，100 金币等于买断了免费额度。
-// 免费名额照旧等下一屏（Take*Choice 后下一关 RollChoices(false)）回满。
+// （它早用过了），这是花金币买的又一次。扣费与守卫在 LawnApp::RunPickPaidReroll（按
+// GetPaidRerollCost 的当前价）。计数 +1 让同一屏里下一次更贵（阶梯价，同日用户令 ×10/次）。
+// 注意 RollChoices 内部会把 mPickReRolled 复位（它是"下一屏回满免费机会"的机制，:287 附近）——
+// 这里要立刻压回 true，否则付费摇完屏重开会变回免费「换一批」，底价金币等于买断了免费额度。
+// 免费名额与阶梯计数都照旧等下一屏（Take*Choice 后下一关 RollChoices(false)）回满。
 void RunState::PaidReroll()
 {
 	RollChoices(true);
 	mPickReRolled = true;
-	TodLog("[run] the choices were rerolled for coins (pick counter %u)", mPickCounter);
+	mPaidRerollCount++;
+	TodLog("[run] the choices were rerolled for coins: #%d this screen, next price %d (pick counter %u)", mPaidRerollCount, GetPaidRerollCost(), mPickCounter);
+}
+
+// 这一屏当前的重摇价 = 底价 × 10^（本屏已花币重摇的次数）。循环封顶在第 7 步只是防 int
+// 溢出（100×10^7 = 1e9 仍合法）；实际到不了——存档钱包上限 99999，第 4 步 100000 就已买不起。
+int RunState::GetPaidRerollCost() const
+{
+	int aCost = RUN_PAID_REROLL_COST;
+	int aSteps = (mPaidRerollCount > 7) ? 7 : mPaidRerollCount;
+	for (int i = 0; i < aSteps; i++) aCost *= 10;
+	return aCost;
 }
 
 void RunState::TakePlantChoice(int theIndex)

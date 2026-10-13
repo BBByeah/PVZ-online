@@ -3419,7 +3419,9 @@ LRESULT CALLBACK SexyAppBase::WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
 		// 瞄不准也看不到缩放箭头——把"画面边界"这一圈让出来，瞄准就容易了。
 		{
 			LRESULT aHitTest = DefWindowProc(hWnd, uMsg, wParam, lParam);
+			// @pvz-online: 无边框全屏时整条黑边都归画面（没有窗口边框可拖），不能当抓区。
 			if ((aHitTest != HTCLIENT) || (aSexyApp == NULL) || (hWnd != aSexyApp->mHWnd)
+				|| (!aSexyApp->mIsWindowed)
 				|| (aSexyApp->mDDInterface == NULL) || (!aSexyApp->mDDInterface->mIsWindowed))
 				return aHitTest;
 
@@ -5707,6 +5709,18 @@ int SexyAppBase::InitDDInterface()
 	DemoSyncRefreshRate();
 	if ( DDInterface::RESULT_OK == aResult )
 	{
+		// @pvz-online: DDInterface::Init 每次都把呈现矩形复位成 mWidth x mHeight@(0,0)。
+		// 无边框全屏（客户区=整块屏）或运行中的 DDraw 重建（3D 开关、Redraw 失败重试）之后，
+		// 必须按真实客户区立刻重算——否则画面和鼠标换算被打回 1:1 缩在左上角。
+		// 这里不画帧（启动期 mInitialized 为 false；重建期 mWidgetManager->mImage 尚未刷新），
+		// SetClientSize 只改矩形，窗口化 800x600 下与复位值相同会提前返回，是 no-op。
+		if (mIsPhysWindowed)
+		{
+			RECT aClientRect;
+			::GetClientRect(mHWnd, &aClientRect);
+			mDDInterface->SetClientSize(aClientRect.right - aClientRect.left,
+										aClientRect.bottom - aClientRect.top);
+		}
 		mScreenBounds.mX = ( mWidth - mDDInterface->mWidth ) / 2;
 		mScreenBounds.mY = ( mHeight - mDDInterface->mHeight ) / 2;
 		mScreenBounds.mWidth = mDDInterface->mWidth;

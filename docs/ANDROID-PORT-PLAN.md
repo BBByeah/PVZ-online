@@ -7,9 +7,9 @@
 - MuMu 已升级为 Android 15，实例 2，ADB 地址本次为 127.0.0.1:16448；ABI 支持 x86_64/arm64-v8a/x86，当前 ARM64 包安装成功。此结果不替代真实 ARM 手机验收。
 - 看到无资源时的导入界面；随后通过 ADB 复制本机正版 main.pak/properties，进入标题、主菜单和冒险第一关，看到植物与阳光，完成第一关并进入第二关。未完整验证 SAF 导入交互；音频流已启动，未做听音确认。
 - 根据用户反馈优先修复触屏拖放：Android 卡片拖动松手复用原种植规则，无效落点取消，保留点选操作。第二关向日葵的有效/无效落点均验证通过，仅做本问题必要检查。
-- 两人协作最终采用单独 Android 仓库。现有 `Not-a-Different-Name/PVZ-online` 的 `android-port` 分支暂作同步位置，待用户提供新仓库 URL 后迁移 remote；不整支合入 Windows 分支。
+- 两人协作采用独立仓库 `https://github.com/Not-a-Different-Name/PVZ-online-android`，整合分支为 `android-port`。旧 PVZ-online/android-port 仅保留迁移前临时副本，后续不再同步，不整支合入 Windows 分支。
 - 同伴首项任务为“枚举与协议编号对照报告”，只写 docs/compatibility/enum-audit.md，不动战斗/协议源文件；可选第二项为资源管理页中英双语，范围限 Java ResourceImportActivity 与 strings.xml。详细任务、参考快照和提交方式已放进共享分支 docs/COLLABORATION.md。
-- 主开发者负责触屏、C++ 玩法、网络、构建和 APK 整合，同伴通过独立分支 PR 提交。PR 目标暂为 android-port；新仓库保留这条基线或明确变更后同步文档。
+- 主开发者负责触屏、C++ 玩法、网络、构建和 APK 整合，同伴通过独立分支 PR 提交。PR 目标为新仓库的 android-port。
 - 下一阶段：P1 的 Run 状态/最小 UI 与两关闯关闭环。先核对接口，再逐个迁入；编号审查可与实现并行，不让同伴和主开发者同时修改 ConstEnums/Board。
 
 下文准备复盘中的“待模拟器启动/运行验证”是历史节点，以本节结果为准。

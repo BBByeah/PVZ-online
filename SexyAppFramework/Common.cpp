@@ -252,12 +252,16 @@ std::wstring Sexy::SexyStringToWString(const SexyString& theString)
 
 std::string Sexy::Trim(const std::string& theString)
 {
+	// @pvz-online 汉化批: 逐字节 isspace 必须先转 unsigned char——UTF-8 汉字字节 ≥0x80
+	// 在 char 上是负值，UCRT Debug 的 isctype 对越界实参直接断言（中文 LawnStrings 行
+	// 经此 Trim 实测弹框）；转后 ≥0x80 恒判非空白，对 UTF-8 正是想要的语义（多字节
+	// 序列的任何字节都不会等于 ASCII 空白）。
 	int aStartPos = 0;
-	while ( aStartPos < (int) theString.length() && isspace(theString[aStartPos]) )
+	while ( aStartPos < (int) theString.length() && isspace((unsigned char)theString[aStartPos]) )
 		aStartPos++;
 
 	int anEndPos = theString.length() - 1;
-	while ( anEndPos >= 0 && isspace(theString[anEndPos]) )
+	while ( anEndPos >= 0 && isspace((unsigned char)theString[anEndPos]) )
 		anEndPos--;
 
 	return theString.substr(aStartPos, anEndPos - aStartPos + 1);

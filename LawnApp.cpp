@@ -176,7 +176,7 @@ LawnApp::LawnApp()
 	mSlideCollect = true;
 	{
 		int aValue = 1;
-		RegistryReadInteger("ModSlideCollect", &aValue);
+		ModText::RegReadDword("ModSlideCollect", &aValue);
 		mSlideCollect = (aValue != 0);
 	}
 	mShowedStartupAnnounce = false;
@@ -436,7 +436,7 @@ void LawnApp::WriteToRegistry()
 {
 	if (mPlayerInfo)
 	{
-		RegistryWriteString("CurUser", SexyStringToStringFast(mPlayerInfo->mName));
+		ModText::RegWriteString("CurUser", SexyStringToStringFast(mPlayerInfo->mName));
 		mPlayerInfo->SaveDetails();
 	}
 
@@ -3682,7 +3682,7 @@ void LawnApp::Init()
 	mProfileMgr->Load();
 
 	std::string aCurUser;
-	if (mPlayerInfo == nullptr && RegistryReadString("CurUser", &aCurUser))
+	if (mPlayerInfo == nullptr && ModText::RegReadString("CurUser", &aCurUser))
 	{
 		mPlayerInfo = mProfileMgr->GetProfile(StringToSexyStringFast(aCurUser));
 	}

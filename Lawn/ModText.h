@@ -16,7 +16,7 @@ namespace Sexy
 // 「UTF-8 → 本机 ANSI + SysFont(TextOutA)」——非 CP936 系统上汉字会被 WideCharToMultiByte
 // 烂成 '?'。这里收成一份、并升级为**宽字符直绘**（UTF-8 → UTF-16 → TextOutW）：
 // 与系统码页彻底脱钩，英文系统上也能正常显示中文。语言档（自动 / 中文 / English）
-// 存注册表（SexyAppBase 的 Registry 助手，键名 "ModLanguage"），语言=English 时
+// 存注册表（HKCU 直通，见下 Reg* 助手；键名 "ModLanguage"），语言=English 时
 // 文案调度由调用方走英文、不必过这里——这里是"画中文"的基建。
 namespace ModText
 {
@@ -33,6 +33,15 @@ namespace ModText
 	void		SetLanguageSetting(int theLang);
 	int			GetLanguage();				// 解析 AUTO 后的实际语言
 	bool		IsChinese();
+
+	// 注册表直通（2026-10-13）：SexyAppBase 的 Registry 助手键前缀取自属性
+	// "RegistryKey"，本工程未定义 → mRegKey 恒空 → 链上读写全部静默失效（实机排障）。
+	// mod 设置不再走框架链，直接读写 HKCU\SOFTWARE\PopCap\PlantsVsZombies（与框架本意的
+	// 键位一致）；ModLanguage / ModSlideCollect / CurUser 都走这里。
+	bool		RegReadDword(const char* theName, int* theValue);
+	bool		RegWriteDword(const char* theName, int theValue);
+	bool		RegReadString(const char* theName, std::string* theValue);
+	bool		RegWriteString(const char* theName, const std::string& theValue);
 
 	// 双语择串：按当前语言在两条 UTF-8 里选一条返回（不做拷贝，两条都得是静态存储——
 	// 字面量或静态表，别传栈上的缓冲）。不画字的场景（标题、提示、按钮标签）也能用。

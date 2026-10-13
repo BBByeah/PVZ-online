@@ -78,9 +78,11 @@ void LawnEditWidget::KeyDown(KeyCode theKey)
 //0x456760
 void LawnEditWidget::KeyChar(char theChar)
 {
-    if (mAutoCapFirstLetter && isalpha(theChar))
+    // @pvz-online 汉化批: isalpha/toupper 前转 unsigned char——输入框可能收到非 ASCII
+    // 字节（中文 IME 提交），负 char 喂 UCRT ctype 会 Debug 断言。
+    if (mAutoCapFirstLetter && isalpha((unsigned char)theChar))
     {
-        theChar = toupper(theChar);
+        theChar = (char)toupper((unsigned char)theChar);
         mAutoCapFirstLetter = false;
     }
 

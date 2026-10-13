@@ -20,14 +20,73 @@ public:
 };
 
 // ── 语言档 ─────────────────────────────────────────────────────────────
-// 存注册表（SexyAppBase 的 Registry 助手，键 "ModLanguage"；CurUser 走同一条路）。
+// 存注册表（HKCU 直通，见下 Reg* 助手；键名 "ModLanguage"；CurUser/ModSlideCollect 同路）。
 // 读失败保留默认 MODLANG_AUTO——首次运行没有这个值，此时按系统码页自动判。
+
+// ── 注册表直通 ─────────────────────────────────────────────────────────
+// SexyAppBase::{Read,Write}Registry 的键前缀 = "SOFTWARE\" + 属性 "RegistryKey"；
+// 本工程 properties 没有这个属性 → mRegKey 恒空 → 链上所有读写直接失败（2026-10-13
+// 实机排障：ModLanguage/ModSlideCollect/CurUser 全都存不下来）。这里不唤醒框架链，
+// 直接读写 HKCU\SOFTWARE\PopCap\PlantsVsZombies（即框架本意的键位）。
+static const char* MOD_REG_PATH = "SOFTWARE\\PopCap\\PlantsVsZombies";
+
+// 注：不用 RegGetValueA——winreg.h 只在目标 >= Vista 时才声明它，本工程目标平台更老。
+bool ModText::RegReadDword(const char* theName, int* theValue)
+{
+	HKEY aKey;
+	if (RegOpenKeyExA(HKEY_CURRENT_USER, MOD_REG_PATH, 0, KEY_QUERY_VALUE, &aKey) != ERROR_SUCCESS)
+		return false;
+	DWORD aType = 0, aData = 0, aSize = sizeof(aData);
+	LSTATUS aResult = RegQueryValueExA(aKey, theName, NULL, &aType, (LPBYTE)&aData, &aSize);
+	RegCloseKey(aKey);
+	if (aResult != ERROR_SUCCESS || aType != REG_DWORD || aSize != sizeof(aData))
+		return false;
+	*theValue = (int)aData;
+	return true;
+}
+
+bool ModText::RegWriteDword(const char* theName, int theValue)
+{
+	HKEY aKey;
+	if (RegCreateKeyExA(HKEY_CURRENT_USER, MOD_REG_PATH, 0, NULL, REG_OPTION_NON_VOLATILE,
+			KEY_SET_VALUE, NULL, &aKey, NULL) != ERROR_SUCCESS)
+		return false;
+	DWORD aData = (DWORD)theValue;
+	LSTATUS aResult = RegSetValueExA(aKey, theName, 0, REG_DWORD, (const BYTE*)&aData, sizeof(aData));
+	RegCloseKey(aKey);
+	return aResult == ERROR_SUCCESS;
+}
+
+bool ModText::RegReadString(const char* theName, std::string* theValue)
+{
+	HKEY aKey;
+	if (RegOpenKeyExA(HKEY_CURRENT_USER, MOD_REG_PATH, 0, KEY_QUERY_VALUE, &aKey) != ERROR_SUCCESS)
+		return false;
+	char aBuf[256];
+	DWORD aType = 0, aSize = sizeof(aBuf);
+	LSTATUS aResult = RegQueryValueExA(aKey, theName, NULL, &aType, (LPBYTE)aBuf, &aSize);
+	RegCloseKey(aKey);
+	if (aResult != ERROR_SUCCESS || (aType != REG_SZ && aType != REG_EXPAND_SZ) || aSize == 0)
+		return false;
+	theValue->assign(aBuf, aSize - 1);	// 去掉结尾 NUL
+	return true;
+}
+
+bool ModText::RegWriteString(const char* theName, const std::string& theValue)
+{
+	HKEY aKey;
+	if (RegCreateKeyExA(HKEY_CURRENT_USER, MOD_REG_PATH, 0, NULL, REG_OPTION_NON_VOLATILE,
+			KEY_SET_VALUE, NULL, &aKey, NULL) != ERROR_SUCCESS)
+		return false;
+	LSTATUS aResult = RegSetValueExA(aKey, theName, 0, REG_SZ, (const BYTE*)theValue.c_str(), (DWORD)theValue.size() + 1);
+	RegCloseKey(aKey);
+	return aResult == ERROR_SUCCESS;
+}
 
 int ModText::GetLanguageSetting()
 {
 	int aValue = MODLANG_AUTO;
-	if (gSexyAppBase != NULL)
-		gSexyAppBase->RegistryReadInteger("ModLanguage", &aValue);
+	RegReadDword("ModLanguage", &aValue);
 	if (aValue != MODLANG_AUTO && aValue != MODLANG_CHINESE && aValue != MODLANG_ENGLISH)
 		aValue = MODLANG_AUTO;
 	return aValue;
@@ -35,8 +94,7 @@ int ModText::GetLanguageSetting()
 
 void ModText::SetLanguageSetting(int theLang)
 {
-	if (gSexyAppBase != NULL)
-		gSexyAppBase->RegistryWriteInteger("ModLanguage", theLang);
+	RegWriteDword("ModLanguage", theLang);
 }
 
 int ModText::GetLanguage()

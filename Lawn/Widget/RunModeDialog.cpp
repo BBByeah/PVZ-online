@@ -414,7 +414,7 @@ void RunModeDialog::ButtonDepress(int theId)
 			if (mApp->mSlideCollect != (aDialog->mSlideSel != 0))
 			{
 				mApp->mSlideCollect = (aDialog->mSlideSel != 0);
-				mApp->RegistryWriteInteger("ModSlideCollect", mApp->mSlideCollect ? 1 : 0);
+				ModText::RegWriteDword("ModSlideCollect", mApp->mSlideCollect ? 1 : 0);
 			}
 		}
 		return;

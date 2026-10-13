@@ -6,6 +6,7 @@
 #include "../System/PlayerInfo.h"
 #include "../../Sexy.TodLib/TodStringFile.h"
 #include "widget/ListWidget.h"
+#include "../ModText.h"
 
 static int gUserListWidgetColors[][3] = {  //0x69F274
     {  23,  24,  35 },
@@ -17,7 +18,7 @@ static int gUserListWidgetColors[][3] = {  //0x69F274
 
 //0x51C760
 // @Patoke: these dialogs don't have localizations
-UserDialog::UserDialog(LawnApp* theApp) : LawnDialog(theApp, Dialogs::DIALOG_USERDIALOG, true, _S("WHO ARE YOU?"), _S(""), _S(""), Dialog::BUTTONS_OK_CANCEL)
+UserDialog::UserDialog(LawnApp* theApp) : LawnDialog(theApp, Dialogs::DIALOG_USERDIALOG, true, ModText::Tr("你是谁？", "WHO ARE YOU?"), _S(""), _S(""), Dialog::BUTTONS_OK_CANCEL)
 {
 	mVerticalCenterText = false;
 	mUserList = new ListWidget(0, FONT_BRIANNETOD16, this);
@@ -26,8 +27,8 @@ UserDialog::UserDialog(LawnApp* theApp) : LawnDialog(theApp, Dialogs::DIALOG_USE
     mUserList->mJustify = ListWidget::JUSTIFY_CENTER;
     mUserList->mItemHeight = 24;
     
-    mRenameButton = MakeButton(UserDialog::UserDialog_RenameUser, this, _S("Rename"));
-    mDeleteButton = MakeButton(UserDialog::UserDialog_DeleteUser, this, _S("Delete"));
+    mRenameButton = MakeButton(UserDialog::UserDialog_RenameUser, this, ModText::Tr("重命名", "Rename"));
+    mDeleteButton = MakeButton(UserDialog::UserDialog_DeleteUser, this, ModText::Tr("删除", "Delete"));
 
     mNumUsers = 0;
     if (theApp->mPlayerInfo)
@@ -50,7 +51,7 @@ UserDialog::UserDialog(LawnApp* theApp) : LawnDialog(theApp, Dialogs::DIALOG_USE
 
     if (mNumUsers < 8)
     {
-        mUserList->AddLine(TodStringTranslate(_S("(Create a New User)")), false);
+        mUserList->AddLine(ModText::Tr("(创建新用户)", "(Create a New User)"), false);
     }
 
     mTallBottom = true;

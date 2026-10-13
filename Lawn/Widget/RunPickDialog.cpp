@@ -146,7 +146,7 @@ RunPickDialog::RunPickDialog(LawnApp* theApp, RunState* theRun) : LawnDialog(
 	theApp,
 	Dialogs::DIALOG_RUN_PICK,
 	true,
-	theRun->IsPlantPick() ? _S("NEW PLANT") : _S("NEW BOOST"),
+	theRun->IsPlantPick() ? ModText::Tr("新植物", "NEW PLANT") : ModText::Tr("新增益", "NEW BOOST"),
 	_S(""),
 	_S(""),
 	Dialog::BUTTONS_NONE)
@@ -195,14 +195,14 @@ RunPickDialog::RunPickDialog(LawnApp* theApp, RunState* theRun) : LawnDialog(
 			mChoiceButtons[i]->mGoldLabel = true;
 		}
 	}
-	// 「放弃」（Skip，2026-10-03 用户定案）：三条都不想要时的出路。按钮文案和卡名/标题
-	// 一样走位图字体（没有汉字字形），所以是英文；位置在最下面一行、和「换一批」并排（见 Resize）。
-	mSkipButton = MakeButton(RunPickDialog_Skip, this, _S("Skip"));
+	// 「放弃」（Skip，2026-10-03 用户定案）：三条都不想要时的出路。按钮文案走位图字体
+	// （② 汉字字形批后中文模式可直接渲染），中英文经 Tr 择串；和「换一批」并排（见 Resize）。
+	mSkipButton = MakeButton(RunPickDialog_Skip, this, ModText::Tr("放弃", "Skip"));
 	// 「换一批」（Refresh，2026-10-08 玩家反馈定案）：这一屏的候选重抽一次，每屏限一次。
 	// 机会已经用掉时置为不可点——框架的 Widget::mDisabled，点在派发层就被拦下（和本作
 	// 其它置灰石钮同口径：不变暗、只是按不动）；重开这一屏时按当时的记账重算
 	// （不可点状态跟着 mPickReRolled 走，见 RunState::RerollChoices）。
-	mRefreshButton = MakeButton(RunPickDialog_Refresh, this, _S("Refresh"));
+	mRefreshButton = MakeButton(RunPickDialog_Refresh, this, ModText::Tr("换一批", "Refresh"));
 	if (theRun->mPickReRolled) mRefreshButton->mDisabled = true;
 
 	mTallBottom = true;
@@ -361,7 +361,7 @@ void RunPickDialog::Draw(Graphics* g)
 	}
 	g->SetFont(mLinesFont);
 	g->SetColor(mColors[Dialog::COLOR_LINES]);
-	WriteCenteredLine(g, aFontY, mPlantPick ? _S("Pick one to join your run.") : _S("Pick one to power up your run."));
+	WriteCenteredLine(g, aFontY, mPlantPick ? ModText::Tr("选一株加入本局。", "Pick one to join your run.") : ModText::Tr("选一条增益强化本局。", "Pick one to power up your run."));
 
 	for (int i = 0; i < 3; i++)
 	{

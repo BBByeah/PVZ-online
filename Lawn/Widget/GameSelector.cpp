@@ -17,6 +17,7 @@
 #include "../../Sexy.TodLib/TodFoley.h"
 #include "../../Sexy.TodLib/TodDebug.h"
 #include "graphics/Font.h"
+#include "../ModText.h"
 #include "../../Sexy.TodLib/Reanimator.h"
 #include "../../Sexy.TodLib/TodParticle.h"
 #include "widget/Dialog.h"
@@ -288,7 +289,7 @@ GameSelector::GameSelector(LawnApp* theApp)
 	mPvpButton = MakeNewButton(
 		GameSelector::GameSelector_PvP,
 		this,
-		"PVP - COMING SOON",
+		ModText::Tr("对战模式 - 敬请期待", "PVP - COMING SOON"),
 		nullptr,
 		Sexy::IMAGE_BLANK,
 		Sexy::IMAGE_BLANK,

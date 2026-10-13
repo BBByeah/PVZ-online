@@ -10,6 +10,7 @@
 #include "../../Sexy.TodLib/EffectSystem.h"
 #include "../../Sexy.TodLib/TodStringFile.h"
 #include "graphics/ImageFont.h"
+#include "../ModText.h"
 
 
 //0x456A80
@@ -35,13 +36,13 @@ LawnDialog::LawnDialog(LawnApp* theApp, int theId, bool isModal, const SexyStrin
     // @Patoke: these also don't use localized names anymore
     if (theButtonMode == 1)
     {
-        mLawnYesButton = MakeButton(1000, this, _S("Yes"));
-        mLawnNoButton = MakeButton(1001, this, _S("No"));
+        mLawnYesButton = MakeButton(1000, this, ModText::Tr("是", "Yes"));
+        mLawnNoButton = MakeButton(1001, this, ModText::Tr("否", "No"));
     }
     else if (theButtonMode == 2)
     {
-        mLawnYesButton = MakeButton(1000, this, _S("Ok"));
-        mLawnNoButton = MakeButton(1001, this, _S("Cancel"));
+        mLawnYesButton = MakeButton(1000, this, ModText::Tr("确定", "Ok"));
+        mLawnNoButton = MakeButton(1001, this, ModText::Tr("取消", "Cancel"));
     }
     else if (theButtonMode == 3)
     {
@@ -463,15 +464,15 @@ GameOverDialog::GameOverDialog(const SexyString& theMessage, bool theShowChallen
     if (mApp->IsOnlineClient())
     {
         mLawnYesButton->mVisible = false;
-        mDialogLines = "The host decides whether to try again.";
+        mDialogLines = ModText::Tr("由主机决定是否重来。", "The host decides whether to try again.");
     }
     // @pvz-online: 闯关失败（R4）：按钮和文案换成闯关的说法。"Retry Level" 重开本关——
     // 走的是原版 Try Again 那条路（冒险模式 → EndLevel），关卡号和波表种子都还在，
     // 卡池 / 增益本来就跟着 mRunState 不放；"Main Menu" 回菜单，检查点还在，下次能续。
     else if (mApp->IsRunMode())
     {
-        mLawnYesButton->SetLabel(_S("Retry Level"));
-        mDialogLines = "Your run is saved. Retry this level or return to the menu.";
+        mLawnYesButton->SetLabel(ModText::Tr("重试本关", "Retry Level"));
+        mDialogLines = ModText::Tr("进度已保存：可重试本关，也可返回菜单。", "Your run is saved. Retry this level or return to the menu.");
     }
 
     if (theMessage.size() == 0)

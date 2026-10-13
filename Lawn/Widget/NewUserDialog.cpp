@@ -2,6 +2,7 @@
 #include "../../LawnApp.h"
 #include "../../Resources.h"
 #include "widget/WidgetManager.h"
+#include "../ModText.h"
 
 //0x45D610
 // GOTY @Patoke: 0x460F20
@@ -10,8 +11,8 @@ NewUserDialog::NewUserDialog(LawnApp* theApp, bool isRename) : LawnDialog(
 	isRename ? Dialogs::DIALOG_RENAMEUSER : Dialogs::DIALOG_CREATEUSER, 
 	true, 
 	// @Patoke: these locals don't exist
-	isRename ? _S("RENAME USER") : _S("NEW USER"), 
-	_S("Please enter your name:"), 
+	isRename ? ModText::Tr("重命名用户", "RENAME USER") : ModText::Tr("新用户", "NEW USER"), 
+	ModText::Tr("请输入你的名字：", "Please enter your name:"), 
 	_S("[DIALOG_BUTTON_OK]"), 
 	Dialog::BUTTONS_OK_CANCEL)
 {

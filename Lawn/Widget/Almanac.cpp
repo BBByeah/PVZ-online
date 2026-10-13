@@ -258,7 +258,7 @@ static void DrawAlmanacRunEntry(Graphics* g, int theId, int theRarity, int theDe
 }
 
 //0x401010
-AlmanacDialog::AlmanacDialog(LawnApp* theApp) : LawnDialog(theApp, DIALOG_ALMANAC, true, _S("Almanac"), _S(""), _S(""), BUTTONS_NONE)
+AlmanacDialog::AlmanacDialog(LawnApp* theApp) : LawnDialog(theApp, DIALOG_ALMANAC, true, ModText::Tr("图鉴", "Almanac"), _S(""), _S(""), BUTTONS_NONE)
 {
 	mApp = (LawnApp*)gSexyAppBase;
 	mOpenPage = ALMANAC_PAGE_INDEX;

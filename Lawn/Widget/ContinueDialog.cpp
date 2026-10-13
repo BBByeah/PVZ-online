@@ -6,6 +6,7 @@
 #include "../../Resources.h"
 #include "../../Sexy.TodLib/TodFoley.h"
 #include "../../Sexy.TodLib/TodStringFile.h"
+#include "../ModText.h"
 
 //0x4330D0
 // GOTY @Patoke: 0x435E40
@@ -14,20 +15,20 @@ ContinueDialog::ContinueDialog(LawnApp* theApp) : LawnDialog(
 	theApp, 
 	Dialogs::DIALOG_CONTINUE, 
 	true, 
-	_S("CONTINUE GAME?"), 
+	ModText::Tr("继续游戏？", "CONTINUE GAME?"), 
 	_S(""), 
 	_S("[DIALOG_BUTTON_CANCEL]"), 
 	Dialog::BUTTONS_FOOTER)
 {
     if (theApp->IsAdventureMode())
     {
-        mDialogLines = TodStringTranslate(_S("Do you want to continue your current game or restart the level?"));
+        mDialogLines = ModText::Tr("你想继续当前的游戏，还是重开本关？", "Do you want to continue your current game or restart the level?");
         mContinueButton = MakeButton(ContinueDialog::ContinueDialog_Continue, this, _S("[CONTINUE_BUTTON]"));
         mNewGameButton = MakeButton(ContinueDialog::ContinueDialog_NewGame, this, _S("[RESTART_BUTTON]"));
     }
     else
     {
-        mDialogLines = TodStringTranslate(_S("Do you want to continue your current game or start a new game?"));
+        mDialogLines = ModText::Tr("你想继续当前的游戏，还是开始新游戏？", "Do you want to continue your current game or start a new game?");
         mContinueButton = MakeButton(ContinueDialog::ContinueDialog_Continue, this, _S("[CONTINUE_BUTTON]"));
         mNewGameButton = MakeButton(ContinueDialog::ContinueDialog_NewGame, this, _S("[NEW_GAME_BUTTON]"));
     }

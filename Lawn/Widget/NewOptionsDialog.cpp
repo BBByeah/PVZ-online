@@ -131,7 +131,7 @@ static void NewOptionsDrawCjkFit(Sexy::Graphics* g, ModText::Font* theFont, int 
 
 //0x45C050
 NewOptionsDialog::NewOptionsDialog(LawnApp* theApp, bool theFromGameSelector) : 
-	Dialog(nullptr, nullptr, Dialogs::DIALOG_NEWOPTIONS, true, _S("Options"), _S(""), _S(""), Dialog::BUTTONS_NONE)
+	Dialog(nullptr, nullptr, Dialogs::DIALOG_NEWOPTIONS, true, ModText::Tr("选项", "Options"), _S(""), _S(""), Dialog::BUTTONS_NONE)
 {
     mApp = theApp;
     mFromGameSelector = theFromGameSelector;
@@ -312,10 +312,10 @@ void NewOptionsDialog::Draw(Sexy::Graphics* g)
     }
     Sexy::Color aTextColor(107, 109, 145);
 
-    TodDrawString(g, _S("Music"), 186, 140 + aMusicOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
-    TodDrawString(g, _S("Sound FX"), 186, 167 + aSfxOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
-    TodDrawString(g, _S("3D Acceleration"), 274, 197 + a3DAccelOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
-    TodDrawString(g, _S("Full Screen"), 274, 229 + aFullScreenOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
+    TodDrawString(g, ModText::Tr("音乐", "Music"), 186, 140 + aMusicOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
+    TodDrawString(g, ModText::Tr("音效", "Sound FX"), 186, 167 + aSfxOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
+    TodDrawString(g, ModText::Tr("3D 加速", "3D Acceleration"), 274, 197 + a3DAccelOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
+    TodDrawString(g, ModText::Tr("全屏", "Full Screen"), 274, 229 + aFullScreenOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 
     // @pvz-online: 语言选项行（2026-10-03 语言批，2026-10-04 改版）。左下竖带单列：
     // 标题对 + 三档（自动/中文/English），当前档高亮；点击存注册表（ModText::
@@ -360,13 +360,25 @@ void NewOptionsDialog::Draw(Sexy::Graphics* g)
                     FONT_DWARVENTODCRAFT12, aColor, DrawStringJustification::DS_ALIGN_LEFT);
             }
         }
+        // 「重启后生效」提示（汉化批 ④ 2026-10-13）：② 的文本字库与 ① 的美术覆盖包都在
+        // 启动期随 pvz_zh.pak 加载——这里切语言只即时改变模组自绘 UI，语言文本/美术下一
+        // 次启动才跟上。接最后一档的节奏挂在下面，11pt 小一级 + 色淡，不做成第四个可点项。
+        ModText::Font* aHintFont = NewOptionsCjkFontSmall();
+        int aHintTop = LANGUAGE_OPT_TOP + 3 * LANGUAGE_OPT_STEP + 5;
+        Sexy::Color aHintColor(176, 184, 205);
+        NewOptionsDrawCjk(g, aHintFont, LANGUAGE_X + 1, aHintTop + 1, "重启后生效", aShadowColor);
+        NewOptionsDrawCjk(g, aHintFont, LANGUAGE_X, aHintTop, "重启后生效", aHintColor);
+        TodDrawString(g, "Restart to apply", LANGUAGE_X + 1, aHintTop + 16 + ModText::Ascent(aHintFont) + 1,
+            FONT_DWARVENTODCRAFT12, aShadowColor, DrawStringJustification::DS_ALIGN_LEFT);
+        TodDrawString(g, "Restart to apply", LANGUAGE_X, aHintTop + 16 + ModText::Ascent(aHintFont),
+            FONT_DWARVENTODCRAFT12, aHintColor, DrawStringJustification::DS_ALIGN_LEFT);
     }
 
     // @pvz-online: 这次暂停是队友按的，得说清楚——不然玩家会以为自己误触了。
     // 标题是烤进背景图里的，面板上半（y≈105 起）空着，就在这画一行。
     if (!mFromGameSelector && mApp->mOnlineSession && mApp->mOnlineSession->IsPausedByPeer())
     {
-        TodDrawString(g, _S("Teammate paused the game"), mWidth / 2, 112,
+        TodDrawString(g, ModText::Tr("队友暂停了游戏", "Teammate paused the game"), mWidth / 2, 112,
             FONT_DWARVENTODCRAFT18, Sexy::Color(255, 220, 100), DrawStringJustification::DS_ALIGN_CENTER);
     }
 
@@ -420,11 +432,13 @@ void NewOptionsDialog::CheckboxChecked(int theId, bool checked)
             mApp->DoDialog(
                 Dialogs::DIALOG_COLORDEPTH_EXP, 
                 true, 
-                _S("No Windowed Mode"), 
-                _S( "Windowed mode is only available if your desktop was running in either\n"
+                ModText::Tr("无窗口模式", "No Windowed Mode"),
+                ModText::Tr( "只有启动游戏时桌面采用 16 位或 32 位色模式，窗口模式才可用。\n\n"
+                    "如果你想用窗口模式运行，需要退出游戏，把桌面切换到 16 或 32 位色模式。",
+                    "Windowed mode is only available if your desktop was running in either\n"
                     "16 bit or 32 bit color mode when you started the game.\n\n"
-                    "If you'd like to run in Windowed mode then you need to quit the game and switch your desktop to 16 or 32 bit color mode."), 
-                _S("OK"), 
+                    "If you'd like to run in Windowed mode then you need to quit the game and switch your desktop to 16 or 32 bit color mode."),
+                ModText::Tr("确定", "OK"),
                 Dialog::BUTTONS_FOOTER
             );
 
@@ -441,12 +455,15 @@ void NewOptionsDialog::CheckboxChecked(int theId, bool checked)
                 mApp->DoDialog(
                     Dialogs::DIALOG_INFO,
                     true,
-                    _S("Not Supported"),
-                    _S( "Hardware Acceleration cannot be enabled on this computer.\n\n"
+                    ModText::Tr("不支持", "Not Supported"),
+                    ModText::Tr( "这台电脑无法启用硬件加速。\n\n"
+                        "你的显卡不满足\n"
+                        "本游戏的最低要求。",
+                        "Hardware Acceleration cannot be enabled on this computer.\n\n"
                         "Your video card does not\n"
                         "meet the minimum requirements\n"
                         "for this game."),
-                    _S("OK"),
+                    ModText::Tr("确定", "OK"),
                     Dialog::BUTTONS_FOOTER
                 );
             }
@@ -455,10 +472,12 @@ void NewOptionsDialog::CheckboxChecked(int theId, bool checked)
                 mApp->DoDialog(
                     Dialogs::DIALOG_INFO,
                     true,
-                    _S("Warning"),
-                    _S( "Your video card may not fully support this feature.\n\n"
+                    ModText::Tr("警告", "Warning"),
+                    ModText::Tr( "你的显卡可能无法完全支持此功能。\n\n"
+                        "如果觉得游戏变慢，请关闭硬件加速。\n",
+                        "Your video card may not fully support this feature.\n\n"
                         "If you experience slower performance, please disable Hardware Acceleration.\n"),
-                    _S("OK"),
+                    ModText::Tr("确定", "OK"),
                     Dialog::BUTTONS_FOOTER
                 );
             }

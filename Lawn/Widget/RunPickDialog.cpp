@@ -10,6 +10,7 @@
 #include "graphics/ImageFont.h"
 #include "graphics/Graphics.h"
 #include "../ModText.h"
+#include "../System/PlayerInfo.h"
 #include <cstdio>
 #include <vector>
 
@@ -198,12 +199,20 @@ RunPickDialog::RunPickDialog(LawnApp* theApp, RunState* theRun) : LawnDialog(
 	// 「放弃」（Skip，2026-10-03 用户定案）：三条都不想要时的出路。按钮文案走位图字体
 	// （② 汉字字形批后中文模式可直接渲染），中英文经 Tr 择串；和「换一批」并排（见 Resize）。
 	mSkipButton = MakeButton(RunPickDialog_Skip, this, ModText::Tr("放弃", "Skip"));
-	// 「换一批」（Refresh，2026-10-08 玩家反馈定案）：这一屏的候选重抽一次，每屏限一次。
-	// 机会已经用掉时置为不可点——框架的 Widget::mDisabled，点在派发层就被拦下（和本作
-	// 其它置灰石钮同口径：不变暗、只是按不动）；重开这一屏时按当时的记账重算
-	// （不可点状态跟着 mPickReRolled 走，见 RunState::RerollChoices）。
+	// 「换一批」/「重摇」（Refresh，2026-10-08 玩家反馈定案；花园批 2026-10-13 加付费态）：
+	// 这一屏的候选重抽一遍，单按钮两态——免费机会还在 = 「换一批」；已用过 = 「重摇 -N」，
+	// 花金币（RunState::RUN_PAID_REROLL_COST）再摇一批，钱不够时置灰。置灰走框架的
+	// Widget::mDisabled，点在派发层就被拦下（和本作其它置灰石钮同口径：不变暗、只是按不动）；
+	// 重开这一屏时按当时的记账重算（两态跟着 mPickReRolled 走，见 RunState::PaidReroll）。
 	mRefreshButton = MakeButton(RunPickDialog_Refresh, this, ModText::Tr("换一批", "Refresh"));
-	if (theRun->mPickReRolled) mRefreshButton->mDisabled = true;
+	if (theRun->mPickReRolled)
+	{
+		char aRefreshUtf8[64];
+		snprintf(aRefreshUtf8, sizeof(aRefreshUtf8), ModText::Tr("重摇 -%d", "Reroll -%d"), RunState::RUN_PAID_REROLL_COST);
+		mRefreshButton->SetLabel(aRefreshUtf8);
+		if (theApp->mPlayerInfo == nullptr || theApp->mPlayerInfo->mCoins < RunState::RUN_PAID_REROLL_COST)
+			mRefreshButton->mDisabled = true;
+	}
 
 	mTallBottom = true;
 	mVerticalCenterText = false;
@@ -363,6 +372,19 @@ void RunPickDialog::Draw(Graphics* g)
 	g->SetColor(mColors[Dialog::COLOR_LINES]);
 	WriteCenteredLine(g, aFontY, mPlantPick ? ModText::Tr("选一株加入本局。", "Pick one to join your run.") : ModText::Tr("选一条增益强化本局。", "Pick one to power up your run."));
 
+	// 金币余额（花园批 2026-10-13）：「重摇」的弹药——常显在说明行右端（行中央的说明文字
+	// 走位图字体、字数有限，用不到这一角；金色同 3★ 标）。免费态也显示，玩家心里有数。
+	if (mApp->mPlayerInfo != nullptr)
+	{
+		char aCoinUtf8[64];
+		snprintf(aCoinUtf8, sizeof(aCoinUtf8), ModText::Tr("金币 %d", "Coins %d"), mApp->mPlayerInfo->mCoins);
+		std::wstring aCoinText = ModText::WideFromUtf8(aCoinUtf8);
+		ModText::Font* aCoinFont = RunPickCjkFont();
+		int aCoinX = mWidth - mContentInsets.mRight - mBackgroundInsets.mRight
+			- ModText::TextWidth(aCoinFont, aCoinText) - 6;
+		ModText::DrawTextWide(g, aCoinFont, aCoinX, aFontY, aCoinText, Sexy::Color(255, 200, 60), g->mClipRect);
+	}
+
 	for (int i = 0; i < 3; i++)
 	{
 		if (mPlantPick)
@@ -455,7 +477,11 @@ void RunPickDialog::ButtonDepress(int theId)
 	}
 	else if (theId == RunPickDialog_Refresh)
 	{
-		mApp->RunPickRefreshed();
+		// 单按钮两态（花园批 2026-10-13）：免费名额还在 = 老「换一批」；已用过 = 花金币「重摇」。
+		if (mRun->mPickReRolled)
+			mApp->RunPickPaidReroll();
+		else
+			mApp->RunPickRefreshed();
 	}
 }
 

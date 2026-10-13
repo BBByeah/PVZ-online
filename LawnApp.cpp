@@ -2418,6 +2418,22 @@ void LawnApp::RunPickRefreshed()
 	mRunState->RerollChoices();
 }
 
+// 玩家点了「重摇」（花园批 2026-10-13 用户拍板的三选一金币出路）：免费「换一批」用掉之后，
+// 花 RunState::RUN_PAID_REROLL_COST 金币再摇一批——扣的是存档钱包 mCoins（与商店/金僵尸
+// 同源，纯本地）：联机双端各花各的钱、各摇各的屏，不涉协议。走"关屏 + 重抽"，与
+// RunPickRefreshed 同路，屏由 UpdateRunPick ① 按新候选重开。
+// 守卫：金币不够不扣不摇；免费名额还在（mPickReRolled 假）说明按钮该走老路，这里拒收防误调。
+void LawnApp::RunPickPaidReroll()
+{
+	if (mRunState == nullptr || mPlayerInfo == nullptr) return;
+	if (!mRunState->mPickReRolled) return;
+	if (mPlayerInfo->mCoins < RunState::RUN_PAID_REROLL_COST) return;
+
+	mPlayerInfo->AddCoins(-RunState::RUN_PAID_REROLL_COST);
+	KillDialog(Dialogs::DIALOG_RUN_PICK);
+	mRunState->PaidReroll();
+}
+
 // R4：输一关就记账——失败次数进检查点（首版只存不用）。紧跟着写盘是刻意的：
 // 玩家接下来可能直接点 Main Menu 走人，那一笔也得在盘上。
 // "本关重开"（Retry Level）不改任何状态：关序号没动，检查点里记的就是这一关。

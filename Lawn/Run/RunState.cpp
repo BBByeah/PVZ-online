@@ -522,6 +522,19 @@ void RunState::RerollChoices()
 	TodLog("[run] the choices were refreshed (pick counter %u)", mPickCounter);
 }
 
+// @pvz-online: 「重摇」（花园批 2026-10-13）：与 RerollChoices 同一条重抽链（进 RollChoices(true)
+// 前把本屏现三条整体摘出候选，池子够时必出全新三条），差别只在记账——免费名额不看也不设
+// （它早用过了），这是花金币买的又一次。扣费与守卫在 LawnApp::RunPickPaidReroll。
+// 注意 RollChoices 内部会把 mPickReRolled 复位（它是"下一屏回满免费机会"的机制，:287）——
+// 这里要立刻压回 true，否则付费摇完屏重开会变回免费「换一批」，100 金币等于买断了免费额度。
+// 免费名额照旧等下一屏（Take*Choice 后下一关 RollChoices(false)）回满。
+void RunState::PaidReroll()
+{
+	RollChoices(true);
+	mPickReRolled = true;
+	TodLog("[run] the choices were rerolled for coins (pick counter %u)", mPickCounter);
+}
+
 void RunState::TakePlantChoice(int theIndex)
 {
 	if (theIndex < 0 || theIndex >= RUN_CHOICES || mPendingPlantPicks <= 0) return;

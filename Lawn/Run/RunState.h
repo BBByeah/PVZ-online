@@ -62,6 +62,10 @@ public:
 	// 格子填它——不是合法 id（全局 9 + 单株 48 + 第二 buff 39 都够不到），选择函数与
 	// 屏上按钮一律忽略。
 	static const unsigned short RUN_BUFF_CHOICE_NONE = 0xFFFF;
+	// @pvz-online: 三选一「重摇」价格（花园批 2026-10-13 用户拍板的三选一金币出路）：免费
+	// 「换一批」用掉之后再摇一批要花的金币数（扣存档钱包 mCoins，与商店同源；对齐金僵尸
+	// 掉落的 100）。纯本地下注，不进协议——联机双端各花各的钱、各摇各的屏。
+	static const int	RUN_PAID_REROLL_COST	= 100;
 
 	// @pvz-online: 出怪编排旋钮（M4-a，用户定案）：点数不封顶、数量封顶；点数多就出强僵尸。
 	// 用在 Board::PickZombieWaves / Board::PickZombieType 的闯关分支，调平衡只动这组数。
@@ -200,6 +204,11 @@ public:
 	// 这一屏重抽一次，玩家每屏多一次刷新机会——重抽先摘掉本屏现三条（增益屏连同上一屏
 	// 冷却集），池子够时必出全新三条；每屏限一次，用过的屏再点也没效果（屏上的按钮同时置为不可点）。
 	void				RerollChoices();
+	// @pvz-online: 「重摇」（花园批 2026-10-13）：免费「换一批」用掉之后再摇一批——同一条
+	// RollChoices(true) 重抽链（摘本屏现三条），差别只在记账：不看也不设 mPickReRolled
+	// （免费名额早已用掉，这次记的是"花过钱"）。扣币在 LawnApp::RunPickPaidReroll 那边，
+	// 这里只管重抽。
+	void				PaidReroll();
 	// 玩家点了第 theIndex 张卡：植物进卡池、buff 叠一层，各欠的数减一。
 	void				TakePlantChoice(int theIndex);
 	void				TakeBuffChoice(int theIndex);

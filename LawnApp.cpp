@@ -32,6 +32,7 @@
 #include "Lawn/Widget/OnlineDialog.h"
 #include "Lawn/Widget/OnlineStartDialog.h"
 #include "Lawn/ModText.h"
+#include "paklib/PakInterface.h"	// @pvz-online: 中文覆盖包 AddPakFile（汉化批）
 #include "Lawn/Widget/RunModeDialog.h"
 #include "Lawn/Online/NetSession.h"
 #include "Lawn/Run/RunState.h"
@@ -3613,6 +3614,13 @@ void LawnApp::Init()
 	mSawYeti = false;
 
 	SexyApp::Init();
+
+	// @pvz-online: 中文覆盖包（2026-10-13 汉化批）——中文模式下加载 pvz_zh.pak，经
+	// PakInterface「末赢」覆盖 main.pak 中的同名资源（字体/图集/字符串）。英文模式
+	// 不加载=完全原版；文件缺失时 AddPakFile 返回 false 静默跳过。切换语言需重启。
+	if (ModText::GetLanguage() == ModText::MODLANG_CHINESE)
+		gPakInterface->AddPakFile("pvz_zh.pak");
+
 	// @Patoke: horrible debug checks, breaks the whole exe in release mode
 //#ifdef _DEBUG
 	TodAssertInitForApp();

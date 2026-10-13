@@ -65,8 +65,8 @@ bool PakInterface::AddPakFile(const std::string& theFileName)
 	aPakCollection->mMappingHandle = aFileMapping;
 	aPakCollection->mDataPtr = aPtr;
 	
-	PakRecordMap::iterator aRecordItr = mPakRecordMap.insert(PakRecordMap::value_type(StringToUpper(theFileName), PakRecord())).first;
-	PakRecord* aPakRecord = &(aRecordItr->second);
+	// @pvz-online: 末赢——后加载的包覆盖先加载包的同名条目（中文覆盖包依赖此语义）
+	PakRecord* aPakRecord = &mPakRecordMap[StringToUpper(theFileName)];
 	aPakRecord->mCollection = aPakCollection;
 	aPakRecord->mFileName = theFileName;
 	aPakRecord->mStartPos = 0;
@@ -111,8 +111,8 @@ bool PakInterface::AddPakFile(const std::string& theFileName)
 		FILETIME aFileTime;
 		FRead(&aFileTime, sizeof(FILETIME), 1, aFP);
 
-		PakRecordMap::iterator aRecordItr = mPakRecordMap.insert(PakRecordMap::value_type(StringToUpper(aName), PakRecord())).first;
-		PakRecord* aPakRecord = &(aRecordItr->second);
+		// @pvz-online: 末赢（同 AddPakFile 头部注册）
+		PakRecord* aPakRecord = &mPakRecordMap[StringToUpper(aName)];
 		aPakRecord->mCollection = aPakCollection;
 		aPakRecord->mFileName = aName;
 		aPakRecord->mStartPos = aPos;
@@ -125,7 +125,7 @@ bool PakInterface::AddPakFile(const std::string& theFileName)
 	int anOffset = FTell(aFP);
 
 	// Now fix file starts
-	aRecordItr = mPakRecordMap.begin();
+	PakRecordMap::iterator aRecordItr = mPakRecordMap.begin();
 	while (aRecordItr != mPakRecordMap.end())
 	{
 		PakRecord* aPakRecord = &(aRecordItr->second);

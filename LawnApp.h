@@ -336,21 +336,20 @@ public:
 	// 做完 / 队友到齐）时若草坪是留下的，就地续排下一关的波次。细节见 LawnApp.cpp。
 	bool							TryKeepEndlessLawn();
 	void							ReleaseRunIntro();
-	// @pvz-online: 闯关的三选一屏（R2）。该选而屏不在（刚开局、刚过完一关、或者被「换一批」
+	// @pvz-online: 闯关的三选一屏（R2）。该选而屏不在（刚开局、刚过完一关、或者被「重摇」
 	// 重开）就按已抽好的候选开一张；玩家点了卡由 RunPickChosen 接着办：把卡收进局里，选够了
 	// 就进下一关；点「放弃」由 RunPickSkipped 接着办（2026-10-03 用户定案）：这一屏不选也不要，
-	// 欠的屏数照减；点「换一批」由 RunPickRefreshed 接着办（2026-10-08 玩家反馈）：候选重抽
-	// 一次、屏重开——后续走法各条完全同路。
+	// 欠的屏数照减；点「重摇」由 RunPickPaidReroll 接着办（花园批 2026-10-13）：花金币重抽
+	// 一批、屏重开——后续走法各条完全同路。
 	// 屏和关卡不互斥（R5 起棋盘留着当换关的背景），但"进关卡"只出现在这里、不出现两次：
 	// 单机选完直接进，联机由主机点名 / 队友等点名（见 UpdateRunPick 里那三种走法）。
 	void							UpdateRunPick();
 	void							RunPickChosen(int theIndex);
 	void							RunPickSkipped();
-	void							RunPickRefreshed();
-	// @pvz-online: 三选一「重摇」（花园批 2026-10-13 用户拍板）：免费「换一批」用掉后花
-	// RunState::GetPaidRerollCost 的当前价（底价 100，同屏 ×10/次阶梯）再摇一批——扣存档
-	// 钱包 mCoins（同商店），关屏重抽。金币不够当前价 / 免费名额还在则原样返回（按钮侧已置灰，
-	// 这里是双保险）。
+	// @pvz-online: 三选一「重摇」（花园批 2026-10-13 用户拍板；2026-10-14 用户令起第一次也
+	// 花金币——免费「换一批」取消）：按 RunState::GetPaidRerollCost 的当前价（底价 100，
+	// 同屏 ×10/次阶梯）花币再摇一批——扣存档钱包 mCoins（同商店），关屏重抽。
+	// 金币不够当前价则原样返回（按钮侧已置灰，这里是双保险）。
 	void							RunPickPaidReroll();
 	// @pvz-online: R4 闯关输一关：失败计数 +1 并立刻写检查点（首版只存不用，
 	// 惩罚留平衡阶段）。由 Board::ZombiesWon 在判负的那一下调。

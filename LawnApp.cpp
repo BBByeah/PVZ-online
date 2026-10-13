@@ -2254,8 +2254,8 @@ void LawnApp::UpdateRunPick()
 		if (mRunState->HasPendingPick())
 		{
 			if (GetDialog(Dialogs::DIALOG_RUN_PICK) != nullptr) return;
-			// @pvz-online: 候选"抽好了就用"（2026-10-08）：「换一批」在 RerollChoices 里已经把
-			// 这一屏重抽过了——这儿再抽一遍会把"每屏限一次"的记账冲掉（刷新就成无限次了）。
+			// @pvz-online: 候选"抽好了就用"：「重摇」在 PaidReroll 里已经把这一屏重抽过了
+			// （mChoicesRolled 记着）——这儿再抽一遍会把重抽出来的三条冲掉、还白推 mPickCounter。
 			if (!mRunState->ChoicesRolled()) mRunState->RollChoices();
 			// 抽干兜底（方案 §2.4）：增益池一条不剩时 RollChoices 把欠的屏作废了——
 			// 那一刻三条全是哨兵、没得点，屏别开（开了没出口）；下一帧走下面的收尾。
@@ -2407,27 +2407,16 @@ void LawnApp::RunPickSkipped()
 	mRunState->SkipPendingPick();
 }
 
-// 玩家点了「换一批」（2026-10-08 玩家反馈定案）：把这一屏的三条候选重抽一遍，每屏限一次。
-// 走"关屏 + 重抽"：屏由 UpdateRunPick ① 按新候选重开（尺寸、名字、置灰全重算）——
-// 比就地改标签少一套刷新路径，也顺带把"该选而屏不在就开一张"这条既有循环用起来。
-void LawnApp::RunPickRefreshed()
-{
-	if (mRunState == nullptr) return;
-
-	KillDialog(Dialogs::DIALOG_RUN_PICK);
-	mRunState->RerollChoices();
-}
-
-// 玩家点了「重摇」（花园批 2026-10-13 用户拍板的三选一金币出路）：免费「换一批」用掉之后，
-// 花金币再摇一批——价 = RunState::GetPaidRerollCost（底价 100，同一屏每摇一次 ×10：
-// 100/1000/10000…；进新一屏回底价，同日用户令）。扣的是存档钱包 mCoins（与商店/金僵尸
-// 同源，纯本地）：联机双端各花各的钱、各摇各的屏，不涉协议。走"关屏 + 重抽"，与
-// RunPickRefreshed 同路，屏由 UpdateRunPick ① 按新候选重开。
-// 守卫：金币不够当前价不扣不摇；免费名额还在（mPickReRolled 假）说明按钮该走老路，这里拒收防误调。
+// 玩家点了「重摇」（花园批 2026-10-13 用户拍板的三选一金币出路；2026-10-14 用户令起第一次
+// 也花金币——免费「换一批」取消）：花金币把这屏的候选摇一批新的——价 =
+// RunState::GetPaidRerollCost（底价 100，同一屏每摇一次 ×10：100/1000/10000…；进新一屏回
+// 底价，同日用户令）。扣的是存档钱包 mCoins（与商店/金僵尸同源，纯本地）：联机双端各花各的
+// 钱、各摇各的屏，不涉协议。走"关屏 + 重抽"：屏由 UpdateRunPick ① 按新候选重开（尺寸、
+// 名字、置灰、标价全重算）——比就地改标签少一套刷新路径。
+// 守卫：金币不够当前价不扣不摇（按钮在那一档也置着灰，这是防误调的兜底）。
 void LawnApp::RunPickPaidReroll()
 {
 	if (mRunState == nullptr || mPlayerInfo == nullptr) return;
-	if (!mRunState->mPickReRolled) return;
 	int aCost = mRunState->GetPaidRerollCost();
 	if (mPlayerInfo->mCoins < aCost) return;
 

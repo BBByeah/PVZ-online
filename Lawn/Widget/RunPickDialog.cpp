@@ -197,25 +197,22 @@ RunPickDialog::RunPickDialog(LawnApp* theApp, RunState* theRun) : LawnDialog(
 		}
 	}
 	// 「放弃」（Skip，2026-10-03 用户定案）：三条都不想要时的出路。按钮文案走位图字体
-	// （② 汉字字形批后中文模式可直接渲染），中英文经 Tr 择串；和「换一批」并排（见 Resize）。
+	// （② 汉字字形批后中文模式可直接渲染），中英文经 Tr 择串；和「重摇」并排（见 Resize）。
 	mSkipButton = MakeButton(RunPickDialog_Skip, this, ModText::Tr("放弃", "Skip"));
-	// 「换一批」/「重摇」（Refresh，2026-10-08 玩家反馈定案；花园批 2026-10-13 加付费态）：
-	// 这一屏的候选重抽一遍，单按钮两态——免费机会还在 = 「换一批」；已用过 = 「重摇 -N」，
-	// N = RunState::GetPaidRerollCost 的当前价（底价 100，同一屏里每摇一次 ×10：100/1000/
-	// 10000…，进新一屏回底价——同日用户令），钱不够当前价时置灰。置灰走框架的
-	// Widget::mDisabled，点在派发层就被拦下（和本作其它置灰石钮同口径：不变暗、只是按不动）；
-	// 重开这一屏时按当时的记账重算（两态跟着 mPickReRolled 走，价跟着阶梯计数走，
-	// 见 RunState::PaidReroll）。
-	mRefreshButton = MakeButton(RunPickDialog_Refresh, this, ModText::Tr("换一批", "Refresh"));
-	if (theRun->mPickReRolled)
-	{
-		int aCost = theRun->GetPaidRerollCost();
-		char aRefreshUtf8[64];
-		snprintf(aRefreshUtf8, sizeof(aRefreshUtf8), ModText::Tr("重摇 -%d", "Reroll -%d"), aCost);
-		mRefreshButton->SetLabel(aRefreshUtf8);
-		if (theApp->mPlayerInfo == nullptr || theApp->mPlayerInfo->mCoins < aCost)
-			mRefreshButton->mDisabled = true;
-	}
+	// 「重摇」（花园批 2026-10-13 加付费态；2026-10-14 用户令「第一次也要花金币」取消免费
+	// 「换一批」——单按钮不再两态，恒为付费重摇）：N = RunState::GetPaidRerollCost 的当前价
+	// （底价 100，同一屏里每摇一次 ×10：100/1000/10000…，进新一屏回底价——同日用户令）。
+	// 金额按显示口径走 GetMoneyString（币 ×10 的 $ 串）——和本屏左下角钱罐、局内钱罐、商店
+	// 是同一个串数，玩家在任何地方看到的都是同一个数。钱不够当前价（比原始币）时置灰。
+	// 置灰走框架的 Widget::mDisabled，点在派发层就被拦下（和本作其它置灰石钮同口径：
+	// 不变暗、只是按不动）；重开这一屏时按当时的记账重算（价跟着阶梯计数走，见 RunState::PaidReroll）。
+	int aRefreshCost = theRun->GetPaidRerollCost();
+	char aRefreshUtf8[64];
+	snprintf(aRefreshUtf8, sizeof(aRefreshUtf8), ModText::Tr("重摇 -%s", "Reroll -%s"),
+		LawnApp::GetMoneyString(aRefreshCost).c_str());
+	mRefreshButton = MakeButton(RunPickDialog_Refresh, this, aRefreshUtf8);
+	if (theApp->mPlayerInfo == nullptr || theApp->mPlayerInfo->mCoins < aRefreshCost)
+		mRefreshButton->mDisabled = true;
 
 	mTallBottom = true;
 	mVerticalCenterText = false;
@@ -287,7 +284,9 @@ RunPickDialog::RunPickDialog(LawnApp* theApp, RunState* theRun) : LawnDialog(
 			aNeededArea = (aMaxLines + 2) * aFitLineHeight + 6;
 		}
 		bool aWidthDone = mColumnWidth >= aTargetColumn || mWidth >= 580;
-		bool aHeightDone = mAreaHeight >= aNeededArea || mHeight >= 460 + aExtraHeight;
+		// 高上限 460→500（2026-10-14 用户报「已有行叠字」）：中文说明比英文长（向日葵那条
+		// 折 6 行），460 封顶时卡片区差一行放不下，末行「层」压到「已有」行上。
+		bool aHeightDone = mAreaHeight >= aNeededArea || mHeight >= 500 + aExtraHeight;
 		if (aWidthDone && aHeightDone) break;
 		if (!aWidthDone) aSizeX += 20;
 		if (!aHeightDone) aSizeY += 20;
@@ -324,7 +323,7 @@ void RunPickDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 	aAreaTop += mLinesFont->GetHeight() + 10;
 	mAreaTop = aAreaTop;
 
-	// 最底下那一行放两个按钮（2026-10-08 起：「换一批」在左、「放弃」在右，整行居中）：
+	// 最底下那一行放两个按钮（2026-10-08 起：「重摇」在左、「放弃」在右，整行居中）：
 	// 三张卡那一行整体上移一行（按钮高 + 6），卡片区的上沿不动、下沿从卡片行反推——
 	// 和构造函数里多让的 aExtraHeight 是同一笔账（行数没变，高度账原样）。
 	int aSkipY = mHeight - mContentInsets.mBottom - mBackgroundInsets.mBottom - aButtonHeight + 2;
@@ -373,19 +372,25 @@ void RunPickDialog::Draw(Graphics* g)
 	}
 	g->SetFont(mLinesFont);
 	g->SetColor(mColors[Dialog::COLOR_LINES]);
-	WriteCenteredLine(g, aFontY, mPlantPick ? ModText::Tr("选一株加入本局。", "Pick one to join your run.") : ModText::Tr("选一条增益强化本局。", "Pick one to power up your run."));
+	// 2026-10-14：这行是位图字体画的——「局」不在汉化像素字库里（1419 字，逐字查过），
+	// 画出来是个空档（用户报「格子」）。改用字库内的「本次闯关」。
+	WriteCenteredLine(g, aFontY, mPlantPick ? ModText::Tr("选一株加入本次闯关。", "Pick one to join your run.") : ModText::Tr("选一条增益强化本次闯关。", "Pick one to power up your run."));
 
-	// 金币余额（花园批 2026-10-13）：「重摇」的弹药——常显在说明行右端（行中央的说明文字
-	// 走位图字体、字数有限，用不到这一角；金色同 3★ 标）。免费态也显示，玩家心里有数。
+	// 金币余额（花园批 2026-10-13 加；2026-10-14 用户令改版「获得金币显示在下面那个栏位，
+	// 三选一屏也要看得到金币数」）：画成局内左下角同款钱罐——位置、贴图、字体、颜色、数字
+	// 口径（GetMoneyString，币 ×10 的 $ 串）全与 Board::DrawUICoinBank 一字不差，同一钱包在
+	// 任何屏、任何位都是同一个数（旧口径这屏直显原始币，比钱罐/商店小 10 倍，作废）。
+	// 钱罐锚在屏幕坐标：本对话框 mClip=false（ctor 尾），Draw 收到的 g 以对话框左上角为
+	// 原点，减去 mX/mY 即回到屏幕位（局内钱罐位 = 57, 599-H）。
 	if (mApp->mPlayerInfo != nullptr)
 	{
-		char aCoinUtf8[64];
-		snprintf(aCoinUtf8, sizeof(aCoinUtf8), ModText::Tr("金币 %d", "Coins %d"), mApp->mPlayerInfo->mCoins);
-		std::wstring aCoinText = ModText::WideFromUtf8(aCoinUtf8);
-		ModText::Font* aCoinFont = RunPickCjkFont();
-		int aCoinX = mWidth - mContentInsets.mRight - mBackgroundInsets.mRight
-			- ModText::TextWidth(aCoinFont, aCoinText) - 6;
-		ModText::DrawTextWide(g, aCoinFont, aCoinX, aFontY, aCoinText, Sexy::Color(255, 200, 60), g->mClipRect);
+		int aBankX = 57 - mX;
+		int aBankY = 599 - Sexy::IMAGE_COINBANK->GetHeight() - mY;
+		g->DrawImage(Sexy::IMAGE_COINBANK, aBankX, aBankY);
+		g->SetFont(Sexy::FONT_CONTINUUMBOLD14);
+		g->SetColor(Sexy::Color(180, 255, 90));
+		SexyString aCoinLabel = mApp->GetMoneyString(mApp->mPlayerInfo->mCoins);
+		g->DrawString(aCoinLabel, aBankX + 116 - Sexy::FONT_CONTINUUMBOLD14->StringWidth(aCoinLabel), aBankY + 24);
 	}
 
 	for (int i = 0; i < 3; i++)
@@ -480,11 +485,9 @@ void RunPickDialog::ButtonDepress(int theId)
 	}
 	else if (theId == RunPickDialog_Refresh)
 	{
-		// 单按钮两态（花园批 2026-10-13）：免费名额还在 = 老「换一批」；已用过 = 花金币「重摇」。
-		if (mRun->mPickReRolled)
-			mApp->RunPickPaidReroll();
-		else
-			mApp->RunPickRefreshed();
+		// 恒付费（2026-10-14 用户令：第一次也花金币，免费「换一批」取消）：扣币、关屏、重抽
+		// 全在 LawnApp::RunPickPaidReroll——这里不设任何免费分流。
+		mApp->RunPickPaidReroll();
 	}
 }
 

@@ -15,8 +15,9 @@ class LawnStoneButton;
 // 待选的几张还没选完之前，这一屏必然占着屏幕（LawnApp::UpdateRunPick 每帧看着，
 // 发现该选而屏不在就再开一张）——屏被误关不算出口，下一帧它照样弹回来。正经的出路
 // 有三条：点一张卡（RunPickChosen）；点「放弃」（Skip，2026-10-03 用户定案：三条都
-// 不想要时也得能往前走——欠的屏数照减、什么都不拿）；点「换一批」（Refresh，
-// 2026-10-08 玩家反馈批：这一屏的候选重抽一次、每屏限一次，见 RunState::RerollChoices）。
+// 不想要时也得能往前走——欠的屏数照减、什么都不拿）；点「重摇」（Refresh，花园批
+// 2026-10-13：花金币把这屏的候选重抽一批，价走阶梯；2026-10-14 用户令起第一次也
+// 花币——免费「换一批」取消，见 RunState::PaidReroll）。
 class RunPickDialog : public LawnDialog
 {
 public:
@@ -33,7 +34,7 @@ public:
 	bool				mPlantPick;				// 这一屏发的是植物（true）还是 buff（false）
 	LawnStoneButton*	mChoiceButtons[3];
 	LawnStoneButton*	mSkipButton;			// 「放弃」：最下面一行、右边的那个（见 Resize）
-	LawnStoneButton*	mRefreshButton;			// 「换一批」：它左边的那个（2026-10-08 玩家反馈批）
+	LawnStoneButton*	mRefreshButton;			// 「重摇 -$N」：它左边的那个（花园批 2026-10-13；2026-10-14 起恒付费）
 	int					mColumnX[3];			// 三列的位置与宽度（Resize 里算好，Draw 直接用）
 	int					mColumnWidth;
 	int					mAreaTop;				// 卡片区（种子包 / 效果说明）的上沿与高度

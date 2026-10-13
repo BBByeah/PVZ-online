@@ -159,7 +159,6 @@ void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theR
 	mPendingPlantPicks = 0;
 	mPendingBuffPicks = 0;
 	mChoicesRolled = false;
-	mPickReRolled = false;
 	mPaidRerollCount = 0;		// 重摇阶梯价：新局从头起算（实际每屏还会在 RollChoices 清零）
 	mPickSeenBuffCount = 0;		// 候选去重批：新局无露脸/冷却
 	mPickCooldownBuffCount = 0;
@@ -186,7 +185,6 @@ void RunState::BeginStartPicks()
 {
 	// 新一批屏从"还没抽"开始（抽干作废过之后又会发新屏，别被上一轮的抽好标志挡住重抽）。
 	mChoicesRolled = false;
-	mPickReRolled = false;
 	// 候选去重批：冷却集只在一批屏内滚动（上一屏 → 下一屏），换批即清。
 	mPickSeenBuffCount = 0;
 	mPickCooldownBuffCount = 0;
@@ -201,7 +199,6 @@ void RunState::BeginLevelEndPicks()
 {
 	// 新一批屏从"还没抽"开始（同 BeginStartPicks；也覆盖补发追赶 AdvanceCatchUp 的路径）。
 	mChoicesRolled = false;
-	mPickReRolled = false;
 	// 候选去重批：冷却集只在一批屏内滚动（上一屏 → 下一屏），换批即清（同 BeginStartPicks）。
 	mPickSeenBuffCount = 0;
 	mPickCooldownBuffCount = 0;
@@ -282,12 +279,10 @@ static bool RunChoiceBlockedByCounterpart(const RunState* theRun, SeedType thePl
 // 还是同一组三条——重开不会变成"刷候选"；换进程/换机器才换盐。
 void RunState::RollChoices(bool theReroll)
 {
-	// 这一屏的候选从这一刻就算抽好了（LawnApp::UpdateRunPick 的"还没抽才抽"守卫看它）；
-	// 每抽一次刷新机会回满——「换一批」自己会把它用掉（见 RerollChoices）。
+	// 这一屏的候选从这一刻就算抽好了（LawnApp::UpdateRunPick 的"还没抽才抽"守卫看它）。
 	mChoicesRolled = true;
-	mPickReRolled = false;
 	// 「重摇」阶梯价按屏起算（花园批同日用户令，拍板"每屏重置"）：非重抽 = 这是一屏新的
-	// 候选，价格回底价；重抽（免费/付费）都在同一屏里，计数照旧累着。
+	// 候选，价格回底价；重抽都在同一屏里，计数照旧累着。
 	if (!theReroll) mPaidRerollCount = 0;
 
 	unsigned int aSeed = (unsigned int)mRunSeed
@@ -311,13 +306,23 @@ void RunState::RollChoices(bool theReroll)
 		}
 
 		SeedType aCandidates[NUM_SEEDS_IN_CHOOSER];
+		int aWeights[NUM_SEEDS_IN_CHOOSER];				// 同下标抽取权重
 		int aCount = 0;
+		int aTotalW = 0;
 		for (int i = 0; i < NUM_SEEDS_IN_CHOOSER; i++)
 		{
-			if (i != (int)SeedType::SEED_IMITATER && !aOwned[i]) aCandidates[aCount++] = (SeedType)i;
+			if (i != (int)SeedType::SEED_IMITATER && !aOwned[i])
+			{
+				aCandidates[aCount] = (SeedType)i;
+				// 花盆/荷叶出率 ×5（2026-10-14 用户令）：权重 5 对其余 1——同一池里这两株的
+				// 抽中概率是普通候选的五倍（三格整体按权重无放回抽，见下）。
+				aWeights[aCount] = (i == (int)SeedType::SEED_FLOWERPOT || i == (int)SeedType::SEED_LILYPAD) ? 5 : 1;
+				aTotalW += aWeights[aCount];
+				aCount++;
+			}
 		}
 
-		// 候选去重批（2026-10-10）：「换一批」把本屏刚摆的三株从候选摘掉——池子够时重抽
+		// 候选去重批（2026-10-10）：「重摇」把本屏刚摆的三株从候选摘掉——池子够时重抽
 		// 必出全新三株；保底口径与增益屏一致（摘到只剩 min(池子, 3) 条为止，别让屏变秃）。
 		// 植物屏没有跨屏冷却：植物一次性入池，没"刷掉的株反复来"这回事。
 		if (theReroll)
@@ -331,7 +336,9 @@ void RunState::RollChoices(bool theReroll)
 				{
 					if (aCandidates[j] == aOld)
 					{
+						aTotalW -= aWeights[j];
 						aCandidates[j] = aCandidates[aCount - 1];
+						aWeights[j] = aWeights[aCount - 1];
 						aCount--;
 						break;
 					}
@@ -339,6 +346,7 @@ void RunState::RollChoices(bool theReroll)
 			}
 		}
 
+		// 加权无放回抽三格（与增益屏同一套算法）：
 		for (int i = 0; i < RUN_CHOICES; i++)
 		{
 			if (aCount <= 0)
@@ -346,14 +354,22 @@ void RunState::RollChoices(bool theReroll)
 				mPlantChoices[i] = SeedType::SEED_NONE;
 				continue;
 			}
-			int aPick = (int)aRNG.Next((unsigned long)aCount);
+			int aPickW = (int)aRNG.Next((unsigned long)aTotalW);
+			int aPick = 0;
+			for (int j = 0; j < aCount; j++)
+			{
+				aPickW -= aWeights[j];
+				if (aPickW < 0) { aPick = j; break; }
+			}
 			mPlantChoices[i] = aCandidates[aPick];
+			aTotalW -= aWeights[aPick];
 			aCandidates[aPick] = aCandidates[--aCount];		// 抽走的换到队尾，保证三条互不重复
+			aWeights[aPick] = aWeights[aCount];
 		}
 	}
 	else
 	{
-		// 候选去重批：本屏"露过脸"记账从零起（theReroll 时不清——「换一批」之后，
+		// 候选去重批：本屏"露过脸"记账从零起（theReroll 时不清——「重摇」之后，
 		// 被刷掉的那批也算本屏露过脸，一并计入下一个冷却集）。
 		if (!theReroll) mPickSeenBuffCount = 0;
 		// 增益：全局 9 条 + 单株升级 + 第二 buff（docs/06 §8.5，同株第二条词条）混池抽
@@ -408,7 +424,7 @@ void RunState::RollChoices(bool theReroll)
 			aCount++;
 		}
 
-		// 候选去重批（2026-10-10，用户令「刷掉的 buff 别反复出现」）：「换一批」要刷掉的本屏
+		// 候选去重批（2026-10-10，用户令「刷掉的 buff 别反复出现」）：「重摇」要刷掉的本屏
 		// 现三条（theReroll）+ 上一屏露过脸没拿的（mPickCooldownBuffs，含上一屏被刷掉的那批）
 		// 从候选里摘掉；先摘现三条再摘冷却，摘到只剩 min(池子, 3) 条为止——池子小时自动放宽，
 		// 宁可又见到重复条目，也不让三选一屏变秃（哨兵格）。
@@ -494,7 +510,7 @@ void RunState::RollChoices(bool theReroll)
 			}
 		}
 
-		// 候选去重批的记账：本屏露过脸的全部（抽的当下就记，含「换一批」两批；去重合并
+		// 候选去重批的记账：本屏露过脸的全部（抽的当下就记，含「重摇」历次刷掉的几批；去重合并
 		// 防溢）。消费时由 NoteBuffScreenConsumed 减去拿走的，生成下一屏冷却集。
 		for (int i = 0; i < RUN_CHOICES; i++)
 		{
@@ -512,31 +528,15 @@ void RunState::RollChoices(bool theReroll)
 	}
 }
 
-// @pvz-online: 「换一批」（2026-10-08 玩家反馈定案；2026-10-10 去重批补排除）：
-// 把这一屏的三条候选重抽一遍。走的就是 RollChoices(true)——mPickCounter 再推一步之外，
-// 本屏现三条（增益屏连同上一屏没拿的冷却集）在抽之前被整体摘出候选，所以池子够时重抽
-// 的三条必然跟刚作废的那组全不同；池子不够时按"保底 3 条"自动放宽。（旧注释声称"必然≠"，
-// 但旧实现只换种子、重抽跟作废组可能重合——去重批把它变成真的。）每屏限一次：用过的屏
-// （mPickReRolled）再点不动（屏上的按钮在重开时同时置为不可点）；下一屏 RollChoices 会把机会回满。
-void RunState::RerollChoices()
-{
-	if (mPickReRolled) return;
-	RollChoices(true);
-	mPickReRolled = true;
-	TodLog("[run] the choices were refreshed (pick counter %u)", mPickCounter);
-}
-
-// @pvz-online: 「重摇」（花园批 2026-10-13）：与 RerollChoices 同一条重抽链（进 RollChoices(true)
-// 前把本屏现三条整体摘出候选，池子够时必出全新三条），差别只在记账——免费名额不看也不设
-// （它早用过了），这是花金币买的又一次。扣费与守卫在 LawnApp::RunPickPaidReroll（按
-// GetPaidRerollCost 的当前价）。计数 +1 让同一屏里下一次更贵（阶梯价，同日用户令 ×10/次）。
-// 注意 RollChoices 内部会把 mPickReRolled 复位（它是"下一屏回满免费机会"的机制，:287 附近）——
-// 这里要立刻压回 true，否则付费摇完屏重开会变回免费「换一批」，底价金币等于买断了免费额度。
-// 免费名额与阶梯计数都照旧等下一屏（Take*Choice 后下一关 RollChoices(false)）回满。
+// @pvz-online: 「重摇」（花园批 2026-10-13；2026-10-14 用户令起第一次也花金币——免费
+// 「换一批」取消）：这一屏的候选花金币重抽一遍。走的就是 RollChoices(true)——mPickCounter
+// 再推一步之外，本屏现三条（增益屏连同上一屏没拿的冷却集）在抽之前被整体摘出候选，池子
+// 够时重抽的三条必然跟刚作废的那组全不同；池子不够按"保底 3 条"自动放宽。扣费与守卫在
+// LawnApp::RunPickPaidReroll（按 GetPaidRerollCost 的当前价）。计数 +1 让同一屏里下一次
+// 更贵（阶梯价，同日用户令 ×10/次）；计数等下一屏 RollChoices(false) 回底价。
 void RunState::PaidReroll()
 {
 	RollChoices(true);
-	mPickReRolled = true;
 	mPaidRerollCount++;
 	TodLog("[run] the choices were rerolled for coins: #%d this screen, next price %d (pick counter %u)", mPaidRerollCount, GetPaidRerollCost(), mPickCounter);
 }

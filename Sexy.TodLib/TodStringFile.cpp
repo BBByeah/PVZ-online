@@ -283,7 +283,9 @@ int TodWriteString(Graphics* g, const SexyString& theString, int theX, int theY,
 			{
 				i += aFormatEnd - aFormatStart;  // i 移动至 "}" 处
 				if (drawString)  // 如果需要实际绘制
+				{
 					aFont->DrawString(g, theX + aXOffset, theY, aString, theCurrentFormat.mNewColor, g->mClipRect);  // 将已经积攒的字符进行绘制
+				}
 				
 				aXOffset += aFont->StringWidth(aString);  // 横向偏移值加上绘制的字符串的宽度
 				aString.assign("");  // 清空字符串
@@ -310,7 +312,9 @@ int TodWriteString(Graphics* g, const SexyString& theString, int theX, int theY,
 	}
 
 	if (drawString)  // 如果需要实际绘制
+	{
 		aFont->DrawString(g, theX + aXOffset, theY, aString, theCurrentFormat.mNewColor, g->mClipRect);  // 将已经积攒的字符进行绘制
+	}
 	return aXOffset + aFont->StringWidth(aString);
 }
 
@@ -351,9 +355,10 @@ int TodDrawStringWrappedHelper(Graphics* g, const SexyString& theText, const Rec
 	int aMaxWidth = 0;
 	while (aCurPos < theText.size())
 	{
-		int aCharStart = (int)aCurPos;
-		aCurChar = UTF8NextChar(theText, aCharStart);
-		aCurPos = (size_t)aCharStart;
+		int aCharStart = (int)aCurPos;  // 当前字符起点（切片/换行/空格记录都依赖此语义）
+		int aCharNext = aCharStart;
+		aCurChar = UTF8NextChar(theText, aCharNext);
+		aCurPos = (size_t)aCharNext;
 		if (aCurChar == '{')  // 如果当前字符是特殊格式控制字符的起始标志（即“{”）
 		{
 			const char* aFmtStart = aCharStart + theText.c_str();
@@ -361,7 +366,7 @@ int TodDrawStringWrappedHelper(Graphics* g, const SexyString& theText, const Rec
 			const char* aFmtEnd = strchr(aFormat, '}');
 			if (aFmtEnd != nullptr)  // 如果存在与“{”对应的“}”，即存在完整的控制字符
 			{
-				aCurPos = (size_t)(aCharStart + (aFmtEnd - aFmtStart) - 1);  // 与旧字节步进等价（aCurPos 移至“}”）
+				aCurPos = (size_t)(aCharStart + (aFmtEnd - aFmtStart) + 1);  // aCurPos 移至“}”之后一字节
 				int aOldAscentOffset = theFont->GetAscent() - theFont->GetAscentPadding();
 				Color aExistingColor = aCurrentFormat.mNewColor;  // 备份当前格式的颜色
 				TodWriteStringSetFormat(aFormat, aCurrentFormat);  // 根据当前控制字符设置新的格式

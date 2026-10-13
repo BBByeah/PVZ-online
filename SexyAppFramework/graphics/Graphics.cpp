@@ -1219,9 +1219,10 @@ int	Graphics::WriteWordWrapped(const Rect& theRect, const SexyString& theLine, i
 
 	while (aCurPos < theLine.length())
 	{	
-		int aCharStart = (int)aCurPos;
-		aCurChar = UTF8NextChar(theLine, aCharStart);
-		aCurPos = (ulong)aCharStart;
+		int aCharStart = (int)aCurPos;  /* @pvz-online: char start (not next); wrap/^code rely on it */
+		int aCharNext = aCharStart;
+		aCurChar = UTF8NextChar(theLine, aCharNext);
+		aCurPos = (ulong)aCharNext;
 		if(aCurChar==_S('^') && mWriteColoredString) // Handle special color modifier
 		{
 			if(aCurPos<theLine.length())

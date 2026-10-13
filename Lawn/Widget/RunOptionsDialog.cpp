@@ -189,6 +189,16 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 		+ aButtonHeight + 18;								// 确定行 + 与上一行的间隔
 
 	CalcSize(anExtraX, anExtraY);
+	// 2026-10-13 实机实测：CalcSize 的高度按对话框中段贴图块向上取整——算式上的微调会被
+	// 取整吃掉（实测总高 614，超 800×600 屏高上下各 7px）。这里按「合法高度 = 上贴图 +
+	// 下贴图 + 隔头 + k×中贴图块高」从取整结果往下逐块收，收到屏高以内（留 8px 边）。
+	{
+		int aBottomHeight = (mTallBottom ? IMAGE_DIALOG_BIGBOTTOMLEFT : IMAGE_DIALOG_BOTTOMLEFT)->mHeight;
+		int aImageHeight = IMAGE_DIALOG_TOPLEFT->mHeight + aBottomHeight + DIALOG_HEADER_OFFSET;
+		int aCenterHeight = IMAGE_DIALOG_CENTERLEFT->mHeight;
+		while (mHeight > mApp->mHeight - 8 && mHeight - aCenterHeight >= aImageHeight)
+			mHeight -= aCenterHeight;
+	}
 	mApp->CenterDialog(this, mWidth, mHeight);
 	mClip = false;
 }

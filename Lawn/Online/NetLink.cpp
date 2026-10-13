@@ -328,7 +328,21 @@ struct NetLink::Impl
 			return;
 		}
 		mQueue.push_back(thePacket);
+		int aDepth = (int)mQueue.size();
 		LeaveCriticalSection(&mQueueLock);
+
+		// @pvz-online: 卡顿探针（2026-10-13）——接收队列逼近上限（256 即判死）说明主线程
+		// 消费不及时（棋盘卡住/重连冻结/加载中）；只记日志（限频 1 条/秒）。
+		if (aDepth >= 192)
+		{
+			static DWORD sLastDeepQueueLog = 0;
+			DWORD aNow = GetTickCount();
+			if (aNow - sLastDeepQueueLog >= 1000)
+			{
+				sLastDeepQueueLog = aNow;
+				TodLog("[net] receive queue depth %d/%d", aDepth, MAX_QUEUED_PACKETS);
+			}
+		}
 	}
 };
 
@@ -520,6 +534,9 @@ bool NetLink::Send(const void* theData, int theSize)
 	const char* aBytes = (const char*)theData;
 	int aSent = 0;
 	int aRetries = 0;
+	// @pvz-online: 卡顿探针（2026-10-13）——Send 跑在调用线程（帧线程）上，单次耗时
+	// 超过 250ms 就是一次可见卡顿；只记日志（限频 1 条/秒），不改行为。
+	DWORD aProbeStart = GetTickCount();
 	while (aSent < theSize)
 	{
 		int aWrote = send(anImpl->mSocket, aBytes + aSent, theSize - aSent, 0);
@@ -544,6 +561,18 @@ bool NetLink::Send(const void* theData, int theSize)
 
 		anImpl->FailWithError("Connection lost while sending", anError);
 		return false;
+	}
+
+	DWORD aProbeElapsed = GetTickCount() - aProbeStart;
+	if (aProbeElapsed >= 250)
+	{
+		static DWORD sLastSlowSendLog = 0;
+		DWORD aNow = GetTickCount();
+		if (aNow - sLastSlowSendLog >= 1000)
+		{
+			sLastSlowSendLog = aNow;
+			TodLog("[net] slow send: %u ms, %d bytes", (unsigned)aProbeElapsed, theSize);
+		}
 	}
 	return true;
 }

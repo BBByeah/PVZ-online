@@ -2,7 +2,7 @@
 
 ## 共享仓库
 
-用户指定共享仓库 `https://github.com/Not-a-Different-Name/PVZ-online`。Android 源码使用独立的 `android-port` 分支，Windows 开发仍在 `pvz-online` 分支；两条分支具有不同代码底座，不直接互相整支合并。
+最终采用单独 Android 仓库，用户新建空仓库后提供链接。临时同步位置为 `https://github.com/Not-a-Different-Name/PVZ-online/tree/android-port`；不要将此 Portable 底座分支整支合入 Windows 的 pvz-online。以下命令暂使用临时位置，新仓库就绪后替换 origin URL。
 
 GitHub 操作：打开上述仓库 → Settings → Collaborators → Add people → 输入同伴 GitHub 用户名。对方接受邀请后可推自己的分支。仓库公开或私有由所有者决定；源码许可证与归属说明都必须保留。
 

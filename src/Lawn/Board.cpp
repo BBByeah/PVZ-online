@@ -196,6 +196,12 @@ Board::Board(LawnApp* theApp)
 	mMenuButton->mDrawStoneButton = true;
 	mStoreButton = nullptr;
 	mIgnoreMouseUp = false;
+#ifdef __ANDROID__
+	mTouchSeedDrag = false;
+	mTouchSeedDragMoved = false;
+	mTouchSeedDragStartX = 0;
+	mTouchSeedDragStartY = 0;
+#endif
 
 	if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN || mApp->mGameMode == GameMode::GAMEMODE_TREE_OF_WISDOM)
 	{
@@ -3008,6 +3014,14 @@ void Board::MouseMove(int x, int y)
 
 void Board::MouseDrag(int x, int y)
 {
+#ifdef __ANDROID__
+	// @pvz-online: a small movement threshold keeps tapping a card available.
+	if (mTouchSeedDrag &&
+		(std::abs(x - mTouchSeedDragStartX) >= 8 || std::abs(y - mTouchSeedDragStartY) >= 8))
+	{
+		mTouchSeedDragMoved = true;
+	}
+#endif
 	Widget::MouseDrag(x, y);
 	mChallenge->MouseMove(x, y);
 }
@@ -4362,6 +4376,10 @@ void Board::PickUpTool(GameObjectType theObjectType)
 
 void Board::MouseDown(int x, int y, int theClickCount)
 {
+#ifdef __ANDROID__
+	mTouchSeedDrag = false;
+	mTouchSeedDragMoved = false;
+#endif
 	UpdateMousePosition();
 	Widget::MouseDown(x, y, theClickCount);
 	mIgnoreMouseUp = !CanInteractWithBoardButtons();
@@ -4458,6 +4476,15 @@ void Board::MouseDown(int x, int y, int theClickCount)
 			if (!mPaused)
 			{
 				((SeedPacket*)aHitResult.mObject)->MouseDown(x, y, theClickCount);
+#ifdef __ANDROID__
+				// @pvz-online: only start after the packet actually selected a plant (not on cooldown).
+				if (theClickCount > 0 && mCursorObject->mCursorType == CursorType::CURSOR_TYPE_PLANT_FROM_BANK)
+				{
+					mTouchSeedDrag = true;
+					mTouchSeedDragStartX = x;
+					mTouchSeedDragStartY = y;
+				}
+#endif
 			}
 			break;
 		case GameObjectType::OBJECT_TYPE_NEXT_GARDEN:
@@ -4496,6 +4523,10 @@ void Board::MouseDown(int x, int y, int theClickCount)
 
 void Board::ClearCursor()
 {
+#ifdef __ANDROID__
+	mTouchSeedDrag = false;
+	mTouchSeedDragMoved = false;
+#endif
 	if (mAdvice->mDuration > 0)
 	{
 		if (mHelpIndex == AdviceType::ADVICE_PLANT_GRAVEBUSTERS_ON_GRAVES ||
@@ -4581,6 +4612,31 @@ bool Board::CanInteractWithBoardButtons()
 void Board::MouseUp(int x, int y, int theClickCount)
 {
 	Widget::MouseUp(x, y, theClickCount);
+#ifdef __ANDROID__
+	const bool aDropSeed = mTouchSeedDrag && theClickCount > 0 &&
+		(mTouchSeedDragMoved || std::abs(x - mTouchSeedDragStartX) >= 8 || std::abs(y - mTouchSeedDragStartY) >= 8);
+	mTouchSeedDrag = false;
+	mTouchSeedDragMoved = false;
+	if (aDropSeed)
+	{
+		mIgnoreMouseUp = false;
+		if (mCursorObject->mCursorType == CursorType::CURSOR_TYPE_PLANT_FROM_BANK)
+		{
+			// @pvz-online: reuse planting rules on release; interrupted/invalid drops return the seed.
+			if (!mPaused && !mApp->mMinimized && mApp->mGameScene == GameScenes::SCENE_PLAYING &&
+				mApp->GetDialogCount() == 0 && mTimeStopCounter <= 0)
+			{
+				MouseDownWithPlant(x, y, 1);
+			}
+			if (mCursorObject->mCursorType == CursorType::CURSOR_TYPE_PLANT_FROM_BANK)
+			{
+				RefreshSeedPacketFromCursor();
+			}
+			UpdateCursor();
+		}
+		return;
+	}
+#endif
 	if (mIgnoreMouseUp)
 	{
 		mIgnoreMouseUp = false;

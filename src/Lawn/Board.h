@@ -141,6 +141,13 @@ public:
 	std::unique_ptr<GameButton>			mMenuButton;
 	std::unique_ptr<GameButton>			mStoreButton;
 	bool							mIgnoreMouseUp;
+#ifdef __ANDROID__
+	// @pvz-online: distinguish an actual seed drag from tap-to-select on the phone.
+	bool                            mTouchSeedDrag;
+	bool                            mTouchSeedDragMoved;
+	int                             mTouchSeedDragStartX;
+	int                             mTouchSeedDragStartY;
+#endif
 	std::unique_ptr<ToolTipWidget>		mToolTip;
 	std::unique_ptr<CutScene>			mCutScene;
 	std::unique_ptr<Challenge>			mChallenge;

@@ -176,6 +176,10 @@ SexyAppBase::SexyAppBase()
 	mIsWindowed = true;
 	mIsPhysWindowed = true;
 	mFullScreenWindow = false;
+	mWindowedWindowRect.left = 0;
+	mWindowedWindowRect.top = 0;
+	mWindowedWindowRect.right = 0;
+	mWindowedWindowRect.bottom = 0;
 	mPreferredX = -1;
 	mPreferredY = -1;
 	mIsScreenSaver = false;
@@ -3391,6 +3395,9 @@ static bool ScreenSaverWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 	return false;
 }
 
+// @pvz-online: 定义在 MakeWindow 之前（:4740 附近），WindowProc 的 WM_DISPLAYCHANGE 先用到。
+static RECT GetFullscreenMonitorRect(HWND theWindow);
+
 LRESULT CALLBACK SexyAppBase::WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	if (gSexyAppBase!=NULL && gSexyAppBase->IsScreenSaver())
@@ -4468,7 +4475,15 @@ bool SexyAppBase::ProcessDeferredMessages(bool singleMessage)
 					RehupFocus();
 					
 					if ((mActive) && (!mIsWindowed))
+					{
 						mWidgetManager->MarkAllDirty();
+
+						// @pvz-online: 重新激活时重钉置顶位——别的置顶窗/抓图工具会把我们的
+						// HWND_TOPMOST 顶掉（例如 grab.ps1 收尾的 HWND_NOTOPMOST），无边框全屏
+						// 不重新钉回去，任务栏等就会盖上来。
+						if (mIsPhysWindowed)
+							::SetWindowPos(mHWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+					}
 
 					if ((mIsOpeningURL) && (!mActive))			
 						URLOpenSucceeded(mOpeningURL);
@@ -4697,6 +4712,18 @@ bool SexyAppBase::ProcessDeferredMessages(bool singleMessage)
 
 			case WM_SYSCOLORCHANGE:
 			case WM_DISPLAYCHANGE:
+				// @pvz-online: 无边框全屏时显示器分辨率变了/换了屏：按新监视器矩形重新贴合
+				// 整块屏（幂等——随后 Windows 的 WM_SIZE 会按同矩形提前返回）。
+				if ((hWnd == mHWnd) && (uMsg == WM_DISPLAYCHANGE) && mIsPhysWindowed && (!mIsWindowed))
+				{
+					RECT aMonitorRect = GetFullscreenMonitorRect(mHWnd);
+					::SetWindowPos(mHWnd, HWND_TOPMOST, aMonitorRect.left, aMonitorRect.top,
+						aMonitorRect.right - aMonitorRect.left, aMonitorRect.bottom - aMonitorRect.top,
+						SWP_NOACTIVATE);
+					RECT aClientRect;
+					::GetClientRect(mHWnd, &aClientRect);
+					WindowResized(aClientRect.right - aClientRect.left, aClientRect.bottom - aClientRect.top);
+				}
 				mWidgetManager->SysColorChangedAll();
 				mWidgetManager->MarkAllDirty();
 				break;
@@ -5106,6 +5133,7 @@ void SexyAppBase::SwitchScreenMode(bool wantWindowed, bool is3d, bool force)
 	}
 
 	// Set 3d acceleration preference
+	bool a3DChanged = (mDDInterface != NULL) && (mDDInterface->mIs3D != is3d);
 	Set3DAcclerated(is3d,false);
 
 	// Always make the app windowed when playing demos, in order to
@@ -5114,9 +5142,15 @@ void SexyAppBase::SwitchScreenMode(bool wantWindowed, bool is3d, bool force)
 	//if (mPlayingDemoBuffer)
 	//	wantWindowed = true;
 
-	mIsWindowed = wantWindowed;	
+	mIsWindowed = wantWindowed;
 
-	MakeWindow();
+	// @pvz-online: 只换窗口模式（3D 标志没变、非 demo）时原地换装——同一 HWND 上对换样式，
+	// 不重建窗口、不重初始化 DDraw；两种形态 DDraw 状态一致（都走 DDSCL_NORMAL），切换零闪。
+	// 3D 变了才走 MakeWindow 重建（draw surface 内存类型不同，DDInterface.cpp:385-387）。
+	if ((mDDInterface != NULL) && mDDInterface->mInitialized && (!a3DChanged) && (!mPlayingDemoBuffer))
+		RestyleWindow(wantWindowed);
+	else
+		MakeWindow();
 	
 	// We need to do this check to allow IE to get focus instead of
 	//  stealing it away for ourselves
@@ -5707,6 +5741,88 @@ void SexyAppBase::WindowResized(int theClientWidth, int theClientHeight)
 	// 不在这里画，窗口拖完之前就一直是旧画面（或者四条边的花屏）。
 	if (mInitialized && !mShutdown)
 		Redraw(NULL);
+}
+
+// @pvz-online: 原地换装——不销毁重建窗口、不重初始化 DDraw，只在同一 HWND 上对换
+// 窗口化样式与无边框全屏样式（配合 SWP_FRAMECHANGED 让系统重算非客户区）。两种形态
+// 的 DDraw 状态完全一致（都走 DDSCL_NORMAL），所以切换零闪。进全屏时记下窗口化矩形，
+// 退出时恢复。见 docs/03 §5.87。
+void SexyAppBase::RestyleWindow(bool wantWindowed)
+{
+	// @pvz-online: 与 MakeWindow 窗口化分支同款样式（那边改了这里要同步）。
+	DWORD aWindowedStyle = WS_CLIPCHILDREN | WS_POPUP | WS_BORDER | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX
+		| WS_THICKFRAME;
+	if (mEnableMaximizeButton)
+		aWindowedStyle |= WS_MAXIMIZEBOX;
+
+	// SetWindowLongPtr 整个顶掉 GWL_STYLE 时 WS_VISIBLE 位也没了（窗口会被直接隐藏），
+	// 原样带上。
+	LONG_PTR aVisibleBit = ::GetWindowLongPtr(mHWnd, GWL_STYLE) & WS_VISIBLE;
+
+	if (wantWindowed)
+	{
+		RECT aRect = mWindowedWindowRect;
+		if ((aRect.right - aRect.left <= 0)
+			|| (::MonitorFromRect(&aRect, MONITOR_DEFAULTTONULL) == NULL))
+		{
+			// 启动即全屏（注册表 ScreenMode=1）时没存过窗口矩形：按 MakeWindow 窗口化
+			// 分支的同一套摆放算法现算一份（正常往返不走到这）。
+			RECT aDefRect = {0, 0, mWidth, mHeight};
+			::AdjustWindowRect(&aDefRect, aWindowedStyle, FALSE);
+			RECT aWorkRect;
+			::SystemParametersInfo(SPI_GETWORKAREA, 0, &aWorkRect, 0);
+
+			int aW = aDefRect.right - aDefRect.left;
+			int aH = aDefRect.bottom - aDefRect.top;
+			int aX = aWorkRect.left + ((aWorkRect.right - aWorkRect.left) - aW) / 2;
+			int aY = aWorkRect.top + (int)(((aWorkRect.bottom - aWorkRect.top) - aH) * 0.382);
+			if (mPreferredX != -1)
+			{
+				int aSpacing = 4;
+				aX = mPreferredX;
+				aY = mPreferredY;
+				if (aX < aWorkRect.left + aSpacing)
+					aX = aWorkRect.left + aSpacing;
+				if (aY < aWorkRect.top + aSpacing)
+					aY = aWorkRect.top + aSpacing;
+				if (aX + aW >= aWorkRect.right - aSpacing)
+					aX = aWorkRect.right - aW - aSpacing;
+				if (aY + aH >= aWorkRect.bottom - aSpacing)
+					aY = aWorkRect.bottom - aH - aSpacing;
+			}
+
+			aRect.left = aX;
+			aRect.top = aY;
+			aRect.right = aX + aW;
+			aRect.bottom = aY + aH;
+		}
+
+		::SetWindowLongPtr(mHWnd, GWL_STYLE, (LONG_PTR)(aWindowedStyle | aVisibleBit));
+		::SetWindowLongPtr(mHWnd, GWL_EXSTYLE, 0);
+		::SetWindowPos(mHWnd, HWND_NOTOPMOST, aRect.left, aRect.top,
+			aRect.right - aRect.left, aRect.bottom - aRect.top,
+			SWP_FRAMECHANGED | SWP_NOACTIVATE);
+	}
+	else
+	{
+		// 最大化态直接换无边框会留下残影，先还原
+		if (::IsZoomed(mHWnd))
+			::ShowWindow(mHWnd, SW_RESTORE);
+
+		::GetWindowRect(mHWnd, &mWindowedWindowRect);
+
+		RECT aMonitorRect = GetFullscreenMonitorRect(mHWnd);
+		::SetWindowLongPtr(mHWnd, GWL_STYLE, (LONG_PTR)(WS_POPUP | aVisibleBit));
+		::SetWindowLongPtr(mHWnd, GWL_EXSTYLE, WS_EX_TOPMOST);
+		::SetWindowPos(mHWnd, HWND_TOPMOST, aMonitorRect.left, aMonitorRect.top,
+			aMonitorRect.right - aMonitorRect.left, aMonitorRect.bottom - aMonitorRect.top,
+			SWP_FRAMECHANGED | SWP_NOACTIVATE);
+	}
+
+	// WM_SIZE 走延迟队列会晚一帧，这里立刻按新客户区重算呈现矩形（同矩形提前返回，重复无妨）。
+	RECT aClientRect;
+	::GetClientRect(mHWnd, &aClientRect);
+	WindowResized(aClientRect.right - aClientRect.left, aClientRect.bottom - aClientRect.top);
 }
 
 int SexyAppBase::InitDDInterface()

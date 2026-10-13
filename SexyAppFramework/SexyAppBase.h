@@ -172,8 +172,10 @@ public:
 	bool					mIsPhysWindowed;
 	bool					mFullScreenWindow; // uses ChangeDisplaySettings to run fullscreen with mIsWindowed true
 	bool					mForceFullscreen;
-	bool					mForceWindowed;	
-	bool					mInitialized;	
+	bool					mForceWindowed;
+	// @pvz-online: 进无边框全屏前记下的窗口化矩形（换装退出全屏时恢复用，见 RestyleWindow）。
+	RECT					mWindowedWindowRect;
+	bool					mInitialized;
 	bool					mProcessInTimer;
 	DWORD					mTimeLoaded;
 	HWND					mHWnd;
@@ -509,6 +511,9 @@ public:
 	// @pvz-online: 窗口客户区改了尺寸（WM_SIZE / 拖拽边角）。逻辑画布不变，
 	// 重算呈现矩形和鼠标换算，见 .cpp。
 	void					WindowResized(int theClientWidth, int theClientHeight);
+	// @pvz-online: 原地换装——同一 HWND 上对换窗口化 / 无边框全屏样式，不重建窗口、
+	// 不重初始化 DDraw（两种形态都走 DDSCL_NORMAL，状态一致），切换零闪，见 .cpp。
+	void					RestyleWindow(bool wantWindowed);
 
 	// Properties access methods
 	bool					LoadProperties(const std::string& theFileName, bool required, bool checkSig);

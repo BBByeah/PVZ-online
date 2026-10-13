@@ -2648,6 +2648,13 @@ void Zombie::UpdateZombieJalapenoHead()
             }
         }
 #endif
+
+        // @pvz-online 修复（2026-10-14 玩家报「辣椒僵尸死后一直烧」）：原实现爆完不清账——
+        // 计数器停在 0、头还在，本函数被每帧重入：音效/震屏刷屏 + DoFwoosh 每帧重建整行火焰、
+        // 把棋盘级收尾倒计时 mFwooshCountDown 永远按回 100（UpdateFwoosh 的熄灭永不推进）→
+        // 火永不灭。爆一次即摘头：走 Zombotany 掉头链（mHasHead=false 挡重入、特殊头 reanim
+        // 删除、尸体无头化），火焰 1 秒内自然收尾；僵尸照旧继续走（上游引爆块本就不杀本体）。
+        DropHead(0U);
     }
 }
 

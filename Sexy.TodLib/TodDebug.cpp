@@ -15,7 +15,7 @@ static char gDebugDataFolder[MAX_PATH];
 // 联机收发线程），这里不做加锁：最坏情况是某一行被撕裂，对诊断无害；换来的是
 // 每条日志零额外成本。缓冲先写这里、后落盘——即使日志文件打不开（只读盘/
 // 杀软锁），崩溃现场依然拿得到日志尾。
-enum { RECENT_LOG_LINES = 200, RECENT_LOG_LINE_LEN = 512 };
+enum { RECENT_LOG_LINES = TOD_RECENT_LOG_LINES, RECENT_LOG_LINE_LEN = TOD_RECENT_LOG_LINE_LEN };
 static char gRecentLog[RECENT_LOG_LINES][RECENT_LOG_LINE_LEN];
 static int gRecentLogWrite = 0;	// 下一行写哪格
 static int gRecentLogTotal = 0;	// 累计写入行数（>= LINES 即已绕圈）

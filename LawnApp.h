@@ -412,6 +412,8 @@ public:
 	virtual Dialog*					DoDialogDelay(int theDialogId, bool isModal, const SexyString& theDialogHeader, const SexyString& theDialogLines, const SexyString& theDialogFooter, int theButtonMode);
 	virtual void					Shutdown();
 	virtual void					Init();
+	// @pvz-online: 崩溃现场补充游戏态（2026-10-13 取证批）——SEHCatcher 写 dump 时收这块。
+	virtual std::string				GetGameSEHInfo();
 	virtual void					Start();
 	virtual Dialog*					NewDialog(int theDialogId, bool isModal, const SexyString& theDialogHeader, const SexyString& theDialogLines, const SexyString& theDialogFooter, int theButtonMode);
 	virtual bool					KillDialog(int theDialogId);

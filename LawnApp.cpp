@@ -38,6 +38,7 @@
 #include "Lawn/Run/RunBuffs.h"
 #include "Lawn/Widget/RunPickDialog.h"
 #include "Lawn/Widget/GameSelector.h"
+#include "misc/SEHCatcher.h"
 #include "Lawn/Widget/CreditScreen.h"
 #include "Sexy.TodLib/EffectSystem.h"
 #include "Sexy.TodLib/FilterEffect.h"
@@ -3537,6 +3538,49 @@ void BetaSubmitFunc()
 }
 */
 
+// @pvz-online: 崩溃现场补充游戏态（2026-10-13 取证批）。只做廉价、null-safe 的读：
+// 会话指针删除时已置空（见 mOnlineSession 的生命周期），RunState 指针同理。
+// 末尾接 TodGetRecentLog 的日志尾——即使 log.txt 所在目录不可写（只在内存环形缓冲里），
+// crash.txt 也拿得到崩溃前的日志。
+std::string LawnApp::GetGameSEHInfo()
+{
+	std::string anInfo = SexyApp::GetGameSEHInfo();
+
+	char aBuf[256];
+	sprintf(aBuf, "MOD_BUILD: %u (protocol %u)\r\n", (unsigned)NetProto::MOD_BUILD, (unsigned)NetProto::PROTOCOL_VERSION);
+	anInfo += aBuf;
+
+	sprintf(aBuf, "Screen: %d\r\n", (int)mGameScene);
+	anInfo += aBuf;
+
+	if (mRunState != nullptr)
+	{
+		sprintf(aBuf, "Run: mode %d diff %d level %d endlessScene %d\r\n",
+			mRunState->mMode, mRunState->mDiff, mRunState->mLevelIndex, mRunState->mEndlessScene);
+		anInfo += aBuf;
+	}
+
+	if (mOnlineSession != nullptr)
+	{
+		sprintf(aBuf, "Online: transport %d state %d role %d seat %u occupied %d buildDiff %d\r\n  %s\r\n",
+			(int)mOnlineSession->GetTransport(), (int)mOnlineSession->GetState(), (int)mOnlineSession->GetRole(),
+			(unsigned)mOnlineSession->GetLocalSeat(), mOnlineSession->GetOccupiedSeatCount(),
+			mOnlineSession->IsBuildDifferent() ? 1 : 0, mOnlineSession->GetShortStatus().c_str());
+		anInfo += aBuf;
+	}
+
+	static char aRecentLog[TOD_RECENT_LOG_LINES * TOD_RECENT_LOG_LINE_LEN + 1];
+	aRecentLog[0] = '\0';
+	TodGetRecentLog(aRecentLog, sizeof(aRecentLog));
+	if (aRecentLog[0] != '\0')
+	{
+		anInfo += "\r\nRecent log (oldest first):\r\n";
+		anInfo += aRecentLog;
+	}
+
+	return anInfo;
+}
+
 //0x451880
 // GOTY @Patoke: 0x454C60
 void LawnApp::Init()
@@ -3573,6 +3617,44 @@ void LawnApp::Init()
 //#ifdef _DEBUG
 	TodAssertInitForApp();
 	TodLog("session id: %u", mSessionID);
+
+	// @pvz-online: 启动环境探针（2026-10-13 取证批）——玩家机器差异（系统版本/路径/
+	// 目录写权）一行全记进 log.txt，以后「发我一份 log.txt」即可判环境。
+	{
+		struct OsVerInfo { ULONG aSize; ULONG aMajor; ULONG aMinor; ULONG aBuild; ULONG aPlatform; WCHAR aCSD[128]; };
+		OsVerInfo aOs = {};
+		aOs.aSize = sizeof(aOs);
+		HMODULE aNtdll = GetModuleHandleA("ntdll.dll");
+		typedef LONG (WINAPI *RTLGETVERSIONPROC)(OsVerInfo*);
+		RTLGETVERSIONPROC aRtlGetVersion = aNtdll != nullptr ? (RTLGETVERSIONPROC)GetProcAddress(aNtdll, "RtlGetVersion") : nullptr;
+		if (aRtlGetVersion != nullptr)
+			aRtlGetVersion(&aOs);
+
+		char aExePath[MAX_PATH] = { 0 };
+		GetModuleFileNameA(NULL, aExePath, MAX_PATH);
+		char aCwd[MAX_PATH] = { 0 };
+		GetCurrentDirectoryA(MAX_PATH, aCwd);
+
+		std::string aUserDataProbe = GetAppDataFolder() + "userdata\\probe.tmp";
+		FILE* aProbe = fopen(aUserDataProbe.c_str(), "w");
+		int aUserDataWritable = 0;
+		if (aProbe != nullptr)
+		{
+			aUserDataWritable = 1;
+			fclose(aProbe);
+			remove(aUserDataProbe.c_str());
+		}
+
+		TodLog("[env] MOD_BUILD %u proto %u | OS %u.%u.%u | exe %s | cwd %s | userdata writable %d",
+			(unsigned)NetProto::MOD_BUILD, (unsigned)NetProto::PROTOCOL_VERSION,
+			(unsigned)aOs.aMajor, (unsigned)aOs.aMinor, (unsigned)aOs.aBuild,
+			aExePath, aCwd, aUserDataWritable);
+	}
+
+	// @pvz-online: 崩溃对话框头行（2026-10-13 取证批）——玩家口径：文件在哪、发什么。
+	SEHCatcher::mCrashMessage = ModText::WideFromUtf8(ModText::Tr(
+		"游戏崩溃了。请把游戏目录（exe 旁）的 crash.txt、crash.dmp，连同 userdata 里的 log.txt 发给作者。",
+		"Game crashed. Please send crash.txt and crash.dmp (next to the exe), plus log.txt from userdata, to the author."));
 //#endif
 
 	if (!mResourceManager->ParseResourcesFile("properties\\resources.xml"))

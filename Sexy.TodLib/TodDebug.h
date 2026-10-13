@@ -17,9 +17,13 @@ public:
 	inline void		EndBracket() { ; }
 };
 
+// @pvz-online: 环形日志缓冲容量（TodGetRecentLog 供崩溃现场；LawnApp 按此开接收缓冲）。
+enum { TOD_RECENT_LOG_LINES = 200, TOD_RECENT_LOG_LINE_LEN = 512 };
+
 void				TodLog(const char* theFormat, ...);
 void				TodLogString(const char* theMsg);
-// @pvz-online: 最近 200 条日志（含行尾换行）按时间顺序拷进 theBuffer，恒以 '\0' 结尾。
+// @pvz-online: 最近 TOD_RECENT_LOG_LINES 条日志（含行尾换行）按时间顺序拷进 theBuffer，
+// 恒以 '\0' 结尾。
 void				TodGetRecentLog(char* theBuffer, int theBufferSize);
 void				TodTrace(const char* theFormat, ...);
 void				TodTraceMemory();

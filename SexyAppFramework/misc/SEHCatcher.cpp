@@ -40,6 +40,96 @@ std::wstring                    SEHCatcher::mSubmitErrorMessage = L"Failed to co
 
 static bool gUseDefaultFonts = true;
 
+// @pvz-online: 崩溃产物落点（2026-10-13 取证批）——exe 目录优先（玩家一眼能找到，
+// 也是包内 .map 符号文件所在），不可写退回 userdata（log.txt 同处），再退回工作目录。
+static std::string gCrashOutputDir;
+
+static std::string GetExecutableDirectory()
+{
+	char aPath[MAX_PATH];
+	DWORD aLen = GetModuleFileNameA(NULL, aPath, MAX_PATH);
+	if (aLen == 0 || aLen >= MAX_PATH)
+		return "";
+	std::string aStr(aPath);
+	size_t aPos = aStr.find_last_of("\\/");
+	if (aPos == std::string::npos)
+		return "";
+	return aStr.substr(0, aPos + 1);
+}
+
+static std::string GetCrashOutputDirectory()
+{
+	std::string aDirs[2];
+	aDirs[0] = GetExecutableDirectory();
+	aDirs[1] = GetAppDataFolder() + "userdata\\";
+	for (int i = 0; i < 2; i++)
+	{
+		if (aDirs[i].empty())
+			continue;
+		std::string aProbe = aDirs[i] + "crash_write_test.tmp";
+		FILE* aFile = fopen(aProbe.c_str(), "w");
+		if (aFile != NULL)
+		{
+			fclose(aFile);
+			remove(aProbe.c_str());
+			return aDirs[i];
+		}
+	}
+	return "";	// 全不可写：退回相对路径（工作目录），与旧行为一致
+}
+
+// @pvz-online: MiniDumpWriteDump 手工声明——不 include <dbghelp.h>（它与本文件已用的
+// imagehlp.h 在部分 SDK 上重复定义 ADDRESS_MODE 等类型）；只按 ABI 对齐最小面。
+// 第 4 参数 MiniDumpNormal = 0（官方枚举值）。
+typedef BOOL (WINAPI *MINIDUMPWRITEDUMPPROC)(HANDLE, DWORD, HANDLE, DWORD, const void*, const void*, const void*);
+
+struct MiniDumpExceptionInfo
+{
+	DWORD				ThreadId;
+	LPEXCEPTION_POINTERS	ExceptionPointers;
+	BOOL				ClientPointers;
+};
+
+// 独立小函数放 __try（带 C++ 对象的函数里不能直接用 SEH）。
+static BOOL SafeMiniDumpWrite(MINIDUMPWRITEDUMPPROC aWriteDump, HANDLE aFile, LPEXCEPTION_POINTERS lpEP)
+{
+	__try
+	{
+		MiniDumpExceptionInfo aInfo;
+		aInfo.ThreadId = GetCurrentThreadId();
+		aInfo.ExceptionPointers = lpEP;
+		aInfo.ClientPointers = FALSE;
+		return aWriteDump(GetCurrentProcess(), GetCurrentProcessId(), aFile, 0, &aInfo, NULL, NULL);
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER)
+	{
+		return FALSE;
+	}
+}
+
+// 写 crash.dmp（异常上下文 + 全线程栈）；dbghelp 动态载入，任何失败都静默，
+// 绝不影响 crash.txt 主流程。
+static void WriteMinidump(LPEXCEPTION_POINTERS lpEP, const std::string& theDir)
+{
+	HMODULE aDbgHelpLib = LoadLibraryA("dbghelp.dll");
+	if (aDbgHelpLib == NULL)
+		return;
+
+	MINIDUMPWRITEDUMPPROC aWriteDump = (MINIDUMPWRITEDUMPPROC)GetProcAddress(aDbgHelpLib, "MiniDumpWriteDump");
+	if (aWriteDump != NULL)
+	{
+		HANDLE aFile = CreateFileA((theDir + "crash.dmp").c_str(), GENERIC_WRITE, 0, NULL,
+				CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (aFile != INVALID_HANDLE_VALUE)
+		{
+			SafeMiniDumpWrite(aWriteDump, aFile, lpEP);
+			CloseHandle(aFile);
+		}
+	}
+
+	FreeLibrary(aDbgHelpLib);
+}
+
 struct 
 {
 	DWORD   dwExceptionCode;
@@ -193,12 +283,23 @@ static bool StrToLongHex(const std::string& aString, DWORD* theValue)
 void SEHCatcher::GetSymbolsFromMapFile(std::string &theDebugDump)
 {
 	// DWORD aTick = GetTickCount(); // unused
+	// @pvz-online: .map 依次找 exe 目录 → 工作目录（2026-10-13；以前只找 CWD，
+	// 玩家按快捷方式启动、CWD 不是游戏目录时就解不出符号）。
 	WIN32_FIND_DATAA aFindData;
-	HANDLE aFindHandle = FindFirstFileA("*.map",&aFindData);
-	if (aFindHandle==INVALID_HANDLE_VALUE)
+	std::string aMapSearchDirs[2] = { GetExecutableDirectory(), std::string("") };
+	std::string aMapPath;
+	for (int i = 0; i < 2; i++)
+	{
+		HANDLE aFindHandle = FindFirstFileA((aMapSearchDirs[i] + "*.map").c_str(), &aFindData);
+		if (aFindHandle != INVALID_HANDLE_VALUE)
+		{
+			FindClose(aFindHandle);
+			aMapPath = aMapSearchDirs[i] + aFindData.cFileName;
+			break;
+		}
+	}
+	if (aMapPath.empty())
 		return;
-
-	FindClose(aFindHandle);
 
 	typedef std::pair<DWORD,DWORD> SymbolPair;
 	typedef std::map<SymbolPair,std::string> SymbolMap;
@@ -208,7 +309,7 @@ void SEHCatcher::GetSymbolsFromMapFile(std::string &theDebugDump)
 /**/
 	SymbolMap aSymbolMap;
 	LineNumMap aLineNumMap;
-	std::fstream aFile(aFindData.cFileName, std::ios::in);
+	std::fstream aFile(aMapPath.c_str(), std::ios::in);
 
 	if (!aFile.is_open())
 		return;
@@ -438,7 +539,13 @@ void SEHCatcher::DoHandleDebugEvent(LPEXCEPTION_POINTERS lpEP)
 	if (hasImageHelp)
 		GetSymbolsFromMapFile(aDebugDump);
 
+	// @pvz-online: 崩溃产物落点先定好，把路径顶在 dump 最前面——对话框正文、
+	// clipboard、crash.txt 自身三处都能一眼看到文件在哪。
+	gCrashOutputDir = GetCrashOutputDirectory();
+	aDebugDump = "Crash files:\r\n  " + gCrashOutputDir + "crash.txt\r\n  " + gCrashOutputDir + "crash.dmp\r\n\r\n" + aDebugDump;
+
 	WriteToFile(aDebugDump);
+	WriteMinidump(lpEP, gCrashOutputDir);
 
 #ifdef ZYLOM
 	ZylomGS_StandAlone_SendBugReport((char*) aDebugDump.c_str());
@@ -872,7 +979,9 @@ LRESULT CALLBACK SEHCatcher::SubmitInfoWindowProc(HWND hWnd, UINT uMsg, WPARAM w
 
 void SEHCatcher::WriteToFile(const std::string& theErrorText)
 {
-	std::fstream aStream("crash.txt", std::ios::out);
+	// @pvz-online: 落点由 gCrashOutputDir 决定（DoHandleDebugEvent 里选好）；空则退回相对
+	// 路径 = 工作目录（旧行为）。
+	std::fstream aStream((gCrashOutputDir + "crash.txt").c_str(), std::ios::out);
 	aStream << theErrorText.c_str() << std::endl;
 }
 

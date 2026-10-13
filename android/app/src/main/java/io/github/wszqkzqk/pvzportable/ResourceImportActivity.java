@@ -35,6 +35,8 @@ import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.os.LocaleListCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -43,6 +45,8 @@ import androidx.documentfile.provider.DocumentFile;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -95,6 +99,7 @@ public class ResourceImportActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        applyGameLanguage();
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_resource_import);
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content), (v, insets) -> {
@@ -133,6 +138,20 @@ public class ResourceImportActivity extends AppCompatActivity {
         btnLaunchGame.setOnClickListener(v -> launchGame());
 
         refreshStatus();
+    }
+
+    private void applyGameLanguage() {
+        File root = getExternalFilesDir(null);
+        if (root == null) return;
+        String language = ""; // Empty means follow the system, as in the native Auto option.
+        try (BufferedReader reader = new BufferedReader(new FileReader(new File(root, "userdata/android-language.txt")))) {
+            String value = reader.readLine();
+            if ("1".equals(value)) language = "zh-CN";
+            else if ("2".equals(value)) language = "en";
+        } catch (IOException ignored) {
+            // A fresh install has no saved preference.
+        }
+        AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(language));
     }
 
     private boolean hasResources() {
@@ -227,7 +246,7 @@ public class ResourceImportActivity extends AppCompatActivity {
     }
 
     private static boolean isKnownTopLevel(String name) {
-        return name.startsWith("main.pak") || name.startsWith("properties/") ||
+        return name.startsWith("main.pak") || name.equals("pvz_zh.pak") || name.startsWith("properties/") ||
                name.startsWith("Properties/") || name.startsWith("data/") ||
                name.startsWith("images/") || name.startsWith("particles/") ||
                name.startsWith("reanim/") || name.startsWith("sounds/") ||

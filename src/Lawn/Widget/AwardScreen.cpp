@@ -20,6 +20,7 @@
  */
 
 #include "../Plant.h"
+#include "../ModText.h"
 #include "../Board.h"
 #include "GameButton.h"
 #include "StoreScreen.h"
@@ -608,9 +609,9 @@ void AwardScreen::DrawAchievements(Graphics* g) {
 	PvzpDrawString(g, mApp->GetString("ACHIEVEMENTS_TITLE", "ACHIEVEMENTS"), BOARD_WIDTH / 2, 58, FONT_HOUSEOFTERROR28, Color(220, 220, 220), DS_ALIGN_CENTER);
 
 	for (size_t i = 0; i < mAchievementItems.size(); i++) {
-		std::string aAchievementName = std::string(gAchievementList[mAchievementItems[i].mId].name);
-		std::string aAchievementDesc = std::string(gAchievementList[mAchievementItems[i].mId].description);
-		aAchievementName.append(" Earned!");
+		std::string aAchievementName = GetAchievementName(mApp, mAchievementItems[i].mId);
+		std::string aAchievementDesc = GetAchievementDescription(mApp, mAchievementItems[i].mId);
+		aAchievementName.append(ModText::Tr(" 成就达成！", " Earned!"));
 
 		Rect aSrcRect = Rect(70 * (mAchievementItems[i].mId % 7), 70 * (mAchievementItems[i].mId / 7), 70, 70);
 		Rect aDestRect = Rect(220, mAchievementItems[i].mY + 10, 70, 70);

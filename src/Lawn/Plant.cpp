@@ -44,6 +44,7 @@
 #include "Widget/AchievementsScreen.h"
 #include <algorithm>
 #include <format>
+#include "Run/RunBuffs.h"
 
 constinit const PlantDefinition gPlantDefs[SeedType::NUM_SEED_TYPES] = {
 	{ .mSeedType = SeedType::SEED_PEASHOOTER,        .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_PEASHOOTER,    .mPacketIndex = 0,  .mSeedCost = 100, .mRefreshTime = 750,    .mSubClass = PlantSubClass::SUBCLASS_SHOOTER, .mLaunchRate = 150,  .mPlantName = "PEASHOOTER" },
@@ -489,6 +490,8 @@ void Plant::PlantInitialize(int theGridX, int theGridY, SeedType theSeedType, Se
 	{
 		mPlantHealth *= 2;
 	}
+	// @pvz-online: scale both health and its maximum before damage animations use their ratio.
+	mPlantHealth = (int)(mPlantHealth * mApp->RunBuffMul(RUN_BUFF_ROOTED));
 	mPlantMaxHealth = mPlantHealth;
 
 	if (mSeedType != SeedType::SEED_FLOWERPOT && IsOnBoard())
@@ -5068,12 +5071,12 @@ int Plant::GetRefreshTime(SeedType theSeedType, SeedType theImitaterType)
 	if (theSeedType == SeedType::SEED_IMITATER && theImitaterType != SeedType::SEED_NONE)
 	{
 		const PlantDefinition& aPlantDef = GetPlantDefinition(theImitaterType);
-		return aPlantDef.mRefreshTime;
+		return gLawnApp && gLawnApp->mRunState ? std::max(1, (int)(aPlantDef.mRefreshTime * gLawnApp->RunBuffMul(RUN_BUFF_FASTSEED))) : aPlantDef.mRefreshTime;
 	}
 	else
 	{
 		const PlantDefinition& aPlantDef = GetPlantDefinition(theSeedType);
-		return aPlantDef.mRefreshTime;
+		return gLawnApp && gLawnApp->mRunState ? std::max(1, (int)(aPlantDef.mRefreshTime * gLawnApp->RunBuffMul(RUN_BUFF_FASTSEED))) : aPlantDef.mRefreshTime;
 	}
 }
 

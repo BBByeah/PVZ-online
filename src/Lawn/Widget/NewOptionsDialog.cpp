@@ -20,6 +20,9 @@
  */
 
 #include "../Board.h"
+#include "../ModText.h"
+#include "widget/ButtonWidget.h"
+#include <format>
 #include "GameButton.h"
 #include "../Cutscene.h"
 #include "AlmanacDialog.h"
@@ -76,6 +79,13 @@ NewOptionsDialog::NewOptionsDialog(LawnApp* theApp, bool theFromGameSelector) :
 
 	mFullscreenCheckbox = MakeNewCheckbox(NewOptionsDialog::NewOptionsDialog_Fullscreen, this, !theApp->mIsWindowed);
 	mHardwareAccelerationCheckbox = MakeNewCheckbox(NewOptionsDialog::NewOptionsDialog_HardwareAcceleration, this, theApp->Is3DAccelerated());
+	mLanguageButton = std::make_unique<ButtonWidget>(NewOptionsDialog_Language, this);
+	mLanguageButton->SetFont(ModText::FontFor(FONT_DWARVENTODCRAFT18, 26));
+	mLanguageButton->mLabel = std::format("{}: {}", ModText::Tr("语言", "Language"), ModText::SettingName());
+#ifdef __ANDROID__
+	// Android always renders through GLES; use that desktop-only option's space for language.
+	mHardwareAccelerationCheckbox->SetVisible(false);
+#endif
 
 	if (mFromGameSelector)
 	{
@@ -129,6 +139,7 @@ void NewOptionsDialog::AddedToManager(Sexy::WidgetManager* theWidgetManager)
 	AddWidget(mHardwareAccelerationCheckbox.get());
 	AddWidget(mFullscreenCheckbox.get());
 	AddWidget(mBackToGameButton.get());
+	AddWidget(mLanguageButton.get());
 }
 
 void NewOptionsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
@@ -142,6 +153,7 @@ void NewOptionsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
 	RemoveWidget(mBackToMainButton.get());
 	RemoveWidget(mBackToGameButton.get());
 	RemoveWidget(mRestartButton.get());
+	RemoveWidget(mLanguageButton.get());
 }
 
 void NewOptionsDialog::Resize(int theX, int theY, int theWidth, int theHeight)
@@ -155,6 +167,10 @@ void NewOptionsDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 	mRestartButton->Resize(mAlmanacButton->mX, mAlmanacButton->mY + 43, 209, 46);
 	mBackToMainButton->Resize(mRestartButton->mX, mRestartButton->mY + 43, 209, 46);
 	mBackToGameButton->Resize(30, 381, mBackToGameButton->mWidth, mBackToGameButton->mHeight);
+	mLanguageButton->Resize(95, 178, 240, 32);
+#ifndef __ANDROID__
+	mLanguageButton->Resize(95, 350, 240, 30);
+#endif
 
 	if (mFromGameSelector)
 	{
@@ -162,6 +178,9 @@ void NewOptionsDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 		mSfxVolumeSlider->mY += 10;
 		mHardwareAccelerationCheckbox->mY += 15;
 		mFullscreenCheckbox->mY += 20;
+#ifdef __ANDROID__
+		mLanguageButton->mY += 15;
+#endif
 	}
 
 	if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN || mApp->mGameMode == GameMode::GAMEMODE_TREE_OF_WISDOM)
@@ -194,7 +213,9 @@ void NewOptionsDialog::Draw(Sexy::Graphics* g)
 		g->SetScale(aFontScale, aFontScale, 0.0f, 0.0f);
 	PvzpDrawString(g, mApp->GetString("OPTIONS_MUSIC_LABEL", "Music"), aSliderLabelsX, 140 + aMusicOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 	PvzpDrawString(g, mApp->GetString("OPTIONS_SOUNDFX", "Sound FX"), aSliderLabelsX, 167 + aSfxOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
+#ifndef __ANDROID__
 	PvzpDrawString(g, mApp->GetString("OPTIONS_3D_ACCELERATION", "3D Acceleration"), aCheckboxLabelsX, 197 + a3DAccelOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
+#endif
 	PvzpDrawString(g, mApp->GetString("OPTIONS_FULL_SCREEN", "Full Screen"), aCheckboxLabelsX, 229 + aFullScreenOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 	if (aFontScale != 1.0f)
 		g->SetScale(1.0f, 1.0f, 0.0f, 0.0f);
@@ -308,6 +329,23 @@ void NewOptionsDialog::ButtonDepress(int theId)
 
 	switch (theId)
 	{
+	case NewOptionsDialog_Language:
+	{
+		const int next = (ModText::GetLanguageSetting() + 1) % 3;
+		if (!ModText::SetLanguageSetting(next))
+		{
+			mApp->LawnMessageBox(Dialogs::DIALOG_MESSAGE, ModText::Tr("保存失败", "Save failed"),
+				ModText::Tr("无法保存语言选项。", "Cannot save the language preference."), "OK", "", Dialog::BUTTONS_FOOTER);
+			break;
+		}
+		mLanguageButton->mLabel = std::format("{}: {}", ModText::Tr("语言", "Language"), ModText::SettingName());
+		mLanguageButton->MarkDirty();
+		const bool missing = next != ModText::MODLANG_ENGLISH && !ModText::HasChineseResources();
+		mApp->LawnMessageBox(Dialogs::DIALOG_MESSAGE, ModText::Tr("语言选项", "Language"), missing ?
+			"Restart the app to apply. Chinese requires pvz_zh.pak in the imported resource folder." :
+			ModText::Tr("语言已保存，重新启动游戏后生效。", "Language saved. Restart the app to apply."), "OK", "", Dialog::BUTTONS_FOOTER);
+		break;
+	}
 	case NewOptionsDialog::NewOptionsDialog_Almanac:
 	{
 		AlmanacDialog* aDialog = mApp->DoAlmanacDialog(SeedType::SEED_NONE, ZombieType::ZOMBIE_INVALID);

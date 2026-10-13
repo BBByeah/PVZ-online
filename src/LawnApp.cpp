@@ -27,6 +27,13 @@
 #include "Resources.h"
 #include "Lawn/LawnCommon.h"
 #include "Lawn/Board.h"
+#include "Lawn/Run/RunState.h"
+#include "Lawn/ModText.h"
+#include "graphics/CjkFont.h"
+#include "Lawn/Run/RunBuffs.h"
+#include "Lawn/Run/RunPortSupport.h"
+#include "Lawn/Widget/RunFlowScreen.h"
+#include <cmath>
 #include "Lawn/Plant.h"
 #include "Lawn/Zombie.h"
 #include "Lawn/Cutscene.h"
@@ -170,6 +177,7 @@ LawnApp::LawnApp()
 
 LawnApp::~LawnApp()
 {
+	KillRunFlowScreen();
 	while (!mDialogMap.empty())
 	{
 		KillDialog(mDialogMap.begin()->first);
@@ -222,6 +230,7 @@ LawnApp::~LawnApp()
 	UpdateRegisterInfo();
 
 	mResourceManager->DeleteResources("");
+	Sexy::ClearCjkFonts();
 }
 
 void LawnApp::Shutdown()
@@ -255,7 +264,7 @@ void LawnApp::KillBoard()
 	KillSeedChooserScreen();
 	if (mBoard)
 	{
-		if (mPlayerInfo && (
+		if (!mRunState && mPlayerInfo && (
 			mBoardResult == BoardResult::BOARDRESULT_WON ||
 			mBoardResult == BoardResult::BOARDRESULT_LOST ||
 			mBoardResult == BoardResult::BOARDRESULT_RESTART ||
@@ -436,7 +445,9 @@ void LawnApp::NewGame()
 
 void LawnApp::ShowGameSelector()
 {
+	KillRunFlowScreen();
 	KillBoard();
+	mRunState.reset();
 	//UpdateRegisterInfo();
 	if (mGameSelector)
 	{
@@ -1164,6 +1175,9 @@ void LawnApp::Init()
 	if (mShutdown) // MakeWindow() failed
 		return;
 
+	// Load the optional PC Chinese overlay before parsing resources or caching fonts/images.
+	ModText::Initialize();
+
 	if (mRecordingDemoBuffer || mPlayingDemoBuffer)
 		mAppRandSeed = mRandSeed; // demo sessions derive the app-level seed from the recorded one
 
@@ -1397,6 +1411,24 @@ void LawnApp::CheckForGameEnd()
 {
 	if (mBoard == nullptr || !mBoard->mLevelComplete)
 		return;
+	if (mRunState)
+	{
+		mBoardResult = BoardResult::BOARDRESULT_WON;
+		mRunState->AdvanceLevel();
+		KillBoard();
+		if (mRunState->IsComplete())
+		{
+			RunState::DeleteCheckpoint(mPlayerInfo->mId);
+			ShowGameSelector();
+			LawnMessageBox(Dialogs::DIALOG_MESSAGE, ModText::Tr("闯关完成", "Run complete"), ModText::Tr("你通过了所有五个场景！", "You cleared all five scenes!"), "OK", "", Dialog::BUTTONS_FOOTER);
+		}
+		else
+		{
+			mRunState->BeginLevelEndPicks();
+			ShowRunPicks();
+		}
+		return;
+	}
 
 	bool aUnlockedNewChallenge = UpdatePlayerProfileForFinishingLevel();
 
@@ -1644,6 +1676,9 @@ void LawnApp::LoadingThreadProc()
 	LoadProperties("properties/default.xml", false, false);
 	LoadProperties("properties/Layout.xml", false, false);
 	LoadProperties("properties/pvz-portable.xml", false, false);
+	// Apply Chinese last so English default.xml cannot overwrite the translated strings.
+	if (ModText::IsChinese())
+		PvzpStringListReadFile("properties/LawnStrings_zh.txt");
 
 	if (mTitleScreen)
 	{
@@ -2073,11 +2108,13 @@ bool LawnApp::IsIZombieLevel()
 
 bool LawnApp::IsShovelLevel()
 {
+    if (mRunState) return false;
 	return mBoard && mGameMode == GameMode::GAMEMODE_CHALLENGE_SHOVEL;
 }
 
 bool LawnApp::IsWallnutBowlingLevel()
 {
+    if (mRunState) return false;
 	if (mBoard == nullptr)
 		return false;
 
@@ -2094,6 +2131,7 @@ bool LawnApp::IsSlotMachineLevel()
 
 bool LawnApp::IsWhackAZombieLevel()
 {
+    if (mRunState) return false;
 	if (mBoard == nullptr)
 		return false;
 
@@ -2105,11 +2143,13 @@ bool LawnApp::IsWhackAZombieLevel()
 
 bool LawnApp::IsLittleTroubleLevel()
 {
+    if (mRunState) return false;
 	return (mBoard && (mGameMode == GameMode::GAMEMODE_CHALLENGE_LITTLE_TROUBLE || (mGameMode == GameMode::GAMEMODE_ADVENTURE && mBoard->mLevel == 25)));
 }
 
 bool LawnApp::IsScaryPotterLevel()
 {
+    if (mRunState) return false;
 	if (mGameMode >= GameMode::GAMEMODE_SCARY_POTTER_1 && mGameMode <= GameMode::GAMEMODE_SCARY_POTTER_ENDLESS)
 		return true;
 
@@ -2118,6 +2158,7 @@ bool LawnApp::IsScaryPotterLevel()
 
 bool LawnApp::IsStormyNightLevel()
 {
+    if (mRunState) return false;
 	if (mBoard == nullptr)
 		return false;
 
@@ -2129,6 +2170,7 @@ bool LawnApp::IsStormyNightLevel()
 
 bool LawnApp::IsBungeeBlitzLevel()
 {
+    if (mRunState) return false;
 	if (mBoard == nullptr)
 		return false;
 
@@ -2140,6 +2182,7 @@ bool LawnApp::IsBungeeBlitzLevel()
 
 bool LawnApp::IsMiniBossLevel()
 {
+    if (mRunState) return false;
 	if (mBoard == nullptr)
 		return false;
 
@@ -2256,6 +2299,7 @@ SeedType LawnApp::GetAwardSeedForLevel(int theLevel)
 
 int LawnApp::GetSeedsAvailable()
 {
+	if (mRunState) return NUM_SEEDS_IN_CHOOSER;
 	int aLevel = mPlayerInfo->GetLevel();
 	if (HasFinishedAdventure() || aLevel > 50)
 	{
@@ -2268,6 +2312,7 @@ int LawnApp::GetSeedsAvailable()
 
 bool LawnApp::HasSeedType(SeedType theSeedType)
 {
+	if (mRunState) return mRunState->HasPlant(theSeedType);
 	if (IsTrialStageLocked() && theSeedType >= SeedType::SEED_JALAPENO)
 		return false;
 
@@ -2389,7 +2434,7 @@ bool LawnApp::CanShowAlmanac()
 	if (mPlayerInfo == nullptr)
 		return false;
 
-	return HasFinishedAdventure() || mPlayerInfo->mLevel >= 15;
+	return mRunState || HasFinishedAdventure() || mPlayerInfo->mLevel >= 15;
 }
 
 bool LawnApp::CanShowStore()
@@ -2449,6 +2494,7 @@ bool LawnApp::HasFinishedAdventure()
 
 bool LawnApp::IsFirstTimeAdventureMode()
 {
+	if (mRunState) return false;
 	return IsAdventureMode() && !HasFinishedAdventure();
 }
 

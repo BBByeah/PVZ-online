@@ -34,6 +34,7 @@ namespace Sexy
 {
 	class Slider;
 	class Checkbox;
+	class ButtonWidget;
 };
 
 class NewOptionsDialog : public Sexy::Dialog, public Sexy::SliderListener, public Sexy::CheckboxListener
@@ -49,6 +50,7 @@ protected:
 		NewOptionsDialog_SoundVolume,
 		NewOptionsDialog_Fullscreen,
 		NewOptionsDialog_HardwareAcceleration,
+		NewOptionsDialog_Language,
 	};
 
 public:
@@ -61,6 +63,7 @@ public:
 	std::unique_ptr<LawnStoneButton>	mBackToMainButton;
 	std::unique_ptr<LawnStoneButton>	mRestartButton;
 	std::unique_ptr<NewLawnButton>		mBackToGameButton;
+	std::unique_ptr<Sexy::ButtonWidget> mLanguageButton;
 	bool								mFromGameSelector;
 
 public:

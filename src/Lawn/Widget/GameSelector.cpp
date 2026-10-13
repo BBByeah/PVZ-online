@@ -20,6 +20,7 @@
  */
 
 #include "../Board.h"
+#include "../ModText.h"
 #include "../LawnCommon.h"
 #include "GameButton.h"
 #include "StoreScreen.h"
@@ -73,6 +74,15 @@ GameSelector::GameSelector(LawnApp* theApp)
 	mLoading = false;
 	mHasTrophy = false;
 	mToolTip = std::make_unique<ToolTipWidget>();
+	// @pvz-online: keep the existing adventure entry while the new run flow is ported.
+	auto* runButton = new Sexy::ButtonWidget(5001, this);
+	runButton->mLabel = ModText::Tr("闯关模式", "Roguelike Run");
+	runButton->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 28));
+	runButton->SetLabelColor(Sexy::Color(245, 230, 165));
+	runButton->SetLabelHiliteColor(Sexy::Color::White);
+	runButton->SetBkgColor(Sexy::Color(37, 83, 55));
+	runButton->Resize(30, 330, 235, 55);
+	AddWidget(runButton);
 
 	mAdventureButton = MakeNewButton(
 		GameSelector::GameSelector_Adventure,
@@ -1177,6 +1187,11 @@ void GameSelector::ButtonDepress(int theId)
 {
 	if (mSlideCounter > 0)
 		return;
+	if (theId == 5001)
+	{
+		mApp->ShowRunMenu();
+		return;
+	}
 
 	if (theId == GameSelector::GameSelector_Minigame && mMinigamesLocked)
 	{

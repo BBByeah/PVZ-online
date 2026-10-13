@@ -24,6 +24,7 @@
 #include "Zombie.h"
 #include "Cutscene.h"
 #include "Projectile.h"
+#include "Run/RunBuffs.h"
 #include "../LawnApp.h"
 #include "../Resources.h"
 #include "../GameConstants.h"
@@ -472,8 +473,8 @@ void Projectile::DoSplashDamage(Zombie* theZombie)
 		}
 	}
 
-	int aOriginalDamage = aProjectileDef.mDamage;
-	int aSplashDamage = aProjectileDef.mDamage / 3;
+	int aOriginalDamage = (int)(aProjectileDef.mDamage * mApp->RunBuffMul(RUN_BUFF_FIREPOWER));
+	int aSplashDamage = aOriginalDamage / 3;
 	int aMaxSplashDamageAmount = aOriginalDamage * 7;
 	if (mProjectileType == ProjectileType::PROJECTILE_FIREBALL)
 	{
@@ -836,7 +837,7 @@ void Projectile::DoImpact(Zombie* theZombie)
 	else if (theZombie)
 	{
 		unsigned int aDamageFlags = GetDamageFlags(theZombie);
-		theZombie->TakeDamage(GetProjectileDef().mDamage, aDamageFlags);
+		theZombie->TakeDamage((int)(GetProjectileDef().mDamage * mApp->RunBuffMul(RUN_BUFF_FIREPOWER)), aDamageFlags);
 	}
 
 	float aLastPosX = mPosX - mVelX;

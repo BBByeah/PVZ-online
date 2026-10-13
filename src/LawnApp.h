@@ -48,6 +48,8 @@ class TitleScreen;
 class ChallengeScreen;
 class StoreScreen;
 class AlmanacDialog;
+class RunState;
+class RunFlowScreen;
 class TypingCheck;
 
 namespace Sexy
@@ -73,6 +75,16 @@ class LawnApp : public SexyApp
 {
 public:
 	Board*							mBoard;
+	// @pvz-online: run progress is independent of the original adventure profile.
+	std::unique_ptr<RunState> mRunState;
+	std::unique_ptr<RunFlowScreen> mRunFlowScreen;
+	void ShowRunMenu();
+	void StartRun(int mode);
+	void ResumeRun();
+	void ShowRunPicks();
+	void StartRunLevel();
+	void KillRunFlowScreen();
+	float RunBuffMul(int id) const;
 	std::unique_ptr<TitleScreen>	mTitleScreen;
 	std::unique_ptr<GameSelector>	mGameSelector;
 	std::unique_ptr<SeedChooserScreen>	mSeedChooserScreen;

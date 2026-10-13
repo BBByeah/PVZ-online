@@ -27,9 +27,12 @@ if ($Stage -in @('Dependencies','All')) {
 if ($Stage -in @('Native','All')) {
     $sdlPrefix = "$projectDir\sdl2-android"
     $ndkToolchain = "$env:ANDROID_NDK_HOME\build\cmake\android.toolchain.cmake"
-    Invoke-BuildTool $cmakeExe @('-S',"$projectDir\sdl2-src",'-B',"$projectDir\build-sdl2",'-G','Ninja',"-DCMAKE_MAKE_PROGRAM=$ninjaExe","-DCMAKE_TOOLCHAIN_FILE=$ndkToolchain",'-DANDROID_ABI=arm64-v8a','-DANDROID_PLATFORM=android-24','-DSDL_SHARED=ON','-DSDL_STATIC=OFF','-DSDL_TEST=OFF',"-DCMAKE_INSTALL_PREFIX=$sdlPrefix",'-DCMAKE_BUILD_TYPE=Release')
-    Invoke-BuildTool $cmakeExe @('--build',"$projectDir\build-sdl2",'--parallel','8')
-    Invoke-BuildTool $cmakeExe @('--install',"$projectDir\build-sdl2")
+    # Reuse the fixed SDL dependency when only gameplay code changed.
+    if (!(Test-Path "$sdlPrefix\lib\libSDL2.so")) {
+        Invoke-BuildTool $cmakeExe @('-S',"$projectDir\sdl2-src",'-B',"$projectDir\build-sdl2",'-G','Ninja',"-DCMAKE_MAKE_PROGRAM=$ninjaExe","-DCMAKE_TOOLCHAIN_FILE=$ndkToolchain",'-DANDROID_ABI=arm64-v8a','-DANDROID_PLATFORM=android-24','-DSDL_SHARED=ON','-DSDL_STATIC=OFF','-DSDL_TEST=OFF',"-DCMAKE_INSTALL_PREFIX=$sdlPrefix",'-DCMAKE_BUILD_TYPE=Release')
+        Invoke-BuildTool $cmakeExe @('--build',"$projectDir\build-sdl2",'--parallel','8')
+        Invoke-BuildTool $cmakeExe @('--install',"$projectDir\build-sdl2")
+    }
     # Classic-mode dependencies are preinstalled; preserve the upstream manifest untouched.
     Invoke-BuildTool $cmakeExe @('-S',$projectDir,'-B',"$projectDir\build-android-api24-arm64-v8a",'-G','Ninja',"-DCMAKE_MAKE_PROGRAM=$ninjaExe","-DCMAKE_TOOLCHAIN_FILE=$vcpkgDir\scripts\buildsystems\vcpkg.cmake",'-DVCPKG_MANIFEST_MODE=OFF',"-DVCPKG_INSTALLED_DIR=$depsDir",'-DVCPKG_TARGET_TRIPLET=arm64-android',"-DVCPKG_OVERLAY_TRIPLETS=$projectDir\tools\android",'-DVCPKG_CMAKE_SYSTEM_VERSION=24',"-DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=$ndkToolchain",'-DANDROID_ABI=arm64-v8a','-DANDROID_PLATFORM=android-24',"-DSDL2_DIR=$sdlPrefix\lib\cmake\SDL2",'-DCMAKE_BUILD_TYPE=Release')
     Invoke-BuildTool $cmakeExe @('--build',"$projectDir\build-android-api24-arm64-v8a",'--parallel','8')

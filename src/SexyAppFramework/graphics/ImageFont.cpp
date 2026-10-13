@@ -23,6 +23,7 @@
  */
 
 #include "ImageFont.h"
+#include "CjkFont.h"
 #include "Graphics.h"
 #include "Image.h"
 #include "SexyAppBase.h"
@@ -1343,6 +1344,8 @@ void ImageFont::GenerateActiveFontLayers()
 
 int ImageFont::StringWidth(std::string_view theString)
 {
+	if (NeedsCjkFallback(theString))
+		if (auto* font = GetCjkFont(GetHeight())) return font->StringWidth(theString);
 	int aWidth = 0;
 	char32_t aPrevChar = 0;
 	size_t aOffset = 0;
@@ -1359,6 +1362,16 @@ int ImageFont::StringWidth(std::string_view theString)
 int ImageFont::CharWidthKern(char32_t theChar, char32_t thePrevChar)
 {
 	Prepare();
+	if (theChar >= 128)
+	{
+		bool found = false;
+		for (auto& layer : mActiveLayerList)
+		{
+			auto glyph = layer.mBaseFontLayer->mCharDataMap.find(GetMappedChar(theChar));
+			if (glyph != layer.mBaseFontLayer->mCharDataMap.end() && glyph->second.mWidth > 0) { found = true; break; }
+		}
+		if (!found) if (auto* font = GetCjkFont(GetHeight())) return font->CharWidth(theChar);
+	}
 
 	int aMaxXPos = 0;
 	double aPointSize = mPointSize * mScale;
@@ -1431,6 +1444,17 @@ static RenderCommand* gRenderHead[256];
 void ImageFont::DrawStringEx(Graphics* g, int theX, int theY, std::string_view theString, const Color& theColor, RectList* theDrawnAreas, int* theWidth)
 {
 	std::scoped_lock anAutoCrit(gRenderCritSec);
+	if (NeedsCjkFallback(theString))
+	{
+		if (auto* font = GetCjkFont(GetHeight()))
+		{
+			const int width = font->StringWidth(theString);
+			font->DrawString(g, theX, theY, theString, theColor, g->mClipRect);
+			if (theWidth) *theWidth = width;
+			if (theDrawnAreas) { theDrawnAreas->clear(); theDrawnAreas->emplace_back(theX, theY - font->GetAscent(), width, font->GetHeight()); }
+			return;
+		}
+	}
 
 	int aPoolIdx;
 
@@ -1692,6 +1716,27 @@ void ImageFont::Prepare()
 		GenerateActiveFontLayers();
 		mActiveListValid = true;
 	}
+}
+
+bool ImageFont::NeedsCjkFallback(std::string_view text)
+{
+	Prepare();
+	size_t offset = 0;
+	char32_t cp;
+	while (UTF8DecodeNext(text, offset, cp))
+	{
+		if (cp < 128) continue;
+		cp = GetMappedChar(cp);
+		bool found = false;
+		for (auto& layer : mActiveLayerList)
+		{
+			const auto& chars = layer.mBaseFontLayer->mCharDataMap;
+			auto glyph = chars.find(cp);
+			if (glyph != chars.end() && glyph->second.mWidth > 0) { found = true; break; }
+		}
+		if (!found) return true;
+	}
+	return false;
 }
 
 char32_t ImageFont::GetMappedChar(char32_t theChar)

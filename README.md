@@ -1,11 +1,12 @@
 # PvZ Online Android（移植中）
 
-此 `android-port` 分支是 PvZ Online 的 Android 移植底座，当前已在 MuMu Android 15 启动，尚未迁入合作联机与肉鸽玩法。
+此 `android-port` 分支是 PvZ Online 的 Android 移植工程，当前已在 MuMu Android 15 运行，包含单机闯关原型与中英文资源切换。合作联机、完整 PC 增益和难度规则仍在迁移中。
 
 - 两人协作与同伴任务：[docs/COLLABORATION.md](docs/COLLABORATION.md)
 - 开发入口：[DEVELOPMENT.md](DEVELOPMENT.md)
 - 移植进度：[PORTING-STATUS.md](PORTING-STATUS.md)
 - 移植计划：[docs/ANDROID-PORT-PLAN.md](docs/ANDROID-PORT-PLAN.md)
+- 中英文资源与语言选项：[docs/LOCALIZATION.md](docs/LOCALIZATION.md)
 
 源码固定来源、许可和原版资源要求见上述记录与下方上游说明。PR 目标为 `android-port`，不要把整个分支合入 Windows 的 `pvz-online` 分支。
 

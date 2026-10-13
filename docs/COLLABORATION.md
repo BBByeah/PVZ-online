@@ -1,5 +1,7 @@
 # 两人协作与任务交接
 
+2026-10-13 更新：同伴暂时无法参加，按用户要求独立推进。任务 A 已由主开发者完成，报告和生成脚本已提交；任务 B 的中英文资源与语言联动也已由主开发者接入。以下分支/PR 流程供同伴恢复参与时使用，旧任务不再重复分配。
+
 ## 共享仓库
 
 共享仓库为 `https://github.com/Not-a-Different-Name/PVZ-online-android`，整合分支为 `android-port`。此前 Windows 仓库里的同名分支仅为迁移前的临时副本；后续 Android 工作全部推到新仓库。
@@ -72,6 +74,6 @@ git push -u origin collab/enum-audit
 
 ## 当前共享基线的能力
 
-2026-10-13 已生成 Portable 底座 APK，在 MuMu Android 15 安装启动并读入本机资源，Android 种子拖放修复已验证。尚未迁入 PvZ Online 闯关、增益和联机功能。APK 位于开发机仓库外，不把它误称为完成的手机版 mod。
+2026-10-13 已生成 ARM64 APK，在 MuMu Android 15 运行，包含拖放修复、单机闯关原型、三种增益和中英文资源切换。合作联机与完整 PC 规则仍未迁入。APK 和玩家资源保留在仓库外，不把原型误称为完成的手机版 mod。
 
 官方协作操作参考：https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/repository-access-and-collaboration/inviting-collaborators-to-a-personal-repository

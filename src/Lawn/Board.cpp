@@ -25,6 +25,7 @@
 #include <format>
 #include "ZenGarden.h"
 #include "BoardInclude.h"
+#include "Run/RunState.h"
 #include "LawnCommon.h"
 #include "System/Music.h"
 #include "System/SaveGame.h"
@@ -341,6 +342,8 @@ void Board::TryToSaveGame()
 
 bool Board::NeedSaveGame()
 {
+	// @pvz-online: checkpoints use their own format; never overwrite adventure mid-level saves.
+	if (mApp->mRunState) return false;
 	return
 		mApp->mGameMode != GameMode::GAMEMODE_CHALLENGE_ICE &&
 		mApp->mGameMode != GameMode::GAMEMODE_UPSELL &&
@@ -1339,7 +1342,7 @@ void Board::InitLevel()
 	{
 		mApp->mMusic->StopAllMusic();
 	}
-	mLevel = mApp->IsAdventureMode() ? mApp->mPlayerInfo->mLevel : 0;
+	mLevel = mApp->mRunState ? mApp->mRunState->GetLevel() : mApp->IsAdventureMode() ? mApp->mPlayerInfo->mLevel : 0;
 	PickBackground();
 	InitZombieWaves();
 	if (aGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED || aGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED_TWIST ||
@@ -1813,6 +1816,12 @@ void Board::CompleteEndLevelSequenceForSaving()
 
 void Board::FadeOutLevel()
 {
+	if (mApp->mRunState)
+	{
+		ClearCursor();
+		mLevelComplete = true;
+		return;
+	}
 	if (mApp->mGameScene != GameScenes::SCENE_PLAYING)
 	{
 		RefreshSeedPacketFromCursor();
@@ -8602,6 +8611,7 @@ void Board::ProcessDeleteQueue()
 
 bool Board::HasConveyorBeltSeedBank()
 {
+	if (mApp->mRunState) return false;
 	return
 		mApp->IsFinalBossLevel() ||
 		mApp->IsMiniBossLevel() ||
@@ -8617,6 +8627,7 @@ bool Board::HasConveyorBeltSeedBank()
 
 int Board::GetNumSeedsInBank()
 {
+	if (mApp->mRunState) return std::min(RunState::RUN_SEED_SLOTS, (int)mApp->mRunState->mPool.size());
 	if (mApp->IsScaryPotterLevel())
 	{
 		return 1;

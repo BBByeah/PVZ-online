@@ -5914,8 +5914,12 @@ bool Board::HandleSunGiftKey(KeyCode theKey)
 void Board::GiveSunGift(int theAmount, uint8_t theFromSeat)
 {
 	mSunMoney = std::min(mSunMoney + theAmount, 9990);
-	(void)theFromSeat;	// 横幅的席位名暂不拼（收发都走无名字系统横幅）；要区分来源时再接
-	PushCustomBanner(ModText::Tr("收到队友的阳光", "Received sun from teammate"));
+	// @pvz-online: 收方横幅带发送者名字（2026-10-13 用户令「显示 XXX 送你阳光」）；
+	// 席位名口径同聊天/掉线横幅，空名兜底 P<席位>。
+	std::string aNameUtf8;
+	if (mApp->mOnlineSession != nullptr) aNameUtf8 = mApp->mOnlineSession->GetSeatName(theFromSeat);
+	if (aNameUtf8.empty()) aNameUtf8 = "P" + std::to_string((unsigned)theFromSeat);
+	PushCustomBanner((aNameUtf8 + ModText::Tr("送你阳光", " sent you sun")).c_str());
 	// 天降演出：三枚面额币从天上落到场上（50+25+15 的视觉示意，落地自动飞向计数器）。
 	// mVisualOnly 让它们收集时不二次入账、也不算进「在途阳光」种植预算——金额以横幅为准。
 	int aBaseX = RandRangeInt(100, 529);

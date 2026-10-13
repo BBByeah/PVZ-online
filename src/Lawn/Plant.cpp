@@ -56,16 +56,16 @@ constinit const PlantDefinition gPlantDefs[SeedType::NUM_SEED_TYPES] = {
 	{ .mSeedType = SeedType::SEED_CHOMPER,           .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_CHOMPER,       .mPacketIndex = 31, .mSeedCost = 150, .mRefreshTime = 750,    .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 0,    .mPlantName = "CHOMPER" },
 	{ .mSeedType = SeedType::SEED_REPEATER,          .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_REPEATER,      .mPacketIndex = 5,  .mSeedCost = 200, .mRefreshTime = 750,    .mSubClass = PlantSubClass::SUBCLASS_SHOOTER, .mLaunchRate = 150,  .mPlantName = "REPEATER" },
 	{ .mSeedType = SeedType::SEED_PUFFSHROOM,        .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_PUFFSHROOM,    .mPacketIndex = 6,  .mSeedCost = 0,   .mRefreshTime = 750,    .mSubClass = PlantSubClass::SUBCLASS_SHOOTER, .mLaunchRate = 150,  .mPlantName = "PUFF_SHROOM" },
-	{ .mSeedType = SeedType::SEED_SUNSHROOM,         .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_SUNSHROOM,     .mPacketIndex = 7,  .mSeedCost = 25,  .mRefreshTime = 750,    .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 2500, .mPlantName = "SUN_SHROOM" },
+	{ .mSeedType = SeedType::SEED_SUNSHROOM,         .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_SUNSHROOM,     .mPacketIndex = 7,  .mSeedCost = 0,  .mRefreshTime = 750,    .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 2500, .mPlantName = "SUN_SHROOM" },
 	{ .mSeedType = SeedType::SEED_FUMESHROOM,        .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_FUMESHROOM,    .mPacketIndex = 9,  .mSeedCost = 75,  .mRefreshTime = 750,    .mSubClass = PlantSubClass::SUBCLASS_SHOOTER, .mLaunchRate = 150,  .mPlantName = "FUME_SHROOM" },
-	{ .mSeedType = SeedType::SEED_GRAVEBUSTER,       .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_GRAVE_BUSTER,  .mPacketIndex = 40, .mSeedCost = 75,  .mRefreshTime = 750,    .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 0,    .mPlantName = "GRAVE_BUSTER" },
-	{ .mSeedType = SeedType::SEED_HYPNOSHROOM,       .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_HYPNOSHROOM,   .mPacketIndex = 10, .mSeedCost = 75,  .mRefreshTime = 3000,   .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 0,    .mPlantName = "HYPNO_SHROOM" },
+	{ .mSeedType = SeedType::SEED_GRAVEBUSTER,       .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_GRAVE_BUSTER,  .mPacketIndex = 40, .mSeedCost = 0,  .mRefreshTime = 750,    .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 0,    .mPlantName = "GRAVE_BUSTER" },
+	{ .mSeedType = SeedType::SEED_HYPNOSHROOM,       .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_HYPNOSHROOM,   .mPacketIndex = 10, .mSeedCost = 75,  .mRefreshTime = 750,   .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 0,    .mPlantName = "HYPNO_SHROOM" },
 	{ .mSeedType = SeedType::SEED_SCAREDYSHROOM,     .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_SCRAREYSHROOM, .mPacketIndex = 33, .mSeedCost = 25,  .mRefreshTime = 750,    .mSubClass = PlantSubClass::SUBCLASS_SHOOTER, .mLaunchRate = 150,  .mPlantName = "SCAREDY_SHROOM" },
 	{ .mSeedType = SeedType::SEED_ICESHROOM,         .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_ICESHROOM,     .mPacketIndex = 36, .mSeedCost = 75,  .mRefreshTime = 5000,   .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 0,    .mPlantName = "ICE_SHROOM" },
 	{ .mSeedType = SeedType::SEED_DOOMSHROOM,        .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_DOOMSHROOM,    .mPacketIndex = 20, .mSeedCost = 125, .mRefreshTime = 5000,   .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 0,    .mPlantName = "DOOM_SHROOM" },
 	{ .mSeedType = SeedType::SEED_LILYPAD,           .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_LILYPAD,       .mPacketIndex = 19, .mSeedCost = 25,  .mRefreshTime = 750,    .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 0,    .mPlantName = "LILY_PAD" },
 	{ .mSeedType = SeedType::SEED_SQUASH,            .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_SQUASH,        .mPacketIndex = 21, .mSeedCost = 50,  .mRefreshTime = 3000,   .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 0,    .mPlantName = "SQUASH" },
-	{ .mSeedType = SeedType::SEED_THREEPEATER,       .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_THREEPEATER,   .mPacketIndex = 12, .mSeedCost = 325, .mRefreshTime = 750,    .mSubClass = PlantSubClass::SUBCLASS_SHOOTER, .mLaunchRate = 150,  .mPlantName = "THREEPEATER" },
+	{ .mSeedType = SeedType::SEED_THREEPEATER,       .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_THREEPEATER,   .mPacketIndex = 12, .mSeedCost = 150, .mRefreshTime = 750,    .mSubClass = PlantSubClass::SUBCLASS_SHOOTER, .mLaunchRate = 150,  .mPlantName = "THREEPEATER" },
 	{ .mSeedType = SeedType::SEED_TANGLEKELP,        .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_TANGLEKELP,    .mPacketIndex = 17, .mSeedCost = 25,  .mRefreshTime = 3000,   .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 0,    .mPlantName = "TANGLE_KELP" },
 	{ .mSeedType = SeedType::SEED_JALAPENO,          .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_JALAPENO,      .mPacketIndex = 11, .mSeedCost = 125, .mRefreshTime = 5000,   .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 0,    .mPlantName = "JALAPENO" },
 	{ .mSeedType = SeedType::SEED_SPIKEWEED,         .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_SPIKEWEED,     .mPacketIndex = 22, .mSeedCost = 100, .mRefreshTime = 750,    .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 0,    .mPlantName = "SPIKEWEED" },
@@ -94,7 +94,7 @@ constinit const PlantDefinition gPlantDefs[SeedType::NUM_SEED_TYPES] = {
 	{ .mSeedType = SeedType::SEED_WINTERMELON,       .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_WINTER_MELON,  .mPacketIndex = 27, .mSeedCost = 200, .mRefreshTime = 5000,   .mSubClass = PlantSubClass::SUBCLASS_SHOOTER, .mLaunchRate = 300,  .mPlantName = "WINTER_MELON" },
 	{ .mSeedType = SeedType::SEED_GOLD_MAGNET,       .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_GOLD_MAGNET,   .mPacketIndex = 27, .mSeedCost = 50,  .mRefreshTime = 5000,   .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 0,    .mPlantName = "GOLD_MAGNET" },
 	{ .mSeedType = SeedType::SEED_SPIKEROCK,         .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_SPIKEROCK,     .mPacketIndex = 27, .mSeedCost = 125, .mRefreshTime = 5000,   .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 0,    .mPlantName = "SPIKEROCK" },
-	{ .mSeedType = SeedType::SEED_COBCANNON,         .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_COBCANNON,     .mPacketIndex = 16, .mSeedCost = 500, .mRefreshTime = 5000,   .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 600,  .mPlantName = "COB_CANNON" },
+	{ .mSeedType = SeedType::SEED_COBCANNON,         .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_COBCANNON,     .mPacketIndex = 16, .mSeedCost = 700, .mRefreshTime = 5000,   .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 600,  .mPlantName = "COB_CANNON" },
 	{ .mSeedType = SeedType::SEED_IMITATER,          .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_IMITATER,      .mPacketIndex = 33, .mSeedCost = 0,   .mRefreshTime = 750,    .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 0,    .mPlantName = "IMITATER" },
 	{ .mSeedType = SeedType::SEED_EXPLODE_O_NUT,     .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_WALLNUT,       .mPacketIndex = 2,  .mSeedCost = 0,   .mRefreshTime = 3000,   .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 0,    .mPlantName = "EXPLODE_O_NUT" },
 	{ .mSeedType = SeedType::SEED_GIANT_WALLNUT,     .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_WALLNUT,       .mPacketIndex = 2,  .mSeedCost = 0,   .mRefreshTime = 3000,   .mSubClass = PlantSubClass::SUBCLASS_NORMAL,  .mLaunchRate = 0,    .mPlantName = "GIANT_WALLNUT" },
@@ -102,405 +102,604 @@ constinit const PlantDefinition gPlantDefs[SeedType::NUM_SEED_TYPES] = {
 	{ .mSeedType = SeedType::SEED_LEFTPEATER,        .mPlantImage = nullptr, .mReanimationType = ReanimationType::REANIM_REPEATER,      .mPacketIndex = 5,  .mSeedCost = 200, .mRefreshTime = 750,    .mSubClass = PlantSubClass::SUBCLASS_SHOOTER, .mLaunchRate = 150,  .mPlantName = "REPEATER" }
 };
 
+static int CobCannonArmFrames(LawnApp* theApp, int theBaseFrames)
+{
+    return (int)(theBaseFrames * theApp->RunPlantUpgradeMul(SeedType::SEED_COBCANNON) + 0.5f);
+}
+
+static bool PlantInLanternLight(LawnApp* theApp, Plant* thePlant)
+{
+    if (thePlant == nullptr || thePlant->mBoard == nullptr) return false;
+    if (theApp->RunPlantBuff2Count(SeedType::SEED_PLANTERN) <= 0) return false;
+
+    int aExtra = theApp->RunPlantUpgradeCount(SeedType::SEED_PLANTERN);
+    Plant* aLantern = nullptr;
+    while (thePlant->mBoard->IteratePlants(aLantern))
+    {
+        if (aLantern->mSeedType != SeedType::SEED_PLANTERN) continue;
+        int aDistX = aLantern->mPlantCol - thePlant->mPlantCol;
+        if (aDistX < 0) aDistX = -aDistX;
+        int aDistY = aLantern->mRow - thePlant->mRow;
+        if (aDistY < 0) aDistY = -aDistY;
+        if (aDistX <= 3 + aExtra && aDistY <= 2 + aExtra && aDistX + aDistY <= 5 + 2 * aExtra)
+            return true;
+    }
+    return false;
+}
+
+static float PlantShootSpeed(LawnApp* theApp, SeedType theSeedType, Plant* thePlant)
+{
+    float aMul = theApp->RunBuffMul(RUN_BUFF_SWIFT) * theApp->RunPlantUpgradeMulKind(theSeedType, RUN_UPGRADE_KIND_RHYTHM)
+        * theApp->RunPlantBuff2MulKind(theSeedType, RUN_UPGRADE_KIND_RHYTHM);	// 第二 buff：同 Kind 闸门口（双发「火力压制」×0.7/层）
+    // @pvz-online: 第二 buff「Twilight」（路灯花 #25，docs/06 §8.6）：照亮格内植物攻速
+    // ×0.75/层——间隔因子 0.75^n 乘进 aMul（值越小越快，与节奏族同向；未抽/不在照亮格恒 1）。
+    if (PlantInLanternLight(theApp, thePlant))
+    {
+        aMul *= theApp->RunPlantBuff2Mul(SeedType::SEED_PLANTERN);
+    }
+    return 1.0f / aMul;
+}
+
+static int PlantShootTicks(int theBaseTicks, float theSpeed)
+{
+    int aScaled = (int)(theBaseTicks / theSpeed + 0.5f);
+    return aScaled < 1 ? 1 : aScaled;
+}
+
+static Zombie* FindHomingStarTarget(Board* theBoard, float theCenterX, float theCenterY, int theDamageRangeFlags, Zombie** theExcludes, int theExcludeCount)
+{
+    Zombie* aBestZombie = nullptr;
+    int aHighestWeight = 0;
+    Zombie* aZombie = nullptr;
+    while (theBoard->IterateZombies(aZombie))
+    {
+        if (!aZombie->EffectedByDamage(theDamageRangeFlags))
+        {
+            continue;
+        }
+        bool aExcluded = false;
+        for (int i = 0; i < theExcludeCount; i++)
+        {
+            if (theExcludes[i] == aZombie)
+            {
+                aExcluded = true;
+                break;
+            }
+        }
+        if (aExcluded)
+        {
+            continue;
+        }
+
+        Rect aZombieRect = aZombie->GetZombieRect();
+        int aWeight = -Distance2D(theCenterX, theCenterY, aZombieRect.mX + aZombieRect.mWidth / 2, aZombieRect.mY + aZombieRect.mHeight / 2);
+        if (aBestZombie == nullptr || aWeight > aHighestWeight)
+        {
+            aHighestWeight = aWeight;
+            aBestZombie = aZombie;
+        }
+    }
+    return aBestZombie;
+}
+
+void Plant::AttachTanglekelpGrab(Zombie* theZombie)
+{
+    theZombie->PoolSplash(false);
+
+    float aVinesPosX = -13.0f;
+    float aVinesPosY = 15.0f;
+    if (theZombie->mZombieType == ZombieType::ZOMBIE_SNORKEL)
+    {
+        aVinesPosX = -43.0f;
+        aVinesPosY = 55.0f;
+    }
+    if (theZombie->mZombiePhase == ZombiePhase::PHASE_DOLPHIN_RIDING)
+    {
+        aVinesPosX = -20.0f;
+        aVinesPosY = 37.0f;
+    }
+    Reanimation* aGrabReanim = theZombie->AddAttachedReanim(aVinesPosX, aVinesPosY, ReanimationType::REANIM_TANGLEKELP);
+    if (aGrabReanim)
+    {
+        aGrabReanim->SetFramesForLayer("anim_grab");
+        aGrabReanim->mAnimRate = 24.0f;
+        aGrabReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
+    }
+}
+
+bool Plant::IsTangleKelpTargeting(ZombieID theZombieID)
+{
+    if (theZombieID == ZombieID::ZOMBIEID_NULL)
+    {
+        return false;
+    }
+    if (mTargetZombieID == theZombieID)
+    {
+        return true;
+    }
+    for (int i = 0; i < mExtraTanglekelpCount; i++)
+    {
+        if (mExtraTanglekelpIDs[i] == theZombieID)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+int Plant::SpikeweedCycleFrames(LawnApp* theApp, SeedType theSeedType)
+{
+    return (int)(100 * theApp->RunPlantUpgradeMul(theSeedType) + 0.5f);
+}
+
+static int MagnetShroomRechargeFrames(LawnApp* theApp)
+{
+    return (int)(1500 * theApp->RunPlantUpgradeMul(SeedType::SEED_MAGNETSHROOM) + 0.5f);
+}
+
+static SeedType GetUpgradeBaseFor(SeedType theSeedType)
+{
+    switch (theSeedType)
+    {
+    case SeedType::SEED_GATLINGPEA:     return SeedType::SEED_REPEATER;
+    case SeedType::SEED_WINTERMELON:    return SeedType::SEED_MELONPULT;
+    case SeedType::SEED_TWINSUNFLOWER:  return SeedType::SEED_SUNFLOWER;
+    case SeedType::SEED_SPIKEROCK:      return SeedType::SEED_SPIKEWEED;
+    case SeedType::SEED_COBCANNON:      return SeedType::SEED_KERNELPULT;
+    case SeedType::SEED_GOLD_MAGNET:    return SeedType::SEED_MAGNETSHROOM;
+    case SeedType::SEED_GLOOMSHROOM:    return SeedType::SEED_FUMESHROOM;
+    case SeedType::SEED_CATTAIL:        return SeedType::SEED_LILYPAD;
+    default:                            return SeedType::SEED_NONE;
+    }
+}
 Plant::Plant()
 {
 }
 
 void Plant::PlantInitialize(int theGridX, int theGridY, SeedType theSeedType, SeedType theImitaterType)
 {
-	mPlantCol = theGridX;
-	mRow = theGridY;
-	if (mBoard)
-	{
-		mX = mBoard->GridToPixelX(theGridX, theGridY);
-		mY = mBoard->GridToPixelY(theGridX, theGridY);
-	}
-	mAnimCounter = 0;
-	mAnimPing = true;
-	mFrame = 0;
-	mShootingCounter = 0;
-	mShakeOffsetX = 0.0f;
-	mShakeOffsetY = 0.0f;
-	mFrameLength = RandRangeInt(12, 18);
-	mTargetX = -1;
-	mTargetY = -1;
-	mStartRow = mRow;
-	mNumFrames = 5;
-	mState = PlantState::STATE_NOTREADY;
-	mDead = false;
-	mSquished = false;
-	mSeedType = theSeedType;
-	mImitaterType = theImitaterType;
-	mPlantHealth = 300;
-	mDoSpecialCountdown = 0;
-	mDisappearCountdown = 200;
-	mStateCountdown = 0;
-	mParticleID = ParticleSystemID::PARTICLESYSTEMID_NULL;
-	mBodyReanimID = ReanimationID::REANIMATIONID_NULL;
-	mHeadReanimID = ReanimationID::REANIMATIONID_NULL;
-	mHeadReanimID2 = ReanimationID::REANIMATIONID_NULL;
-	mHeadReanimID3 = ReanimationID::REANIMATIONID_NULL;
-	mBlinkReanimID = ReanimationID::REANIMATIONID_NULL;
-	mLightReanimID = ReanimationID::REANIMATIONID_NULL;
-	mSleepingReanimID = ReanimationID::REANIMATIONID_NULL;
-	mBlinkCountdown = 0;
-	mRecentlyEatenCountdown = 0;
-	mEatenFlashCountdown = 0;
-	mBeghouledFlashCountdown = 0;
-	mWidth = 80;
-	mHeight = 80;
-	memset(mMagnetItems, 0, sizeof(mMagnetItems));
-	const PlantDefinition& aPlantDef = GetPlantDefinition(theSeedType);
-	mIsAsleep = false;
-	mWakeUpCounter = 0;
-	mOnBungeeState = PlantOnBungeeState::NOT_ON_BUNGEE;
-	mPottedPlantIndex = -1;
-	mLaunchRate = aPlantDef.mLaunchRate;
-	mSubclass = aPlantDef.mSubClass;
-	mRenderOrder = CalcRenderOrder();
+    mPlantCol = theGridX;
+    mRow = theGridY;
+    if (mBoard)
+    {
+        mX = mBoard->GridToPixelX(theGridX, theGridY);
+        mY = mBoard->GridToPixelY(theGridX, theGridY);
+    }
+    mAnimCounter = 0;
+    mAnimPing = true;
+    mFrame = 0;
+    mShootingCounter = 0;
+    mShakeOffsetX = 0.0f;
+    mShakeOffsetY = 0.0f;
+    mFrameLength = RandRangeInt(12, 18);
+    mTargetX = -1;
+    mTargetY = -1;
+    mStartRow = mRow;
+    mNumFrames = 5;
+    mState = PlantState::STATE_NOTREADY;
+    mDead = false;
+    mSquished = false;
+    mSeedType = theSeedType;
+    mImitaterType = theImitaterType;
+    mPlantHealth = 300;
+    mDoSpecialCountdown = 0;
+    mDisappearCountdown = 200;
+    mStateCountdown = 0;
+    // @pvz-online: 缠绕海草「Entangle」多缠（批 13）：额外目标槽清零——抓取外
+    // IsTangleKelpTargeting 会遍历它判"这只正被这株缠着"，不清会读到脏值。
+    mExtraTanglekelpCount = 0;
+    mExtraTanglekelpIDs[0] = ZombieID::ZOMBIEID_NULL;
+    mExtraTanglekelpIDs[1] = ZombieID::ZOMBIEID_NULL;
+    // @pvz-online: 窝瓜多砸（批八）——<0 = 首次锁定目标时还没记账；起跳点先清 0
+    // （首跳前 PRE_LAUNCH 转移处必写，见 UpdateSquash）。
+    mSquashSmashesLeft = -1;
+    mSquashFromX = 0.0f;
+    mSquashFromY = 0.0f;
+    mMineregrowsLeft = 0;	// @pvz-online: 补雷（第二 buff 批 7）——非闯关/非种下路径恒 0
+    mChainBitesLeft = 0;	// @pvz-online: 连锁吞（第二 buff 批 8）——非闯关/非种下路径恒 0
+    mParticleID = ParticleSystemID::PARTICLESYSTEMID_NULL;
+    mBodyReanimID = ReanimationID::REANIMATIONID_NULL;
+    mHeadReanimID = ReanimationID::REANIMATIONID_NULL;
+    mHeadReanimID2 = ReanimationID::REANIMATIONID_NULL;
+    mHeadReanimID3 = ReanimationID::REANIMATIONID_NULL;
+    mBlinkReanimID = ReanimationID::REANIMATIONID_NULL;
+    mLightReanimID = ReanimationID::REANIMATIONID_NULL;
+    mSleepingReanimID = ReanimationID::REANIMATIONID_NULL;
+    mBlinkCountdown = 0;
+    mRecentlyEatenCountdown = 0;
+    mEatenFlashCountdown = 0;
+    mBeghouledFlashCountdown = 0;
+    mWidth = 80;
+    mHeight = 80;
+    memset(mMagnetItems, 0, sizeof(mMagnetItems));
+    const PlantDefinition& aPlantDef = GetPlantDefinition(theSeedType);
+    mIsAsleep = false;
+    mWakeUpCounter = 0;
+    mOnBungeeState = PlantOnBungeeState::NOT_ON_BUNGEE;
+    mPottedPlantIndex = -1;
+    mLaunchRate = aPlantDef.mLaunchRate;
+    mSubclass = aPlantDef.mSubClass;
+    mRenderOrder = CalcRenderOrder();
 
-	Reanimation* aBodyReanim = nullptr;
-	if (aPlantDef.mReanimationType != ReanimationType::REANIM_NONE)
-	{
-		float aOffsetY = PlantDrawHeightOffset(mBoard, this, mSeedType, mPlantCol, mRow);
-		aBodyReanim = mApp->AddReanimation(0.0f, aOffsetY, mRenderOrder + 1, aPlantDef.mReanimationType);
-		aBodyReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
-		aBodyReanim->mAnimRate = RandRangeFloat(10.0f, 15.0f);
+    Reanimation* aBodyReanim = nullptr;
+    if (aPlantDef.mReanimationType != ReanimationType::REANIM_NONE)
+    {
+        float aOffsetY = PlantDrawHeightOffset(mBoard, this, mSeedType, mPlantCol, mRow);
+        aBodyReanim = mApp->AddReanimation(0.0f, aOffsetY, mRenderOrder + 1, aPlantDef.mReanimationType);
+        aBodyReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
+        aBodyReanim->mAnimRate = RandRangeFloat(10.0f, 15.0f);
 
-		if (aBodyReanim->TrackExists("anim_idle"))
-			aBodyReanim->SetFramesForLayer("anim_idle");
+        if (aBodyReanim->TrackExists("anim_idle"))
+            aBodyReanim->SetFramesForLayer("anim_idle");
 
-		if (mApp->IsWallnutBowlingLevel() && aBodyReanim->TrackExists("_ground"))
-		{
-			aBodyReanim->SetFramesForLayer("_ground");
-			if (mSeedType == SeedType::SEED_WALLNUT || mSeedType == SeedType::SEED_EXPLODE_O_NUT)
-				aBodyReanim->mAnimRate = RandRangeFloat(12.0f, 18.0f);
-			else if (mSeedType == SeedType::SEED_GIANT_WALLNUT)
-				aBodyReanim->mAnimRate = RandRangeFloat(6.0f, 10.0f);
-		}
+        if (mApp->IsWallnutBowlingLevel() && aBodyReanim->TrackExists("_ground"))
+        {
+            aBodyReanim->SetFramesForLayer("_ground");
+            if (mSeedType == SeedType::SEED_WALLNUT || mSeedType == SeedType::SEED_EXPLODE_O_NUT)
+                aBodyReanim->mAnimRate = RandRangeFloat(12.0f, 18.0f);
+            else if (mSeedType == SeedType::SEED_GIANT_WALLNUT)
+                aBodyReanim->mAnimRate = RandRangeFloat(6.0f, 10.0f);
+        }
 
-		aBodyReanim->mIsAttachment = true;
-		mBodyReanimID = mApp->ReanimationGetID(aBodyReanim);
-		mBlinkCountdown = 400 + Sexy::Rand(400);
-	}
+        aBodyReanim->mIsAttachment = true;
+        mBodyReanimID = mApp->ReanimationGetID(aBodyReanim);
+        mBlinkCountdown = 400 + Sexy::Rand(400);
+    }
 
-	if (IsNocturnal(mSeedType) && mBoard && !mBoard->StageIsNight() && !mApp->mRunState)
-		SetSleeping(true);
+    // @pvz-online: 闯关里蘑菇种下即醒（用户定案）——白天也照常干活；咖啡豆因此改行
+    // 产阳光（见 DoSpecial），植物价格在 GetCost 里 +25。
+    if (IsNocturnal(mSeedType) && mBoard && !mBoard->StageIsNight() && !mApp->IsRunMode())
+        SetSleeping(true);
 
-	if (mLaunchRate > 0)
-	{
-		if (MakesSun())
-			mLaunchCounter = RandRangeInt(300, mLaunchRate / 2);
-		else
-			mLaunchCounter = RandRangeInt(0, mLaunchRate);
-	}
-	else
-		mLaunchCounter = 0;
+    if (mLaunchRate > 0)
+    {
+        // @pvz-online: 闯关 buff「丰饶」：产阳光间隔表内叠乘（2026-10-09 全局批起 ×0.75/层）——
+        // 初始等待与每次重置都要乘，所以两处一起改（另一处在产阳光的重置那行）。
+        if (MakesSun())
+        {
+            float aSunIntervalMul = mApp->RunBuffMul(RUN_BUFF_ABUNDANCE);
+            // @pvz-online: 经济批 2026-10-09：阳光菇「亮顶」改速度轴——产阳光间隔 ×0.75/层叠乘，
+            // 初始等待同乘（口径同丰饶：「间隔型」两处都要乘，漏一处首轮就不缩短）。
+            if (mSeedType == SeedType::SEED_SUNSHROOM)
+                aSunIntervalMul *= mApp->RunPlantUpgradeMul(SeedType::SEED_SUNSHROOM);
+            mLaunchCounter = (int)(RandRangeInt(300, mLaunchRate / 2) * aSunIntervalMul + 0.5f);
+            // @pvz-online: 经济批 2026-10-09：向日葵「丰收」重做——「种下立即产 1 次阳光」把
+            // 首轮计时压 0（下一次 UpdateProductionPlant 即落币，随后回正常节奏）。
+            if (mSeedType == SeedType::SEED_SUNFLOWER && mApp->RunPlantUpgradeCount(SeedType::SEED_SUNFLOWER) > 0)
+                mLaunchCounter = 0;
+        }
+        else
+        {
+            // @pvz-online: 闯关 buff「急袭」：射手首发等待也缩短（稳态周期那处在 UpdateShooter）。
+            // 只认射手——这条文案是"攻击更快"，非射手的 mLaunchCounter 另有用途（产币等）。
+            float aShootMul = mSubclass == PlantSubClass::SUBCLASS_SHOOTER ? mApp->RunBuffMul(RUN_BUFF_SWIFT) : 1.0f;
+            mLaunchCounter = (int)(RandRangeInt(0, mLaunchRate) * aShootMul + 0.5f);
+        }
+    }
+    else
+        mLaunchCounter = 0;
 
-	switch (theSeedType)
-	{
-	case SeedType::SEED_BLOVER:
-	{
-		mDoSpecialCountdown = 50;
+    switch (theSeedType)
+    {
+    case SeedType::SEED_BLOVER:
+    {
+        mDoSpecialCountdown = 50;
 
-		if (IsInPlay())
-		{
-			aBodyReanim->SetFramesForLayer("anim_blow");
-			aBodyReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
-			aBodyReanim->mAnimRate = 20.0f;
-		}
-		else
-		{
-			aBodyReanim->SetFramesForLayer("anim_idle");
-			aBodyReanim->mAnimRate = 10.0f;
-		}
+        if (IsInPlay())
+        {
+            aBodyReanim->SetFramesForLayer("anim_blow");
+            aBodyReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
+            aBodyReanim->mAnimRate = 20.0f;
+        }
+        else
+        {
+            aBodyReanim->SetFramesForLayer("anim_idle");
+            aBodyReanim->mAnimRate = 10.0f;
+        }
 
-		break;
-	}
-	case SeedType::SEED_PEASHOOTER:
-	case SeedType::SEED_SNOWPEA:
-	case SeedType::SEED_REPEATER:
-	case SeedType::SEED_LEFTPEATER:
-	case SeedType::SEED_GATLINGPEA:
-		if (aBodyReanim)
-		{
-			aBodyReanim->mAnimRate = RandRangeFloat(15.0f, 20.0f);
-			Reanimation* aHeadReanim = mApp->AddReanimation(0.0f, 0.0f, mRenderOrder + 2, aPlantDef.mReanimationType);
-			aHeadReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
-			aHeadReanim->mAnimRate = aBodyReanim->mAnimRate;
-			aHeadReanim->SetFramesForLayer("anim_head_idle");
-			mHeadReanimID = mApp->ReanimationGetID(aHeadReanim);
+        break;
+    }
+    case SeedType::SEED_PEASHOOTER:
+    case SeedType::SEED_SNOWPEA:
+    case SeedType::SEED_REPEATER:
+    case SeedType::SEED_LEFTPEATER:
+    case SeedType::SEED_GATLINGPEA:
+        if (aBodyReanim)
+        {
+            aBodyReanim->mAnimRate = RandRangeFloat(15.0f, 20.0f);
+            Reanimation* aHeadReanim = mApp->AddReanimation(0.0f, 0.0f, mRenderOrder + 2, aPlantDef.mReanimationType);
+            aHeadReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
+            aHeadReanim->mAnimRate = aBodyReanim->mAnimRate;
+            aHeadReanim->SetFramesForLayer("anim_head_idle");
+            mHeadReanimID = mApp->ReanimationGetID(aHeadReanim);
 
-			if (aBodyReanim->TrackExists("anim_stem"))
-				aHeadReanim->AttachToAnotherReanimation(aBodyReanim, "anim_stem");
-			else if (aBodyReanim->TrackExists("anim_idle"))
-				aHeadReanim->AttachToAnotherReanimation(aBodyReanim, "anim_idle");
-		}
-		break;
-	case SeedType::SEED_SPLITPEA:
-	{
-		PVZP_ASSERT(aBodyReanim);
+            if (aBodyReanim->TrackExists("anim_stem"))
+                aHeadReanim->AttachToAnotherReanimation(aBodyReanim, "anim_stem");
+            else if (aBodyReanim->TrackExists("anim_idle"))
+                aHeadReanim->AttachToAnotherReanimation(aBodyReanim, "anim_idle");
+        }
+        break;
+    case SeedType::SEED_SPLITPEA:
+    {
+        PVZP_ASSERT(aBodyReanim);
 
-		aBodyReanim->mAnimRate = RandRangeFloat(15.0f, 20.0f);
-		Reanimation* aHeadReanim1 = mApp->AddReanimation(0.0f, 0.0f, mRenderOrder + 2, aPlantDef.mReanimationType);
-		aHeadReanim1->mLoopType = ReanimLoopType::REANIM_LOOP;
-		aHeadReanim1->mAnimRate = aBodyReanim->mAnimRate;
-		aHeadReanim1->SetFramesForLayer("anim_head_idle");
-		aHeadReanim1->AttachToAnotherReanimation(aBodyReanim, "anim_idle");
-		mHeadReanimID = mApp->ReanimationGetID(aHeadReanim1);
+        aBodyReanim->mAnimRate = RandRangeFloat(15.0f, 20.0f);
+        Reanimation* aHeadReanim1 = mApp->AddReanimation(0.0f, 0.0f, mRenderOrder + 2, aPlantDef.mReanimationType);
+        aHeadReanim1->mLoopType = ReanimLoopType::REANIM_LOOP;
+        aHeadReanim1->mAnimRate = aBodyReanim->mAnimRate;
+        aHeadReanim1->SetFramesForLayer("anim_head_idle");
+        aHeadReanim1->AttachToAnotherReanimation(aBodyReanim, "anim_idle");
+        mHeadReanimID = mApp->ReanimationGetID(aHeadReanim1);
 
-		Reanimation* aHeadReanim2 = mApp->AddReanimation(0.0f, 0.0f, mRenderOrder + 2, aPlantDef.mReanimationType);
-		aHeadReanim2->mLoopType = ReanimLoopType::REANIM_LOOP;
-		aHeadReanim2->mAnimRate = aBodyReanim->mAnimRate;
-		aHeadReanim2->SetFramesForLayer("anim_splitpea_idle");
-		aHeadReanim2->AttachToAnotherReanimation(aBodyReanim, "anim_idle");
-		mHeadReanimID2 = mApp->ReanimationGetID(aHeadReanim2);
+        Reanimation* aHeadReanim2 = mApp->AddReanimation(0.0f, 0.0f, mRenderOrder + 2, aPlantDef.mReanimationType);
+        aHeadReanim2->mLoopType = ReanimLoopType::REANIM_LOOP;
+        aHeadReanim2->mAnimRate = aBodyReanim->mAnimRate;
+        aHeadReanim2->SetFramesForLayer("anim_splitpea_idle");
+        aHeadReanim2->AttachToAnotherReanimation(aBodyReanim, "anim_idle");
+        mHeadReanimID2 = mApp->ReanimationGetID(aHeadReanim2);
 
-		break;
-	}
-	case SeedType::SEED_THREEPEATER:
-	{
-		PVZP_ASSERT(aBodyReanim);
+        break;
+    }
+    case SeedType::SEED_THREEPEATER:
+    {
+        PVZP_ASSERT(aBodyReanim);
 
-		aBodyReanim->mAnimRate = RandRangeFloat(15.0f, 20.0f);
-		Reanimation* aHeadReanim1 = mApp->AddReanimation(0.0f, 0.0f, mRenderOrder + 2, aPlantDef.mReanimationType);
-		aHeadReanim1->mLoopType = ReanimLoopType::REANIM_LOOP;
-		aHeadReanim1->mAnimRate = aBodyReanim->mAnimRate;
-		aHeadReanim1->SetFramesForLayer("anim_head_idle1");
-		aHeadReanim1->AttachToAnotherReanimation(aBodyReanim, "anim_head1");
-		mHeadReanimID = mApp->ReanimationGetID(aHeadReanim1);
+        aBodyReanim->mAnimRate = RandRangeFloat(15.0f, 20.0f);
+        Reanimation* aHeadReanim1 = mApp->AddReanimation(0.0f, 0.0f, mRenderOrder + 2, aPlantDef.mReanimationType);
+        aHeadReanim1->mLoopType = ReanimLoopType::REANIM_LOOP;
+        aHeadReanim1->mAnimRate = aBodyReanim->mAnimRate;
+        aHeadReanim1->SetFramesForLayer("anim_head_idle1");
+        aHeadReanim1->AttachToAnotherReanimation(aBodyReanim, "anim_head1");
+        mHeadReanimID = mApp->ReanimationGetID(aHeadReanim1);
 
-		Reanimation* aHeadReanim2 = mApp->AddReanimation(0.0f, 0.0f, mRenderOrder + 2, aPlantDef.mReanimationType);
-		aHeadReanim2->mLoopType = ReanimLoopType::REANIM_LOOP;
-		aHeadReanim2->mAnimRate = aBodyReanim->mAnimRate;
-		aHeadReanim2->SetFramesForLayer("anim_head_idle2");
-		aHeadReanim2->AttachToAnotherReanimation(aBodyReanim, "anim_head2");
-		mHeadReanimID2 = mApp->ReanimationGetID(aHeadReanim2);
+        Reanimation* aHeadReanim2 = mApp->AddReanimation(0.0f, 0.0f, mRenderOrder + 2, aPlantDef.mReanimationType);
+        aHeadReanim2->mLoopType = ReanimLoopType::REANIM_LOOP;
+        aHeadReanim2->mAnimRate = aBodyReanim->mAnimRate;
+        aHeadReanim2->SetFramesForLayer("anim_head_idle2");
+        aHeadReanim2->AttachToAnotherReanimation(aBodyReanim, "anim_head2");
+        mHeadReanimID2 = mApp->ReanimationGetID(aHeadReanim2);
 
-		Reanimation* aHeadReanim3 = mApp->AddReanimation(0.0f, 0.0f, mRenderOrder + 2, aPlantDef.mReanimationType);
-		aHeadReanim3->mLoopType = ReanimLoopType::REANIM_LOOP;
-		aHeadReanim3->mAnimRate = aBodyReanim->mAnimRate;
-		aHeadReanim3->SetFramesForLayer("anim_head_idle3");
-		aHeadReanim3->AttachToAnotherReanimation(aBodyReanim, "anim_head3");
-		mHeadReanimID3 = mApp->ReanimationGetID(aHeadReanim3);
+        Reanimation* aHeadReanim3 = mApp->AddReanimation(0.0f, 0.0f, mRenderOrder + 2, aPlantDef.mReanimationType);
+        aHeadReanim3->mLoopType = ReanimLoopType::REANIM_LOOP;
+        aHeadReanim3->mAnimRate = aBodyReanim->mAnimRate;
+        aHeadReanim3->SetFramesForLayer("anim_head_idle3");
+        aHeadReanim3->AttachToAnotherReanimation(aBodyReanim, "anim_head3");
+        mHeadReanimID3 = mApp->ReanimationGetID(aHeadReanim3);
 
-		break;
-	}
-	case SeedType::SEED_WALLNUT:
-		mPlantHealth = 4000;
-		mBlinkCountdown = 1000 + Sexy::Rand(1000);
-		break;
-	case SeedType::SEED_EXPLODE_O_NUT:
-		mPlantHealth = 4000;
-		mBlinkCountdown = 1000 + Sexy::Rand(1000);
-		aBodyReanim->mColorOverride = Color(255, 64, 64);
-		break;
-	case SeedType::SEED_GIANT_WALLNUT:
-		mPlantHealth = 4000;
-		mBlinkCountdown = 1000 + Sexy::Rand(1000);
-		break;
-	case SeedType::SEED_TALLNUT:
-		mPlantHealth = 8000;
-		mHeight = 80;
-		mBlinkCountdown = 1000 + Sexy::Rand(1000);
-		break;
-	case SeedType::SEED_GARLIC:
-		PVZP_ASSERT(aBodyReanim);
-		mPlantHealth = 400;
-		aBodyReanim->SetTruncateDisappearingFrames();
-		break;
-	case SeedType::SEED_GOLD_MAGNET:
-		PVZP_ASSERT(aBodyReanim);
-		aBodyReanim->SetTruncateDisappearingFrames();
-		break;
-	case SeedType::SEED_IMITATER:
-		PVZP_ASSERT(aBodyReanim);
-		aBodyReanim->mAnimRate = RandRangeFloat(25.0f, 30.0f);
-		mStateCountdown = 200;
-		break;
-	case SeedType::SEED_CHERRYBOMB:
-	case SeedType::SEED_JALAPENO:
-	{
-		PVZP_ASSERT(aBodyReanim);
+        break;
+    }
+    case SeedType::SEED_WALLNUT:
+        mPlantHealth = 4000;
+        mBlinkCountdown = 1000 + Sexy::Rand(1000);
+        break;
+    case SeedType::SEED_EXPLODE_O_NUT:
+        mPlantHealth = 4000;
+        mBlinkCountdown = 1000 + Sexy::Rand(1000);
+        aBodyReanim->mColorOverride = Color(255, 64, 64);
+        break;
+    case SeedType::SEED_GIANT_WALLNUT:
+        mPlantHealth = 4000;
+        mBlinkCountdown = 1000 + Sexy::Rand(1000);
+        break;
+    case SeedType::SEED_TALLNUT:
+        mPlantHealth = 8000;
+        mHeight = 80;
+        mBlinkCountdown = 1000 + Sexy::Rand(1000);
+        break;
+    case SeedType::SEED_GARLIC:
+        PVZP_ASSERT(aBodyReanim);
+        mPlantHealth = 400;
+        aBodyReanim->SetTruncateDisappearingFrames();
+        break;
+    case SeedType::SEED_GOLD_MAGNET:
+        PVZP_ASSERT(aBodyReanim);
+        aBodyReanim->SetTruncateDisappearingFrames();
+        break;
+    case SeedType::SEED_IMITATER:
+        PVZP_ASSERT(aBodyReanim);
+        aBodyReanim->mAnimRate = RandRangeFloat(25.0f, 30.0f);
+        mStateCountdown = 200;
+        break;
+    case SeedType::SEED_CHERRYBOMB:
+    case SeedType::SEED_JALAPENO:
+    {
+        PVZP_ASSERT(aBodyReanim);
 
-		if (IsInPlay())
-		{
-			mDoSpecialCountdown = 100;
+        if (IsInPlay())
+        {
+            mDoSpecialCountdown = 100;
 
-			aBodyReanim->SetFramesForLayer("anim_explode");
-			aBodyReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
+            aBodyReanim->SetFramesForLayer("anim_explode");
+            aBodyReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
 
-			mApp->PlayFoley(FoleyType::FOLEY_REVERSE_EXPLOSION);
-		}
+            mApp->PlayFoley(FoleyType::FOLEY_REVERSE_EXPLOSION);
+        }
 
-		break;
-	}
-	case SeedType::SEED_POTATOMINE:
-	{
-		PVZP_ASSERT(aBodyReanim);
+        break;
+    }
+    case SeedType::SEED_POTATOMINE:
+    {
+        PVZP_ASSERT(aBodyReanim);
 
-		aBodyReanim->mAnimRate = 12.0f;
+        aBodyReanim->mAnimRate = 12.0f;
 
-		if (IsInPlay())
-		{
-			aBodyReanim->AssignRenderGroupToTrack("anim_glow", RENDER_GROUP_HIDDEN);
-			mStateCountdown = 1500;
-		}
-		else
-		{
-			aBodyReanim->SetFramesForLayer("anim_armed");
-			mState = PlantState::STATE_POTATO_ARMED;
-		}
+        if (IsInPlay())
+        {
+            aBodyReanim->AssignRenderGroupToTrack("anim_glow", RENDER_GROUP_HIDDEN);
+            mStateCountdown = 1500;
+            // @pvz-online: 第二 buff「补雷」（docs/06 §8.6 #4）：剩余重埋次数 = 词条层数。
+            mMineregrowsLeft = mApp->RunPlantBuff2Count(SeedType::SEED_POTATOMINE);
+        }
+        else
+        {
+            aBodyReanim->SetFramesForLayer("anim_armed");
+            mState = PlantState::STATE_POTATO_ARMED;
+        }
 
-		break;
-	}
-	case SeedType::SEED_GRAVEBUSTER:
-	{
-		PVZP_ASSERT(aBodyReanim);
+        break;
+    }
+    case SeedType::SEED_GRAVEBUSTER:
+    {
+        PVZP_ASSERT(aBodyReanim);
 
-		if (IsInPlay())
-		{
-			aBodyReanim->SetFramesForLayer("anim_land");
-			aBodyReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
+        if (IsInPlay())
+        {
+            aBodyReanim->SetFramesForLayer("anim_land");
+            aBodyReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
 
-			mState = PlantState::STATE_GRAVEBUSTER_LANDING;
-			mApp->PlayFoley(FoleyType::FOLEY_GRAVEBUSTERCHOMP);
-		}
+            mState = PlantState::STATE_GRAVEBUSTER_LANDING;
+            mApp->PlayFoley(FoleyType::FOLEY_GRAVEBUSTERCHOMP);
+        }
 
-		break;
-	}
-	case SeedType::SEED_SUNSHROOM:
-	{
-		PVZP_ASSERT(aBodyReanim);
+        break;
+    }
+    case SeedType::SEED_SUNSHROOM:
+    {
+        PVZP_ASSERT(aBodyReanim);
 
-		aBodyReanim->mFrameBasePose = 6;
+        aBodyReanim->mFrameBasePose = 6;
 
-		if (IsInPlay())
-		{
-			mX += Sexy::Rand(10) - 5;
-			mY += Sexy::Rand(10) - 5;
-		}
-		else if (mIsAsleep)
-			aBodyReanim->SetFramesForLayer("anim_bigsleep");
-		else
-			aBodyReanim->SetFramesForLayer("anim_bigidle");
+        if (IsInPlay())
+        {
+            mX += Sexy::Rand(10) - 5;
+            mY += Sexy::Rand(10) - 5;
+        }
+        else if (mIsAsleep)
+            aBodyReanim->SetFramesForLayer("anim_bigsleep");
+        else
+            aBodyReanim->SetFramesForLayer("anim_bigidle");
 
-		mState = PlantState::STATE_SUNSHROOM_SMALL;
-		mStateCountdown = 12000;
+        mState = PlantState::STATE_SUNSHROOM_SMALL;
+        mStateCountdown = 12000;
 
-		break;
-	}
-	case SeedType::SEED_PUFFSHROOM:
-	case SeedType::SEED_SEASHROOM:
-		if (IsInPlay())
-		{
-			mX += Sexy::Rand(10) - 5;
-			mY += Sexy::Rand(6) - 3;
-		}
-		break;
-	case SeedType::SEED_PUMPKINSHELL:
-	{
-		mPlantHealth = 4000;
-		mWidth = 120;
+        break;
+    }
+    case SeedType::SEED_PUFFSHROOM:
+    case SeedType::SEED_SEASHROOM:
+        if (IsInPlay())
+        {
+            mX += Sexy::Rand(10) - 5;
+            mY += Sexy::Rand(6) - 3;
+        }
+        break;
+    case SeedType::SEED_PUMPKINSHELL:
+    {
+        mPlantHealth = 4000;
+        mWidth = 120;
 
-		PVZP_ASSERT(aBodyReanim);
-		aBodyReanim->AssignRenderGroupToTrack("Pumpkin_back", 1);
-		break;
-	}
-	case SeedType::SEED_CHOMPER:
-		mState = PlantState::STATE_READY;
-		break;
-	case SeedType::SEED_PLANTERN:
-	{
-		mStateCountdown = 50;
+        PVZP_ASSERT(aBodyReanim);
+        aBodyReanim->AssignRenderGroupToTrack("Pumpkin_back", 1);
+        break;
+    }
+    case SeedType::SEED_CHOMPER:
+        mState = PlantState::STATE_READY;
+        break;
+    case SeedType::SEED_PLANTERN:
+    {
+        mStateCountdown = 50;
 
-		if (!IsOnBoard() || mApp->mGameMode != GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN)
-		{
-			AddAttachedParticle(mX + 40, mY + 40, static_cast<int>(RenderLayer::RENDER_LAYER_FOG) + 1, ParticleEffect::PARTICLE_LANTERN_SHINE);
-		}
-		if (IsInPlay())
-		{
-			mApp->PlaySample(Sexy::SOUND_PLANTERN);
-		}
+        if (!IsOnBoard() || mApp->mGameMode != GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN)
+        {
+            AddAttachedParticle(mX + 40, mY + 40, (int)RenderLayer::RENDER_LAYER_FOG + 1, ParticleEffect::PARTICLE_LANTERN_SHINE);
+        }
+        if (IsInPlay())
+        {
+            mApp->PlaySample(Sexy::SOUND_PLANTERN);
+        }
 
-		break;
-	}
-	case SeedType::SEED_TORCHWOOD:
-		break;
-	case SeedType::SEED_MARIGOLD:
-		PVZP_ASSERT(aBodyReanim);
-		aBodyReanim->mAnimRate = RandRangeFloat(15.0f, 20.0f);
-		break;
-	case SeedType::SEED_CACTUS:
-		mState = PlantState::STATE_CACTUS_LOW;
-		break;
-	case SeedType::SEED_INSTANT_COFFEE:
-		mDoSpecialCountdown = 100;
-		break;
-	case SeedType::SEED_SCAREDYSHROOM:
-		mState = PlantState::STATE_READY;
-		break;
-	case SeedType::SEED_COBCANNON:
-		if (IsInPlay())
-		{
-			mState = PlantState::STATE_COBCANNON_ARMING;
-			mStateCountdown = 500;
+        break;
+    }
+    case SeedType::SEED_TORCHWOOD:
+        break;
+    case SeedType::SEED_MARIGOLD:
+        PVZP_ASSERT(aBodyReanim);
+        aBodyReanim->mAnimRate = RandRangeFloat(15.0f, 20.0f);
+        break;
+    case SeedType::SEED_CACTUS:
+        mState = PlantState::STATE_CACTUS_LOW;
+        break;
+    case SeedType::SEED_INSTANT_COFFEE:
+        mDoSpecialCountdown = 100;
+        break;
+    case SeedType::SEED_SCAREDYSHROOM:
+        mState = PlantState::STATE_READY;
+        break;
+    case SeedType::SEED_COBCANNON:
+        if (IsInPlay())
+        {
+            mState = PlantState::STATE_COBCANNON_ARMING;
+            mStateCountdown = CobCannonArmFrames(mApp, 500);
 
-			PVZP_ASSERT(aBodyReanim);
-			aBodyReanim->SetFramesForLayer("anim_unarmed_idle");
-		}
-		break;
-	case SeedType::SEED_KERNELPULT:
-		PVZP_ASSERT(aBodyReanim);
-		aBodyReanim->AssignRenderGroupToPrefix("Cornpult_butter", RENDER_GROUP_HIDDEN);
-		break;
-	case SeedType::SEED_MAGNETSHROOM:
-		PVZP_ASSERT(aBodyReanim);
-		aBodyReanim->SetTruncateDisappearingFrames();
-		break;
-	case SeedType::SEED_SPIKEROCK:
-		mPlantHealth = 450;
-		PVZP_ASSERT(aBodyReanim);
-		break;
-	case SeedType::SEED_SPROUT:
-		break;
-	case SeedType::SEED_FLOWERPOT:
-		if (IsInPlay())
-		{
-			mState = PlantState::STATE_FLOWERPOT_INVULNERABLE;
-			mStateCountdown = 100;
-		}
-		break;
-	case SeedType::SEED_LILYPAD:
-		if (IsInPlay())
-		{
-			mState = PlantState::STATE_LILYPAD_INVULNERABLE;
-			mStateCountdown = 100;
-		}
-		break;
-	case SeedType::SEED_TANGLEKELP:
-		PVZP_ASSERT(aBodyReanim);
-		aBodyReanim->SetTruncateDisappearingFrames();
-	default:
-		break;
-	}
+            PVZP_ASSERT(aBodyReanim);
+            aBodyReanim->SetFramesForLayer("anim_unarmed_idle");
+        }
+        break;
+    case SeedType::SEED_KERNELPULT:
+        PVZP_ASSERT(aBodyReanim);
+        aBodyReanim->AssignRenderGroupToPrefix("Cornpult_butter", RENDER_GROUP_HIDDEN);
+        break;
+    case SeedType::SEED_MAGNETSHROOM:
+        PVZP_ASSERT(aBodyReanim);
+        aBodyReanim->SetTruncateDisappearingFrames();
+        break;
+    case SeedType::SEED_SPIKEROCK:
+        mPlantHealth = 450;
+        PVZP_ASSERT(aBodyReanim);
+        break;
+    case SeedType::SEED_SPROUT:
+        break;
+    case SeedType::SEED_FLOWERPOT:
+        if (IsInPlay())
+        {
+            mState = PlantState::STATE_FLOWERPOT_INVULNERABLE;
+            mStateCountdown = 100;
+        }
+        break;
+    case SeedType::SEED_LILYPAD:
+        if (IsInPlay())
+        {
+            mState = PlantState::STATE_LILYPAD_INVULNERABLE;
+            mStateCountdown = 100;
+        }
+        break;
+    case SeedType::SEED_TANGLEKELP:
+        PVZP_ASSERT(aBodyReanim);
+        aBodyReanim->SetTruncateDisappearingFrames();
+    default:
+        break;
+    }
 
-	if ((mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_BIG_TIME) &&
-		(theSeedType == SeedType::SEED_WALLNUT || theSeedType == SeedType::SEED_SUNFLOWER || theSeedType == SeedType::SEED_MARIGOLD))
-	{
-		mPlantHealth *= 2;
-	}
-	// @pvz-online: scale both health and its maximum before damage animations use their ratio.
-	mPlantHealth = (int)(mPlantHealth * mApp->RunBuffMul(RUN_BUFF_ROOTED));
-	mPlantMaxHealth = mPlantHealth;
+    if ((mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_BIG_TIME) &&
+        (theSeedType == SeedType::SEED_WALLNUT || theSeedType == SeedType::SEED_SUNFLOWER || theSeedType == SeedType::SEED_MARIGOLD))
+    {
+        mPlantHealth *= 2;
+    }
+    // @pvz-online: 闯关 buff「扎根」：全体植物血量 ×(1+75%/层)（2026-10-04 批七由 150% 下调）。
+    // 单株升级（睡莲「厚垫」等）在同一行一起取——两乘数相乘。修正批（2026-10-03）改走 Kind 闸门口：
+    // 只有血量型条目（Kind=HEALTH：睡莲/南瓜头/花盆/保护伞/地刺王——地刺王 2026-10-04 批七
+    // 由攻击间隔族换成血量族；坚果/高坚果批七换成耐砸，已不在血量族）才乘——此前任意行都乘，
+    // 双发/寒冰这类非血量条目会把该株血量一起改了。非闯关局都是 1.0，对 300/4000 无损。
+    mPlantHealth = (int)(mPlantHealth * mApp->RunBuffMul(RUN_BUFF_ROOTED) * mApp->RunPlantUpgradeMulKind(theSeedType, RUN_UPGRADE_KIND_HEALTH) + 0.5f);
+    // @pvz-online: 第二 buff 批 3「血量改写」（docs/06 §8.6 #13/#42/#36）：绝对值覆盖——
+    // 乘法链（扎根/老血量条）算完后按词条写死（「变为 N」语义，全局血量 buff 不再放大）。
+    // 磐石 4000（1★）/ 耐砸 500 + 每击固定 50（1★，2026-10-11 由 1000/200 改；扣法在
+    // Zombie 啃咬与巨人砸分支）/
+    // 引路蒜 20 + 被吃全行换道（2★，换道在 Zombie::EatPlant → SwitchLanes）。
+    if (mApp->RunPlantBuff2Count(theSeedType) > 0)
+    {
+        if (theSeedType == SeedType::SEED_SCAREDYSHROOM) mPlantHealth = 4000;
+        else if (theSeedType == SeedType::SEED_GLOOMSHROOM) mPlantHealth = 500;
+        else if (theSeedType == SeedType::SEED_GARLIC) mPlantHealth = 20;
+    }
+    mPlantMaxHealth = mPlantHealth;
 
-	if (mSeedType != SeedType::SEED_FLOWERPOT && IsOnBoard())
-	{
-		PVZP_ASSERT(mBoard);
-		Plant* aFlowerPot = mBoard->GetFlowerPotAt(mPlantCol, mRow);
-		if (aFlowerPot)
-			mApp->ReanimationGet(aFlowerPot->mBodyReanimID)->mAnimRate = 0.0f;
-	}
+    if (mSeedType != SeedType::SEED_FLOWERPOT && IsOnBoard())
+    {
+        PVZP_ASSERT(mBoard);
+        Plant* aFlowerPot = mBoard->GetFlowerPotAt(mPlantCol, mRow);
+        if (aFlowerPot)
+            mApp->ReanimationGet(aFlowerPot->mBodyReanimID)->mAnimRate = 0.0f;
+    }
 }
 
 int Plant::CalcRenderOrder()
@@ -675,48 +874,81 @@ bool Plant::IsSpiky()
 
 void Plant::DoRowAreaDamage(int theDamage, unsigned int theDamageFlags)
 {
-	int aDamageRangeFlags = GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
-	Rect aAttackRect = GetPlantAttackRect(PlantWeapon::WEAPON_PRIMARY);
+    int aDamageRangeFlags = GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
+    Rect aAttackRect = GetPlantAttackRect(PlantWeapon::WEAPON_PRIMARY);
 
-	for (Zombie* aZombie : mBoard->mZombies)
-	{
-		if (aZombie->mDead)
-			continue;
-		int aDiffY = (aZombie->mZombieType == ZombieType::ZOMBIE_BOSS) ? 0 : (aZombie->mRow - mRow);
-		if (mSeedType == SeedType::SEED_GLOOMSHROOM)
-		{
-			if (aDiffY < -1 || aDiffY > 1)
-				continue;
-		}
-		else if (aDiffY)
-			continue;
+    Zombie* aZombie = nullptr;
+    while (mBoard->IterateZombies(aZombie))
+    {
+        int aDiffY = (aZombie->mZombieType == ZombieType::ZOMBIE_BOSS) ? 0 : (aZombie->mRow - mRow);
+        if (mSeedType == SeedType::SEED_GLOOMSHROOM)
+        {
+            // @pvz-online: 闯关「Gloom」（忧郁菇，批 14）：光环的纵向行差随层数一齐外扩
+            // （±(1+层)），与 GetPlantAttackRect 的矩形同步——不然矩形扩了、行差还卡三行。
+            int aGloomRows = mApp->RunPlantUpgradeCount(SeedType::SEED_GLOOMSHROOM);
+            if (aDiffY < -1 - aGloomRows || aDiffY > 1 + aGloomRows)
+                continue;
+        }
+        else if (aDiffY)
+            continue;
 
-		if (aZombie->mOnHighGround == IsOnHighGround() && aZombie->EffectedByDamage(aDamageRangeFlags))
-		{
-			Rect aZombieRect = aZombie->GetZombieRect();
-			if (GetRectOverlap(aAttackRect, aZombieRect) > 0)
-			{
-				int aDamage = theDamage;
-				if ((aZombie->mZombieType == ZombieType::ZOMBIE_ZAMBONI || aZombie->mZombieType == ZombieType::ZOMBIE_CATAPULT) &&
-					(TestBit(theDamageFlags, DamageFlags::DAMAGE_SPIKE)))
-				{
-					aDamage = 1800;
+        if (aZombie->mOnHighGround == IsOnHighGround() && aZombie->EffectedByDamage(aDamageRangeFlags))
+        {
+            Rect aZombieRect = aZombie->GetZombieRect();
+            if (GetRectOverlap(aAttackRect, aZombieRect) > 0)
+            {
+                int aDamage = theDamage;
+                if ((aZombie->mZombieType == ZombieType::ZOMBIE_ZAMBONI || aZombie->mZombieType == ZombieType::ZOMBIE_CATAPULT) &&
+                    (TestBit(theDamageFlags, DamageFlags::DAMAGE_SPIKE)))
+                {
+                    aDamage = 1800;
 
-					if (mSeedType == SeedType::SEED_SPIKEROCK)
-					{
-						SpikeRockTakeDamage();
-					}
-					else
-					{
-						Die();
-					}
-				}
+                    if (mSeedType == SeedType::SEED_SPIKEROCK)
+                    {
+                        SpikeRockTakeDamage();
+                    }
+                    else
+                    {
+                        Die();
+                    }
+                }
 
-				aZombie->TakeDamage(aDamage, theDamageFlags);
-				mApp->PlayFoley(FoleyType::FOLEY_SPLAT);
-			}
-		}
-	}
+                aZombie->TakeDamage(aDamage, theDamageFlags);
+                mApp->PlayFoley(FoleyType::FOLEY_SPLAT);
+
+                // @pvz-online: 单株升级「Barbed Spikes」（地刺，表行 SEED_SPIKEWEED）：扎过的
+                // 僵尸减速 +3 秒/层（计数型、至多 2 层）。语义照 Zombie::ApplyChill——CanBeChilled
+                // 挡下、不缩短更长的减速（冰道/寒冰菇的 2000 帧不动）、首次挂上出冰音、降速
+                // 刷新走 UpdateAnimSpeed。只认地刺本体（地刺王的加成是攻速、不在这）；
+                // RunPlantUpgradeCount 非闯关恒 0，加 0 不进这条。
+                if (mSeedType == SeedType::SEED_SPIKEWEED)
+                {
+                    int aSlowFrames = 300 * mApp->RunPlantUpgradeCount(SeedType::SEED_SPIKEWEED);
+                    if (aSlowFrames > 0 && aZombie->CanBeChilled() && aSlowFrames > aZombie->mChilledCounter)
+                    {
+                        if (aZombie->mChilledCounter == 0)
+                        {
+                            mApp->PlayFoley(FoleyType::FOLEY_FROZEN);
+                        }
+                        aZombie->mChilledCounter = aSlowFrames;
+                        aZombie->UpdateAnimSpeed();
+                    }
+                }
+
+                // @pvz-online: 第二 buff「腐臭之息」（大喷菇 #10，docs/06 §8.6）：命中软减速
+                // 3 秒（mFetidSlowCounter=300，幅度 20%/层在 ApplyAnimRate 乘）。只认大喷菇
+                // 本体（忧郁菇是另一株、词条不共享）；软减速刷到 300 封顶、不缩短已有窗口。
+                if (mSeedType == SeedType::SEED_FUMESHROOM && mApp->RunPlantBuff2Count(SeedType::SEED_FUMESHROOM) > 0)
+                {
+                    if (aZombie->mFetidSlowCounter < 300)
+                    {
+                        aZombie->mFetidSlowCounter = 300;
+                        aZombie->UpdateAnimSpeed();
+                    }
+                }
+            }
+        }
+    }
 }
 
 PvzpParticleSystem* Plant::AddAttachedParticle(int thePosX, int thePosY, int theRenderPosition, ParticleEffect theEffect)
@@ -734,128 +966,146 @@ PvzpParticleSystem* Plant::AddAttachedParticle(int thePosX, int thePosY, int the
 
 bool Plant::FindTargetAndFire(int theRow, PlantWeapon thePlantWeapon)
 {
-	Zombie* aZombie = FindTargetZombie(theRow, thePlantWeapon);
-	if (aZombie == nullptr)
-		return false;
+    Zombie* aZombie = FindTargetZombie(theRow, thePlantWeapon);
+    // @pvz-online: 忧郁菇（用户 2026-10-09 令）：无论有没有敌人都一直攻击——光环不设目标门，
+    // 空场也照常走 anim_shooting 四连喷（UpdateShooting → Fire → DoRowAreaDamage，
+    // 没怪时白喷、无副作用）。
+    // @pvz-online: 仙人掌「Tri-Spike」（2026-10-10 用户令「和三线射手相似的行为，包括索敌」）：
+    // 调用方已按三行 OR 过门（见 UpdateShooter 仙人掌分支），这里放行空放——本行无怪也照放
+    // 主弹+侧弹，同三线「任一行有敌 → 三行都放」口径。
+    bool aTriSpikeAlways = mSeedType == SeedType::SEED_CACTUS && mApp->RunPlantBuff2Count(SeedType::SEED_CACTUS) > 0;
+    if (aZombie == nullptr && mSeedType != SeedType::SEED_GLOOMSHROOM && !aTriSpikeAlways)
+        return false;
 
-	EndBlink();
-	Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
-	Reanimation* aHeadReanim = mApp->ReanimationTryToGet(mHeadReanimID);
+    float aSpeed = PlantShootSpeed(mApp, mSeedType, this);
 
-	if (mSeedType == SeedType::SEED_SPLITPEA && thePlantWeapon == PlantWeapon::WEAPON_SECONDARY)
-	{
-		Reanimation* aHeadReanim2 = mApp->ReanimationGet(mHeadReanimID2);
-		aHeadReanim2->StartBlend(20);
-		aHeadReanim2->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
-		aHeadReanim2->mAnimRate = 35.0f;
-		aHeadReanim2->SetFramesForLayer("anim_splitpea_shooting");
-		mShootingCounter = 26;
-	}
-	else if (aHeadReanim && aHeadReanim->TrackExists("anim_shooting"))
-	{
-		aHeadReanim->StartBlend(20);
-		aHeadReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
-		aHeadReanim->mAnimRate = 35.0f;
-		aHeadReanim->SetFramesForLayer("anim_shooting");
+    EndBlink();
+    Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
+    Reanimation* aHeadReanim = mApp->ReanimationTryToGet(mHeadReanimID);
 
-		mShootingCounter = 35;
-		if (mSeedType == SeedType::SEED_REPEATER || mSeedType == SeedType::SEED_SPLITPEA || mSeedType == SeedType::SEED_LEFTPEATER)
-		{
-			aHeadReanim->mAnimRate = 45.0f;
-			mShootingCounter = 26;
-		}
-		else if (mSeedType == SeedType::SEED_GATLINGPEA)
-		{
-			aHeadReanim->mAnimRate = 38.0f;
-			mShootingCounter = 100;
-		}
-	}
-	else if (mState == PlantState::STATE_CACTUS_HIGH)
-	{
-		PlayBodyReanim("anim_shootinghigh", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 35.0f);
-		mShootingCounter = 23;
-	}
-	else if (mSeedType == SeedType::SEED_GLOOMSHROOM)
-	{
-		PlayBodyReanim("anim_shooting", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 14.0f);
-		mShootingCounter = 200;
-	}
-	else if (mSeedType == SeedType::SEED_CATTAIL)
-	{
-		PlayBodyReanim("anim_shooting", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 30.0f);
-		mShootingCounter = 50;
-	}
-	else if (aBodyReanim && aBodyReanim->TrackExists("anim_shooting"))
-	{
-		PlayBodyReanim("anim_shooting", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 35.0f);
+    if (mSeedType == SeedType::SEED_SPLITPEA && thePlantWeapon == PlantWeapon::WEAPON_SECONDARY)
+    {
+        Reanimation* aHeadReanim2 = mApp->ReanimationGet(mHeadReanimID2);
+        aHeadReanim2->StartBlend(20);
+        aHeadReanim2->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
+        aHeadReanim2->mAnimRate = 35.0f * aSpeed;
+        aHeadReanim2->SetFramesForLayer("anim_splitpea_shooting");
+        mShootingCounter = PlantShootTicks(26, aSpeed);
+    }
+    else if (aHeadReanim && aHeadReanim->TrackExists("anim_shooting"))
+    {
+        aHeadReanim->StartBlend(20);
+        aHeadReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
+        aHeadReanim->mAnimRate = 35.0f * aSpeed;
+        aHeadReanim->SetFramesForLayer("anim_shooting");
 
-		switch (mSeedType)
-		{
-		case SeedType::SEED_FUMESHROOM:     mShootingCounter = 50;  break;
-		case SeedType::SEED_PUFFSHROOM:     mShootingCounter = 29;  break;
-		case SeedType::SEED_SCAREDYSHROOM:  mShootingCounter = 25;  break;
-		case SeedType::SEED_CABBAGEPULT:    mShootingCounter = 32;  break;
-		case SeedType::SEED_MELONPULT:
-		case SeedType::SEED_WINTERMELON:    mShootingCounter = 36;  break;
-		case SeedType::SEED_KERNELPULT:
-		{
-			if (Sexy::Rand(4) == 0)
-			{
-				aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
-				aBodyReanim->AssignRenderGroupToPrefix("Cornpult_butter", RENDER_GROUP_NORMAL);
-				aBodyReanim->AssignRenderGroupToPrefix("Cornpult_kernal", RENDER_GROUP_HIDDEN);
-				mState = PlantState::STATE_KERNELPULT_BUTTER;
-			}
+        mShootingCounter = PlantShootTicks(33, aSpeed);
+        if (mSeedType == SeedType::SEED_REPEATER || mSeedType == SeedType::SEED_SPLITPEA || mSeedType == SeedType::SEED_LEFTPEATER)
+        {
+            aHeadReanim->mAnimRate = 45.0f * aSpeed;
+            mShootingCounter = PlantShootTicks(26, aSpeed);
+        }
+        else if (mSeedType == SeedType::SEED_GATLINGPEA)
+        {
+            aHeadReanim->mAnimRate = 38.0f * aSpeed;
+            mShootingCounter = PlantShootTicks(100, aSpeed);
+        }
+    }
+    else if (mState == PlantState::STATE_CACTUS_HIGH)
+    {
+        PlayBodyReanim("anim_shootinghigh", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 35.0f * aSpeed);
+        mShootingCounter = PlantShootTicks(23, aSpeed);
+    }
+    else if (mSeedType == SeedType::SEED_GLOOMSHROOM)
+    {
+        PlayBodyReanim("anim_shooting", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 14.0f * aSpeed);
+        mShootingCounter = PlantShootTicks(200, aSpeed);
+    }
+    else if (mSeedType == SeedType::SEED_CATTAIL)
+    {
+        PlayBodyReanim("anim_shooting", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 30.0f * aSpeed);
+        mShootingCounter = PlantShootTicks(50, aSpeed);
+    }
+    else if (aBodyReanim && aBodyReanim->TrackExists("anim_shooting"))
+    {
+        PlayBodyReanim("anim_shooting", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 35.0f * aSpeed);
 
-			mShootingCounter = 30;
-			break;
-		}
-		case SeedType::SEED_CACTUS:         mShootingCounter = 35;  break;
-		default:                            mShootingCounter = 29;  break;
-		}
-	}
-	else
-		Fire(aZombie, theRow, thePlantWeapon);
+        switch (mSeedType)
+        {
+        case SeedType::SEED_FUMESHROOM:     mShootingCounter = PlantShootTicks(50, aSpeed);  break;
+        case SeedType::SEED_PUFFSHROOM:     mShootingCounter = PlantShootTicks(29, aSpeed);  break;
+        case SeedType::SEED_SCAREDYSHROOM:  mShootingCounter = PlantShootTicks(25, aSpeed);  break;
+        case SeedType::SEED_CABBAGEPULT:    mShootingCounter = PlantShootTicks(32, aSpeed);  break;
+        case SeedType::SEED_MELONPULT:
+        case SeedType::SEED_WINTERMELON:    mShootingCounter = PlantShootTicks(36, aSpeed);  break;
+        case SeedType::SEED_KERNELPULT:
+        {
+            // @pvz-online: 批 18 玉米投手行改为「Artillery 种下变加农炮」——黄油率恢复原版
+            // 固定 1/4（原 Buttery 挂点删除）。
+            // @pvz-online: 第二 buff「Butter Feast」黄油盛宴（玉米投手 #34，docs/06 §8.6，2★
+            // cap2）：持条时黄油率 25% + 25%×层（cap2 封顶 75%）、黄油时长 400 + 100×层 帧
+            //（+1 秒/层，见 Projectile 黄油命中处）；未持条保留原版 Rand(4) 抽法，RNG 流
+            // 与改前完全一致。
+            int aButterFeastStacks = mApp->RunPlantBuff2Count(SeedType::SEED_KERNELPULT);
+            bool aMakeButter = aButterFeastStacks > 0 ? (Sexy::Rand(100) < 25 + 25 * aButterFeastStacks) : (Sexy::Rand(4) == 0);
+            if (aMakeButter)
+            {
+                aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
+                aBodyReanim->AssignRenderGroupToPrefix("Cornpult_butter", RENDER_GROUP_NORMAL);
+                aBodyReanim->AssignRenderGroupToPrefix("Cornpult_kernal", RENDER_GROUP_HIDDEN);
+                mState = PlantState::STATE_KERNELPULT_BUTTER;
+            }
 
-	return true;
+            mShootingCounter = PlantShootTicks(30, aSpeed);
+            break;
+        }
+        case SeedType::SEED_CACTUS:         mShootingCounter = PlantShootTicks(35, aSpeed);  break;
+        default:                            mShootingCounter = PlantShootTicks(29, aSpeed);  break;
+        }
+    }
+    else
+        Fire(aZombie, theRow, thePlantWeapon);
+
+    return true;
 }
 
 void Plant::LaunchThreepeater()
 {
-	int rowAbove = mRow - 1;
-	int rowBelow = mRow + 1;
+    int rowAbove = mRow - 1;
+    int rowBelow = mRow + 1;
 
-	if ((FindTargetZombie(mRow, PlantWeapon::WEAPON_PRIMARY)) ||
-		(mBoard->RowCanHaveZombies(rowAbove) && FindTargetZombie(rowAbove, PlantWeapon::WEAPON_PRIMARY)) ||
-		(mBoard->RowCanHaveZombies(rowBelow) && FindTargetZombie(rowBelow, PlantWeapon::WEAPON_PRIMARY)))
-	{
-		Reanimation* aHeadReanim1 = mApp->ReanimationGet(mHeadReanimID);
-		Reanimation* aHeadReanim2 = mApp->ReanimationGet(mHeadReanimID2);
-		Reanimation* aHeadReanim3 = mApp->ReanimationGet(mHeadReanimID3);
+    if ((FindTargetZombie(mRow, PlantWeapon::WEAPON_PRIMARY)) ||
+        (mBoard->RowCanHaveZombies(rowAbove) && FindTargetZombie(rowAbove, PlantWeapon::WEAPON_PRIMARY)) ||
+        (mBoard->RowCanHaveZombies(rowBelow) && FindTargetZombie(rowBelow, PlantWeapon::WEAPON_PRIMARY)))
+    {
+        float aSpeed = PlantShootSpeed(mApp, mSeedType, this);
+        Reanimation* aHeadReanim1 = mApp->ReanimationGet(mHeadReanimID);
+        Reanimation* aHeadReanim2 = mApp->ReanimationGet(mHeadReanimID2);
+        Reanimation* aHeadReanim3 = mApp->ReanimationGet(mHeadReanimID3);
 
-		if (mBoard->RowCanHaveZombies(rowBelow))
-		{
-			aHeadReanim1->StartBlend(10);
-			aHeadReanim1->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
-			aHeadReanim1->mAnimRate = 20.0f;
-			aHeadReanim1->SetFramesForLayer("anim_shooting1");
-		}
+        if (mBoard->RowCanHaveZombies(rowBelow))
+        {
+            aHeadReanim1->StartBlend(10);
+            aHeadReanim1->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
+            aHeadReanim1->mAnimRate = 20.0f * aSpeed;
+            aHeadReanim1->SetFramesForLayer("anim_shooting1");
+        }
 
-		aHeadReanim2->StartBlend(10);
-		aHeadReanim2->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
-		aHeadReanim2->mAnimRate = 20.0f;
-		aHeadReanim2->SetFramesForLayer("anim_shooting2");
+        aHeadReanim2->StartBlend(10);
+        aHeadReanim2->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
+        aHeadReanim2->mAnimRate = 20.0f * aSpeed;
+        aHeadReanim2->SetFramesForLayer("anim_shooting2");
 
-		if (mBoard->RowCanHaveZombies(rowAbove))
-		{
-			aHeadReanim3->StartBlend(10);
-			aHeadReanim3->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
-			aHeadReanim3->mAnimRate = 20.0f;
-			aHeadReanim3->SetFramesForLayer("anim_shooting3");
-		}
+        if (mBoard->RowCanHaveZombies(rowAbove))
+        {
+            aHeadReanim3->StartBlend(10);
+            aHeadReanim3->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
+            aHeadReanim3->mAnimRate = 20.0f * aSpeed;
+            aHeadReanim3->SetFramesForLayer("anim_shooting3");
+        }
 
-		mShootingCounter = 35;
-	}
+        mShootingCounter = PlantShootTicks(35, aSpeed);
+    }
 }
 
 bool Plant::FindStarFruitTarget()
@@ -914,89 +1164,142 @@ bool Plant::FindStarFruitTarget()
 
 void Plant::LaunchStarFruit()
 {
-	if (FindStarFruitTarget())
-	{
-		PlayBodyReanim("anim_shoot", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 28.0f);
-		mShootingCounter = 40;
-	}
+    // @pvz-online: 用户 2026-10-09 令：无论有没有敌人都一直攻击——删 FindStarFruitTarget 门，
+    // 空场也照常转 anim_shoot 并出五向星弹（StarFruitFire 本就无条件五发，没怪时飞出屏即可）。
+    float aSpeed = PlantShootSpeed(mApp, mSeedType, this);
+    PlayBodyReanim("anim_shoot", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 28.0f * aSpeed);
+    mShootingCounter = PlantShootTicks(40, aSpeed);
 }
 
 void Plant::StarFruitFire()
 {
-	mApp->PlayFoley(FoleyType::FOLEY_THROW);
+    mApp->PlayFoley(FoleyType::FOLEY_THROW);
 
-	float aShootAngleX = cos(DEG_TO_RAD(30.0f)) * 3.33f;
-	float aShootAngleY = sin(DEG_TO_RAD(30.0f)) * 3.33f;
-	for (int i = 0; i < 5; i++)
-	{
-		Projectile* aProjectile = mBoard->AddProjectile(mX + 25, mY + 25, mRenderOrder - 1, mRow, ProjectileType::PROJECTILE_STAR);
-		aProjectile->mDamageRangeFlags = GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
-		aProjectile->mMotionType = ProjectileMotion::MOTION_STAR;
+    // @pvz-online: 单株升级「Homing Stars」（杨桃，表行 SEED_STARFRUIT）：子弹变追踪弹
+    //（1 层成型、至多 1 层）。星弹照旧是 PROJECTILE_STAR（贴图/伤害不变）、五向散开的
+    // 初速也不动，出膛后走香蒲刺同款的 MOTION_HOMING——转向与命中（只碰锁定目标）都在
+    // Projectile 的 homing 分支，这里只管发射时锁定目标：距离近者优先、五颗逐颗排除
+    // 已锁定、尽量各打各的；场上不够五只时余星全追最前的那只（追远的不如集火）。目标
+    // 中途死掉 → 星弹保持当前速度直飞（同香蒲刺）；一颗都锁不上（目标刚死光）就保持
+    // 直线星原样飞完。
+    int aHomingStacks = mApp->RunPlantUpgradeCount(SeedType::SEED_STARFRUIT);
+    int aHomingFlags = GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
+    Zombie* aHomingTargets[5] = { nullptr, nullptr, nullptr, nullptr, nullptr };
 
-		switch (i)
-		{
-		case 0:     aProjectile->mVelX = -3.33f;         aProjectile->mVelY = 0.0f;             break;
-		case 1:     aProjectile->mVelX = 0.0f;          aProjectile->mVelY = 3.33f;             break;
-		case 2:     aProjectile->mVelX = 0.0f;          aProjectile->mVelY = -3.33f;            break;
-		case 3:     aProjectile->mVelX = aShootAngleX;  aProjectile->mVelY = aShootAngleY;      break;
-		case 4:     aProjectile->mVelX = aShootAngleX;  aProjectile->mVelY = -aShootAngleY;     break;
-		default:    PVZP_ASSERT(false);                                                               break;
-		}
-	}
+    float aShootAngleX = cos(DEG_TO_RAD(30.0f)) * 3.33f;
+    float aShootAngleY = sin(DEG_TO_RAD(30.0f)) * 3.33f;
+    for (int i = 0; i < 5; i++)
+    {
+        Projectile* aProjectile = mBoard->AddProjectile(mX + 25, mY + 25, mRenderOrder - 1, mRow, ProjectileType::PROJECTILE_STAR);
+        aProjectile->mDamageRangeFlags = GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
+        aProjectile->mMotionType = ProjectileMotion::MOTION_STAR;
+
+        switch (i)
+        {
+        case 0:     aProjectile->mVelX = -3.33f;         aProjectile->mVelY = 0.0f;             break;
+        case 1:     aProjectile->mVelX = 0.0f;          aProjectile->mVelY = 3.33f;             break;
+        case 2:     aProjectile->mVelX = 0.0f;          aProjectile->mVelY = -3.33f;            break;
+        case 3:     aProjectile->mVelX = aShootAngleX;  aProjectile->mVelY = aShootAngleY;      break;
+        case 4:     aProjectile->mVelX = aShootAngleX;  aProjectile->mVelY = -aShootAngleY;     break;
+        default:    PVZP_ASSERT();                                                               break;
+        }
+
+        if (aHomingStacks >= 1)
+        {
+            Zombie* aTarget = FindHomingStarTarget(mBoard, mX + 40.0f, mY + 40.0f, aHomingFlags, aHomingTargets, i);
+            if (aTarget == nullptr && i > 0)
+            {
+                aTarget = FindHomingStarTarget(mBoard, mX + 40.0f, mY + 40.0f, aHomingFlags, nullptr, 0);
+            }
+            aHomingTargets[i] = aTarget;
+            if (aTarget)
+            {
+                aProjectile->mMotionType = ProjectileMotion::MOTION_HOMING;
+                aProjectile->mTargetZombieID = mBoard->ZombieGetID(aTarget);
+            }
+        }
+    }
 }
 
 void Plant::UpdateShooter()
 {
-	mLaunchCounter--;
-	if (mLaunchCounter <= 0)
-	{
-		mLaunchCounter = mLaunchRate - Sexy::Rand(15);
+    float aSpeed = PlantShootSpeed(mApp, mSeedType, this);
 
-		if (mSeedType == SeedType::SEED_THREEPEATER)
-		{
-			LaunchThreepeater();
-		}
-		else if (mSeedType == SeedType::SEED_STARFRUIT)
-		{
-			LaunchStarFruit();
-		}
-		else if (mSeedType == SeedType::SEED_SPLITPEA)
-		{
-			FindTargetAndFire(mRow, PlantWeapon::WEAPON_PRIMARY);
-			FindTargetAndFire(mRow, PlantWeapon::WEAPON_SECONDARY);
-		}
-		else if (mSeedType == SeedType::SEED_CACTUS)
-		{
-			if (mState == PlantState::STATE_CACTUS_HIGH)
-			{
-				FindTargetAndFire(mRow, PlantWeapon::WEAPON_PRIMARY);
-			}
-			else if (mState == PlantState::STATE_CACTUS_LOW)
-			{
-				FindTargetAndFire(mRow, PlantWeapon::WEAPON_SECONDARY);
-			}
-		}
-		else
-		{
-			FindTargetAndFire(mRow, PlantWeapon::WEAPON_PRIMARY);
-		}
-	}
+    mLaunchCounter--;
+    if (mLaunchCounter <= 0)
+    {
+        // @pvz-online: 闯关攻速族（全局「急袭」×0.8/层 + 单株射速族 ×0.75/层）现为「动画加速」
+        // 实现（用户 2026-10-04 定案，见 PlantShootSpeed）：本行重置值与下面两处 ==25/==50
+        // 触发点都按同一速度因子缩放。旧实现只缩这个计数器，叠层高时下一发触发会打断进行中的
+        // 多段攻击动画（忧郁菇 4 连/香蒲双发/加特林 4 连/双发第二发被卡掉）；现在动画速率与
+        // 全部检查点同比例提速，命中帧与多发间隔比例不变。Kind 闸门保留（2026-10-03 修正批：
+        // 只有射速族条目进得来——此前任意行都乘，寒冰射手 +30% 行会把雪豆射速拉长）。
+        mLaunchCounter = (int)((mLaunchRate - Sexy::Rand(15)) * mApp->RunBuffMul(RUN_BUFF_SWIFT) * mApp->RunPlantUpgradeMulKind(mSeedType, RUN_UPGRADE_KIND_RHYTHM) * mApp->RunPlantBuff2MulKind(mSeedType, RUN_UPGRADE_KIND_RHYTHM) * (PlantInLanternLight(mApp, this) ? mApp->RunPlantBuff2Mul(SeedType::SEED_PLANTERN) : 1.0f) + 0.5f);	// 第二 buff 批 2：同因子链（火力压制）；批 8 追加「暮光」灯照因子（同因子链，见 PlantShootSpeed）
 
-	if (mLaunchCounter == 50 && mSeedType == SeedType::SEED_CATTAIL)
-	{
-		FindTargetAndFire(mRow, PlantWeapon::WEAPON_PRIMARY);
-	}
-	if (mLaunchCounter == 25)
-	{
-		if (mSeedType == SeedType::SEED_REPEATER || mSeedType == SeedType::SEED_LEFTPEATER)
-		{
-			FindTargetAndFire(mRow, PlantWeapon::WEAPON_PRIMARY);
-		}
-		else if (mSeedType == SeedType::SEED_SPLITPEA)
-		{
-			FindTargetAndFire(mRow, PlantWeapon::WEAPON_SECONDARY);
-		}
-	}
+        if (mSeedType == SeedType::SEED_THREEPEATER)
+        {
+            LaunchThreepeater();
+        }
+        else if (mSeedType == SeedType::SEED_STARFRUIT)
+        {
+            LaunchStarFruit();
+        }
+        else if (mSeedType == SeedType::SEED_SPLITPEA)
+        {
+            FindTargetAndFire(mRow, PlantWeapon::WEAPON_SECONDARY);
+        }
+        else if (mSeedType == SeedType::SEED_CACTUS)
+        {
+            // @pvz-online: 「Tri-Spike」持条（2026-10-10 用户令「和三线射手相似的行为，包括
+            // 索敌」）：索敌改三行 OR——本行/上行/下行任一有敌就开火（照 LaunchThreepeater
+            // 的三行判定，RowCanHaveZombies 闸门同款），本行无怪时由 FindTargetAndFire 的
+            // 持条豁免空放（Fire 内侧弹照补）；未持条维持只查本行。
+            if (mApp->RunPlantBuff2Count(mSeedType) > 0)
+            {
+                if (mState == PlantState::STATE_CACTUS_HIGH || mState == PlantState::STATE_CACTUS_LOW)
+                {
+                    PlantWeapon aWeapon = (mState == PlantState::STATE_CACTUS_HIGH) ? PlantWeapon::WEAPON_PRIMARY : PlantWeapon::WEAPON_SECONDARY;
+                    int rowAbove = mRow - 1;
+                    int rowBelow = mRow + 1;
+                    if ((FindTargetZombie(mRow, aWeapon)) ||
+                        (mBoard->RowCanHaveZombies(rowAbove) && FindTargetZombie(rowAbove, aWeapon)) ||
+                        (mBoard->RowCanHaveZombies(rowBelow) && FindTargetZombie(rowBelow, aWeapon)))
+                    {
+                        FindTargetAndFire(mRow, aWeapon);
+                    }
+                }
+            }
+            else if (mState == PlantState::STATE_CACTUS_HIGH)
+            {
+                FindTargetAndFire(mRow, PlantWeapon::WEAPON_PRIMARY);
+            }
+            else if (mState == PlantState::STATE_CACTUS_LOW)
+            {
+                FindTargetAndFire(mRow, PlantWeapon::WEAPON_SECONDARY);
+            }
+        }
+        else
+        {
+            FindTargetAndFire(mRow, PlantWeapon::WEAPON_PRIMARY);
+        }
+    }
+
+    if (mLaunchCounter == PlantShootTicks(50, aSpeed) && mSeedType == SeedType::SEED_CATTAIL)
+    {
+        FindTargetAndFire(mRow, PlantWeapon::WEAPON_PRIMARY);
+    }
+    if (mLaunchCounter == PlantShootTicks(25, aSpeed))
+    {
+        if (mSeedType == SeedType::SEED_REPEATER || mSeedType == SeedType::SEED_LEFTPEATER)
+        {
+            FindTargetAndFire(mRow, PlantWeapon::WEAPON_PRIMARY);
+        }
+        else if (mSeedType == SeedType::SEED_SPLITPEA)
+        {
+            FindTargetAndFire(mRow, PlantWeapon::WEAPON_PRIMARY);
+            FindTargetAndFire(mRow, PlantWeapon::WEAPON_SECONDARY);
+        }
+    }
 }
 
 bool Plant::MakesSun()
@@ -1006,74 +1309,119 @@ bool Plant::MakesSun()
 
 void Plant::UpdateProductionPlant()
 {
-	if (!IsInPlay() || mApp->IsIZombieLevel() || mApp->mGameMode == GameMode::GAMEMODE_UPSELL || mApp->mGameMode == GameMode::GAMEMODE_INTRO)
-		return;
+    if (!IsInPlay() || mApp->IsIZombieLevel() || mApp->mGameMode == GameMode::GAMEMODE_UPSELL || mApp->mGameMode == GameMode::GAMEMODE_INTRO)
+        return;
 
-	if (mBoard->HasLevelAwardDropped())
-		return;
+    // @pvz-online: 联机等待窗里照常生产（清空 ≠ 结束，见 Board::OnlineWaitingForTeam）
+    if (mBoard->HasLevelAwardDropped())
+        return;
 
-	if (mSeedType == SeedType::SEED_MARIGOLD && mBoard->mCurrentWave == mBoard->mNumWaves)
-	{
-		if (mState != PlantState::STATE_MARIGOLD_ENDING)
-		{
-			mState = PlantState::STATE_MARIGOLD_ENDING;
-			mStateCountdown = 6000;
-		}
-		else if (mStateCountdown <= 0)
-			return;
-	}
+    if (mSeedType == SeedType::SEED_MARIGOLD && mBoard->mCurrentWave == mBoard->mNumWaves)
+    {
+        if (mState != PlantState::STATE_MARIGOLD_ENDING)
+        {
+            mState = PlantState::STATE_MARIGOLD_ENDING;
+            mStateCountdown = 6000;
+        }
+        else if (mStateCountdown <= 0)
+            return;
+    }
 
-	if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_LAST_STAND && mBoard->mChallenge->mChallengeState != ChallengeState::STATECHALLENGE_LAST_STAND_ONSLAUGHT)
-		return;
+    if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_LAST_STAND && mBoard->mChallenge->mChallengeState != ChallengeState::STATECHALLENGE_LAST_STAND_ONSLAUGHT)
+        return;
 
-	mLaunchCounter--;
-	if (mLaunchCounter <= 100)
-	{
-		int aFlashCountdown = PvzpAnimateCurve(100, 0, mLaunchCounter, 0, 100, PvzpCurves::CURVE_LINEAR);
-		mEatenFlashCountdown = std::max(mEatenFlashCountdown, aFlashCountdown);
-	}
-	if (mLaunchCounter <= 0)
-	{
-		mLaunchCounter = RandRangeInt(mLaunchRate - 150, mLaunchRate);
-		mApp->PlayFoley(FoleyType::FOLEY_SPAWN_SUN);
+    mLaunchCounter--;
+    if (mLaunchCounter <= 100)
+    {
+        int aFlashCountdown = PvzpAnimateCurve(100, 0, mLaunchCounter, 0, 100, PvzpCurves::CURVE_LINEAR);
+        mEatenFlashCountdown = std::max(mEatenFlashCountdown, aFlashCountdown);
+    }
+    if (mLaunchCounter <= 0)
+    {
+        // @pvz-online: 经济批 2026-10-09：阳光菇「亮顶」产阳光间隔 ×0.75/层叠乘也在周期重置这行
+        // 乘（另一处在 PlantInitialize 初始等待；小形态也走本函数，口径一致）。
+        float aSunIntervalMul = mApp->RunBuffMul(RUN_BUFF_ABUNDANCE);
+        if (mSeedType == SeedType::SEED_SUNSHROOM)
+            aSunIntervalMul *= mApp->RunPlantUpgradeMul(SeedType::SEED_SUNSHROOM);
+        mLaunchCounter = (int)(RandRangeInt(mLaunchRate - 150, mLaunchRate) * aSunIntervalMul + 0.5f);
+        mApp->PlayFoley(FoleyType::FOLEY_SPAWN_SUN);
 
-		if (mSeedType == SeedType::SEED_SUNSHROOM)
-		{
-			if (mState == PlantState::STATE_SUNSHROOM_SMALL)
-			{
-				mBoard->AddCoin(mX, mY, CoinType::COIN_SMALLSUN, CoinMotion::COIN_MOTION_FROM_PLANT);
-			}
-			else
-			{
-				mBoard->AddCoin(mX, mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
-			}
-		}
-		else if (mSeedType == SeedType::SEED_SUNFLOWER)
-		{
-			mBoard->AddCoin(mX, mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
-		}
-		else if (mSeedType == SeedType::SEED_TWINSUNFLOWER)
-		{
-			mBoard->AddCoin(mX, mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
-			mBoard->AddCoin(mX, mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
-		}
-		else if (mSeedType == SeedType::SEED_MARIGOLD)
-		{
-			mBoard->AddCoin(mX, mY, (Sexy::Rand(100) < 10) ? CoinType::COIN_GOLD : CoinType::COIN_SILVER, CoinMotion::COIN_MOTION_COIN);
-		}
+        if (mSeedType == SeedType::SEED_SUNSHROOM)
+        {
+            // @pvz-online: 经济批 2026-10-09（用户定案）：丰收重做——概率多产撤掉，改速度轴
+            // 「产阳光间隔 ×0.75/层 叠乘」（乘算见本函数开头重置行与 PlantInitialize 初始等待）；
+            // 这里只落常规那枚（小阳光阶段落的还是小阳光）。
+            CoinType aSunType = (mState == PlantState::STATE_SUNSHROOM_SMALL) ? CoinType::COIN_SMALLSUN : CoinType::COIN_SUN;
+            mBoard->AddCoin(mX, mY, aSunType, CoinMotion::COIN_MOTION_FROM_PLANT);
+            // @pvz-online: 第二 buff「催长」（阳光菇 #9，docs/06 §8.6）：首产（小阳光 15）落地
+            // 后立即长大——第二次产出已是 25 大阳光。清掉长大倒计时，下一帧 UpdateSunShroom
+            // 的 SMALL 分支判 0 走长大流程；非闯关词条恒 0 不动。
+            if (mState == PlantState::STATE_SUNSHROOM_SMALL && mApp->RunPlantBuff2Count(SeedType::SEED_SUNSHROOM) > 0)
+            {
+                mStateCountdown = 0;
+            }
+        }
+        else if (mSeedType == SeedType::SEED_SUNFLOWER)
+        {
+            mBoard->AddCoin(mX, mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
+            // @pvz-online: 经济批 2026-10-09（用户定案）：丰收重做——每轮 50% 概率多产 1 阳光
+            // （只可选 1 层、每轮掷一次；「种下立即产 1 次」在 PlantInitialize 压首轮计时）。
+            if (mApp->RunPlantUpgradeCount(SeedType::SEED_SUNFLOWER) > 0 && (int)Sexy::Rand(100) < 50)
+                mBoard->AddCoin(mX, mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
+        }
+        else if (mSeedType == SeedType::SEED_TWINSUNFLOWER)
+        {
+            mBoard->AddCoin(mX, mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
+            mBoard->AddCoin(mX, mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
+            // @pvz-online: 经济批 2026-10-09（用户定案）：Twin Bloom 改加量轴——每轮固定多产
+            // 2 阳光/层（至多 2 层），无条件落币（原「每轮掷一次 25%×层」概率口径撤掉）。
+            for (int i = 0, aExtra = 2 * mApp->RunPlantUpgradeCount(SeedType::SEED_TWINSUNFLOWER); i < aExtra; i++)
+                mBoard->AddCoin(mX, mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
+        }
+        else if (mSeedType == SeedType::SEED_MARIGOLD)
+        {
+            // @pvz-online: 第二 buff「富贵」（金盏花 #38，docs/06 §8.6）：+10%/层 概率产
+            // 高值币——命中时 25% 钻石 / 75% 金（贴词条「金/钻石币」），未命中走原版
+            // 10% 金 / 90% 银。常规枚与「多产」老条的加枚各自独立 roll。
+            int aRichChance = 10 * mApp->RunPlantBuff2Count(SeedType::SEED_MARIGOLD);
+            CoinType aMarigoldCoin;
+            if (aRichChance > 0 && (int)Sexy::Rand(100) < aRichChance)
+            {
+                aMarigoldCoin = ((int)Sexy::Rand(4) == 0) ? CoinType::COIN_DIAMOND : CoinType::COIN_GOLD;
+            }
+            else
+            {
+                aMarigoldCoin = ((int)Sexy::Rand(100) < 10) ? CoinType::COIN_GOLD : CoinType::COIN_SILVER;
+            }
+            mBoard->AddCoin(mX, mY, aMarigoldCoin, CoinMotion::COIN_MOTION_COIN);
+            // @pvz-online: 单株升级「多产」：每层多落一枚（金/银按各自 10% 独立摇）
+            for (int i = 0, aExtra = mApp->RunPlantUpgradeCount(SeedType::SEED_MARIGOLD); i < aExtra; i++)
+            {
+                CoinType aExtraCoin;
+                if (aRichChance > 0 && (int)Sexy::Rand(100) < aRichChance)
+                {
+                    aExtraCoin = ((int)Sexy::Rand(4) == 0) ? CoinType::COIN_DIAMOND : CoinType::COIN_GOLD;
+                }
+                else
+                {
+                    aExtraCoin = ((int)Sexy::Rand(100) < 10) ? CoinType::COIN_GOLD : CoinType::COIN_SILVER;
+                }
+                mBoard->AddCoin(mX, mY, aExtraCoin, CoinMotion::COIN_MOTION_COIN);
+            }
+        }
 
-		if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_BIG_TIME)
-		{
-			if (mSeedType == SeedType::SEED_SUNFLOWER)
-			{
-				mBoard->AddCoin(mX, mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
-			}
-			else if (mSeedType == SeedType::SEED_MARIGOLD)
-			{
-				mBoard->AddCoin(mX, mY, CoinType::COIN_SILVER, CoinMotion::COIN_MOTION_COIN);
-			}
-		}
-	}
+        if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_BIG_TIME)
+        {
+            if (mSeedType == SeedType::SEED_SUNFLOWER)
+            {
+                mBoard->AddCoin(mX, mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
+            }
+            else if (mSeedType == SeedType::SEED_MARIGOLD)
+            {
+                mBoard->AddCoin(mX, mY, CoinType::COIN_SILVER, CoinMotion::COIN_MOTION_COIN);
+            }
+        }
+    }
 }
 
 void Plant::UpdateSunShroom()
@@ -1106,29 +1454,39 @@ void Plant::UpdateSunShroom()
 
 void Plant::UpdateGraveBuster()
 {
-	if (mState == PlantState::STATE_GRAVEBUSTER_LANDING)
-	{
-		if (mApp->ReanimationGet(mBodyReanimID)->mLoopCount > 0)
-		{
-			PlayBodyReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 10, 12.0f);
-			mStateCountdown = 400;
-			mState = PlantState::STATE_GRAVEBUSTER_EATING;
-			AddAttachedParticle(mX + 40, mY + 40, mRenderOrder + 4, ParticleEffect::PARTICLE_GRAVE_BUSTER);
-		}
-	}
-	else if (mState == PlantState::STATE_GRAVEBUSTER_EATING && mStateCountdown == 0)
-	{
-		GridItem* aGraveStone = mBoard->GetGraveStoneAt(mPlantCol, mRow);
-		if (aGraveStone)
-		{
-			aGraveStone->GridItemDie();
-			mBoard->mGravesCleared++;
-		}
+    if (mState == PlantState::STATE_GRAVEBUSTER_LANDING)
+    {
+        if (mApp->ReanimationGet(mBodyReanimID)->mLoopCount > 0)
+        {
+            PlayBodyReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 10, 12.0f);
+            // @pvz-online: 第二 buff 批 2「疾掘」（墓碑吞噬者，docs/06 §8.6 #11）：吞噬速度
+            // ×0.5/层（1★）——400 帧吞碑计时按乘数缩，2 层 ×0.25。
+            mStateCountdown = (int)(400 * mApp->RunPlantBuff2Mul(SeedType::SEED_GRAVEBUSTER) + 0.5f);
+            mState = PlantState::STATE_GRAVEBUSTER_EATING;
+            AddAttachedParticle(mX + 40, mY + 40, mRenderOrder + 4, ParticleEffect::PARTICLE_GRAVE_BUSTER);
+        }
+    }
+    else if (mState == PlantState::STATE_GRAVEBUSTER_EATING && mStateCountdown == 0)
+    {
+        GridItem* aGraveStone = mBoard->GetGraveStoneAt(mPlantCol, mRow);
+        if (aGraveStone)
+        {
+            aGraveStone->GridItemDie();
+            mBoard->mGravesCleared++;
+            // @pvz-online: 单株升级「Quick Dig」（墓碑吞噬者，表行 SEED_GRAVEBUSTER）：吞掉
+            // 墓碑成功额外落 25 阳光/层（计数型、至多 2 层）——真吞到才给，落币法同咖啡豆。
+            // 经济批 2026-10-09：本行已删条不进抽取池（用户令删），挂点保留供存量档生效。
+            int aSunCoins = mApp->RunPlantUpgradeCount(SeedType::SEED_GRAVEBUSTER);
+            for (int i = 0; i < aSunCoins; i++)
+            {
+                mBoard->AddCoin(mX, mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
+            }
+        }
 
-		mApp->AddPvzpParticle(mX + 40, mY + 40, mRenderOrder + 4, ParticleEffect::PARTICLE_GRAVE_BUSTER_DIE);
-		Die();
-		mBoard->DropLootPiece(mX + 40, mY, 12);
-	}
+        mApp->AddPvzpParticle(mX + 40, mY + 40, mRenderOrder + 4, ParticleEffect::PARTICLE_GRAVE_BUSTER_DIE);
+        Die();
+        mBoard->DropLootPiece(mX + 40, mY, 12);
+    }
 }
 
 void Plant::PlayBodyReanim(const char* theTrackName, ReanimLoopType theLoopType, int theBlendTime, float theAnimRate)
@@ -1199,182 +1557,209 @@ void Plant::UpdatePotato()
 
 void Plant::UpdateTanglekelp()
 {
-	if (mState != PlantState::STATE_TANGLEKELP_GRABBING)
-	{
-		Zombie* aZombie = FindTargetZombie(mRow, PlantWeapon::WEAPON_PRIMARY);
-		if (aZombie)
-		{
-			mApp->PlayFoley(FoleyType::FOLEY_FLOOP);
-			mState = PlantState::STATE_TANGLEKELP_GRABBING;
-			mStateCountdown = 100;
-			aZombie->PoolSplash(false);
+    if (mState != PlantState::STATE_TANGLEKELP_GRABBING)
+    {
+        Zombie* aZombie = FindTargetZombie(mRow, PlantWeapon::WEAPON_PRIMARY);
+        if (aZombie)
+        {
+            mApp->PlayFoley(FoleyType::FOLEY_FLOOP);
+            mState = PlantState::STATE_TANGLEKELP_GRABBING;
+            mStateCountdown = 100;
+            AttachTanglekelpGrab(aZombie);
+            mTargetZombieID = mBoard->ZombieGetID(aZombie);
 
-			float aVinesPosX = -13.0f;
-			float aVinesPosY = 15.0f;
-			if (aZombie->mZombieType == ZombieType::ZOMBIE_SNORKEL)
-			{
-				aVinesPosX = -43.0f;
-				aVinesPosY = 55.0f;
-			}
-			if (aZombie->mZombiePhase == ZombiePhase::PHASE_DOLPHIN_RIDING)
-			{
-				aVinesPosX = -20.0f;
-				aVinesPosY = 37.0f;
-			}
-			Reanimation* aGrabReanim = aZombie->AddAttachedReanim(aVinesPosX, aVinesPosY, ReanimationType::REANIM_TANGLEKELP);
-			if (aGrabReanim)
-			{
-				aGrabReanim->SetFramesForLayer("anim_grab");
-				aGrabReanim->mAnimRate = 24.0f;
-				aGrabReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
-			}
+            // @pvz-online: 单株升级「Entangle」（缠绕海草，批 13）：每层多缠 1 只、至多 2 层
+            //（1→3 只）。逐只再调 FindTargetZombie——对海草它会跳过已被任何海草抓着的僵尸
+            //（IsTangleKelpTarget 走 IsTangleKelpTargeting，含刚记下的主目标），不会重抓同一只。
+            int aExtraCount = mApp->RunPlantUpgradeCount(SeedType::SEED_TANGLEKELP);
+            if (aExtraCount > 2)
+            {
+                aExtraCount = 2;
+            }
+            for (int i = 0; i < aExtraCount; i++)
+            {
+                Zombie* aExtraZombie = FindTargetZombie(mRow, PlantWeapon::WEAPON_PRIMARY);
+                if (!aExtraZombie)
+                {
+                    break;
+                }
+                AttachTanglekelpGrab(aExtraZombie);
+                mExtraTanglekelpIDs[mExtraTanglekelpCount] = mBoard->ZombieGetID(aExtraZombie);
+                mExtraTanglekelpCount++;
+            }
+        }
+    }
+    else
+    {
+        if (mStateCountdown == 50)
+        {
+            Zombie* aZombie = mBoard->ZombieTryToGet(mTargetZombieID);
+            if (aZombie)
+            {
+                aZombie->DragUnder();
+                aZombie->PoolSplash(false);
+            }
+            // @pvz-online: 多缠的额外目标与主目标同时点沉底（批 13）。
+            for (int i = 0; i < mExtraTanglekelpCount; i++)
+            {
+                Zombie* aExtraZombie = mBoard->ZombieTryToGet(mExtraTanglekelpIDs[i]);
+                if (aExtraZombie)
+                {
+                    aExtraZombie->DragUnder();
+                    aExtraZombie->PoolSplash(false);
+                }
+            }
+        }
 
-			mTargetZombieID = mBoard->ZombieGetID(aZombie);
-		}
-	}
-	else
-	{
-		if (mStateCountdown == 50)
-		{
-			Zombie* aZombie = mBoard->ZombieTryToGet(mTargetZombieID);
-			if (aZombie)
-			{
-				aZombie->DragUnder();
-				aZombie->PoolSplash(false);
-			}
-		}
+        if (mStateCountdown == 20)
+        {
+            int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PARTICLE, mRow, 0);
+            Reanimation* aSplashReanim = mApp->AddReanimation(mX - 23, mY + 7, aRenderPosition, ReanimationType::REANIM_SPLASH);
+            aSplashReanim->OverrideScale(1.3f, 1.3f);
 
-		if (mStateCountdown == 20)
-		{
-			int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PARTICLE, mRow, 0);
-			Reanimation* aSplashReanim = mApp->AddReanimation(mX - 23, mY + 7, aRenderPosition, ReanimationType::REANIM_SPLASH);
-			aSplashReanim->OverrideScale(1.3f, 1.3f);
+            mApp->AddPvzpParticle(mX + 31, mY + 64, aRenderPosition, ParticleEffect::PARTICLE_PLANTING_POOL);
+            mApp->PlayFoley(FoleyType::FOLEY_ZOMBIE_ENTERING_WATER);
+        }
 
-			mApp->AddPvzpParticle(mX + 31, mY + 64, aRenderPosition, ParticleEffect::PARTICLE_PLANTING_POOL);
-			mApp->PlayFoley(FoleyType::FOLEY_ZOMBIE_ENTERING_WATER);
-		}
+        if (mStateCountdown == 0)
+        {
+            Die();
 
-		if (mStateCountdown == 0)
-		{
-			Die();
-
-			Zombie* aZombie = mBoard->ZombieTryToGet(mTargetZombieID);
-			if (aZombie)
-			{
-				aZombie->DieWithLoot();
-			}
-		}
-	}
+            Zombie* aZombie = mBoard->ZombieTryToGet(mTargetZombieID);
+            if (aZombie)
+            {
+                aZombie->DieWithLoot();
+            }
+            // @pvz-online: 多缠的额外目标与主目标同时点清场（批 13）。
+            for (int i = 0; i < mExtraTanglekelpCount; i++)
+            {
+                Zombie* aExtraZombie = mBoard->ZombieTryToGet(mExtraTanglekelpIDs[i]);
+                if (aExtraZombie)
+                {
+                    aExtraZombie->DieWithLoot();
+                }
+            }
+        }
+    }
 }
 
 void Plant::SpikeweedAttack()
 {
-	PVZP_ASSERT(IsSpiky());
+    PVZP_ASSERT(IsSpiky());
 
-	if (mState != PlantState::STATE_SPIKEWEED_ATTACKING)
-	{
-		PlayBodyReanim("anim_attack", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 18.0f);
-		mApp->PlaySample(SOUND_THROW);
+    if (mState != PlantState::STATE_SPIKEWEED_ATTACKING)
+    {
+        PlayBodyReanim("anim_attack", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 18.0f);
+        mApp->PlaySample(SOUND_THROW);
 
-		mState = PlantState::STATE_SPIKEWEED_ATTACKING;
-		mStateCountdown = 100;
-	}
+        mState = PlantState::STATE_SPIKEWEED_ATTACKING;
+        mStateCountdown = SpikeweedCycleFrames(mApp, mSeedType);
+    }
 }
 
 void Plant::UpdateSpikeweed()
 {
-	Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
-	if (mState == PlantState::STATE_SPIKEWEED_ATTACKING)
-	{
-		if (mStateCountdown == 0)
-		{
-			mState = PlantState::STATE_NOTREADY;
-		}
-		else if (mSeedType == SeedType::SEED_SPIKEROCK)
-		{
-			if (mStateCountdown == 70 || mStateCountdown == 32)
-			{
-				DoRowAreaDamage(20, 33U);
-			}
-		}
-		else if (mStateCountdown == 75)
-		{
-			DoRowAreaDamage(20, 33U);
-		}
+    Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
+    if (mState == PlantState::STATE_SPIKEWEED_ATTACKING)
+    {
+        // @pvz-online: 命中点按循环帧数同比例缩（地刺王的攻速加成缩短了循环）；原始比例 =
+        // 倒计时从 100 走：地刺 75、地刺王 69/33。
+        int aCycle = SpikeweedCycleFrames(mApp, mSeedType);
+        if (mStateCountdown == 0)
+        {
+            mState = PlantState::STATE_NOTREADY;
+        }
+        else if (mSeedType == SeedType::SEED_SPIKEROCK)
+        {
+            if (mStateCountdown == aCycle * 69 / 100 || mStateCountdown == aCycle * 33 / 100)
+            {
+                DoRowAreaDamage(20, 33U);
+            }
+        }
+        else if (mStateCountdown == aCycle * 75 / 100)
+        {
+            DoRowAreaDamage(20, 33U);
+        }
 
-		if (aBodyReanim->mLoopCount > 0)
-		{
-			PlayIdleAnim(RandRangeFloat(12.0f, 15.0f));
-		}
-	}
-	else if (FindTargetZombie(mRow, PlantWeapon::WEAPON_PRIMARY))
-	{
-		SpikeweedAttack();
-	}
+        if (aBodyReanim->mLoopCount > 0)
+        {
+            PlayIdleAnim(RandRangeFloat(12.0f, 15.0f));
+        }
+    }
+    else if (FindTargetZombie(mRow, PlantWeapon::WEAPON_PRIMARY))
+    {
+        SpikeweedAttack();
+    }
 }
 
 void Plant::UpdateScaredyShroom()
 {
-	if (mShootingCounter > 0)
-		return;
+    if (mShootingCounter > 0)
+        return;
 
-	bool aHasZombieNearby = false;
+    bool aHasZombieNearby = false;
 
-	for (Zombie* aZombie : mBoard->mZombies)
-	{
-		if (aZombie->mDead)
-			continue;
-		Rect aZombieRect = aZombie->GetZombieRect();
-		int aDiffY = (aZombie->mZombieType == ZombieType::ZOMBIE_BOSS) ? 0 : (aZombie->mRow - mRow);
-		if (!aZombie->mMindControlled && !aZombie->IsDeadOrDying() && aDiffY <= 1 && aDiffY >= -1 && GetCircleRectOverlap(mX, mY + 20.0f, 120, aZombieRect))
-		{
-			aHasZombieNearby = true;
-			break;
-		}
-	}
+    Zombie* aZombie = nullptr;
+    while (mBoard->IterateZombies(aZombie))
+    {
+        Rect aZombieRect = aZombie->GetZombieRect();
+        int aDiffY = (aZombie->mZombieType == ZombieType::ZOMBIE_BOSS) ? 0 : (aZombie->mRow - mRow);
+        if (!aZombie->mMindControlled && !aZombie->IsDeadOrDying() && aDiffY <= 1 && aDiffY >= -1 && GetCircleRectOverlap(mX, mY + 20.0f, 120, aZombieRect))
+        {
+            aHasZombieNearby = true;
+            break;
+        }
+    }
 
-	Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
-	if (mState == PlantState::STATE_READY)
-	{
-		if (aHasZombieNearby)
-		{
-			mState = PlantState::STATE_SCAREDYSHROOM_LOWERING;
-			PlayBodyReanim("anim_scared", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 10, 10.0f);
-		}
-	}
-	else if (mState == PlantState::STATE_SCAREDYSHROOM_LOWERING)
-	{
-		if (aBodyReanim->mLoopCount > 0)
-		{
-			mState = PlantState::STATE_SCAREDYSHROOM_SCARED;
-			PlayBodyReanim("anim_scaredidle", ReanimLoopType::REANIM_LOOP, 10, 0.0f);
-		}
-	}
-	else if (mState == PlantState::STATE_SCAREDYSHROOM_SCARED)
-	{
-		if (!aHasZombieNearby)
-		{
-			mState = PlantState::STATE_SCAREDYSHROOM_RAISING;
+    // @pvz-online: 单株升级「Bravery」（胆小菇，批 14）：抽到后不再缩头——贴近判定直接
+    // 作废，恒 READY 照常射击（1 层成型；非闯关恒 0，加 0 保持原版缩头）。
+    if (mApp->RunPlantUpgradeCount(SeedType::SEED_SCAREDYSHROOM) > 0)
+    {
+        aHasZombieNearby = false;
+    }
 
-			float aAnimRate = RandRangeFloat(7.0f, 12.0f);
-			PlayBodyReanim("anim_grow", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 10, aAnimRate);
-		}
-	}
-	else if (mState == PlantState::STATE_SCAREDYSHROOM_RAISING)
-	{
-		if (aBodyReanim->mLoopCount > 0)
-		{
-			mState = PlantState::STATE_READY;
+    Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
+    if (mState == PlantState::STATE_READY)
+    {
+        if (aHasZombieNearby)
+        {
+            mState = PlantState::STATE_SCAREDYSHROOM_LOWERING;
+            PlayBodyReanim("anim_scared", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 10, 10.0f);
+        }
+    }
+    else if (mState == PlantState::STATE_SCAREDYSHROOM_LOWERING)
+    {
+        if (aBodyReanim->mLoopCount > 0)
+        {
+            mState = PlantState::STATE_SCAREDYSHROOM_SCARED;
+            PlayBodyReanim("anim_scaredidle", ReanimLoopType::REANIM_LOOP, 10, 0.0f);
+        }
+    }
+    else if (mState == PlantState::STATE_SCAREDYSHROOM_SCARED)
+    {
+        if (!aHasZombieNearby)
+        {
+            mState = PlantState::STATE_SCAREDYSHROOM_RAISING;
 
-			float aAnimRate = RandRangeFloat(10.0f, 15.0f);
-			PlayIdleAnim(aAnimRate);
-		}
-	}
+            float aAnimRate = RandRangeFloat(7.0f, 12.0f);
+            PlayBodyReanim("anim_grow", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 10, aAnimRate);
+        }
+    }
+    else if (mState == PlantState::STATE_SCAREDYSHROOM_RAISING)
+    {
+        if (aBodyReanim->mLoopCount > 0)
+        {
+            mState = PlantState::STATE_READY;
 
-	if (mState != PlantState::STATE_READY)
-	{
-		mLaunchCounter = mLaunchRate;
-	}
+            float aAnimRate = RandRangeFloat(10.0f, 15.0f);
+            PlayIdleAnim(aAnimRate);
+        }
+    }
+
+    if (mState != PlantState::STATE_READY)
+    {
+        mLaunchCounter = mLaunchRate;
+    }
 }
 
 void Plant::UpdateTorchwood()
@@ -1406,181 +1791,221 @@ void Plant::UpdateTorchwood()
 
 void Plant::DoSquashDamage()
 {
-	int aDamageRangeFlags = GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
-	Rect aAttackRect = GetPlantAttackRect(PlantWeapon::WEAPON_PRIMARY);
+    int aDamageRangeFlags = GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
+    Rect aAttackRect = GetPlantAttackRect(PlantWeapon::WEAPON_PRIMARY);
 
-	for (Zombie* aZombie : mBoard->mZombies)
-	{
-		if (aZombie->mDead)
-			continue;
-		if ((aZombie->mRow == mRow || aZombie->mZombieType == ZombieType::ZOMBIE_BOSS) && aZombie->EffectedByDamage(aDamageRangeFlags))
-		{
-			Rect aZombieRect = aZombie->GetZombieRect();
-			if (GetRectOverlap(aAttackRect, aZombieRect) > (aZombie->mZombieType == ZombieType::ZOMBIE_FOOTBALL ? -20 : 0))
-			{
-				aZombie->TakeDamage(1800, 18U);
-			}
-		}
-	}
+    Zombie* aZombie = nullptr;
+    while (mBoard->IterateZombies(aZombie))
+    {
+        if ((aZombie->mRow == mRow || aZombie->mZombieType == ZombieType::ZOMBIE_BOSS) && aZombie->EffectedByDamage(aDamageRangeFlags))
+        {
+            Rect aZombieRect = aZombie->GetZombieRect();
+            if (GetRectOverlap(aAttackRect, aZombieRect) > (aZombie->mZombieType == ZombieType::ZOMBIE_FOOTBALL ? -20 : 0))
+            {
+                // @pvz-online: 闯关 buff「爆破」：窝瓜压扁伤害 ×(1+60%/层，批八由 30% 上调)。
+                aZombie->TakeDamage((int)(1800 * mApp->RunBuffMul(RUN_BUFF_BLAST) + 0.5f), 18U);
+
+                // @pvz-online: 单株升级「重压」的眩晕挂点已于批八（2026-10-05）整体删除——
+                // 该行换成「砸击次数 +2/层」，机制移到 UpdateSquash 的多段砸击（落地还有
+                // 余额就起身再砸），不再走 ApplyButter。
+            }
+        }
+    }
 }
 
 Zombie* Plant::FindSquashTarget()
 {
-	int aDamageRangeFlags = GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
-	Rect aAttackRect = GetPlantAttackRect(PlantWeapon::WEAPON_PRIMARY);
+    int aDamageRangeFlags = GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
+    Rect aAttackRect = GetPlantAttackRect(PlantWeapon::WEAPON_PRIMARY);
 
-	int aClosestRange = 0;
-	Zombie* aClosestZombie = nullptr;
+    int aClosestRange = 0;
+    Zombie* aClosestZombie = nullptr;
 
-	for (Zombie* aZombie : mBoard->mZombies)
-	{
-		if (aZombie->mDead)
-			continue;
-		if ((aZombie->mRow == mRow || aZombie->mZombieType == ZombieType::ZOMBIE_BOSS) &&
-			aZombie->mHasHead && !aZombie->IsTangleKelpTarget() && aZombie->EffectedByDamage(aDamageRangeFlags))
-		{
-			Rect aZombieRect = aZombie->GetZombieRect();
+    // @pvz-online: 第二 buff「Leap Shock」飞跃震击（窝瓜 #17，docs/06 §8.6，2★ cap2）：
+    // 持条时相邻行（±1）的僵尸也纳入索敌（基线只有本行 + 巨人特例）。
+    int aLeapStacks = mApp->RunPlantBuff2Count(SeedType::SEED_SQUASH);
 
-			if ((
-					aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_PRE_VAULT && aZombieRect.mX < mX + 20
-				) || (
-					aZombie->mZombiePhase != ZombiePhase::PHASE_POLEVAULTER_PRE_VAULT &&
-					aZombie->mZombiePhase != ZombiePhase::PHASE_POLEVAULTER_IN_VAULT &&
-					aZombie->mZombiePhase != ZombiePhase::PHASE_SNORKEL_INTO_POOL &&
-					aZombie->mZombiePhase != ZombiePhase::PHASE_DOLPHIN_INTO_POOL &&
-					aZombie->mZombiePhase != ZombiePhase::PHASE_DOLPHIN_RIDING &&
-					aZombie->mZombiePhase != ZombiePhase::PHASE_DOLPHIN_IN_JUMP &&
-					!aZombie->IsBobsledTeamWithSled()
-				))
-			{
-				int aRange = -GetRectOverlap(aAttackRect, aZombieRect);
-				if (aRange <= (aZombie->mIsEating ? 110 : 70))
-				{
-					int aPlantX = aAttackRect.mX;
-					if (aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_POST_VAULT || aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_PRE_VAULT ||
-						aZombie->mZombiePhase == ZombiePhase::PHASE_DOLPHIN_WALKING_IN_POOL || aZombie->mZombieType == ZombieType::ZOMBIE_IMP ||
-						aZombie->mZombieType == ZombieType::ZOMBIE_FOOTBALL || mApp->IsScaryPotterLevel())
-					{
-						aPlantX = aAttackRect.mX - 60;
-					}
+    Zombie* aZombie = nullptr;
+    while (mBoard->IterateZombies(aZombie))
+    {
+        if ((aZombie->mRow == mRow || aZombie->mZombieType == ZombieType::ZOMBIE_BOSS ||
+             (aLeapStacks > 0 && (aZombie->mRow - mRow == 1 || aZombie->mRow - mRow == -1))) &&
+            aZombie->mHasHead && !aZombie->IsTangleKelpTarget() && aZombie->EffectedByDamage(aDamageRangeFlags))
+        {
+            Rect aZombieRect = aZombie->GetZombieRect();
 
-					if (aZombie->IsWalkingBackwards() || aZombieRect.mX + aZombieRect.mWidth >= aPlantX)
-					{
-						if (mBoard->ZombieGetID(aZombie) == mTargetZombieID)
-							return aZombie;
+            if ((
+                    aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_PRE_VAULT && aZombieRect.mX < mX + 20
+                ) || (
+                    aZombie->mZombiePhase != ZombiePhase::PHASE_POLEVAULTER_PRE_VAULT &&
+                    aZombie->mZombiePhase != ZombiePhase::PHASE_POLEVAULTER_IN_VAULT &&
+                    aZombie->mZombiePhase != ZombiePhase::PHASE_SNORKEL_INTO_POOL &&
+                    aZombie->mZombiePhase != ZombiePhase::PHASE_DOLPHIN_INTO_POOL &&
+                    aZombie->mZombiePhase != ZombiePhase::PHASE_DOLPHIN_RIDING &&
+                    aZombie->mZombiePhase != ZombiePhase::PHASE_DOLPHIN_IN_JUMP &&
+                    !aZombie->IsBobsledTeamWithSled()
+                ))
+            {
+                int aRange = -GetRectOverlap(aAttackRect, aZombieRect);
+                if (aRange <= (aZombie->mIsEating ? 110 : 70))
+                {
+                    int aPlantX = aAttackRect.mX;
+                    if (aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_POST_VAULT || aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_PRE_VAULT ||
+                        aZombie->mZombiePhase == ZombiePhase::PHASE_DOLPHIN_WALKING_IN_POOL || aZombie->mZombieType == ZombieType::ZOMBIE_IMP ||
+                        aZombie->mZombieType == ZombieType::ZOMBIE_FOOTBALL || mApp->IsScaryPotterLevel())
+                    {
+                        aPlantX = aAttackRect.mX - 60;
+                    }
 
-						if (aClosestZombie == nullptr || aRange < aClosestRange)
-						{
-							aClosestZombie = aZombie;
-							aClosestRange = aRange;
-						}
-					}
-				}
-			}
-		}
-	}
+                    if (aZombie->IsWalkingBackwards() || aZombieRect.mX + aZombieRect.mWidth >= aPlantX)
+                    {
+                        if (mBoard->ZombieGetID(aZombie) == mTargetZombieID)
+                            return aZombie;  // 是锁定的目标僵尸，则直接返回该僵尸
 
-	return aClosestZombie;
+                        if (aClosestZombie == nullptr || aRange < aClosestRange)
+                        {
+                            aClosestZombie = aZombie;
+                            aClosestRange = aRange;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return aClosestZombie;
 }
 
 void Plant::UpdateSquash()
 {
-	[[maybe_unused]] Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);  // unused in Release mode
-	PVZP_ASSERT(aBodyReanim);
+    Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
+    (void)aBodyReanim; // unused in Release mode
+    PVZP_ASSERT(aBodyReanim);
 
-	if (mState == PlantState::STATE_NOTREADY)
-	{
-		Zombie* aZombie = FindSquashTarget();
-		if (aZombie)
-		{
-			mTargetZombieID = mBoard->ZombieGetID(aZombie);
-			mTargetX = aZombie->ZombieTargetLeadX(0.0f) - mWidth / 2;
-			mState = PlantState::STATE_SQUASH_LOOK;
-			mStateCountdown = 80;
-			PlayBodyReanim(mTargetX < mX ? "anim_lookleft" : "anim_lookright", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 10, 24.0f);
-			mApp->PlayFoley(FoleyType::FOLEY_SQUASH_HMM);
-		}
-	}
-	else if (mState == PlantState::STATE_SQUASH_LOOK)
-	{
-		if (mStateCountdown <= 0)
-		{
-			PlayBodyReanim("anim_jumpup", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 24.0f);
-			mState = PlantState::STATE_SQUASH_PRE_LAUNCH;
-			mStateCountdown = 45;
-		}
-	}
-	else if (mState == PlantState::STATE_SQUASH_PRE_LAUNCH)
-	{
-		if (mStateCountdown <= 0)
-		{
-			Zombie* aZombie = FindSquashTarget();
-			if (aZombie)
-			{
-				mTargetX = aZombie->ZombieTargetLeadX(30.0f) - mWidth / 2;
-			}
+    if (mState == PlantState::STATE_NOTREADY)
+    {
+        Zombie* aZombie = FindSquashTarget();
+        if (aZombie)
+        {
+            // @pvz-online: 窝瓜多砸（批八）：第一次锁定目标时按层数记余额（每层 +2 次）；
+            // 重臂回 NOTREADY 时不再重置——余额用完才消失（未升级恒 0，落地即 Die）。
+            // @pvz-online: 第二 buff「Leap Shock」飞跃震击（窝瓜 #17，docs/06 §8.6，2★ cap2）：
+            // 总砸击数 = (1+2×老条层) × 2^新层（与老条加算叠乘，只可选 2 层），余额即再 -1；
+            // 锁定到相邻行目标时整株改行（后续落点 Y / 溅伤判定 / 水池判定全按 mRow 自动跟随），
+            // 巨人特例（跨行锁定）不改行，基线行为原样。
+            if (mSquashSmashesLeft < 0)
+                mSquashSmashesLeft = (int)((1 + 2 * mApp->RunPlantUpgradeCount(SeedType::SEED_SQUASH)) * mApp->RunPlantBuff2Mul(SeedType::SEED_SQUASH) + 0.5f) - 1;
+            if (aZombie->mRow != mRow && aZombie->mZombieType != ZombieType::ZOMBIE_BOSS)
+                mRow = aZombie->mRow;
+            mTargetZombieID = mBoard->ZombieGetID(aZombie);
+            mTargetX = aZombie->ZombieTargetLeadX(0.0f) - mWidth / 2;
+            mState = PlantState::STATE_SQUASH_LOOK;
+            mStateCountdown = 80;
+            PlayBodyReanim(mTargetX < mX ? "anim_lookleft" : "anim_lookright", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 10, 24.0f);
+            mApp->PlayFoley(FoleyType::FOLEY_SQUASH_HMM);
+        }
+    }
+    else if (mState == PlantState::STATE_SQUASH_LOOK)
+    {
+        if (mStateCountdown <= 0)
+        {
+            PlayBodyReanim("anim_jumpup", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 24.0f);
+            mState = PlantState::STATE_SQUASH_PRE_LAUNCH;
+            mStateCountdown = 30;
+        }
+    }
+    else if (mState == PlantState::STATE_SQUASH_PRE_LAUNCH)
+    {
+        if (mStateCountdown <= 0)
+        {
+            Zombie* aZombie = FindSquashTarget();
+            if (aZombie)
+            {
+                mTargetX = aZombie->ZombieTargetLeadX(30.0f) - mWidth / 2;
+                // @pvz-online: 第二 buff「Leap Shock」（窝瓜 #17）：起跳前目标若在相邻行
+                //（只有持条才可能选中），跟锁定点一样整株改行——落点/溅伤全随 mRow 走。
+                if (aZombie->mRow != mRow && aZombie->mZombieType != ZombieType::ZOMBIE_BOSS)
+                    mRow = aZombie->mRow;
+            }
 
-			mState = PlantState::STATE_SQUASH_RISING;
-			mStateCountdown = 50;
-			mRenderOrder = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PARTICLE, mRow, 0);
-		}
-	}
-	else
-	{
-		int aTargetCol = mBoard->PixelToGridXKeepOnBoard(mTargetX, mY);
-		int aDestY = mBoard->GridToPixelY(aTargetCol, mRow) + 8;
+            // @pvz-online: 窝瓜多砸（批八）：记下本次起跳点——首跳 = 种植格（此刻 mX/mY
+            // 未动过）、后续跳 = 上次落点；RISING 插值起点改用它（原写死种植格）。
+            mSquashFromX = mX;
+            mSquashFromY = mY;
 
-		if (mState == PlantState::STATE_SQUASH_RISING)
-		{
-			mX = PvzpAnimateCurve(50, 20, mStateCountdown, mBoard->GridToPixelX(mPlantCol, mStartRow), mTargetX, PvzpCurves::CURVE_EASE_IN_OUT);
-			mY = PvzpAnimateCurve(50, 20, mStateCountdown, mBoard->GridToPixelY(mPlantCol, mStartRow), aDestY - 120, PvzpCurves::CURVE_EASE_IN_OUT);
+            mState = PlantState::STATE_SQUASH_RISING;
+            mStateCountdown = 50;
+            mRenderOrder = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PARTICLE, mRow, 0);
+        }
+    }
+    else
+    {
+        int aTargetCol = mBoard->PixelToGridXKeepOnBoard(mTargetX, mY);
+        int aDestY = mBoard->GridToPixelY(aTargetCol, mRow) + 8;
 
-			if (mStateCountdown == 0)
-			{
-				PlayBodyReanim("anim_jumpdown", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 60.0f);
-				mState = PlantState::STATE_SQUASH_FALLING;
-				mStateCountdown = 10;
-			}
-		}
-		else if (mState == PlantState::STATE_SQUASH_FALLING)
-		{
-			mY = PvzpAnimateCurve(10, 0, mStateCountdown, aDestY - 120, aDestY, PvzpCurves::CURVE_LINEAR);
+        if (mState == PlantState::STATE_SQUASH_RISING)
+        {
+            mX = PvzpAnimateCurve(50, 20, mStateCountdown, mSquashFromX, mTargetX, PvzpCurves::CURVE_EASE_IN_OUT);
+            mY = PvzpAnimateCurve(50, 20, mStateCountdown, mSquashFromY, aDestY - 120, PvzpCurves::CURVE_EASE_IN_OUT);
 
-			if (mStateCountdown == 5)
-			{
-				DoSquashDamage();
-			}
+            if (mStateCountdown == 0)
+            {
+                PlayBodyReanim("anim_jumpdown", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 60.0f);
+                mState = PlantState::STATE_SQUASH_FALLING;
+                mStateCountdown = 10;
+            }
+        }
+        else if (mState == PlantState::STATE_SQUASH_FALLING)
+        {
+            mY = PvzpAnimateCurve(10, 0, mStateCountdown, aDestY - 120, aDestY, PvzpCurves::CURVE_EASE_IN_OUT);
 
-			if (mStateCountdown == 0)
-			{
-				if (mBoard->IsPoolSquare(aTargetCol, mRow))
-				{
-					mApp->AddReanimation(mX - 11, mY + 20, mRenderOrder + 1, ReanimationType::REANIM_SPLASH);
-					mApp->PlayFoley(FoleyType::FOLEY_SPLAT);
-					mApp->PlaySample(SOUND_ZOMBIESPLASH);
+            if (mStateCountdown == 5)
+            {
+                DoSquashDamage();
+            }
 
-					Die();
-				}
-				else
-				{
-					mState = PlantState::STATE_SQUASH_DONE_FALLING;
-					mStateCountdown = 100;
+            if (mStateCountdown == 0)
+            {
+                if (mBoard->IsPoolSquare(aTargetCol, mRow))
+                {
+                    mApp->AddReanimation(mX - 11, mY + 20, mRenderOrder + 1, ReanimationType::REANIM_SPLASH);
+                    mApp->PlayFoley(FoleyType::FOLEY_SPLAT);
+                    mApp->PlaySample(SOUND_ZOMBIESPLASH);
 
-					mBoard->ShakeBoard(1, 4);
-					mApp->PlayFoley(FoleyType::FOLEY_THUMP);
-					float aOffsetY = mBoard->StageHasRoof() ? 69.0f : 80.0f;
-					mApp->AddPvzpParticle(mX + 40, mY + aOffsetY, mRenderOrder + 4, ParticleEffect::PARTICLE_DUST_SQUASH);
-				}
-			}
-		}
-		else if (mState == PlantState::STATE_SQUASH_DONE_FALLING)
-		{
-			if (mStateCountdown == 0)
-			{
-				Die();
-			}
-		}
-	}
+                    Die();
+                }
+                else
+                {
+                    mState = PlantState::STATE_SQUASH_DONE_FALLING;
+                    mStateCountdown = 100;
+
+                    mBoard->ShakeBoard(1, 4);
+                    mApp->PlayFoley(FoleyType::FOLEY_THUMP);
+                    float aOffsetY = mBoard->StageHasRoof() ? 69.0f : 80.0f;
+                    mApp->AddPvzpParticle(mX + 40, mY + aOffsetY, mRenderOrder + 4, ParticleEffect::PARTICLE_DUST_SQUASH);
+                }
+            }
+        }
+        else if (mState == PlantState::STATE_SQUASH_DONE_FALLING)
+        {
+            if (mStateCountdown == 0)
+            {
+                // @pvz-online: 窝瓜多砸（批八）：还有余额就起身回 NOTREADY 再找下一只
+                // （新索敌按此刻落点算），余额用尽才消失——未升级恒 0，行为与原版一致。
+                if (mSquashSmashesLeft > 0)
+                {
+                    mSquashSmashesLeft--;
+                    mState = PlantState::STATE_NOTREADY;
+                    mRenderOrder = CalcRenderOrder();
+                    PlayBodyReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 30, RandRangeFloat(10.0f, 15.0f));
+                }
+                else
+                {
+                    Die();
+                }
+            }
+        }
+    }
 }
 
 void Plant::UpdateDoomShroom()
@@ -1753,90 +2178,112 @@ void Plant::UpdateCactus()
 
 void Plant::UpdateChomper()
 {
-	Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
-	if (mState == PlantState::STATE_READY)
-	{
-		if (FindTargetZombie(mRow, PlantWeapon::WEAPON_PRIMARY))
-		{
-			PlayBodyReanim("anim_bite", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 24.0f);
-			mState = PlantState::STATE_CHOMPER_BITING;
-			mStateCountdown = 70;
-		}
-	}
-	else if (mState == PlantState::STATE_CHOMPER_BITING)
-	{
-		if (mStateCountdown == 0)
-		{
-			mApp->PlayFoley(FoleyType::FOLEY_BIGCHOMP);
+    Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
+    if (mState == PlantState::STATE_READY)
+    {
+        if (FindTargetZombie(mRow, PlantWeapon::WEAPON_PRIMARY))
+        {
+            PlayBodyReanim("anim_bite", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 24.0f);
+            mState = PlantState::STATE_CHOMPER_BITING;
+            mStateCountdown = 70;
+            // @pvz-online: 第二 buff「Chain Bite」连锁吞（大嘴花 #6，docs/06 §8.6，2★ cap2）：
+            // 每次张嘴记下还能追咬几次；层数 0（未抽/非闯关）时全程走原逻辑。
+            mChainBitesLeft = mApp->RunPlantBuff2Count(SeedType::SEED_CHOMPER);
+        }
+    }
+    else if (mState == PlantState::STATE_CHOMPER_BITING)
+    {
+        if (mStateCountdown == 0)
+        {
+            mApp->PlayFoley(FoleyType::FOLEY_BIGCHOMP);
 
-			Zombie* aZombie = FindTargetZombie(mRow, PlantWeapon::WEAPON_PRIMARY);
-			bool doBite = false;
-			if (aZombie)
-			{
-				if (aZombie->mZombieType == ZombieType::ZOMBIE_GARGANTUAR || aZombie->mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR ||
-					aZombie->mZombieType == ZombieType::ZOMBIE_BOSS)
-				{
-					doBite = true;
-				}
-			}
-			bool doMiss = false;
-			if (aZombie == nullptr)
-			{
-				doMiss = true;
-			}
-			else if (!aZombie->IsImmobilizied())
-			{
-				if (aZombie->IsBouncingPogo() ||
-					aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_IN_VAULT || aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_PRE_VAULT)
-				{
-					doMiss = true;
-				}
-			}
+            Zombie* aZombie = FindTargetZombie(mRow, PlantWeapon::WEAPON_PRIMARY);
+            bool doBite = false;
+            if (aZombie)
+            {
+                // @pvz-online: 关底 boss 同巨人口径——大嘴花吞不下，只咬 40 伤/口
+                //（MOD_BUILD 39 批，2026-10-11 用户定案「吞食免疫」；连锁吞 buff
+                // 重播的也是这条 BITTING 路径，一并继承）。
+                if (aZombie->mZombieType == ZombieType::ZOMBIE_GARGANTUAR || aZombie->mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR ||
+                    aZombie->mZombieType == ZombieType::ZOMBIE_BOSS)
+                {
+                    doBite = true;
+                }
+            }
+            bool doMiss = false;
+            if (aZombie == nullptr)
+            {
+                doMiss = true;
+            }
+            else if (!aZombie->IsImmobilizied())
+            {
+                if (aZombie->IsBouncingPogo() ||
+                    aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_IN_VAULT || aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_PRE_VAULT)
+                {
+                    doMiss = true;
+                }
+            }
 
-			if (doBite)
-			{
-				mApp->PlayFoley(FoleyType::FOLEY_SPLAT);
-				aZombie->TakeDamage(40, 0U);
-				mState = PlantState::STATE_CHOMPER_BITING_MISSED;
-			}
-			else if (doMiss)
-			{
-				mState = PlantState::STATE_CHOMPER_BITING_MISSED;
-			}
-			else
-			{
-				aZombie->DieWithLoot();
-				mState = PlantState::STATE_CHOMPER_BITING_GOT_ONE;
-			}
-		}
-	}
-	else if (mState == PlantState::STATE_CHOMPER_BITING_GOT_ONE)
-	{
-		if (aBodyReanim->mLoopCount > 0)
-		{
-			PlayBodyReanim("anim_chew", ReanimLoopType::REANIM_LOOP, 0, 15.0f);
-			if (mApp->IsIZombieLevel())
-			{
-				aBodyReanim->mAnimRate = 0;
-			}
+            if (doBite)
+            {
+                mApp->PlayFoley(FoleyType::FOLEY_SPLAT);
+                aZombie->TakeDamage(40, 0U);
+                mState = PlantState::STATE_CHOMPER_BITING_MISSED;
+            }
+            else if (doMiss)
+            {
+                mState = PlantState::STATE_CHOMPER_BITING_MISSED;
+            }
+            else
+            {
+                aZombie->DieWithLoot();
+                mState = PlantState::STATE_CHOMPER_BITING_GOT_ONE;
+            }
+        }
+    }
+    else if (mState == PlantState::STATE_CHOMPER_BITING_GOT_ONE)
+    {
+        if (aBodyReanim->mLoopCount > 0)
+        {
+            // @pvz-online: 第二 buff「Chain Bite」连锁吞（大嘴花 #6）：本口咬死目标后还有追咬
+            // 次数、且正前方又有可咬僵尸，就重播一次咬合（与 READY 处同款，不嚼不消化）；
+            // 次数耗尽或前方没目标再照原路进消化。
+            if (mChainBitesLeft > 0 && FindTargetZombie(mRow, PlantWeapon::WEAPON_PRIMARY))
+            {
+                --mChainBitesLeft;
+                PlayBodyReanim("anim_bite", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 24.0f);
+                mState = PlantState::STATE_CHOMPER_BITING;
+                mStateCountdown = 70;
+            }
+            else
+            {
+                mChainBitesLeft = 0;
+                PlayBodyReanim("anim_chew", ReanimLoopType::REANIM_LOOP, 0, 15.0f);
+                if (mApp->IsIZombieLevel())
+                {
+                    aBodyReanim->mAnimRate = 0;
+                }
 
-			mState = PlantState::STATE_CHOMPER_DIGESTING;
-			mStateCountdown = 4000;
-		}
-	}
-	else if (mState == PlantState::STATE_CHOMPER_DIGESTING)
-	{
-		if (mStateCountdown == 0)
-		{
-			PlayBodyReanim("anim_swallow", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 12.0f);
-			mState = PlantState::STATE_CHOMPER_SWALLOWING;
-		}
-	}
-	else if ((mState == PlantState::STATE_CHOMPER_SWALLOWING || mState == PlantState::STATE_CHOMPER_BITING_MISSED) && aBodyReanim->mLoopCount > 0)
-	{
-		PlayIdleAnim(aBodyReanim->mDefinition->mFPS);
-		mState = PlantState::STATE_READY;
-	}
+                mState = PlantState::STATE_CHOMPER_DIGESTING;
+                // @pvz-online: 单株升级「Ravenous」（大嘴花，表行 SEED_CHOMPER）：咀嚼（消化）
+                // 时间 ×0.5，只可选 1 层。4000 帧是咬到后的消化倒计时；咬/吞动画本身不动。
+                mStateCountdown = (int)(4000 * mApp->RunPlantUpgradeMul(SeedType::SEED_CHOMPER) + 0.5f);
+            }
+        }
+    }
+    else if (mState == PlantState::STATE_CHOMPER_DIGESTING)
+    {
+        if (mStateCountdown == 0)
+        {
+            PlayBodyReanim("anim_swallow", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 12.0f);
+            mState = PlantState::STATE_CHOMPER_SWALLOWING;
+        }
+    }
+    else if ((mState == PlantState::STATE_CHOMPER_SWALLOWING || mState == PlantState::STATE_CHOMPER_BITING_MISSED) && aBodyReanim->mLoopCount > 0)
+    {
+        PlayIdleAnim(aBodyReanim->mDefinition->mFPS);
+        mState = PlantState::STATE_READY;
+    }
 }
 
 MagnetItem* Plant::GetFreeMagnetItem()
@@ -1859,116 +2306,126 @@ MagnetItem* Plant::GetFreeMagnetItem()
 
 void Plant::MagnetShroomAttactItem(Zombie* theZombie)
 {
-	mState = PlantState::STATE_MAGNETSHROOM_SUCKING;
-	mStateCountdown = 1500;
-	PlayBodyReanim("anim_shooting", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 12.0f);
-	mApp->PlayFoley(FoleyType::FOLEY_MAGNETSHROOM);
+    mState = PlantState::STATE_MAGNETSHROOM_SUCKING;
+    mStateCountdown = MagnetShroomRechargeFrames(mApp);
+    PlayBodyReanim("anim_shooting", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 12.0f);
+    mApp->PlayFoley(FoleyType::FOLEY_MAGNETSHROOM);
 
-	MagnetItem* aMagnetItem = GetFreeMagnetItem();
-	if (theZombie->mHelmType == HelmType::HELMTYPE_PAIL)
-	{
-		int aDamageIndex = theZombie->GetHelmDamageIndex();
+    MagnetItem* aMagnetItem = GetFreeMagnetItem();
+    if (theZombie->mHelmType == HelmType::HELMTYPE_PAIL)
+    {
+        int aDamageIndex = theZombie->GetHelmDamageIndex();
 
-		theZombie->mHelmHealth = 0;
-		theZombie->mHelmType = HelmType::HELMTYPE_NONE;
-		theZombie->GetTrackPosition("anim_bucket", aMagnetItem->mPosX, aMagnetItem->mPosY);
-		theZombie->ReanimShowPrefix("anim_bucket", RENDER_GROUP_HIDDEN);
-		theZombie->ReanimShowPrefix("anim_hair", RENDER_GROUP_NORMAL);
+        theZombie->mHelmHealth = 0;
+        theZombie->mHelmType = HelmType::HELMTYPE_NONE;
+        theZombie->GetTrackPosition("anim_bucket", aMagnetItem->mPosX, aMagnetItem->mPosY);
+        theZombie->ReanimShowPrefix("anim_bucket", RENDER_GROUP_HIDDEN);
+        theZombie->ReanimShowPrefix("anim_hair", RENDER_GROUP_NORMAL);
 
-		aMagnetItem->mPosX -= IMAGE_REANIM_ZOMBIE_BUCKET1->GetWidth() / 2;
-		aMagnetItem->mPosY -= IMAGE_REANIM_ZOMBIE_BUCKET1->GetHeight() / 2;
-		aMagnetItem->mDestOffsetX = RandRangeFloat(-10.0f, 10.0f) + 25.0f;
-		aMagnetItem->mDestOffsetY = RandRangeFloat(-10.0f, 10.0f) + 20.0f;
-		aMagnetItem->mItemType = static_cast<MagnetItemType>(static_cast<int>(MagnetItemType::MAGNET_ITEM_PAIL_1) + aDamageIndex);
-	}
-	else if (theZombie->mHelmType == HelmType::HELMTYPE_FOOTBALL)
-	{
-		int aDamageIndex = theZombie->GetHelmDamageIndex();
+        aMagnetItem->mPosX -= IMAGE_REANIM_ZOMBIE_BUCKET1->GetWidth() / 2;
+        aMagnetItem->mPosY -= IMAGE_REANIM_ZOMBIE_BUCKET1->GetHeight() / 2;
+        aMagnetItem->mDestOffsetX = RandRangeFloat(-10.0f, 10.0f) + 25.0f;
+        aMagnetItem->mDestOffsetY = RandRangeFloat(-10.0f, 10.0f) + 20.0f;
+        aMagnetItem->mItemType = (MagnetItemType)((int)MagnetItemType::MAGNET_ITEM_PAIL_1 + aDamageIndex);
+    }
+    else if (theZombie->mHelmType == HelmType::HELMTYPE_FOOTBALL)
+    {
+        int aDamageIndex = theZombie->GetHelmDamageIndex();
 
-		theZombie->mHelmHealth = 0;
-		theZombie->mHelmType = HelmType::HELMTYPE_NONE;
-		theZombie->GetTrackPosition("zombie_football_helmet", aMagnetItem->mPosX, aMagnetItem->mPosY);
-		theZombie->ReanimShowPrefix("zombie_football_helmet", RENDER_GROUP_HIDDEN);
-		theZombie->ReanimShowPrefix("anim_hair", RENDER_GROUP_NORMAL);
+        theZombie->mHelmHealth = 0;
+        theZombie->mHelmType = HelmType::HELMTYPE_NONE;
+        theZombie->GetTrackPosition("zombie_football_helmet", aMagnetItem->mPosX, aMagnetItem->mPosY);
+        theZombie->ReanimShowPrefix("zombie_football_helmet", RENDER_GROUP_HIDDEN);
+        theZombie->ReanimShowPrefix("anim_hair", RENDER_GROUP_NORMAL);
 
-		aMagnetItem->mPosX += 37.0f;
-		aMagnetItem->mPosY -= 60.0f;
-		aMagnetItem->mDestOffsetX = RandRangeFloat(-10.0f, 10.0f) + 20.0f;
-		aMagnetItem->mDestOffsetY = RandRangeFloat(-10.0f, 10.0f) + 20.0f;
-		aMagnetItem->mItemType = static_cast<MagnetItemType>(static_cast<int>(MagnetItemType::MAGNET_ITEM_FOOTBALL_HELMET_1) + aDamageIndex);
-	}
-	else if (theZombie->mShieldType == ShieldType::SHIELDTYPE_DOOR)
-	{
-		int aDamageIndex = theZombie->GetShieldDamageIndex();
+        aMagnetItem->mPosX += 37.0f;
+        aMagnetItem->mPosY -= 60.0f;
+        aMagnetItem->mDestOffsetX = RandRangeFloat(-10.0f, 10.0f) + 20.0f;
+        aMagnetItem->mDestOffsetY = RandRangeFloat(-10.0f, 10.0f) + 20.0f;
+        aMagnetItem->mItemType = (MagnetItemType)((int)MagnetItemType::MAGNET_ITEM_FOOTBALL_HELMET_1 + aDamageIndex);
+    }
+    else if (theZombie->mShieldType == ShieldType::SHIELDTYPE_DOOR)
+    {
+        int aDamageIndex = theZombie->GetShieldDamageIndex();
 
-		theZombie->DetachShield();
-		theZombie->mZombiePhase = ZombiePhase::PHASE_ZOMBIE_NORMAL;
-		if (!theZombie->mIsEating)
-		{
-			PVZP_ASSERT(theZombie->mZombieHeight == ZombieHeight::HEIGHT_ZOMBIE_NORMAL);
-			theZombie->StartWalkAnim(0);
-		}
-		theZombie->GetTrackPosition("anim_screendoor", aMagnetItem->mPosX, aMagnetItem->mPosY);
+        theZombie->DetachShield();
+        theZombie->mZombiePhase = ZombiePhase::PHASE_ZOMBIE_NORMAL;
+        if (!theZombie->mIsEating)
+        {
+            PVZP_ASSERT(theZombie->mZombieHeight == ZombieHeight::HEIGHT_ZOMBIE_NORMAL);
+            theZombie->StartWalkAnim(0);
+        }
+        theZombie->GetTrackPosition("anim_screendoor", aMagnetItem->mPosX, aMagnetItem->mPosY);
 
-		aMagnetItem->mPosX -= IMAGE_REANIM_ZOMBIE_SCREENDOOR1->GetWidth() / 2;
-		aMagnetItem->mPosY -= IMAGE_REANIM_ZOMBIE_SCREENDOOR1->GetHeight() / 2;
-		aMagnetItem->mDestOffsetX = RandRangeFloat(-10.0f, 10.0f) + 30.0f;
-		aMagnetItem->mDestOffsetY = RandRangeFloat(-10.0f, 10.0f);
-		aMagnetItem->mItemType = static_cast<MagnetItemType>(static_cast<int>(MagnetItemType::MAGNET_ITEM_DOOR_1) + aDamageIndex);
-	}
-	else if (theZombie->mShieldType == ShieldType::SHIELDTYPE_LADDER)
-	{
-		int aDamageIndex = theZombie->GetShieldDamageIndex();
+        aMagnetItem->mPosX -= IMAGE_REANIM_ZOMBIE_SCREENDOOR1->GetWidth() / 2;
+        aMagnetItem->mPosY -= IMAGE_REANIM_ZOMBIE_SCREENDOOR1->GetHeight() / 2;
+        aMagnetItem->mDestOffsetX = RandRangeFloat(-10.0f, 10.0f) + 30.0f;
+        aMagnetItem->mDestOffsetY = RandRangeFloat(-10.0f, 10.0f);
+        aMagnetItem->mItemType = (MagnetItemType)((int)MagnetItemType::MAGNET_ITEM_DOOR_1 + aDamageIndex);
+    }
+    else if (theZombie->mShieldType == ShieldType::SHIELDTYPE_LADDER)
+    {
+        int aDamageIndex = theZombie->GetShieldDamageIndex();
 
-		theZombie->DetachShield();
+        theZombie->DetachShield();
 
-		aMagnetItem->mPosX = theZombie->mPosX + 31.0f;
-		aMagnetItem->mPosY = theZombie->mPosY + 20.0f;
-		aMagnetItem->mPosX -= IMAGE_REANIM_ZOMBIE_LADDER_5->GetWidth() / 2;
-		aMagnetItem->mPosY -= IMAGE_REANIM_ZOMBIE_LADDER_5->GetHeight() / 2;
-		aMagnetItem->mDestOffsetX = RandRangeFloat(-10.0f, 10.0f) + 30.0f;
-		aMagnetItem->mDestOffsetY = RandRangeFloat(-10.0f, 10.0f);
-		aMagnetItem->mItemType = static_cast<MagnetItemType>(static_cast<int>(MagnetItemType::MAGNET_ITEM_LADDER_1) + aDamageIndex);
-	}
-	else if (theZombie->mZombieType == ZombieType::ZOMBIE_POGO)
-	{
-		theZombie->PogoBreak(16U);
-		// ZombieDrawPosition aDrawPos;
-		// theZombie->GetDrawPos(aDrawPos);
-		theZombie->GetTrackPosition("Zombie_pogo_stick", aMagnetItem->mPosX, aMagnetItem->mPosY);
+        aMagnetItem->mPosX = theZombie->mPosX + 31.0f;
+        aMagnetItem->mPosY = theZombie->mPosY + 20.0f;
+        aMagnetItem->mPosX -= IMAGE_REANIM_ZOMBIE_LADDER_5->GetWidth() / 2;
+        aMagnetItem->mPosY -= IMAGE_REANIM_ZOMBIE_LADDER_5->GetHeight() / 2;
+        aMagnetItem->mDestOffsetX = RandRangeFloat(-10.0f, 10.0f) + 30.0f;
+        aMagnetItem->mDestOffsetY = RandRangeFloat(-10.0f, 10.0f);
+        aMagnetItem->mItemType = (MagnetItemType)((int)MagnetItemType::MAGNET_ITEM_LADDER_1 + aDamageIndex);
+    }
+    else if (theZombie->mZombieType == ZombieType::ZOMBIE_POGO)
+    {
+        theZombie->PogoBreak(16U);
+        // ZombieDrawPosition aDrawPos;
+        // theZombie->GetDrawPos(aDrawPos);
+        theZombie->GetTrackPosition("Zombie_pogo_stick", aMagnetItem->mPosX, aMagnetItem->mPosY);
 
-		aMagnetItem->mPosX += 40.0f - IMAGE_REANIM_ZOMBIE_LADDER_5->GetWidth() / 2;
-		aMagnetItem->mPosY += 84.0f - IMAGE_REANIM_ZOMBIE_LADDER_5->GetHeight() / 2;
-		aMagnetItem->mDestOffsetX = RandRangeFloat(-10.0f, 10.0f) + 30.0f;
-		aMagnetItem->mDestOffsetY = RandRangeFloat(-10.0f, 10.0f);
-		aMagnetItem->mItemType = theZombie->mHasArm ? MagnetItemType::MAGNET_ITEM_POGO_1 : MagnetItemType::MAGNET_ITEM_POGO_3;
-	}
-	else if (theZombie->mZombiePhase == ZombiePhase::PHASE_JACK_IN_THE_BOX_RUNNING)
-	{
-		theZombie->StopZombieSound();
-		theZombie->PickRandomSpeed();
-		theZombie->mZombiePhase = ZombiePhase::PHASE_ZOMBIE_NORMAL;
-		theZombie->ReanimShowPrefix("Zombie_jackbox_box", RENDER_GROUP_HIDDEN);
-		theZombie->ReanimShowPrefix("Zombie_jackbox_handle", RENDER_GROUP_HIDDEN);
-		theZombie->GetTrackPosition("Zombie_jackbox_box", aMagnetItem->mPosX, aMagnetItem->mPosY);
+        aMagnetItem->mPosX += 40.0f - IMAGE_REANIM_ZOMBIE_LADDER_5->GetWidth() / 2;
+        aMagnetItem->mPosY += 84.0f - IMAGE_REANIM_ZOMBIE_LADDER_5->GetHeight() / 2;
+        aMagnetItem->mDestOffsetX = RandRangeFloat(-10.0f, 10.0f) + 30.0f;
+        aMagnetItem->mDestOffsetY = RandRangeFloat(-10.0f, 10.0f);
+        aMagnetItem->mItemType = theZombie->mHasArm ? MagnetItemType::MAGNET_ITEM_POGO_1 : MagnetItemType::MAGNET_ITEM_POGO_3;
+    }
+    else if (theZombie->mZombiePhase == ZombiePhase::PHASE_JACK_IN_THE_BOX_RUNNING)
+    {
+        theZombie->StopZombieSound();
+        theZombie->PickRandomSpeed();
+        theZombie->mZombiePhase = ZombiePhase::PHASE_ZOMBIE_NORMAL;
+        theZombie->ReanimShowPrefix("Zombie_jackbox_box", RENDER_GROUP_HIDDEN);
+        theZombie->ReanimShowPrefix("Zombie_jackbox_handle", RENDER_GROUP_HIDDEN);
+        theZombie->GetTrackPosition("Zombie_jackbox_box", aMagnetItem->mPosX, aMagnetItem->mPosY);
 
-		aMagnetItem->mPosX -= IMAGE_REANIM_ZOMBIE_JACKBOX_BOX->GetWidth() / 2;
-		aMagnetItem->mPosY -= IMAGE_REANIM_ZOMBIE_JACKBOX_BOX->GetHeight() / 2;
-		aMagnetItem->mDestOffsetX = RandRangeFloat(-10.0f, 10.0f) + 20.0f;
-		aMagnetItem->mDestOffsetY = RandRangeFloat(-10.0f, 10.0f) + 15.0f;
-		aMagnetItem->mItemType = MagnetItemType::MAGNET_ITEM_JACK_IN_THE_BOX;
-	}
-	else if (theZombie->mZombieType == ZombieType::ZOMBIE_DIGGER)
-	{
-		theZombie->DiggerLoseAxe();
-		theZombie->GetTrackPosition("Zombie_digger_pickaxe", aMagnetItem->mPosX, aMagnetItem->mPosY);
+        aMagnetItem->mPosX -= IMAGE_REANIM_ZOMBIE_JACKBOX_BOX->GetWidth() / 2;
+        aMagnetItem->mPosY -= IMAGE_REANIM_ZOMBIE_JACKBOX_BOX->GetHeight() / 2;
+        aMagnetItem->mDestOffsetX = RandRangeFloat(-10.0f, 10.0f) + 20.0f;
+        aMagnetItem->mDestOffsetY = RandRangeFloat(-10.0f, 10.0f) + 15.0f;
+        aMagnetItem->mItemType = MagnetItemType::MAGNET_ITEM_JACK_IN_THE_BOX;
+    }
+    else if (theZombie->mZombieType == ZombieType::ZOMBIE_DIGGER)
+    {
+        theZombie->DiggerLoseAxe();
+        theZombie->GetTrackPosition("Zombie_digger_pickaxe", aMagnetItem->mPosX, aMagnetItem->mPosY);
 
-		aMagnetItem->mPosX -= IMAGE_REANIM_ZOMBIE_DIGGER_PICKAXE->GetWidth() / 2;
-		aMagnetItem->mPosY -= IMAGE_REANIM_ZOMBIE_DIGGER_PICKAXE->GetHeight() / 2;
-		aMagnetItem->mDestOffsetX = RandRangeFloat(-10.0f, 10.0f) + 45.0f;
-		aMagnetItem->mDestOffsetY = RandRangeFloat(-10.0f, 10.0f) + 15.0f;
-		aMagnetItem->mItemType = MagnetItemType::MAGNET_ITEM_PICK_AXE;
-	}
+        aMagnetItem->mPosX -= IMAGE_REANIM_ZOMBIE_DIGGER_PICKAXE->GetWidth() / 2;
+        aMagnetItem->mPosY -= IMAGE_REANIM_ZOMBIE_DIGGER_PICKAXE->GetHeight() / 2;
+        aMagnetItem->mDestOffsetX = RandRangeFloat(-10.0f, 10.0f) + 45.0f;
+        aMagnetItem->mDestOffsetY = RandRangeFloat(-10.0f, 10.0f) + 15.0f;
+        aMagnetItem->mItemType = MagnetItemType::MAGNET_ITEM_PICK_AXE;
+    }
+
+    // @pvz-online: 第二 buff「Magnet Throw」卸甲飞掷（磁力菇 #31，docs/06 §8.6，2★ cap2）：
+    // 被吸走防具的僵尸就地吃 1200×层 直伤（「防具掷回」的落点）——挂在吸取函数末尾，
+    // 六个分支（桶/橄榄球盔/纱门/梯子/跳杆/弹簧盒/镐）吸到什么就砸什么；伤害标志 0
+    // 走常规结算（同荆棘之壁）。吸取目标必是活体僵尸，无需再挡死亡态。
+    int aMagnetThrowStacks = mApp->RunPlantBuff2Count(SeedType::SEED_MAGNETSHROOM);
+    if (aMagnetThrowStacks > 0)
+    {
+        theZombie->TakeDamage(1200 * aMagnetThrowStacks, 0U);
+    }
 }
 
 bool Plant::DrawMagnetItemsOnTop()
@@ -2009,155 +2466,161 @@ bool Plant::DrawMagnetItemsOnTop()
 
 void Plant::UpdateMagnetShroom()
 {
-	for (int i = 0; i < MAX_MAGNET_ITEMS; i++)
-	{
-		MagnetItem* aMagnetItem = &mMagnetItems[i];
-		if (aMagnetItem->mItemType != MagnetItemType::MAGNET_ITEM_NONE)
-		{
-			SexyVector2 aVectorToPlant(mX + aMagnetItem->mDestOffsetX - aMagnetItem->mPosX, mY + aMagnetItem->mDestOffsetY - aMagnetItem->mPosY);
-			if (aVectorToPlant.Magnitude() > 20.0f)
-			{
-				aMagnetItem->mPosX += aVectorToPlant.x * 0.05f;
-				aMagnetItem->mPosY += aVectorToPlant.y * 0.05f;
-			}
-		}
-	}
+    for (int i = 0; i < MAX_MAGNET_ITEMS; i++)
+    {
+        MagnetItem* aMagnetItem = &mMagnetItems[i];
+        if (aMagnetItem->mItemType != MagnetItemType::MAGNET_ITEM_NONE)
+        {
+            SexyVector2 aVectorToPlant(mX + aMagnetItem->mDestOffsetX - aMagnetItem->mPosX, mY + aMagnetItem->mDestOffsetY - aMagnetItem->mPosY);
+            if (aVectorToPlant.Magnitude() > 20.0f)
+            {
+                aMagnetItem->mPosX += aVectorToPlant.x * 0.05f;
+                aMagnetItem->mPosY += aVectorToPlant.y * 0.05f;
+            }
+        }
+    }
 
-	if (mState == PlantState::STATE_MAGNETSHROOM_CHARGING)
-	{
-		if (mStateCountdown == 0)
-		{
-			mState = PlantState::STATE_READY;
+    if (mState == PlantState::STATE_MAGNETSHROOM_CHARGING)
+    {
+        if (mStateCountdown == 0)
+        {
+            mState = PlantState::STATE_READY;
 
-			float aAnimRate = RandRangeFloat(10.0f, 15.0f);
-			PlayBodyReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 30, aAnimRate);
-			if (mApp->IsIZombieLevel())
-			{
-				Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
-				aBodyReanim->mAnimRate = 0.0f;
-			}
+            float aAnimRate = RandRangeFloat(10.0f, 15.0f);
+            PlayBodyReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 30, aAnimRate);
+            if (mApp->IsIZombieLevel())
+            {
+                Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
+                aBodyReanim->mAnimRate = 0.0f;
+            }
 
-			mMagnetItems[0].mItemType = MagnetItemType::MAGNET_ITEM_NONE;
-		}
-	}
-	else if (mState == PlantState::STATE_MAGNETSHROOM_SUCKING)
-	{
-		Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
-		if (aBodyReanim->mLoopCount > 0)
-		{
-			PlayBodyReanim("anim_nonactive_idle2", ReanimLoopType::REANIM_LOOP, 20, 2.0f);
-			if (mApp->IsIZombieLevel())
-			{
-				aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
-				aBodyReanim->mAnimRate = 0.0f;
-			}
+            mMagnetItems[0].mItemType = MagnetItemType::MAGNET_ITEM_NONE;
+        }
+    }
+    else if (mState == PlantState::STATE_MAGNETSHROOM_SUCKING)
+    {
+        Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
+        if (aBodyReanim->mLoopCount > 0)
+        {
+            PlayBodyReanim("anim_nonactive_idle2", ReanimLoopType::REANIM_LOOP, 20, 2.0f);
+            if (mApp->IsIZombieLevel())
+            {
+                aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
+                aBodyReanim->mAnimRate = 0.0f;
+            }
 
-			mState = PlantState::STATE_MAGNETSHROOM_CHARGING;
-		}
-	}
-	else
-	{
-		float aClosestDistance = 0.0f;
-		Zombie* aClosestZombie = nullptr;
+            mState = PlantState::STATE_MAGNETSHROOM_CHARGING;
+        }
+    }
+    else
+    {
+        float aClosestDistance = 0.0f;
+        Zombie* aClosestZombie = nullptr;
 
-		for (Zombie* aZombie : mBoard->mZombies)
-		{
-			if (aZombie->mDead)
-				continue;
-			int aDiffY = aZombie->mRow - mRow;
-			Rect aZombieRect = aZombie->GetZombieRect();
+        Zombie* aZombie = nullptr;
+        while (mBoard->IterateZombies(aZombie))
+        {
+            int aDiffY = aZombie->mRow - mRow;
+            Rect aZombieRect = aZombie->GetZombieRect();
 
-			if (aZombie->mMindControlled)
-				continue;
+            if (aZombie->mMindControlled)
+                continue;
 
-			if (!aZombie->mHasHead)
-				continue;
+            if (!aZombie->mHasHead)
+                continue;
 
-			if (aZombie->mZombieHeight != ZombieHeight::HEIGHT_ZOMBIE_NORMAL || aZombie->mZombiePhase == ZombiePhase::PHASE_RISING_FROM_GRAVE)
-				continue;
+            if (aZombie->mZombieHeight != ZombieHeight::HEIGHT_ZOMBIE_NORMAL || aZombie->mZombiePhase == ZombiePhase::PHASE_RISING_FROM_GRAVE)
+                continue;
 
-			if (aZombie->IsDeadOrDying())
-				continue;
+            if (aZombie->IsDeadOrDying())
+                continue;
 
-			if (aZombieRect.mX > BOARD_WIDTH || aDiffY > 2 || aDiffY < -2)
-				continue;
+            // @pvz-online: 关底 boss 免疫磁力菇（MOD_BUILD 39 批，2026-10-11 用户定案
+            //「不能吸」）——橄榄球 boss 的头盔吸不走；普通橄榄球/铁桶/纱门照吸（下面
+            // 的装备名单不动）。本扫描是 MagnetShroomAttactItem 的唯一入口，挡在这里
+            // 即覆盖吸取与「卸甲飞掷」buff 两段。
 
-			if (aZombie->mZombiePhase == ZombiePhase::PHASE_DIGGER_TUNNELING ||
-				aZombie->mZombiePhase == ZombiePhase::PHASE_DIGGER_STUNNED ||
-				aZombie->mZombiePhase == ZombiePhase::PHASE_DIGGER_WALKING ||
-				aZombie->mZombieType == ZombieType::ZOMBIE_POGO)
-			{
-				if (!aZombie->mHasObject)
-					continue;
-			}
-			else if (!(aZombie->mHelmType == HelmType::HELMTYPE_PAIL ||
-				aZombie->mHelmType == HelmType::HELMTYPE_FOOTBALL ||
-				aZombie->mShieldType == ShieldType::SHIELDTYPE_DOOR ||
-				aZombie->mShieldType == ShieldType::SHIELDTYPE_LADDER ||
-				aZombie->mZombiePhase == ZombiePhase::PHASE_JACK_IN_THE_BOX_RUNNING))
-				continue;
 
-			int aRadius = aZombie->mIsEating ? 320 : 270;
-			if (GetCircleRectOverlap(mX, mY + 20, aRadius, aZombieRect))
-			{
-				float aDistance = Distance2D(mX, mY, aZombieRect.mX, aZombieRect.mY);
-				aDistance += abs(aDiffY) * 80.0f;
+            if (aZombieRect.mX > BOARD_WIDTH || aDiffY > 2 || aDiffY < -2)
+                continue;
 
-				if (aClosestZombie == nullptr || aDistance < aClosestDistance)
-				{
-					aClosestZombie = aZombie;
-					aClosestDistance = aDistance;
-				}
-			}
-		}
+            if (aZombie->mZombiePhase == ZombiePhase::PHASE_DIGGER_TUNNELING ||
+                aZombie->mZombiePhase == ZombiePhase::PHASE_DIGGER_STUNNED ||
+                aZombie->mZombiePhase == ZombiePhase::PHASE_DIGGER_WALKING ||
+                aZombie->mZombieType == ZombieType::ZOMBIE_POGO)
+            {
+                if (!aZombie->mHasObject)
+                    continue;
+            }
+            else if (!(aZombie->mHelmType == HelmType::HELMTYPE_PAIL ||
+                aZombie->mHelmType == HelmType::HELMTYPE_FOOTBALL ||
+                aZombie->mShieldType == ShieldType::SHIELDTYPE_DOOR ||
+                aZombie->mShieldType == ShieldType::SHIELDTYPE_LADDER ||
+                aZombie->mZombiePhase == ZombiePhase::PHASE_JACK_IN_THE_BOX_RUNNING))
+                continue;
 
-		if (aClosestZombie)
-		{
-			MagnetShroomAttactItem(aClosestZombie);
-			return;
-		}
+            int aRadius = aZombie->mIsEating ? 320 : 270;
+            if (GetCircleRectOverlap(mX, mY + 20, aRadius, aZombieRect))
+            {
+                float aDistance = Distance2D(mX, mY, aZombieRect.mX, aZombieRect.mY);
+                aDistance += abs(aDiffY) * 80.0f;
 
-		float aClosestLadderDist = 0.0f;
-		GridItem* aClosestLadder = nullptr;
+                if (aClosestZombie == nullptr || aDistance < aClosestDistance)
+                {
+                    aClosestZombie = aZombie;
+                    aClosestDistance = aDistance;
+                }
+            }
+        }
 
-		for (GridItem* aGridItem : mBoard->mGridItems)
-		{
-			if (aGridItem->mDead)
-				continue;
-			if (aGridItem->mGridItemType == GridItemType::GRIDITEM_LADDER)
-			{
-				int aDiffX = abs(aGridItem->mGridX - mPlantCol);
-				int aDiffY = abs(aGridItem->mGridY - mRow);
-				int aSquareDistance = std::max(aDiffX, aDiffY);
-				if (aSquareDistance <= 2)
-				{
-					float aDistance = aSquareDistance + aDiffY * 0.05f;
-					if (aClosestLadder == nullptr || aDistance < aClosestLadderDist)
-					{
-						aClosestLadder = aGridItem;
-						aClosestLadderDist = aDistance;
-					}
-				}
-			}
-		}
+        if (aClosestZombie)
+        {
+            MagnetShroomAttactItem(aClosestZombie);
+            return;
+        }
 
-		if (aClosestLadder)
-		{
-			mState = PlantState::STATE_MAGNETSHROOM_SUCKING;
-			mStateCountdown = 1500;
-			PlayBodyReanim("anim_shooting", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 12.0f);
-			mApp->PlayFoley(FoleyType::FOLEY_MAGNETSHROOM);
+        ////////////////////
 
-			aClosestLadder->GridItemDie();
+        float aClosestLadderDist = 0.0f;
+        GridItem* aClosestLadder = nullptr;
 
-			MagnetItem* aMagnetItem = GetFreeMagnetItem();
-			aMagnetItem->mPosX = mBoard->GridToPixelX(aClosestLadder->mGridX, aClosestLadder->mGridY) + 40;
-			aMagnetItem->mPosY = mBoard->GridToPixelY(aClosestLadder->mGridX, aClosestLadder->mGridY);
-			aMagnetItem->mDestOffsetX = RandRangeFloat(-10.0f, 10.0f) + 10.0f;
-			aMagnetItem->mDestOffsetY = RandRangeFloat(-10.0f, 10.0f);
-			aMagnetItem->mItemType = MagnetItemType::MAGNET_ITEM_LADDER_PLACED;
-		}
-	}
+        GridItem* aGridItem = nullptr;
+        while (mBoard->IterateGridItems(aGridItem))
+        {
+            if (aGridItem->mGridItemType == GridItemType::GRIDITEM_LADDER)
+            {
+                int aDiffX = abs(aGridItem->mGridX - mPlantCol);
+                int aDiffY = abs(aGridItem->mGridY - mRow);
+                int aSquareDistance = std::max(aDiffX, aDiffY);
+                if (aSquareDistance <= 2)
+                {
+                    float aDistance = aSquareDistance + aDiffY * 0.05f;
+                    if (aClosestLadder == nullptr || aDistance < aClosestLadderDist)
+                    {
+                        aClosestLadder = aGridItem;
+                        aClosestLadderDist = aDistance;
+                    }
+                }
+            }
+        }
+
+        if (aClosestLadder)
+        {
+            mState = PlantState::STATE_MAGNETSHROOM_SUCKING;
+            mStateCountdown = MagnetShroomRechargeFrames(mApp);
+            PlayBodyReanim("anim_shooting", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 12.0f);
+            mApp->PlayFoley(FoleyType::FOLEY_MAGNETSHROOM);
+
+            aClosestLadder->GridItemDie();
+
+            MagnetItem* aMagnetItem = GetFreeMagnetItem();
+            aMagnetItem->mPosX = mBoard->GridToPixelX(aClosestLadder->mGridX, aClosestLadder->mGridY) + 40;
+            aMagnetItem->mPosY = mBoard->GridToPixelY(aClosestLadder->mGridX, aClosestLadder->mGridY);
+            aMagnetItem->mDestOffsetX = RandRangeFloat(-10.0f, 10.0f) + 10.0f;
+            aMagnetItem->mDestOffsetY = RandRangeFloat(-10.0f, 10.0f);
+            aMagnetItem->mItemType = MagnetItemType::MAGNET_ITEM_LADDER_PLACED;
+        }
+    }
 }
 
 Coin* Plant::FindGoldMagnetTarget()
@@ -2239,73 +2702,86 @@ bool Plant::IsAGoldMagnetAboutToSuck()
 
 void Plant::UpdateGoldMagnetShroom()
 {
-	Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
+    Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
 
-	bool aIsSuckingCoin = false;
-	for (int i = 0; i < MAX_MAGNET_ITEMS; i++)
-	{
-		MagnetItem* aMagnetItem = &mMagnetItems[i];
-		if (aMagnetItem->mItemType != MagnetItemType::MAGNET_ITEM_NONE)
-		{
-			SexyVector2 aVectorToPlant(mX + aMagnetItem->mDestOffsetX - aMagnetItem->mPosX, mY + aMagnetItem->mDestOffsetY - aMagnetItem->mPosY);
-			float aDistance = aVectorToPlant.Magnitude();
-			if (aDistance < 20.0f)
-			{
-				CoinType aCoinType;
-				switch (aMagnetItem->mItemType)
-				{
-				case MagnetItemType::MAGNET_ITEM_SILVER_COIN:   aCoinType = CoinType::COIN_SILVER;      break;
-				case MagnetItemType::MAGNET_ITEM_GOLD_COIN:     aCoinType = CoinType::COIN_GOLD;        break;
-				case MagnetItemType::MAGNET_ITEM_DIAMOND:       aCoinType = CoinType::COIN_DIAMOND;     break;
-				default:                                        PVZP_ASSERT(false);                           return;
-				}
+    // @pvz-online: 单株升级「Gilded Pull」（吸金磁，表行 SEED_GOLD_MAGNET）：吸取间隔 ×0.75/层
+    // （乘算、至多 3 层）。间隔由两段机械等待组成，同步缩——READY 期每帧 1/50 的起吸门与
+    // 吸完后的充能 200..300 帧；吸取动画本身不动。非闯关局取用口恒 1.0，原样。
+    float aIntervalMul = mApp->RunPlantUpgradeMul(SeedType::SEED_GOLD_MAGNET);
 
-				int aValue = Coin::GetCoinValue(aCoinType);
-				mApp->mPlayerInfo->AddCoins(aValue);
-				mBoard->mCoinsCollected += aValue;
-				mApp->PlayFoley(FoleyType::FOLEY_COIN);
+    bool aIsSuckingCoin = false;
+    for (int i = 0; i < MAX_MAGNET_ITEMS; i++)
+    {
+        MagnetItem* aMagnetItem = &mMagnetItems[i];
+        if (aMagnetItem->mItemType != MagnetItemType::MAGNET_ITEM_NONE)
+        {
+            SexyVector2 aVectorToPlant(mX + aMagnetItem->mDestOffsetX - aMagnetItem->mPosX, mY + aMagnetItem->mDestOffsetY - aMagnetItem->mPosY);
+            float aDistance = aVectorToPlant.Magnitude();
+            if (aDistance < 20.0f)
+            {
+                CoinType aCoinType;
+                switch (aMagnetItem->mItemType)
+                {
+                case MagnetItemType::MAGNET_ITEM_SILVER_COIN:   aCoinType = CoinType::COIN_SILVER;      break;
+                case MagnetItemType::MAGNET_ITEM_GOLD_COIN:     aCoinType = CoinType::COIN_GOLD;        break;
+                case MagnetItemType::MAGNET_ITEM_DIAMOND:       aCoinType = CoinType::COIN_DIAMOND;     break;
+                default:                                        PVZP_ASSERT();                           return;
+                }
 
-				aMagnetItem->mItemType = MagnetItemType::MAGNET_ITEM_NONE;
-			}
-			else
-			{
-				float aSpeed = PvzpAnimateCurveFloatTime(30.0f, 0.0f, aDistance, 0.02f, 0.05f, PvzpCurves::CURVE_LINEAR);
-				aMagnetItem->mPosX += aVectorToPlant.x * aSpeed;
-				aMagnetItem->mPosY += aVectorToPlant.y * aSpeed;
+                // @pvz-online: 第二 buff「金石」（吸金磁 #45，docs/06 §8.6）：吸到银币入账时
+                // +25%/层 概率按金币计值（25→50）；金/钻石不重 roll，只改这一枚的入账值。
+                int aGoldChance = 25 * mApp->RunPlantBuff2Count(SeedType::SEED_GOLD_MAGNET);
+                if (aGoldChance > 0 && aCoinType == CoinType::COIN_SILVER && (int)Sexy::Rand(100) < aGoldChance)
+                {
+                    aCoinType = CoinType::COIN_GOLD;
+                }
 
-				aIsSuckingCoin = true;
-			}
-		}
-	}
+                int aValue = Coin::GetCoinValue(aCoinType);
+                mApp->mPlayerInfo->AddCoins(aValue);
+                mBoard->mCoinsCollected += aValue;
+                mApp->PlayFoley(FoleyType::FOLEY_COIN);
 
-	if (mState == PlantState::STATE_MAGNETSHROOM_CHARGING)
-	{
-		if (mStateCountdown == 0)
-		{
-			mState = PlantState::STATE_READY;
-		}
-	}
-	else if (mState == PlantState::STATE_MAGNETSHROOM_SUCKING)
-	{
-		if (aBodyReanim->ShouldTriggerTimedEvent(0.4f))
-		{
-			mApp->PlayFoley(FoleyType::FOLEY_MAGNETSHROOM);
-			GoldMagnetFindTargets();
-		}
+                aMagnetItem->mItemType = MagnetItemType::MAGNET_ITEM_NONE;
+            }
+            else
+            {
+                float aSpeed = PvzpAnimateCurveFloatTime(30.0f, 0.0f, aDistance, 0.02f, 0.05f, PvzpCurves::CURVE_LINEAR);
+                aMagnetItem->mPosX += aVectorToPlant.x * aSpeed;
+                aMagnetItem->mPosY += aVectorToPlant.y * aSpeed;
 
-		if (aBodyReanim->mLoopCount > 0 && !aIsSuckingCoin)
-		{
-			PlayIdleAnim(14.0f);
-			mState = PlantState::STATE_MAGNETSHROOM_CHARGING;
-			mStateCountdown = RandRangeInt(200, 300);
-		}
-	}
-	else if (!IsAGoldMagnetAboutToSuck() && Sexy::Rand(50) == 0 && FindGoldMagnetTarget())
-	{
-		mBoard->ShowCoinBank();
-		mState = PlantState::STATE_MAGNETSHROOM_SUCKING;
-		PlayBodyReanim("anim_attract", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 12.0f);
-	}
+                aIsSuckingCoin = true;
+            }
+        }
+    }
+
+    if (mState == PlantState::STATE_MAGNETSHROOM_CHARGING)
+    {
+        if (mStateCountdown == 0)
+        {
+            mState = PlantState::STATE_READY;
+        }
+    }
+    else if (mState == PlantState::STATE_MAGNETSHROOM_SUCKING)
+    {
+        if (aBodyReanim->ShouldTriggerTimedEvent(0.4f))
+        {
+            mApp->PlayFoley(FoleyType::FOLEY_MAGNETSHROOM);
+            GoldMagnetFindTargets();
+        }
+
+        if (aBodyReanim->mLoopCount > 0 && !aIsSuckingCoin)
+        {
+            PlayIdleAnim(14.0f);
+            mState = PlantState::STATE_MAGNETSHROOM_CHARGING;
+            mStateCountdown = (int)(RandRangeInt(200, 300) * aIntervalMul + 0.5f);
+        }
+    }
+    else if (!IsAGoldMagnetAboutToSuck() && Sexy::Rand((int)(50 * aIntervalMul + 0.5f)) == 0 && FindGoldMagnetTarget())
+    {
+        mBoard->ShowCoinBank();
+        mState = PlantState::STATE_MAGNETSHROOM_SUCKING;
+        PlayBodyReanim("anim_attract", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 12.0f);
+    }
 }
 
 void Plant::RemoveEffects()
@@ -2515,81 +2991,98 @@ void Plant::UpdateBowling()
 
 void Plant::UpdateAbilities()
 {
-	if (!IsInPlay())
-		return;
+    if (!IsInPlay())
+        return;
 
-	if (mState == PlantState::STATE_DOINGSPECIAL || mSquished)
-	{
-		mDisappearCountdown--;
-		if (mDisappearCountdown < 0)
-		{
-			Die();
-			return;
-		}
-	}
+    if (mState == PlantState::STATE_DOINGSPECIAL || mSquished)
+    {
+        mDisappearCountdown--;
+        if (mDisappearCountdown < 0)
+        {
+            Die();
+            return;
+        }
+    }
 
-	if (mWakeUpCounter > 0)
-	{
-		mWakeUpCounter--;
-		if (mWakeUpCounter == 60)
-		{
-			mApp->PlayFoley(FoleyType::FOLEY_WAKEUP);
-		}
-		if (mWakeUpCounter == 0)
-		{
-			SetSleeping(false);
-		}
-	}
+    if (mWakeUpCounter > 0)
+    {
+        mWakeUpCounter--;
+        if (mWakeUpCounter == 60)
+        {
+            mApp->PlayFoley(FoleyType::FOLEY_WAKEUP);
+        }
+        if (mWakeUpCounter == 0)
+        {
+            SetSleeping(false);
+        }
+    }
 
-	if (mIsAsleep || mSquished || mOnBungeeState != PlantOnBungeeState::NOT_ON_BUNGEE)
-		return;
+    if (mIsAsleep || mSquished || mOnBungeeState != PlantOnBungeeState::NOT_ON_BUNGEE)
+        return;
 
-	UpdateShooting();
+    UpdateShooting();
 
-	if (mStateCountdown > 0)
-		mStateCountdown--;
+    if (mStateCountdown > 0)
+        mStateCountdown--;
 
-	if (mApp->IsWallnutBowlingLevel())
-	{
-		UpdateBowling();
-		return;
-	}
+    if (mApp->IsWallnutBowlingLevel())
+    {
+        UpdateBowling();
+        return;
+    }
 
-	if (mSeedType == SeedType::SEED_SQUASH)                                                     UpdateSquash();
-	else if (mSeedType == SeedType::SEED_DOOMSHROOM)                                            UpdateDoomShroom();
-	else if (mSeedType == SeedType::SEED_ICESHROOM)                                             UpdateIceShroom();
-	else if (mSeedType == SeedType::SEED_CHOMPER)                                               UpdateChomper();
-	else if (mSeedType == SeedType::SEED_BLOVER)                                                UpdateBlover();
-	else if (mSeedType == SeedType::SEED_FLOWERPOT)                                             UpdateFlowerPot();
-	else if (mSeedType == SeedType::SEED_LILYPAD)                                               UpdateLilypad();
-	else if (mSeedType == SeedType::SEED_IMITATER)                                              UpdateImitater();
-	else if (mSeedType == SeedType::SEED_INSTANT_COFFEE)                                        UpdateCoffeeBean();
-	else if (mSeedType == SeedType::SEED_UMBRELLA)                                              UpdateUmbrella();
-	else if (mSeedType == SeedType::SEED_COBCANNON)                                             UpdateCobCannon();
-	else if (mSeedType == SeedType::SEED_CACTUS)                                                UpdateCactus();
-	else if (mSeedType == SeedType::SEED_MAGNETSHROOM)                                          UpdateMagnetShroom();
-	else if (mSeedType == SeedType::SEED_GOLD_MAGNET)                                           UpdateGoldMagnetShroom();
-	else if (mSeedType == SeedType::SEED_SUNSHROOM)                                             UpdateSunShroom();
-	else if (MakesSun() || mSeedType == SeedType::SEED_MARIGOLD)                                UpdateProductionPlant();
-	else if (mSeedType == SeedType::SEED_GRAVEBUSTER)                                           UpdateGraveBuster();
-	else if (mSeedType == SeedType::SEED_TORCHWOOD)                                             UpdateTorchwood();
-	else if (mSeedType == SeedType::SEED_POTATOMINE)                                            UpdatePotato();
-	else if (mSeedType == SeedType::SEED_SPIKEWEED || mSeedType == SeedType::SEED_SPIKEROCK)    UpdateSpikeweed();
-	else if (mSeedType == SeedType::SEED_TANGLEKELP)                                            UpdateTanglekelp();
-	else if (mSeedType == SeedType::SEED_SCAREDYSHROOM)                                         UpdateScaredyShroom();
+    if (mSeedType == SeedType::SEED_SQUASH)                                                     UpdateSquash();
+    else if (mSeedType == SeedType::SEED_DOOMSHROOM)                                            UpdateDoomShroom();
+    else if (mSeedType == SeedType::SEED_ICESHROOM)                                             UpdateIceShroom();
+    else if (mSeedType == SeedType::SEED_CHOMPER)                                               UpdateChomper();
+    else if (mSeedType == SeedType::SEED_BLOVER)                                                UpdateBlover();
+    else if (mSeedType == SeedType::SEED_FLOWERPOT)                                             UpdateFlowerPot();
+    else if (mSeedType == SeedType::SEED_LILYPAD)                                               UpdateLilypad();
+    else if (mSeedType == SeedType::SEED_IMITATER)                                              UpdateImitater();
+    else if (mSeedType == SeedType::SEED_INSTANT_COFFEE)                                        UpdateCoffeeBean();
+    else if (mSeedType == SeedType::SEED_UMBRELLA)                                              UpdateUmbrella();
+    else if (mSeedType == SeedType::SEED_COBCANNON)                                             UpdateCobCannon();
+    else if (mSeedType == SeedType::SEED_CACTUS)                                                UpdateCactus();
+    else if (mSeedType == SeedType::SEED_MAGNETSHROOM)                                          UpdateMagnetShroom();
+    else if (mSeedType == SeedType::SEED_GOLD_MAGNET)                                           UpdateGoldMagnetShroom();
+    else if (mSeedType == SeedType::SEED_SUNSHROOM)                                             UpdateSunShroom();
+    else if (MakesSun() || mSeedType == SeedType::SEED_MARIGOLD)                                UpdateProductionPlant();
+    else if (mSeedType == SeedType::SEED_GRAVEBUSTER)                                           UpdateGraveBuster();
+    else if (mSeedType == SeedType::SEED_TORCHWOOD)                                             UpdateTorchwood();
+    else if (mSeedType == SeedType::SEED_POTATOMINE)                                            UpdatePotato();
+    else if (mSeedType == SeedType::SEED_SPIKEWEED || mSeedType == SeedType::SEED_SPIKEROCK)    UpdateSpikeweed();
+    else if (mSeedType == SeedType::SEED_TANGLEKELP)                                            UpdateTanglekelp();
+    else if (mSeedType == SeedType::SEED_SCAREDYSHROOM)                                         UpdateScaredyShroom();
+    else if (mSeedType == SeedType::SEED_PUMPKINSHELL)
+    {
+        // @pvz-online: 第二 buff「Regrow」再生（南瓜头 #30，docs/06 §8.6，2★ cap2）：每 1500 帧
+        //（15 秒）回复 10%×层 最大血量，不超上限。计时器借 mLaunchCounter——南瓜头该字段
+        // 全程闲置（PlantInitialize 里 mLaunchRate 为 0 走 else 置 0，全代码无第二处使用）。
+        // 未抽条恒 0，整段不进。
+        int aRegrowStacks = mApp->RunPlantBuff2Count(SeedType::SEED_PUMPKINSHELL);
+        if (aRegrowStacks > 0 && ++mLaunchCounter >= 1500)
+        {
+            mLaunchCounter = 0;
+            if (mPlantHealth < mPlantMaxHealth)
+            {
+                int aHealTarget = mPlantHealth + (mPlantMaxHealth / 10) * aRegrowStacks;
+                mPlantHealth = aHealTarget > mPlantMaxHealth ? mPlantMaxHealth : aHealTarget;
+            }
+        }
+    }
 
-	if (mSubclass == PlantSubClass::SUBCLASS_SHOOTER)
-	{
-		UpdateShooter();
-	}
-	if (mDoSpecialCountdown > 0)
-	{
-		mDoSpecialCountdown--;
-		if (mDoSpecialCountdown == 0)
-		{
-			DoSpecial();
-		}
-	}
+    if (mSubclass == PlantSubClass::SUBCLASS_SHOOTER)
+    {
+        UpdateShooter();
+    }
+    if (mDoSpecialCountdown > 0)
+    {
+        mDoSpecialCountdown--;
+        if (mDoSpecialCountdown == 0)
+        {
+            DoSpecial();
+        }
+    }
 }
 
 bool Plant::IsPartOfUpgradableTo(SeedType theUpgradedType)
@@ -3206,217 +3699,238 @@ void Plant::AnimatePumpkin()
 
 void Plant::UpdateShooting()
 {
-	if (NotOnGround() || mShootingCounter == 0)
-		return;
+    if (NotOnGround() || mShootingCounter == 0)
+        return;
 
-	mShootingCounter--;
+    mShootingCounter--;
 
-	if (mSeedType == SeedType::SEED_FUMESHROOM && mShootingCounter == 15)
-	{
-		int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PARTICLE, mRow, 0);
-		AddAttachedParticle(mX + 85, mY + 31, aRenderPosition, ParticleEffect::PARTICLE_FUMECLOUD);
-	}
+    // @pvz-online: 命中/粒子检查点随「动画加速」同比例缩放（见 PlantShootSpeed 注释）。
+    // 非攻速植物 aSpeed==1，取整后与原常量逐值相同，行为零变化。
+    float aSpeed = PlantShootSpeed(mApp, mSeedType, this);
 
-	if (mSeedType == SeedType::SEED_GLOOMSHROOM)
-	{
-		if (mShootingCounter == 136 || mShootingCounter == 108 || mShootingCounter == 80 || mShootingCounter == 52)
-		{
-			int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PARTICLE, mRow, 0);
-			AddAttachedParticle(mX + 40, mY + 40, aRenderPosition, ParticleEffect::PARTICLE_GLOOMCLOUD);
-		}
-		if (mShootingCounter == 126 || mShootingCounter == 98 || mShootingCounter == 70 || mShootingCounter == 42)
-		{
-			Fire(nullptr, mRow, PlantWeapon::WEAPON_PRIMARY);
-		}
-	}
-	else if (mSeedType == SeedType::SEED_GATLINGPEA)
-	{
-		if (mShootingCounter == 18 || mShootingCounter == 35 || mShootingCounter == 51 || mShootingCounter == 68)
-		{
-			Fire(nullptr, mRow, PlantWeapon::WEAPON_PRIMARY);
-		}
-	}
-	else if (mSeedType == SeedType::SEED_CATTAIL)
-	{
-		if (mShootingCounter == 19)
-		{
-			Zombie* aZombie = FindTargetZombie(mRow, PlantWeapon::WEAPON_PRIMARY);
-			if (aZombie)
-			{
-				Fire(aZombie, mRow, PlantWeapon::WEAPON_PRIMARY);
-			}
-		}
-	}
-	else if (mShootingCounter == 1)
-	{
-		if (mSeedType == SeedType::SEED_THREEPEATER)
-		{
-			int rowAbove = mRow - 1;
-			int rowBelow = mRow + 1;
-			Reanimation* aHeadReanim2 = mApp->ReanimationGet(mHeadReanimID2);
-			Reanimation* aHeadReanim3 = mApp->ReanimationGet(mHeadReanimID3);
-			Reanimation* aHeadReanim1 = mApp->ReanimationGet(mHeadReanimID);
+    if (mSeedType == SeedType::SEED_FUMESHROOM && mShootingCounter == PlantShootTicks(15, aSpeed))
+    {
+        int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PARTICLE, mRow, 0);
+        AddAttachedParticle(mX + 85, mY + 31, aRenderPosition, ParticleEffect::PARTICLE_FUMECLOUD);
+    }
 
-			if (aHeadReanim1->mLoopType == ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD)
-			{
-				Fire(nullptr, rowBelow, PlantWeapon::WEAPON_PRIMARY);
-			}
-			if (aHeadReanim2->mLoopType == ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD)
-			{
-				Fire(nullptr, mRow, PlantWeapon::WEAPON_PRIMARY);
-			}
-			if (aHeadReanim3->mLoopType == ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD)
-			{
-				Fire(nullptr, rowAbove, PlantWeapon::WEAPON_PRIMARY);
-			}
-		}
-		else if (mSeedType == SeedType::SEED_SPLITPEA)
-		{
-			Reanimation* aHeadBackReanim = mApp->ReanimationTryToGet(mHeadReanimID2);
-			Reanimation* aHeadFrontReanim = mApp->ReanimationTryToGet(mHeadReanimID);
-			if (aHeadFrontReanim->mLoopType == ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD && mLaunchCounter > 25)
-			{
-				Fire(nullptr, mRow, PlantWeapon::WEAPON_PRIMARY);
-			}
-			if (aHeadBackReanim->mLoopType == ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD)
-			{
-				Fire(nullptr, mRow, PlantWeapon::WEAPON_SECONDARY);
-			}
-		}
-		else if (mState == PlantState::STATE_CACTUS_LOW)
-		{
-			Fire(nullptr, mRow, PlantWeapon::WEAPON_SECONDARY);
-		}
-		else if (mSeedType == SeedType::SEED_CABBAGEPULT || mSeedType == SeedType::SEED_KERNELPULT || mSeedType == SeedType::SEED_MELONPULT || mSeedType == SeedType::SEED_WINTERMELON)
-		{
-			PlantWeapon aPlantWeapon = PlantWeapon::WEAPON_PRIMARY;
-			if (mState == PlantState::STATE_KERNELPULT_BUTTER)
-			{
-				Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
-				aBodyReanim->AssignRenderGroupToPrefix("Cornpult_butter", RENDER_GROUP_HIDDEN);
-				aBodyReanim->AssignRenderGroupToPrefix("Cornpult_kernal", RENDER_GROUP_NORMAL);
-				mState = PlantState::STATE_NOTREADY;
-				aPlantWeapon = PlantWeapon::WEAPON_SECONDARY;
-			}
+    if (mSeedType == SeedType::SEED_GLOOMSHROOM)
+    {
+        if (mShootingCounter == PlantShootTicks(136, aSpeed) || mShootingCounter == PlantShootTicks(108, aSpeed) || mShootingCounter == PlantShootTicks(80, aSpeed) || mShootingCounter == PlantShootTicks(52, aSpeed))
+        {
+            int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PARTICLE, mRow, 0);
+            AddAttachedParticle(mX + 40, mY + 40, aRenderPosition, ParticleEffect::PARTICLE_GLOOMCLOUD);
+        }
+        if (mShootingCounter == PlantShootTicks(126, aSpeed) || mShootingCounter == PlantShootTicks(98, aSpeed) || mShootingCounter == PlantShootTicks(70, aSpeed) || mShootingCounter == PlantShootTicks(42, aSpeed))
+        {
+            Fire(nullptr, mRow, PlantWeapon::WEAPON_PRIMARY);
+        }
+    }
+    else if (mSeedType == SeedType::SEED_GATLINGPEA)
+    {
+        if (mShootingCounter == PlantShootTicks(18, aSpeed) || mShootingCounter == PlantShootTicks(35, aSpeed) || mShootingCounter == PlantShootTicks(51, aSpeed) || mShootingCounter == PlantShootTicks(68, aSpeed))
+        {
+            Fire(nullptr, mRow, PlantWeapon::WEAPON_PRIMARY);
+        }
+    }
+    else if (mSeedType == SeedType::SEED_CATTAIL)
+    {
+        if (mShootingCounter == PlantShootTicks(19, aSpeed))
+        {
+            Zombie* aZombie = FindTargetZombie(mRow, PlantWeapon::WEAPON_PRIMARY);
+            if (aZombie)
+            {
+                Fire(aZombie, mRow, PlantWeapon::WEAPON_PRIMARY);
 
-			Zombie* aZombie = FindTargetZombie(mRow, aPlantWeapon);
-			Fire(aZombie, mRow, aPlantWeapon);
-		}
-		else
-		{
-			Fire(nullptr, mRow, PlantWeapon::WEAPON_PRIMARY);
-		}
+                // @pvz-online: 单株升级「Quick Claw」（猫尾草，表行 SEED_CATTAIL）：攻击目标
+                // +1 个/层（计数型、至多 2 层）——同一瞬间依次找第 2、第 3 个目标（排除已选），
+                // 各发一颗追踪刺；找不出更多就只打现有的。
+                Zombie* aPrevZombie = aZombie;
+                Zombie* aPrevZombie2 = nullptr;
+                for (int i = 0, aExtra = mApp->RunPlantUpgradeCount(SeedType::SEED_CATTAIL); i < aExtra; i++)
+                {
+                    Zombie* aExtraZombie = FindTargetZombie(mRow, PlantWeapon::WEAPON_PRIMARY, aPrevZombie, aPrevZombie2);
+                    if (!aExtraZombie)
+                    {
+                        break;
+                    }
+                    Fire(aExtraZombie, mRow, PlantWeapon::WEAPON_PRIMARY);
+                    aPrevZombie2 = aPrevZombie;
+                    aPrevZombie = aExtraZombie;
+                }
+            }
+        }
+    }
+    else if (mShootingCounter == 1)
+    {
+        if (mSeedType == SeedType::SEED_THREEPEATER)
+        {
+            int rowAbove = mRow - 1;
+            int rowBelow = mRow + 1;
+            Reanimation* aHeadReanim2 = mApp->ReanimationGet(mHeadReanimID2);
+            Reanimation* aHeadReanim3 = mApp->ReanimationGet(mHeadReanimID3);
+            Reanimation* aHeadReanim1 = mApp->ReanimationGet(mHeadReanimID);
 
-		return;
-	}
+            if (aHeadReanim1->mLoopType == ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD)
+            {
+                Fire(nullptr, rowBelow, PlantWeapon::WEAPON_PRIMARY);
+            }
+            if (aHeadReanim2->mLoopType == ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD)
+            {
+                Fire(nullptr, mRow, PlantWeapon::WEAPON_PRIMARY);
+            }
+            if (aHeadReanim3->mLoopType == ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD)
+            {
+                Fire(nullptr, rowAbove, PlantWeapon::WEAPON_PRIMARY);
+            }
+        }
+        else if (mSeedType == SeedType::SEED_SPLITPEA)
+        {
+            Reanimation* aHeadBackReanim = mApp->ReanimationTryToGet(mHeadReanimID2);
+            Reanimation* aHeadFrontReanim = mApp->ReanimationTryToGet(mHeadReanimID);
+            if (aHeadFrontReanim->mLoopType == ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD)
+            {
+                Fire(nullptr, mRow, PlantWeapon::WEAPON_PRIMARY);
+            }
+            if (aHeadBackReanim->mLoopType == ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD)
+            {
+                Fire(nullptr, mRow, PlantWeapon::WEAPON_SECONDARY);
+            }
+        }
+        else if (mState == PlantState::STATE_CACTUS_LOW)
+        {
+            Fire(nullptr, mRow, PlantWeapon::WEAPON_SECONDARY);
+        }
+        else if (mSeedType == SeedType::SEED_CABBAGEPULT || mSeedType == SeedType::SEED_KERNELPULT || mSeedType == SeedType::SEED_MELONPULT || mSeedType == SeedType::SEED_WINTERMELON)
+        {
+            PlantWeapon aPlantWeapon = PlantWeapon::WEAPON_PRIMARY;
+            if (mState == PlantState::STATE_KERNELPULT_BUTTER)
+            {
+                Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
+                aBodyReanim->AssignRenderGroupToPrefix("Cornpult_butter", RENDER_GROUP_HIDDEN);
+                aBodyReanim->AssignRenderGroupToPrefix("Cornpult_kernal", RENDER_GROUP_NORMAL);
+                mState = PlantState::STATE_NOTREADY;
+                aPlantWeapon = PlantWeapon::WEAPON_SECONDARY;
+            }
 
-	if (mShootingCounter != 0)
-		return;
+            Zombie* aZombie = FindTargetZombie(mRow, aPlantWeapon);
+            Fire(aZombie, mRow, aPlantWeapon);
+        }
+        else
+        {
+            Fire(nullptr, mRow, PlantWeapon::WEAPON_PRIMARY);
+        }
 
-	Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
-	Reanimation* aHeadReanim = mApp->ReanimationTryToGet(mHeadReanimID);
-	if (mSeedType == SeedType::SEED_THREEPEATER)
-	{
-		Reanimation* aHeadReanim2 = mApp->ReanimationGet(mHeadReanimID2);
-		Reanimation* aHeadReanim3 = mApp->ReanimationGet(mHeadReanimID3);
+        return;
+    }
 
-		if (aHeadReanim2->mLoopCount > 0)
-		{
-			if (aHeadReanim->mLoopType == ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD)
-			{
-				aHeadReanim->StartBlend(20);
-				aHeadReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
-				aHeadReanim->SetFramesForLayer("anim_head_idle1");
-				aHeadReanim->mAnimRate = aBodyReanim->mAnimRate;
-				aHeadReanim->mAnimTime = aBodyReanim->mAnimTime;
-			}
+    if (mShootingCounter != 0)
+        return;
 
-			aHeadReanim2->StartBlend(20);
-			aHeadReanim2->mLoopType = ReanimLoopType::REANIM_LOOP;
-			aHeadReanim2->SetFramesForLayer("anim_head_idle2");
-			aHeadReanim2->mAnimRate = aBodyReanim->mAnimRate;
-			aHeadReanim2->mAnimTime = aBodyReanim->mAnimTime;
+    Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
+    Reanimation* aHeadReanim = mApp->ReanimationTryToGet(mHeadReanimID);
+    if (mSeedType == SeedType::SEED_THREEPEATER)
+    {
+        Reanimation* aHeadReanim2 = mApp->ReanimationGet(mHeadReanimID2);
+        Reanimation* aHeadReanim3 = mApp->ReanimationGet(mHeadReanimID3);
 
-			if (aHeadReanim3->mLoopType == ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD)
-			{
-				aHeadReanim3->StartBlend(20);
-				aHeadReanim3->mLoopType = ReanimLoopType::REANIM_LOOP;
-				aHeadReanim3->SetFramesForLayer("anim_head_idle3");
-				aHeadReanim3->mAnimRate = aBodyReanim->mAnimRate;
-				aHeadReanim3->mAnimTime = aBodyReanim->mAnimTime;
-			}
+        if (aHeadReanim2->mLoopCount > 0)
+        {
+            if (aHeadReanim->mLoopType == ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD)
+            {
+                aHeadReanim->StartBlend(20);
+                aHeadReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
+                aHeadReanim->SetFramesForLayer("anim_head_idle1");
+                aHeadReanim->mAnimRate = aBodyReanim->mAnimRate;
+                aHeadReanim->mAnimTime = aBodyReanim->mAnimTime;
+            }
 
-			return;
-		}
-	}
-	else if (mSeedType == SeedType::SEED_SPLITPEA)
-	{
-		Reanimation* aHeadReanim2 = mApp->ReanimationGet(mHeadReanimID2);
+            aHeadReanim2->StartBlend(20);
+            aHeadReanim2->mLoopType = ReanimLoopType::REANIM_LOOP;
+            aHeadReanim2->SetFramesForLayer("anim_head_idle2");
+            aHeadReanim2->mAnimRate = aBodyReanim->mAnimRate;
+            aHeadReanim2->mAnimTime = aBodyReanim->mAnimTime;
 
-		if (aHeadReanim->mLoopCount > 0)
-		{
-			aHeadReanim->StartBlend(20);
-			aHeadReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
-			aHeadReanim->SetFramesForLayer("anim_head_idle");
-			aHeadReanim->mAnimRate = aBodyReanim->mAnimRate;
-			aHeadReanim->mAnimTime = aBodyReanim->mAnimTime;
-		}
+            if (aHeadReanim3->mLoopType == ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD)
+            {
+                aHeadReanim3->StartBlend(20);
+                aHeadReanim3->mLoopType = ReanimLoopType::REANIM_LOOP;
+                aHeadReanim3->SetFramesForLayer("anim_head_idle3");
+                aHeadReanim3->mAnimRate = aBodyReanim->mAnimRate;
+                aHeadReanim3->mAnimTime = aBodyReanim->mAnimTime;
+            }
 
-		if (aHeadReanim2->mLoopCount > 0)
-		{
-			aHeadReanim2->StartBlend(20);
-			aHeadReanim2->mLoopType = ReanimLoopType::REANIM_LOOP;
-			aHeadReanim2->SetFramesForLayer("anim_splitpea_idle");
-			aHeadReanim2->mAnimRate = aBodyReanim->mAnimRate;
-			aHeadReanim2->mAnimTime = aBodyReanim->mAnimTime;
-		}
+            return;
+        }
+    }
+    else if (mSeedType == SeedType::SEED_SPLITPEA)
+    {
+        Reanimation* aHeadReanim2 = mApp->ReanimationGet(mHeadReanimID2);
 
-		return;
-	}
-	else if (mState == PlantState::STATE_CACTUS_HIGH)
-	{
-		if (aBodyReanim->mLoopCount > 0)
-		{
-			PlayBodyReanim("anim_idlehigh", ReanimLoopType::REANIM_LOOP, 20, 0.0f);
+        if (aHeadReanim->mLoopCount > 0)
+        {
+            aHeadReanim->StartBlend(20);
+            aHeadReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
+            aHeadReanim->SetFramesForLayer("anim_head_idle");
+            aHeadReanim->mAnimRate = aBodyReanim->mAnimRate;
+            aHeadReanim->mAnimTime = aBodyReanim->mAnimTime;
+        }
 
-			aBodyReanim->mAnimRate = aBodyReanim->mDefinition->mFPS;
-			if (mApp->IsIZombieLevel())
-			{
-				aBodyReanim->mAnimRate = 0.0f;
-			}
+        if (aHeadReanim2->mLoopCount > 0)
+        {
+            aHeadReanim2->StartBlend(20);
+            aHeadReanim2->mLoopType = ReanimLoopType::REANIM_LOOP;
+            aHeadReanim2->SetFramesForLayer("anim_splitpea_idle");
+            aHeadReanim2->mAnimRate = aBodyReanim->mAnimRate;
+            aHeadReanim2->mAnimTime = aBodyReanim->mAnimTime;
+        }
 
-			return;
-		}
-	}
-	else if (aHeadReanim)
-	{
-		if (aHeadReanim->mLoopCount > 0)
-		{
-			aHeadReanim->StartBlend(20);
-			aHeadReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
-			aHeadReanim->SetFramesForLayer("anim_head_idle");
-			aHeadReanim->mAnimRate = aBodyReanim->mAnimRate;
-			aHeadReanim->mAnimTime = aBodyReanim->mAnimTime;
-			return;
-		}
-	}
-	else if (mSeedType == SeedType::SEED_COBCANNON)
-	{
-		if (aBodyReanim->mLoopCount > 0)
-		{
-			mState = PlantState::STATE_COBCANNON_ARMING;
-			mStateCountdown = 3000;
-			PlayBodyReanim("anim_unarmed_idle", ReanimLoopType::REANIM_LOOP, 20, aBodyReanim->mDefinition->mFPS);
-			return;
-		}
-	}
-	else if (aBodyReanim && aBodyReanim->mLoopCount > 0)
-	{
-		PlayIdleAnim(aBodyReanim->mDefinition->mFPS);
-		return;
-	}
+        return;
+    }
+    else if (mState == PlantState::STATE_CACTUS_HIGH)
+    {
+        if (aBodyReanim->mLoopCount > 0)
+        {
+            PlayBodyReanim("anim_idlehigh", ReanimLoopType::REANIM_LOOP, 20, 0.0f);
 
-	mShootingCounter = 1;
+            aBodyReanim->mAnimRate = aBodyReanim->mDefinition->mFPS;
+            if (mApp->IsIZombieLevel())
+            {
+                aBodyReanim->mAnimRate = 0.0f;
+            }
+
+            return;
+        }
+    }
+    else if (aHeadReanim)
+    {
+        if (aHeadReanim->mLoopCount > 0)
+        {
+            aHeadReanim->StartBlend(20);
+            aHeadReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
+            aHeadReanim->SetFramesForLayer("anim_head_idle");
+            aHeadReanim->mAnimRate = aBodyReanim->mAnimRate;
+            aHeadReanim->mAnimTime = aBodyReanim->mAnimTime;
+            return;
+        }
+    }
+    else if (mSeedType == SeedType::SEED_COBCANNON)
+    {
+        if (aBodyReanim->mLoopCount > 0)
+        {
+            mState = PlantState::STATE_COBCANNON_ARMING;
+            mStateCountdown = CobCannonArmFrames(mApp, 3000);
+            PlayBodyReanim("anim_unarmed_idle", ReanimLoopType::REANIM_LOOP, 20, aBodyReanim->mDefinition->mFPS);
+            return;
+        }
+    }
+    else if (aBodyReanim && aBodyReanim->mLoopCount > 0)
+    {
+        PlayIdleAnim(aBodyReanim->mDefinition->mFPS);
+        return;
+    }
+
+    mShootingCounter = 1;
 }
 
 void Plant::Animate()
@@ -4260,22 +4774,48 @@ void Plant::BurnRow(int theRow)
 
 void Plant::BlowAwayFliers()
 {
-	for (Zombie* aZombie : mBoard->mZombies)
-	{
-		if (aZombie->mDead)
-			continue;
-		if (!aZombie->IsDeadOrDying())
-		{
-			// Blow away only flying balloons here; balloons mid-pop are excluded
-			if (aZombie->mZombiePhase == ZombiePhase::PHASE_BALLOON_FLYING)
-			{
-				aZombie->mBlowingAway = true;
-			}
-		}
-	}
+    // @pvz-online: 单株升级「Gale」（三叶草，批 13）：吹风后全场僵尸减速 5 秒/层（至多 2 层）。
+    // 语义照地刺（DoRowAreaDamage）：CanBeChilled 挡下、不缩短更长的减速（冰道/寒冰菇的
+    // 2000 帧不动）、首次挂上出冰音、降速刷新走 UpdateAnimSpeed；计数型、非闯关恒 0。
+    int aSlowFrames = 500 * mApp->RunPlantUpgradeCount(SeedType::SEED_BLOVER);
+    // @pvz-online: 第二 buff「Gale Force」狂风（三叶草 #27，docs/06 §8.6，2★ cap2）：持条时
+    // 吹风把全场僵尸推离 1 格×层（+80px/层，网格宽 80px；mPosX 为浮点可直接加）。
+    // 正在啃植物的（mIsEating，啃食位置是锁存的，推走会边啃空气边掉血）与被吹走的
+    //（mBlowingAway，飞行单位本来就在离场）不推；死亡动画中的由外层 IsDeadOrDying 挡。
+    int aGaleForceStacks = mApp->RunPlantBuff2Count(SeedType::SEED_BLOVER);
+    Zombie* aZombie = nullptr;
+    while (mBoard->IterateZombies(aZombie))
+    {
+        if (!aZombie->IsDeadOrDying())
+        {
+            // Verified as a pure function, safe to remove
+            // Rect aZombieRect = aZombie->GetZombieRect();
+            if (aZombie->IsFlying())
+            {
+                aZombie->mBlowingAway = true;
+            }
+            // @pvz-online: 关底 boss 免疫狂风推离（MOD_BUILD 39 批，2026-10-11 用户定案
+            //「免疫狂风」）——推离是位移控制，两个 boss 都不吃；减速 5 秒（下面 aSlowFrames
+            // 段）照常受 CanBeChilled 管：橄榄球 boss 吃减速、巨人 boss 不吃。
+            if (aGaleForceStacks > 0 && !aZombie->mIsEating && !aZombie->mBlowingAway
+                )
+            {
+                aZombie->mPosX += 80.0f * aGaleForceStacks;
+            }
+            if (aSlowFrames > 0 && aZombie->CanBeChilled() && aSlowFrames > aZombie->mChilledCounter)
+            {
+                if (aZombie->mChilledCounter == 0)
+                {
+                    mApp->PlayFoley(FoleyType::FOLEY_FROZEN);
+                }
+                aZombie->mChilledCounter = aSlowFrames;
+                aZombie->UpdateAnimSpeed();
+            }
+        }
+    }
 
-	mApp->PlaySample(SOUND_BLOVER);
-	mBoard->mFogBlownCountDown = 4000;
+    mApp->PlaySample(SOUND_BLOVER);
+    mBoard->mFogBlownCountDown = 4000;
 }
 
 void Plant::KillAllPlantsNearDoom()
@@ -4293,117 +4833,224 @@ void Plant::KillAllPlantsNearDoom()
 
 void Plant::DoSpecial()
 {
-	int aPosX = mX + mWidth / 2;
-	int aPosY = mY + mHeight / 2;
-	int aDamageRangeFlags = GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
+    int aPosX = mX + mWidth / 2;
+    int aPosY = mY + mHeight / 2;
+    int aDamageRangeFlags = GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
 
-	switch (mSeedType)
-	{
-	case SeedType::SEED_BLOVER:
-	{
-		if (mState != PlantState::STATE_DOINGSPECIAL)
-		{
-			mState = PlantState::STATE_DOINGSPECIAL;
-			BlowAwayFliers();
-		}
-		break;
-	}
-	case SeedType::SEED_CHERRYBOMB:
-	{
-		mApp->PlayFoley(FoleyType::FOLEY_CHERRYBOMB);
-		mApp->PlayFoley(FoleyType::FOLEY_JUICY);
+    switch (mSeedType)
+    {
+    case SeedType::SEED_BLOVER:
+    {
+        if (mState != PlantState::STATE_DOINGSPECIAL)
+        {
+            mState = PlantState::STATE_DOINGSPECIAL;
+            BlowAwayFliers();
+        }
+        break;
+    }
+    case SeedType::SEED_CHERRYBOMB:
+    {
+        mApp->PlayFoley(FoleyType::FOLEY_CHERRYBOMB);
+        mApp->PlayFoley(FoleyType::FOLEY_JUICY);
 
-		if (mBoard->KillAllZombiesInRadius(mRow, aPosX, aPosY, 115, 1, true, aDamageRangeFlags) >= 10)
-			ReportAchievement::GiveAchievement(mApp, Explodonator, true);
+        // @pvz-online: 单株升级「扩爆」：半径 ×(1+50%/层)（RunBuffs 单株表；批八由 25% 上调）
+        int aRadius = (int)(115 * mApp->RunPlantUpgradeMul(SeedType::SEED_CHERRYBOMB) + 0.5f);
+        if (mBoard->KillAllZombiesInRadius(mRow, aPosX, aPosY, aRadius, 1, true, aDamageRangeFlags) >= 10)
+            ReportAchievement::GiveAchievement(mApp, Explodonator, true);
 
-		mApp->AddPvzpParticle(aPosX, aPosY, static_cast<int>(RenderLayer::RENDER_LAYER_TOP), ParticleEffect::PARTICLE_POWIE);
-		mBoard->ShakeBoard(3, -4);
+        // @pvz-online: 第二 buff「焦土」（docs/06 §8.6 #2）：被炸中的僵尸继续燃烧——每秒
+        // 300×层、共 3 秒（Update 递减块扣血）。半径判定照 KillAllZombiesInRadius 的口径
+        // （同行、Boss 视作同行、圆-矩形相交，照土豆雷「震雷」循环）；厚血目标爆炸秒不掉、
+        // 焦土接力；僵尸已死则不挂（mScorchedCounter 挡在 EffectedByDamage 后）。
+        int aScorchStacks = mApp->RunPlantBuff2Count(SeedType::SEED_CHERRYBOMB);
+        if (aScorchStacks > 0)
+        {
+            Zombie* aScorchZombie = nullptr;
+            while (mBoard->IterateZombies(aScorchZombie))
+            {
+                if (!aScorchZombie->EffectedByDamage(aDamageRangeFlags))
+                    continue;
+                int aRowDist = aScorchZombie->mRow - mRow;
+                if (aScorchZombie->mZombieType == ZombieType::ZOMBIE_BOSS)
+                    aRowDist = 0;
+                if (aRowDist < -1 || aRowDist > 1)
+                    continue;
+                Rect aScorchRect = aScorchZombie->GetZombieRect();
+                if (GetCircleRectOverlap(aPosX, aPosY, aRadius, aScorchRect))
+                {
+                    aScorchZombie->mScorchedCounter = 300;
+                }
+            }
+        }
 
-		Die();
-		break;
-	}
-	case SeedType::SEED_DOOMSHROOM:
-	{
-		mApp->PlaySample(SOUND_DOOMSHROOM);
+        mApp->AddPvzpParticle(aPosX, aPosY, (int)RenderLayer::RENDER_LAYER_TOP, ParticleEffect::PARTICLE_POWIE);
+        mBoard->ShakeBoard(3, -4);
 
-		mBoard->KillAllZombiesInRadius(mRow, aPosX, aPosY, 250, 3, true, aDamageRangeFlags);
-		KillAllPlantsNearDoom();
+        Die();
+        break;
+    }
+    case SeedType::SEED_DOOMSHROOM:
+    {
+        mApp->PlaySample(SOUND_DOOMSHROOM);
 
-		mApp->AddPvzpParticle(aPosX, aPosY, static_cast<int>(RenderLayer::RENDER_LAYER_TOP), ParticleEffect::PARTICLE_DOOM);
-		mBoard->AddACrater(mPlantCol, mRow)->mGridItemCounter = 18000;
-		mBoard->ShakeBoard(3, -4);
+        // @pvz-online: 单株升级「Annihilation」（批八b）：爆炸直伤 6000（只可选 1 层；
+        // 2026-10-09 夜由 50000 下调——保留「无条件清场」质变、砍掉无意义超杀数）——
+        // 覆写经 Board::KillAllZombiesInRadius → Zombie::ApplyBurn 传下（厚血目标吃 6000、
+        // 薄血目标照旧烧死保味）；半径回原版 250（批八的半径 +50% 条目已由本条整行取代）。
+        int aDirectDamage = 0;
+        if (mApp->RunPlantUpgradeCount(SeedType::SEED_DOOMSHROOM) > 0)
+        {
+            aDirectDamage = 6000;
+        }
+        // @pvz-online: 第二 buff「灭世半径」（docs/06 §8.6 #15）：爆炸半径 +50%/层
+        // （250 → 375/500）；波及格不变（KillAllPlantsNearDoom 只炸自身格）。
+        int aDoomRadius = (int)(250 * mApp->RunPlantBuff2Mul(SeedType::SEED_DOOMSHROOM) + 0.5f);
+        mBoard->KillAllZombiesInRadius(mRow, aPosX, aPosY, aDoomRadius, 3, true, aDamageRangeFlags, aDirectDamage);
+        KillAllPlantsNearDoom();
 
-		Die();
-		break;
-	}
-	case SeedType::SEED_JALAPENO:
-	{
-		mApp->PlayFoley(FoleyType::FOLEY_JALAPENO_IGNITE);
-		mApp->PlayFoley(FoleyType::FOLEY_JUICY);
+        mApp->AddPvzpParticle(aPosX, aPosY, (int)RenderLayer::RENDER_LAYER_TOP, ParticleEffect::PARTICLE_DOOM);
+        mBoard->AddACrater(mPlantCol, mRow)->mGridItemCounter = 18000;
+        mBoard->ShakeBoard(3, -4);
 
-		mBoard->DoFwoosh(mRow);
-		mBoard->ShakeBoard(3, -4);
+        Die();
+        break;
+    }
+    case SeedType::SEED_JALAPENO:
+    {
+        mApp->PlayFoley(FoleyType::FOLEY_JALAPENO_IGNITE);
+        mApp->PlayFoley(FoleyType::FOLEY_JUICY);
 
-		BurnRow(mRow);
-		mBoard->mIceTimer[mRow] = 20;
+        mBoard->DoFwoosh(mRow);
+        mBoard->ShakeBoard(3, -4);
 
-		Die();
-		break;
-	}
-	case SeedType::SEED_UMBRELLA:
-	{
-		if (mState != PlantState::STATE_UMBRELLA_TRIGGERED && mState != PlantState::STATE_UMBRELLA_REFLECTING)
-		{
-			mState = PlantState::STATE_UMBRELLA_TRIGGERED;
-			mStateCountdown = 5;
+        BurnRow(mRow);
+        mBoard->mIceTimer[mRow] = 20;
 
-			PlayBodyReanim("anim_block", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 22.0f);
-		}
+        // @pvz-online: 第二 buff「连烧」（docs/06 §8.6 #20）：爆炸次数 +1（间隔 1 秒）——
+        // 首爆后不消失，重置自爆倒计时再烧一轮；STATE_DOINGSPECIAL 做「已连烧过」标记
+        //（辣椒原本不受 mState 管辖，该值在本株只有这里读），第二轮走完才真正 Die。
+        if (mApp->RunPlantBuff2Count(SeedType::SEED_JALAPENO) > 0 && mState != PlantState::STATE_DOINGSPECIAL)
+        {
+            mState = PlantState::STATE_DOINGSPECIAL;
+            mDoSpecialCountdown = 100;
+            break;
+        }
 
-		break;
-	}
-	case SeedType::SEED_ICESHROOM:
-	{
-		mApp->PlayFoley(FoleyType::FOLEY_FROZEN);
-		IceZombies();
-		mApp->AddPvzpParticle(aPosX, aPosY, static_cast<int>(RenderLayer::RENDER_LAYER_TOP), ParticleEffect::PARTICLE_ICE_TRAP);
+        Die();
+        break;
+    }
+    case SeedType::SEED_UMBRELLA:
+    {
+        if (mState != PlantState::STATE_UMBRELLA_TRIGGERED && mState != PlantState::STATE_UMBRELLA_REFLECTING)
+        {
+            mState = PlantState::STATE_UMBRELLA_TRIGGERED;
+            mStateCountdown = 5;
 
-		Die();
-		break;
-	}
-	case SeedType::SEED_POTATOMINE:
-	{
-		aPosX = mX + mWidth / 2 - 20;
-		aPosY = mY + mHeight / 2;
+            PlayBodyReanim("anim_block", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 22.0f);
+        }
 
-		mApp->PlaySample(SOUND_POTATO_MINE);
-		if (mBoard->KillAllZombiesInRadius(mRow, aPosX, aPosY, 60, 0, false, aDamageRangeFlags) >= 1)
-			ReportAchievement::GiveAchievement(mApp, Spudow, true);
+        break;
+    }
+    case SeedType::SEED_ICESHROOM:
+    {
+        mApp->PlayFoley(FoleyType::FOLEY_FROZEN);
+        IceZombies();
+        mApp->AddPvzpParticle(aPosX, aPosY, (int)RenderLayer::RENDER_LAYER_TOP, ParticleEffect::PARTICLE_ICE_TRAP);
 
-		int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PARTICLE, mRow, 0);
-		mApp->AddPvzpParticle(aPosX + 20.0f, aPosY, aRenderPosition, ParticleEffect::PARTICLE_POTATO_MINE);
-		mBoard->ShakeBoard(3, -4);
+        Die();
+        break;
+    }
+    case SeedType::SEED_POTATOMINE:
+    {
+        aPosX = mX + mWidth / 2 - 20;
+        aPosY = mY + mHeight / 2;
 
-		Die();
-		break;
-	}
-	case SeedType::SEED_INSTANT_COFFEE:
-	{
-		Plant* aPlant = mBoard->GetTopPlantAt(mPlantCol, mRow, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION);
-		if (aPlant && aPlant->mIsAsleep)
-		{
-			aPlant->mWakeUpCounter = 100;
-		}
+        mApp->PlaySample(SOUND_POTATO_MINE);
+        // @pvz-online: 单株「震雷」（2026-10-09 数值对齐整条重做，docs/06 §8.2.3/§8.2.4）：
+        // 「宽装药」半径 +50%/层 摘除（解半径同句簇——樱桃/冰西瓜/毁灭菇照旧），换
+        // 「爆炸眩晕半径内僵尸 2 秒/层」（cap2）——1800 直伤杀不动的幸存者（巨人族）被震懵；
+        // 眩晕走 ApplyButter（帧参数化，400 帧 = 原黄油默认值不变），原半径乘数挂点随之删除。
+        int aRadius = 60;
+        int aSeismicStacks = mApp->RunPlantUpgradeCount(SeedType::SEED_POTATOMINE);
+        if (mBoard->KillAllZombiesInRadius(mRow, aPosX, aPosY, aRadius, 0, false, aDamageRangeFlags) >= 1)
+            ReportAchievement::GiveAchievement(mApp, Spudow, true); // @Patoke: add achievement
 
-		mState = PlantState::STATE_DOINGSPECIAL;
-		PlayBodyReanim("anim_crumble", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 22.0f);
-		mApp->PlayFoley(FoleyType::FOLEY_COFFEE);
+        if (aSeismicStacks > 0)
+        {
+            // 半径判定照 KillAllZombiesInRadius 的口径（同行、Boss 视作同行、圆-矩形相交）
+            Zombie* aZombie = nullptr;
+            while (mBoard->IterateZombies(aZombie))
+            {
+                if (!aZombie->EffectedByDamage(aDamageRangeFlags))
+                    continue;
+                int aRowDist = aZombie->mRow - mRow;
+                if (aZombie->mZombieType == ZombieType::ZOMBIE_BOSS)
+                    aRowDist = 0;
+                if (aRowDist != 0)
+                    continue;
+                Rect aZombieRect = aZombie->GetZombieRect();
+                if (GetCircleRectOverlap(aPosX, aPosY, aRadius, aZombieRect))
+                    aZombie->ApplyButter(200 * aSeismicStacks);		// 2 秒/层（100 帧/秒口径）
+            }
+        }
 
-		break;
-	}
-	default:
-		break;
-	}
+        int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PARTICLE, mRow, 0);
+        mApp->AddPvzpParticle(aPosX + 20.0f, aPosY, aRenderPosition, ParticleEffect::PARTICLE_POTATO_MINE);
+        mBoard->ShakeBoard(3, -4);
+
+        // @pvz-online: 第二 buff「补雷」（docs/06 §8.6 #4）：还有剩余重埋次数时不消失——
+        // 摘掉红灯附件、转回埋土态，3 秒（300 帧）后走原版升起身流程（土粒 + anim_rise），
+        // 重埋不耗阳光不刷卡。每层可多补 1 次：初代带层数、每炸一次 -1，耗尽照常 Die。
+        if (mMineregrowsLeft > 0)
+        {
+            mMineregrowsLeft--;
+            mApp->RemoveReanimation(mLightReanimID);
+            mLightReanimID = ReanimationID::REANIMATIONID_NULL;
+            mState = PlantState::STATE_NOTREADY;
+            mStateCountdown = 300;
+            break;
+        }
+
+        Die();
+        break;
+    }
+    case SeedType::SEED_INSTANT_COFFEE:
+    {
+        if (mApp->IsRunMode())
+        {
+            // @pvz-online: 闯关里蘑菇不会再睡，"唤醒"永远没有对象——咖啡豆改产阳光：
+            // 四枚 25 = 100（2026-10-03 平调二版：先试过三枚=75，用户定"未增强的不能太废"，
+            // 基座回 100；同批种植冷却加长到 12 秒），和向日葵同一套落币方式
+            // @pvz-online: 单株升级「Rich Roast」（咖啡豆，表行 SEED_INSTANT_COFFEE）：
+            // 产阳光每层 +25（+1 枚）——4+层：1 层 5 枚 = 125、2 层 6 枚 = 150
+            //（2026-10-03 三版终值：用户定 100/125/150；二版曾按 ×(1+层) = 200/300 过陡）。
+            // 冷却侧 ×1.6（SeedPacket::WasPlanted × LawnApp::RunCoffeeBeanRefreshMul）。
+            int aSunCoinCount = 4 + mApp->RunPlantUpgradeCount(SeedType::SEED_INSTANT_COFFEE);
+            for (int i = 0; i < aSunCoinCount; i++)
+            {
+                mBoard->AddCoin(mX, mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
+            }
+
+            mApp->PlayFoley(FoleyType::FOLEY_SPAWN_SUN);
+        }
+        else
+        {
+            Plant* aPlant = mBoard->GetTopPlantAt(mPlantCol, mRow, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION);
+            if (aPlant && aPlant->mIsAsleep)
+            {
+                aPlant->mWakeUpCounter = 100;
+            }
+        }
+
+        mState = PlantState::STATE_DOINGSPECIAL;
+        PlayBodyReanim("anim_crumble", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 22.0f);
+        mApp->PlayFoley(FoleyType::FOLEY_COFFEE);
+
+        break;
+    }
+    default:
+        break;
+    }
 }
 
 void Plant::ImitaterMorph()
@@ -4478,433 +5125,586 @@ void Plant::CobCannonFire(int theTargetX, int theTargetY)
 
 void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon)
 {
-	if (mSeedType == SeedType::SEED_FUMESHROOM)
-	{
-		DoRowAreaDamage(20, 2U);
-		mApp->PlayFoley(FoleyType::FOLEY_FUME);
-		return;
-	}
-	if (mSeedType == SeedType::SEED_GLOOMSHROOM)
-	{
-		DoRowAreaDamage(20, 2U);
-		return;
-	}
-	if (mSeedType == SeedType::SEED_STARFRUIT)
-	{
-		StarFruitFire();
-		return;
-	}
+    if (mSeedType == SeedType::SEED_FUMESHROOM)
+    {
+        DoRowAreaDamage(20, 2U);
+        mApp->PlayFoley(FoleyType::FOLEY_FUME);
+        return;
+    }
+    if (mSeedType == SeedType::SEED_GLOOMSHROOM)
+    {
+        DoRowAreaDamage(20, 2U);
+        return;
+    }
+    if (mSeedType == SeedType::SEED_STARFRUIT)
+    {
+        StarFruitFire();
+        return;
+    }
 
-	ProjectileType aProjectileType;
-	switch (mSeedType)
-	{
-	case SeedType::SEED_PEASHOOTER:
-	case SeedType::SEED_REPEATER:
-	case SeedType::SEED_THREEPEATER:
-	case SeedType::SEED_SPLITPEA:
-	case SeedType::SEED_GATLINGPEA:
-	case SeedType::SEED_LEFTPEATER:
-		aProjectileType = ProjectileType::PROJECTILE_PEA;
-		break;
-	case SeedType::SEED_SNOWPEA:
-		aProjectileType = ProjectileType::PROJECTILE_SNOWPEA;
-		break;
-	case SeedType::SEED_PUFFSHROOM:
-	case SeedType::SEED_SCAREDYSHROOM:
-	case SeedType::SEED_SEASHROOM:
-		aProjectileType = ProjectileType::PROJECTILE_PUFF;
-		break;
-	case SeedType::SEED_CACTUS:
-	case SeedType::SEED_CATTAIL:
-		aProjectileType = ProjectileType::PROJECTILE_SPIKE;
-		break;
-	case SeedType::SEED_CABBAGEPULT:
-		aProjectileType = ProjectileType::PROJECTILE_CABBAGE;
-		break;
-	case SeedType::SEED_KERNELPULT:
-		aProjectileType = ProjectileType::PROJECTILE_KERNEL;
-		break;
-	case SeedType::SEED_MELONPULT:
-		aProjectileType = ProjectileType::PROJECTILE_MELON;
-		break;
-	case SeedType::SEED_WINTERMELON:
-		aProjectileType = ProjectileType::PROJECTILE_WINTERMELON;
-		break;
-	case SeedType::SEED_COBCANNON:
-		aProjectileType = ProjectileType::PROJECTILE_COBBIG;
-		break;
-	default:
-		PVZP_ASSERT(false);
-		break;
-	}
-	if (mSeedType == SeedType::SEED_KERNELPULT && thePlantWeapon == PlantWeapon::WEAPON_SECONDARY)
-	{
-		aProjectileType = ProjectileType::PROJECTILE_BUTTER;
-	}
+    ProjectileType aProjectileType;
+    switch (mSeedType)
+    {
+    case SeedType::SEED_PEASHOOTER:
+    case SeedType::SEED_REPEATER:
+    case SeedType::SEED_THREEPEATER:
+    case SeedType::SEED_SPLITPEA:
+    case SeedType::SEED_GATLINGPEA:
+    case SeedType::SEED_LEFTPEATER:
+        aProjectileType = ProjectileType::PROJECTILE_PEA;
+        break;
+    case SeedType::SEED_SNOWPEA:
+        aProjectileType = ProjectileType::PROJECTILE_SNOWPEA;
+        break;
+    case SeedType::SEED_PUFFSHROOM:
+    case SeedType::SEED_SCAREDYSHROOM:
+    case SeedType::SEED_SEASHROOM:
+        aProjectileType = ProjectileType::PROJECTILE_PUFF;
+        break;
+    case SeedType::SEED_CACTUS:
+    case SeedType::SEED_CATTAIL:
+        aProjectileType = ProjectileType::PROJECTILE_SPIKE;
+        break;
+    case SeedType::SEED_CABBAGEPULT:
+        aProjectileType = ProjectileType::PROJECTILE_CABBAGE;
+        break;
+    case SeedType::SEED_KERNELPULT:
+        aProjectileType = ProjectileType::PROJECTILE_KERNEL;
+        break;
+    case SeedType::SEED_MELONPULT:
+        aProjectileType = ProjectileType::PROJECTILE_MELON;
+        break;
+    case SeedType::SEED_WINTERMELON:
+        aProjectileType = ProjectileType::PROJECTILE_WINTERMELON;
+        break;
+    case SeedType::SEED_COBCANNON:
+        aProjectileType = ProjectileType::PROJECTILE_COBBIG;
+        break;
+    default:
+        PVZP_ASSERT();
+        break;
+    }
+    if (mSeedType == SeedType::SEED_KERNELPULT && thePlantWeapon == PlantWeapon::WEAPON_SECONDARY)
+    {
+        aProjectileType = ProjectileType::PROJECTILE_BUTTER;
+    }
 
-	mApp->PlayFoley(FoleyType::FOLEY_THROW);
-	if (mSeedType == SeedType::SEED_SNOWPEA || mSeedType == SeedType::SEED_WINTERMELON)
-	{
-		mApp->PlayFoley(FoleyType::FOLEY_SNOW_PEA_SPARKLES);
-	}
-	else if (mSeedType == SeedType::SEED_PUFFSHROOM || mSeedType == SeedType::SEED_SCAREDYSHROOM || mSeedType == SeedType::SEED_SEASHROOM)
-	{
-		mApp->PlayFoley(FoleyType::FOLEY_PUFF);
-	}
+    // @pvz-online: 批 18 寒冰射手「Blizzard」——发射冰西瓜（1 层）：出口弹种整换成冰瓜弹
+    // （80 伤 + 冰冻 + 溅射全按弹种自带；枪口雪粒子与 FOLEY_SNOW_PEA_SPARKLES 保留；
+    // 直线飞行吃 UpdateNormalMotion 的兜底速度，无需设初速）。
+    if (mSeedType == SeedType::SEED_SNOWPEA && mApp->RunPlantUpgradeCount(SeedType::SEED_SNOWPEA) > 0)
+    {
+        aProjectileType = ProjectileType::PROJECTILE_WINTERMELON;
+    }
 
-	int aOriginX, aOriginY;
-	if (mSeedType == SeedType::SEED_PUFFSHROOM)
-	{
-		aOriginX = mX + 40;
-		aOriginY = mY + 40;
-	}
-	else if (mSeedType == SeedType::SEED_SEASHROOM)
-	{
-		aOriginX = mX + 45;
-		aOriginY = mY + 63;
-	}
-	else if (mSeedType == SeedType::SEED_CABBAGEPULT)
-	{
-		aOriginX = mX + 5;
-		aOriginY = mY - 12;
-	}
-	else if (mSeedType == SeedType::SEED_MELONPULT || mSeedType == SeedType::SEED_WINTERMELON)
-	{
-		aOriginX = mX + 25;
-		aOriginY = mY - 46;
-	}
-	else if (mSeedType == SeedType::SEED_CATTAIL)
-	{
-		aOriginX = mX + 20;
-		aOriginY = mY - 3;
-	}
-	else if (mSeedType == SeedType::SEED_KERNELPULT && thePlantWeapon == PlantWeapon::WEAPON_PRIMARY)
-	{
-		aOriginX = mX + 19;
-		aOriginY = mY - 37;
-	}
-	else if (mSeedType == SeedType::SEED_KERNELPULT && thePlantWeapon == PlantWeapon::WEAPON_SECONDARY)
-	{
-		aOriginX = mX + 12;
-		aOriginY = mY - 56;
-	}
-	else if (mSeedType == SeedType::SEED_PEASHOOTER || mSeedType == SeedType::SEED_SNOWPEA || mSeedType == SeedType::SEED_REPEATER)
-	{
-		int aOffsetX, aOffsetY;
-		GetPeaHeadOffset(aOffsetX, aOffsetY);
-		aOriginX = mX + aOffsetX + 24;
-		aOriginY = mY + aOffsetY - 33;
-	}
-	else if (mSeedType == SeedType::SEED_LEFTPEATER)
-	{
-		int aOffsetX, aOffsetY;
-		GetPeaHeadOffset(aOffsetX, aOffsetY);
-		aOriginX = mX - aOffsetX + 27;
-		aOriginY = mY + aOffsetY - 33;
-	}
-	else if (mSeedType == SeedType::SEED_GATLINGPEA)
-	{
-		int aOffsetX, aOffsetY;
-		GetPeaHeadOffset(aOffsetX, aOffsetY);
-		aOriginX = mX + aOffsetX + 34;
-		aOriginY = mY + aOffsetY - 33;
-	}
-	else if (mSeedType == SeedType::SEED_SPLITPEA)
-	{
-		int aOffsetX, aOffsetY;
-		GetPeaHeadOffset(aOffsetX, aOffsetY);
-		aOriginY = mY + aOffsetY - 33;
+    mApp->PlayFoley(FoleyType::FOLEY_THROW);
+    if (mSeedType == SeedType::SEED_SNOWPEA || mSeedType == SeedType::SEED_WINTERMELON)
+    {
+        mApp->PlayFoley(FoleyType::FOLEY_SNOW_PEA_SPARKLES);
+    }
+    else if (mSeedType == SeedType::SEED_PUFFSHROOM || mSeedType == SeedType::SEED_SCAREDYSHROOM || mSeedType == SeedType::SEED_SEASHROOM)
+    {
+        mApp->PlayFoley(FoleyType::FOLEY_PUFF);
+    }
 
-		if (thePlantWeapon == PlantWeapon::WEAPON_SECONDARY)
-		{
-			aOriginX = mX + aOffsetX - 64;
-		}
-		else
-		{
-			aOriginX = mX + aOffsetX + 24;
-		}
-	}
-	else if (mSeedType == SeedType::SEED_THREEPEATER)
-	{
-		aOriginX = mX + 45;
-		aOriginY = mY + 10;
-	}
-	else if (mSeedType == SeedType::SEED_SCAREDYSHROOM)
-	{
-		aOriginX = mX + 29;
-		aOriginY = mY + 21;
-	}
-	else if (mSeedType == SeedType::SEED_CACTUS)
-	{
-		if (thePlantWeapon == PlantWeapon::WEAPON_PRIMARY)
-		{
-			aOriginX = mX + 93;
-			aOriginY = mY - 50;
-		}
-		else
-		{
-			aOriginX = mX + 70;
-			aOriginY = mY + 23;
-		}
-	}
-	else if (mSeedType == SeedType::SEED_COBCANNON)
-	{
-		aOriginX = mX - 44;
-		aOriginY = mY - 184;
-	}
-	else
-	{
-		aOriginX = mX + 10;
-		aOriginY = mY + 5;
-	}
-	if (mBoard->GetFlowerPotAt(mPlantCol, mRow))
-	{
-		aOriginY -= 5;
-	}
+    int aOriginX, aOriginY;
+    if (mSeedType == SeedType::SEED_PUFFSHROOM)
+    {
+        aOriginX = mX + 40;
+        aOriginY = mY + 40;
+    }
+    else if (mSeedType == SeedType::SEED_SEASHROOM)
+    {
+        aOriginX = mX + 45;
+        aOriginY = mY + 63;
+    }
+    else if (mSeedType == SeedType::SEED_CABBAGEPULT)
+    {
+        aOriginX = mX + 5;
+        aOriginY = mY - 12;
+    }
+    else if (mSeedType == SeedType::SEED_MELONPULT || mSeedType == SeedType::SEED_WINTERMELON)
+    {
+        aOriginX = mX + 25;
+        aOriginY = mY - 46;
+    }
+    else if (mSeedType == SeedType::SEED_CATTAIL)
+    {
+        aOriginX = mX + 20;
+        aOriginY = mY - 3;
+    }
+    else if (mSeedType == SeedType::SEED_KERNELPULT && thePlantWeapon == PlantWeapon::WEAPON_PRIMARY)
+    {
+        aOriginX = mX + 19;
+        aOriginY = mY - 37;
+    }
+    else if (mSeedType == SeedType::SEED_KERNELPULT && thePlantWeapon == PlantWeapon::WEAPON_SECONDARY)
+    {
+        aOriginX = mX + 12;
+        aOriginY = mY - 56;
+    }
+    else if (mSeedType == SeedType::SEED_PEASHOOTER || mSeedType == SeedType::SEED_SNOWPEA || mSeedType == SeedType::SEED_REPEATER)
+    {
+        int aOffsetX, aOffsetY;
+        GetPeaHeadOffset(aOffsetX, aOffsetY);
+        aOriginX = mX + aOffsetX + 24;
+        aOriginY = mY + aOffsetY - 33;
+    }
+    else if (mSeedType == SeedType::SEED_LEFTPEATER)
+    {
+        int aOffsetX, aOffsetY;
+        GetPeaHeadOffset(aOffsetX, aOffsetY);
+        aOriginX = mX + aOffsetX + 27;
+        aOriginY = mY + aOffsetY - 33;
+    }
+    else if (mSeedType == SeedType::SEED_GATLINGPEA)
+    {
+        int aOffsetX, aOffsetY;
+        GetPeaHeadOffset(aOffsetX, aOffsetY);
+        aOriginX = mX + aOffsetX + 34;
+        aOriginY = mY + aOffsetY - 33;
+    }
+    else if (mSeedType == SeedType::SEED_SPLITPEA)
+    {
+        int aOffsetX, aOffsetY;
+        GetPeaHeadOffset(aOffsetX, aOffsetY);
+        aOriginY = mY + aOffsetY - 33;
 
-	if (mSeedType == SeedType::SEED_SNOWPEA)
-	{
-		int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_LAWN_MOWER, mRow, 1);
-		mApp->AddPvzpParticle(aOriginX + 8, aOriginY + 13, aRenderPosition, ParticleEffect::PARTICLE_SNOWPEA_PUFF);
-	}
-	else if (mSeedType == SeedType::SEED_PUFFSHROOM)
-	{
-		int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_LAWN_MOWER, mRow, 1);
-		mApp->AddPvzpParticle(aOriginX + 18, aOriginY + 13, aRenderPosition, ParticleEffect::PARTICLE_PUFFSHROOM_MUZZLE);
-	}
-	else if (mSeedType == SeedType::SEED_SCAREDYSHROOM)
-	{
-		int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_LAWN_MOWER, mRow, 1);
-		mApp->AddPvzpParticle(aOriginX + 27, aOriginY + 13, aRenderPosition, ParticleEffect::PARTICLE_PUFFSHROOM_MUZZLE);
-	}
+        if (thePlantWeapon == PlantWeapon::WEAPON_SECONDARY)
+        {
+            aOriginX = mX + aOffsetX - 64;
+        }
+        else
+        {
+            aOriginX = mX + aOffsetX + 24;
+        }
+    }
+    else if (mSeedType == SeedType::SEED_THREEPEATER)
+    {
+        aOriginX = mX + 45;
+        aOriginY = mY + 10;
+    }
+    else if (mSeedType == SeedType::SEED_SCAREDYSHROOM)
+    {
+        aOriginX = mX + 29;
+        aOriginY = mY + 21;
+    }
+    else if (mSeedType == SeedType::SEED_CACTUS)
+    {
+        if (thePlantWeapon == PlantWeapon::WEAPON_PRIMARY)
+        {
+            aOriginX = mX + 93;
+            aOriginY = mY - 50;
+        }
+        else
+        {
+            aOriginX = mX + 70;
+            aOriginY = mY + 23;
+        }
+    }
+    else if (mSeedType == SeedType::SEED_COBCANNON)
+    {
+        aOriginX = mX - 44;
+        aOriginY = mY - 184;
+    }
+    else
+    {
+        aOriginX = mX + 10;
+        aOriginY = mY + 5;
+    }
+    if (mBoard->GetFlowerPotAt(mPlantCol, mRow))
+    {
+        aOriginY -= 5;
+    }
 
-	Projectile* aProjectile = mBoard->AddProjectile(aOriginX, aOriginY, mRenderOrder - 1, theRow, aProjectileType);
-	aProjectile->mDamageRangeFlags = GetDamageRangeFlags(thePlantWeapon);
+    if (mSeedType == SeedType::SEED_SNOWPEA)
+    {
+        int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_LAWN_MOWER, mRow, 1);
+        mApp->AddPvzpParticle(aOriginX + 8, aOriginY + 13, aRenderPosition, ParticleEffect::PARTICLE_SNOWPEA_PUFF);
+    }
+    else if (mSeedType == SeedType::SEED_PUFFSHROOM)
+    {
+        int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_LAWN_MOWER, mRow, 1);
+        mApp->AddPvzpParticle(aOriginX + 18, aOriginY + 13, aRenderPosition, ParticleEffect::PARTICLE_PUFFSHROOM_MUZZLE);
+    }
+    else if (mSeedType == SeedType::SEED_SCAREDYSHROOM)
+    {
+        int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_LAWN_MOWER, mRow, 1);
+        mApp->AddPvzpParticle(aOriginX + 27, aOriginY + 13, aRenderPosition, ParticleEffect::PARTICLE_PUFFSHROOM_MUZZLE);
+    }
 
-	if (mSeedType == SeedType::SEED_CABBAGEPULT || mSeedType == SeedType::SEED_KERNELPULT ||
-		mSeedType == SeedType::SEED_MELONPULT || mSeedType == SeedType::SEED_WINTERMELON)
-	{
-		float aRangeX, aRangeY;
-		if (theTargetZombie)
-		{
-			Rect aZombieRect = theTargetZombie->GetZombieRect();
-			aRangeX = theTargetZombie->ZombieTargetLeadX(50.0f) - aOriginX - 30.0f;
-			aRangeY = aZombieRect.mY - aOriginY;
+    Projectile* aProjectile = mBoard->AddProjectile(aOriginX, aOriginY, mRenderOrder - 1, theRow, aProjectileType);
+    aProjectile->mDamageRangeFlags = GetDamageRangeFlags(thePlantWeapon);
 
-			if (theTargetZombie->mZombiePhase == ZombiePhase::PHASE_DOLPHIN_RIDING)
-			{
-				aRangeX -= 60.0f;
-			}
-			if (theTargetZombie->mZombieType == ZombieType::ZOMBIE_POGO && theTargetZombie->mHasObject)
-			{
-				aRangeX -= 60.0f;
-			}
-			if (theTargetZombie->mZombiePhase == ZombiePhase::PHASE_SNORKEL_WALKING_IN_POOL)
-			{
-				aRangeX -= 40.0f;
-			}
-			if (theTargetZombie->mZombieType == ZombieType::ZOMBIE_BOSS)
-			{
-				aRangeY = mBoard->GridToPixelY(8, mRow) - aOriginY;
-			}
-		}
-		else
-		{
-			aRangeX = 700.0f - aOriginX;
-			aRangeY = 0.0f;
-		}
-		if (aRangeX < 40.0f)
-		{
-			aRangeX = 40.0f;
-		}
+    // @pvz-online: 单株升级「Prickly」（仙人掌，表行 SEED_CACTUS）：有该条就给尖刺预置
+    // 无限穿透标记 -1（2026-10-09 晚实机反馈：由 +1 只/层、cap 2 改为无限穿透、cap 1）——
+    // 只有仙人掌的弹带这个数（猫尾草的同型尖刺是追踪弹，不受影响）；无条与原版一致。
+    // 命中后的判定/扣点在 Projectile::DoImpact 末尾（-1 永不扣）。
+    if (mSeedType == SeedType::SEED_CACTUS
+        && mApp->RunPlantUpgradeCount(SeedType::SEED_CACTUS) > 0)
+    {
+        aProjectile->mPricklyHitsLeft = -1;
+    }
 
-		aProjectile->mMotionType = ProjectileMotion::MOTION_LOBBED;
-		aProjectile->mVelX = aRangeX / 120.0f;
-		aProjectile->mVelY = 0.0f;
-		aProjectile->mVelZ = aRangeY / 120.0f - 7.0f;
-		aProjectile->mAccZ = 0.115f;
-	}
-	else if (mSeedType == SeedType::SEED_THREEPEATER)
-	{
-		if (theRow < mRow)
-		{
-			aProjectile->mMotionType = ProjectileMotion::MOTION_THREEPEATER;
-			aProjectile->mVelY = -3.0f;
-			aProjectile->mShadowY += 80.0f;
-		}
-		else if (theRow > mRow)
-		{
-			aProjectile->mMotionType = ProjectileMotion::MOTION_THREEPEATER;
-			aProjectile->mVelY = 3.0f;
-			aProjectile->mShadowY -= 80.0f;
-		}
-	}
-	else if (mSeedType == SeedType::SEED_PUFFSHROOM || mSeedType == SeedType::SEED_SEASHROOM)
-	{
-		aProjectile->mMotionType = ProjectileMotion::MOTION_PUFF;
-	}
-	else if (mSeedType == SeedType::SEED_SPLITPEA && thePlantWeapon == PlantWeapon::WEAPON_SECONDARY)
-	{
-		aProjectile->mMotionType = ProjectileMotion::MOTION_BACKWARDS;
-	}
-	else if (mSeedType == SeedType::SEED_LEFTPEATER)
-	{
-		aProjectile->mMotionType = ProjectileMotion::MOTION_BACKWARDS;
-	}
-	else if (mSeedType == SeedType::SEED_CATTAIL)
-	{
-		aProjectile->mVelX = 2.0f;
-		aProjectile->mMotionType = ProjectileMotion::MOTION_HOMING;
-		aProjectile->mTargetZombieID = mBoard->ZombieGetID(theTargetZombie);
-	}
-	else if (mSeedType == SeedType::SEED_COBCANNON)
-	{
-		aProjectile->mVelX = 0.001f;
-		aProjectile->mDamageRangeFlags = GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
-		aProjectile->mMotionType = ProjectileMotion::MOTION_LOBBED;
-		aProjectile->mVelY = 0.0f;
-		aProjectile->mAccZ = 0.0f;
-		aProjectile->mVelZ = -8.0f;
-		aProjectile->mCobTargetX = mTargetX - 40;
-		aProjectile->mCobTargetRow = mBoard->PixelToGridYKeepOnBoard(mTargetX, mTargetY);
-	}
+    // @pvz-online: 第二 buff 批 1「穿透族」（docs/06 §8.6 #0/#5/#18）：豌豆「穿刺豌豆」/
+    // 寒冰射手「寒冰贯通」（与老条「冰西瓜化」同株互斥，抽取端管）/ 三线射手「贯穿」——
+    // 直射弹带无限穿透标记 -1（复用仙人掌 Prickly 的标记与 DoImpact 推过语义，弹型无关）。
+    // 评审口径：基弱株穿透类直接无限穿透、cap 收 1。
+    if ((mSeedType == SeedType::SEED_PEASHOOTER || mSeedType == SeedType::SEED_SNOWPEA ||
+        mSeedType == SeedType::SEED_THREEPEATER)
+        && mApp->RunPlantBuff2Count(mSeedType) > 0)
+    {
+        aProjectile->mPricklyHitsLeft = -1;
+    }
+
+    // @pvz-online: 第二 buff「Fire Peas」火豆（机枪射手 #40，docs/06 §8.6，2★ cap1）：持条时
+    // 子弹按原版火豆成弹——就地复用火炬树桩的 ConvertToFireball（换弹型 + 挂火焰豌豆动画 +
+    // FOLEY_FIREPEA），此后一切走火豆既有口径：40 伤（豌豆的 2 倍——评审文案「+50%」低估，
+    // 见 docs/07）、命中解冻冰缓（DoImpact 火弹分支）、同排 1/3 溅射与火系抗性判定。
+    // 4 连发的每一发各走一次 Fire，逐发转换；Overclock 是节奏条不改弹数，无多发交互。
+    if (mSeedType == SeedType::SEED_GATLINGPEA && mApp->RunPlantBuff2Count(SeedType::SEED_GATLINGPEA) > 0)
+    {
+        aProjectile->ConvertToFireball(mPlantCol);
+    }
+
+    // @pvz-online: 第二 buff「Tri-Spike」三向尖刺（仙人掌 #26，docs/06 §8.6，2★ cap1）：持条时
+    // 本行上下各补一发同型尖刺——弹体从仙人掌出发、走三线射手同款斜向运动（MOTION_THREEPEATER）
+    // 飘向相邻行；该行放不了僵尸（池面/出界/屋顶边列）就不补（RowCanHaveZombies 闸门，同三线
+    // 选敌）。伤害标志与穿透标记照抄主弹——高射态补高刺（可打气球）、低射态补地刺，老条
+    // 「Prickly」无限穿透随主弹一起复制。
+    // 2026-10-10 实机修复（用户报「仍然只打两发」；§5.67 曾误判为索敌问题）：影子补偿原照抄
+    // 三线的固定 ±80，但三线炮口贴在行线上（mY+offset−33），仙人掌低射炮口在行线下 23px
+    //（mY+23）、前院行距却是 100（GridToPixelY：前院 row*100、泳池/屋顶 row*85）——上发出生
+    // 影差 = 67+80−100−23 = 24 < 28，撞上 CheckForHighGround 的「贴地」闸门（Projectile.cpp，
+    // SPIKE 在列；本意是屋顶斜坡弹撞地）在第一个更新帧就被 DoImpact(nullptr) 收掉，上发永远
+    // 飞不出去（下发 64、主弹 44 都活——正是「只打两发/只向下分裂」的观感）。现按实际行距
+    // 补偿（同列 ΔGridToPixelY，屋顶斜坡项自消）：两发出生影差恒等于主弹（低射 44 / 高射
+    // 117），任何地形都成活、落点影子线与相邻行对齐；弹速维持三线同款不动。
+    if (mSeedType == SeedType::SEED_CACTUS && mApp->RunPlantBuff2Count(SeedType::SEED_CACTUS) > 0)
+    {
+        for (int aSideRow = mRow - 1; aSideRow <= mRow + 1; aSideRow += 2)
+        {
+            if (!mBoard->RowCanHaveZombies(aSideRow))
+            {
+                continue;
+            }
+            Projectile* aSideProjectile = mBoard->AddProjectile(aOriginX, aOriginY, mRenderOrder - 1, aSideRow, aProjectileType);
+            aSideProjectile->mDamageRangeFlags = aProjectile->mDamageRangeFlags;
+            aSideProjectile->mPricklyHitsLeft = aProjectile->mPricklyHitsLeft;
+            aSideProjectile->mMotionType = ProjectileMotion::MOTION_THREEPEATER;
+            aSideProjectile->mVelY = (aSideRow < mRow) ? -3.0f : 3.0f;
+            aSideProjectile->mShadowY += (float)(mBoard->GridToPixelY(mPlantCol, mRow) - mBoard->GridToPixelY(mPlantCol, aSideRow));
+        }
+    }
+
+    // @pvz-online: 单株升级「多发」：每层多打一发（RunBuffs 单株表）。
+    // 表里进得了这段的是直射豌豆系（豌豆、三线——三线每道调一次 Fire，所以是每道各 +1 颗，
+    // 不是每轮 +3）与小喷菇——多出来的子弹照主子弹的
+    // 默认直线运动走，出发位置逐发后错一点，看得出是一排子弹而不是一发重影。
+    // 修正批（2026-10-03）改走 Kind 闸门口（Kind=SHOTCOUNT）：只有多发型条目进得来——
+    // 此前任意带层行都会给该株多发（批 10 的黄油行差点让玉米投手多发玉米）。
+    // （2026-10-09 数值对齐：小喷菇 +2 颗/层的 ×2 换算删除，回 +1 颗/层，docs/07 同日条目；
+    //  2026-10-09 夜实机反馈又改回 +2 颗/层——见下方的层数 ×2 特判。）
+    int aExtraShots = mApp->RunPlantUpgradeCountKind(mSeedType, RUN_UPGRADE_KIND_SHOTCOUNT);
+    // 小喷菇「Spore Volley」按「+2 颗/层」口径：层数 ×2。它每轮只调一次 Fire，取不到双发
+    // 那样「每轮两次 Fire 各跑一遍多发」的自然 2×（双发行 desc 的「+2 颗/层」即由此而来，
+    // 无需特判）；豌豆/三线仍 +1 颗/层，不受影响。
+    if (mSeedType == SeedType::SEED_PUFFSHROOM)
+    {
+        aExtraShots *= 2;
+    }
+    for (int i = 0; i < aExtraShots; i++)
+    {
+        Projectile* aExtraProjectile = mBoard->AddProjectile(aOriginX + 21 * (i + 1), aOriginY, mRenderOrder - 1, theRow, aProjectileType);
+        aExtraProjectile->mDamageRangeFlags = aProjectile->mDamageRangeFlags;
+        aExtraProjectile->mPricklyHitsLeft = aProjectile->mPricklyHitsLeft;	// 穿透族：多发复制的子弹同标记（第二 buff 批 1）
+        // @pvz-online: 三线多发补斜向（2026-10-10）：三线斜向三件套挂在 Fire 尾部（下段
+        // SEED_THREEPEATER 分支），多发弹生成时还没挂——旧版相邻行多发弹是 MOTION_STRAIGHT
+        // + mRow=相邻行的「叠画在本行、谁也打不着」废弹（实机反馈「三线加子弹数只加中间的」）。
+        // 相邻行的多发弹补与主弹逐参数一致的斜向运动（同 TRISPIKE 侧弹写法）。
+        if (mSeedType == SeedType::SEED_THREEPEATER && theRow != mRow)
+        {
+            aExtraProjectile->mMotionType = ProjectileMotion::MOTION_THREEPEATER;
+            aExtraProjectile->mVelY = (theRow < mRow) ? -3.0f : 3.0f;
+            aExtraProjectile->mShadowY += (theRow < mRow) ? 80.0f : -80.0f;
+        }
+    }
+
+    if (mSeedType == SeedType::SEED_CABBAGEPULT || mSeedType == SeedType::SEED_KERNELPULT ||
+        mSeedType == SeedType::SEED_MELONPULT || mSeedType == SeedType::SEED_WINTERMELON)
+    {
+        float aRangeX, aRangeY;
+        if (theTargetZombie)
+        {
+            Rect aZombieRect = theTargetZombie->GetZombieRect();
+            aRangeX = theTargetZombie->ZombieTargetLeadX(50.0f) - aOriginX - 30.0f;
+            aRangeY = aZombieRect.mY - aOriginY;
+
+            if (theTargetZombie->mZombiePhase == ZombiePhase::PHASE_DOLPHIN_RIDING)
+            {
+                aRangeX -= 60.0f;
+            }
+            if (theTargetZombie->mZombieType == ZombieType::ZOMBIE_POGO && theTargetZombie->mHasObject)
+            {
+                aRangeX -= 60.0f;
+            }
+            if (theTargetZombie->mZombiePhase == ZombiePhase::PHASE_SNORKEL_WALKING_IN_POOL)
+            {
+                aRangeX -= 40.0f;
+            }
+            if (theTargetZombie->mZombieType == ZombieType::ZOMBIE_BOSS)
+            {
+                aRangeY = mBoard->GridToPixelY(8, mRow) - aOriginY;
+            }
+        }
+        else
+        {
+            aRangeX = 700.0f - aOriginX;
+            aRangeY = 0.0f;
+        }
+        if (aRangeX < 40.0f)
+        {
+            aRangeX = 40.0f;
+        }
+
+        aProjectile->mMotionType = ProjectileMotion::MOTION_LOBBED;
+        aProjectile->mVelX = aRangeX / 120.0f;
+        aProjectile->mVelY = 0.0f;
+        aProjectile->mVelZ = aRangeY / 120.0f - 7.0f;
+        aProjectile->mAccZ = 0.115f;
+
+        // @pvz-online: 批 18 西瓜「Melon Barrage」——每次多发 1 个西瓜/层（无上限；用户定案）。
+        // 额外瓜照主弹的完整参数出发（同速同弧线、位置向右后错开 21px），落点因此与主弹
+        // 基本重合。行上留 EFFECT 不进多发通环：那边按直射弹写法补弹，投手弹会变呆弹。
+        if (mSeedType == SeedType::SEED_MELONPULT)
+        {
+            for (int i = 0, aExtra = mApp->RunPlantUpgradeCount(SeedType::SEED_MELONPULT); i < aExtra; i++)
+            {
+                Projectile* aExtraProjectile = mBoard->AddProjectile(aOriginX + 21 * (i + 1), aOriginY, mRenderOrder - 1, theRow, aProjectileType);
+                aExtraProjectile->mDamageRangeFlags = aProjectile->mDamageRangeFlags;
+                aExtraProjectile->mMotionType = ProjectileMotion::MOTION_LOBBED;
+                aExtraProjectile->mVelX = aRangeX / 120.0f;
+                aExtraProjectile->mVelY = 0.0f;
+                aExtraProjectile->mVelZ = aRangeY / 120.0f - 7.0f;
+                aExtraProjectile->mAccZ = 0.115f;
+            }
+        }
+    }
+    else if (mSeedType == SeedType::SEED_THREEPEATER)
+    {
+        if (theRow < mRow)
+        {
+            aProjectile->mMotionType = ProjectileMotion::MOTION_THREEPEATER;
+            aProjectile->mVelY = -3.0f;
+            aProjectile->mShadowY += 80.0f;
+        }
+        else if (theRow > mRow)
+        {
+            aProjectile->mMotionType = ProjectileMotion::MOTION_THREEPEATER;
+            aProjectile->mVelY = 3.0f;
+            aProjectile->mShadowY -= 80.0f;
+        }
+    }
+    else if (mSeedType == SeedType::SEED_PUFFSHROOM || mSeedType == SeedType::SEED_SEASHROOM)
+    {
+        aProjectile->mMotionType = ProjectileMotion::MOTION_PUFF;
+    }
+    else if (mSeedType == SeedType::SEED_SPLITPEA && thePlantWeapon == PlantWeapon::WEAPON_SECONDARY)
+    {
+        aProjectile->mMotionType = ProjectileMotion::MOTION_BACKWARDS;
+
+        // @pvz-online: 单株升级「Backspike」（分裂豌豆，表行 SEED_SPLITPEA）：背向豌豆每次
+        // +1 颗/层（计数型、至多 2 层）——镜像正面多发循环的写法，多出的弹向左后错开、
+        // 同样走 MOTION_BACKWARDS。正面的多发循环只认 SHOTCOUNT 标签，与本条互不影响。
+        for (int i = 0, aExtra = mApp->RunPlantUpgradeCount(SeedType::SEED_SPLITPEA); i < aExtra; i++)
+        {
+            Projectile* aExtraProjectile = mBoard->AddProjectile(aOriginX - 21 * (i + 1), aOriginY, mRenderOrder - 1, theRow, aProjectileType);
+            aExtraProjectile->mDamageRangeFlags = aProjectile->mDamageRangeFlags;
+            aExtraProjectile->mMotionType = ProjectileMotion::MOTION_BACKWARDS;
+        }
+    }
+    else if (mSeedType == SeedType::SEED_LEFTPEATER)
+    {
+        aProjectile->mMotionType = ProjectileMotion::MOTION_BACKWARDS;
+    }
+    else if (mSeedType == SeedType::SEED_CATTAIL)
+    {
+        aProjectile->mVelX = 2.0f;
+        aProjectile->mMotionType = ProjectileMotion::MOTION_HOMING;
+        aProjectile->mTargetZombieID = mBoard->ZombieGetID(theTargetZombie);
+    }
+    else if (mSeedType == SeedType::SEED_COBCANNON)
+    {
+        aProjectile->mVelX = 0.001f;
+        aProjectile->mDamageRangeFlags = GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
+        aProjectile->mMotionType = ProjectileMotion::MOTION_LOBBED;
+        aProjectile->mVelY = 0.0f;
+        aProjectile->mAccZ = 0.0f;
+        aProjectile->mVelZ = -8.0f;
+        aProjectile->mCobTargetX = mTargetX - 40;
+        aProjectile->mCobTargetRow = mBoard->PixelToGridYKeepOnBoard(mTargetX, mTargetY);
+
+        // @pvz-online: 第二 buff「Twin Cob」双联装（玉米加农炮 #47，docs/06 §8.6，1★ cap1）：
+        // 每轮多发 1 枚同目标玉米——参数照抄主弹（同弧线同落点），出膛位置右后错开 21px
+        //（沿用西瓜多发的位置错位写法），弹道重叠但看得出是两枚；两发各 300 伤、落点
+        // 各爆各的（230×230 判定区完全重叠 + 位移微差）。
+        if (mApp->RunPlantBuff2Count(SeedType::SEED_COBCANNON) > 0)
+        {
+            Projectile* aExtraProjectile = mBoard->AddProjectile(aOriginX + 21, aOriginY, mRenderOrder - 1, theRow, aProjectileType);
+            aExtraProjectile->mVelX = 0.001f;
+            aExtraProjectile->mDamageRangeFlags = aProjectile->mDamageRangeFlags;
+            aExtraProjectile->mMotionType = ProjectileMotion::MOTION_LOBBED;
+            aExtraProjectile->mVelY = 0.0f;
+            aExtraProjectile->mAccZ = 0.0f;
+            aExtraProjectile->mVelZ = -8.0f;
+            aExtraProjectile->mCobTargetX = aProjectile->mCobTargetX;
+            aExtraProjectile->mCobTargetRow = aProjectile->mCobTargetRow;
+        }
+    }
 }
 
-Zombie* Plant::FindTargetZombie(int theRow, PlantWeapon thePlantWeapon)
+Zombie* Plant::FindTargetZombie(int theRow, PlantWeapon thePlantWeapon, Zombie* theExclude1, Zombie* theExclude2)
 {
-	int aDamageRangeFlags = GetDamageRangeFlags(thePlantWeapon);
-	Rect aAttackRect = GetPlantAttackRect(thePlantWeapon);
-	int aHighestWeight = 0;
-	Zombie* aBestZombie = nullptr;
+    int aDamageRangeFlags = GetDamageRangeFlags(thePlantWeapon);
+    Rect aAttackRect = GetPlantAttackRect(thePlantWeapon);
+    int aHighestWeight = 0;
+    Zombie* aBestZombie = nullptr;
 
-	for (Zombie* aZombie : mBoard->mZombies)
-	{
-		if (aZombie->mDead)
-			continue;
-		int aRowDeviation = aZombie->mRow - theRow;
-		if (aZombie->mZombieType == ZombieType::ZOMBIE_BOSS)
-		{
-			aRowDeviation = 0;
-		}
+    Zombie* aZombie = nullptr;
+    while (mBoard->IterateZombies(aZombie))
+    {
+        // @pvz-online: 单株升级「Quick Claw」（猫尾草）多目标选敌时排除已选中的（默认无排除）。
+        if (aZombie == theExclude1 || aZombie == theExclude2)
+        {
+            continue;
+        }
 
-		if (!aZombie->mHasHead || aZombie->IsTangleKelpTarget())
-		{
-			if (mSeedType == SeedType::SEED_POTATOMINE || mSeedType == SeedType::SEED_CHOMPER || mSeedType == SeedType::SEED_TANGLEKELP)
-			{
-				continue;
-			}
-		}
+        int aRowDeviation = aZombie->mRow - theRow;
+        if (aZombie->mZombieType == ZombieType::ZOMBIE_BOSS)
+        {
+            aRowDeviation = 0;
+        }
 
-		bool needPortalCheck = false;
-		if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_PORTAL_COMBAT)
-		{
-			if (mSeedType == SeedType::SEED_PEASHOOTER || mSeedType == SeedType::SEED_CACTUS || mSeedType == SeedType::SEED_REPEATER)
-			{
-				needPortalCheck = true;
-			}
-		}
+        if (!aZombie->mHasHead || aZombie->IsTangleKelpTarget())
+        {
+            if (mSeedType == SeedType::SEED_POTATOMINE || mSeedType == SeedType::SEED_CHOMPER || mSeedType == SeedType::SEED_TANGLEKELP)
+            {
+                continue;
+            }
+        }
 
-		if (mSeedType != SeedType::SEED_CATTAIL)
-		{
-			if (mSeedType == SeedType::SEED_GLOOMSHROOM)
-			{
-				if (aRowDeviation < -1 || aRowDeviation > 1)
-				{
-					continue;
-				}
-			}
-			else if (needPortalCheck)
-			{
-				if (!mBoard->mChallenge->CanTargetZombieWithPortals(this, aZombie))
-				{
-					continue;
-				}
-			}
-			else if (aRowDeviation)
-			{
-				continue;
-			}
-		}
+        bool needPortalCheck = false;
+        if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_PORTAL_COMBAT)
+        {
+            if (mSeedType == SeedType::SEED_PEASHOOTER || mSeedType == SeedType::SEED_CACTUS || mSeedType == SeedType::SEED_REPEATER)
+            {
+                needPortalCheck = true;
+            }
+        }
 
-		if (aZombie->EffectedByDamage(aDamageRangeFlags))
-		{
-			int aExtraRange = 0;
+        if (mSeedType != SeedType::SEED_CATTAIL)
+        {
+            if (mSeedType == SeedType::SEED_GLOOMSHROOM)
+            {
+                if (aRowDeviation < -1 || aRowDeviation > 1)
+                {
+                    continue;
+                }
+            }
+            else if (needPortalCheck)
+            {
+                if (!mBoard->mChallenge->CanTargetZombieWithPortals(this, aZombie))
+                {
+                    continue;
+                }
+            }
+            else if (aRowDeviation)
+            {
+                continue;
+            }
+        }
 
-			if (mSeedType == SeedType::SEED_CHOMPER)
-			{
-				if (aZombie->mZombiePhase == ZombiePhase::PHASE_DIGGER_WALKING)
-				{
-					aAttackRect.mX += 20;
-					aAttackRect.mWidth -= 20;
-				}
+        if (aZombie->EffectedByDamage(aDamageRangeFlags))
+        {
+            int aExtraRange = 0;
 
-				if (aZombie->mZombiePhase == ZombiePhase::PHASE_POGO_BOUNCING || (aZombie->mZombieType == ZombieType::ZOMBIE_BUNGEE && aZombie->mTargetCol == mPlantCol))
-				{
-					continue;
-				}
+            if (mSeedType == SeedType::SEED_CHOMPER)
+            {
+                if (aZombie->mZombiePhase == ZombiePhase::PHASE_DIGGER_WALKING)
+                {
+                    aAttackRect.mX += 20;
+                    aAttackRect.mWidth -= 20;
+                }
 
-				if (aZombie->mIsEating || mState == PlantState::STATE_CHOMPER_BITING)
-				{
-					aExtraRange = 60;
-				}
-			}
+                if (aZombie->mZombiePhase == ZombiePhase::PHASE_POGO_BOUNCING || (aZombie->mZombieType == ZombieType::ZOMBIE_BUNGEE && aZombie->mTargetCol == mPlantCol))
+                {
+                    continue;
+                }
 
-			if (mSeedType == SeedType::SEED_POTATOMINE)
-			{
-				if ((aZombie->mZombieType == ZombieType::ZOMBIE_POGO && aZombie->mHasObject) ||
-					aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_IN_VAULT || aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_PRE_VAULT)
-				{
-					continue;
-				}
+                if (aZombie->mIsEating || mState == PlantState::STATE_CHOMPER_BITING)
+                {
+                    aExtraRange = 60;
+                }
+            }
 
-				if (aZombie->mZombieType == ZombieType::ZOMBIE_POLEVAULTER)
-				{
-					aAttackRect.mX += 40;
-					aAttackRect.mWidth -= 40;  // classic potato mine quirk; lets pole-vaulters set off the mine ("four pole-vaulters" trick)
-				}
+            if (mSeedType == SeedType::SEED_POTATOMINE)
+            {
+                if ((aZombie->mZombieType == ZombieType::ZOMBIE_POGO && aZombie->mHasObject) ||
+                    aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_IN_VAULT || aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_PRE_VAULT)
+                {
+                    continue;
+                }
 
-				if (aZombie->mZombieType == ZombieType::ZOMBIE_BUNGEE && aZombie->mTargetCol != mPlantCol)
-				{
-					continue;
-				}
+                if (aZombie->mZombieType == ZombieType::ZOMBIE_POLEVAULTER)
+                {
+                    aAttackRect.mX += 40;
+                    aAttackRect.mWidth -= 40;  // 原版经典土豆地雷 Bug 及“四撑杆引雷”的原理
+                }
 
-				if (aZombie->mIsEating)
-				{
-					aExtraRange = 30;
-				}
-			}
+                if (aZombie->mZombieType == ZombieType::ZOMBIE_BUNGEE && aZombie->mTargetCol != mPlantCol)
+                {
+                    continue;
+                }
 
-			if ((mSeedType == SeedType::SEED_EXPLODE_O_NUT && aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_IN_VAULT) ||
-				(mSeedType == SeedType::SEED_TANGLEKELP && !aZombie->mInPool))
-			{
-				continue;
-			}
+                if (aZombie->mIsEating)
+                {
+                    aExtraRange = 30;
+                }
+            }
 
-			Rect aZombieRect = aZombie->GetZombieRect();
-			if (!needPortalCheck && GetRectOverlap(aAttackRect, aZombieRect) < -aExtraRange)
-			{
-				continue;
-			}
+            if ((mSeedType == SeedType::SEED_EXPLODE_O_NUT && aZombie->mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_IN_VAULT) ||
+                (mSeedType == SeedType::SEED_TANGLEKELP && !aZombie->mInPool))
+            {
+                continue;
+            }
 
-			int aWeight = -aZombieRect.mX;
-			if (mSeedType == SeedType::SEED_CATTAIL)
-			{
-				aWeight = -Distance2D(mX + 40.0f, mY + 40.0f, aZombieRect.mX + aZombieRect.mWidth / 2, aZombieRect.mY + aZombieRect.mHeight / 2);
-				if (aZombie->IsFlying())
-				{
-					aWeight += 10000;
-				}
-			}
+            Rect aZombieRect = aZombie->GetZombieRect();
+            if (!needPortalCheck && GetRectOverlap(aAttackRect, aZombieRect) < -aExtraRange)
+            {
+                continue;
+            }
 
-			if (aBestZombie == nullptr || aWeight > aHighestWeight)
-			{
-				aHighestWeight = aWeight;
-				aBestZombie = aZombie;
-			}
-		}
-	}
+            ////////////////////
 
-	return aBestZombie;
+            int aWeight = -aZombieRect.mX;
+            if (mSeedType == SeedType::SEED_CATTAIL)
+            {
+                aWeight = -Distance2D(mX + 40.0f, mY + 40.0f, aZombieRect.mX + aZombieRect.mWidth / 2, aZombieRect.mY + aZombieRect.mHeight / 2);
+                if (aZombie->IsFlying())
+                {
+                    aWeight += 10000;  // 优先攻击飞行单位
+                }
+            }
+
+            if (aBestZombie == nullptr || aWeight > aHighestWeight)
+            {
+                aHighestWeight = aWeight;
+                aBestZombie = aZombie;
+            }
+        }
+    }
+
+    return aBestZombie;
 }
 
 int Plant::DistanceToClosestZombie()
@@ -4976,65 +5776,96 @@ const PlantDefinition& GetPlantDefinition(SeedType theSeedType)
 
 int Plant::GetCost(SeedType theSeedType, SeedType theImitaterType)
 {
-	if (gLawnApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED || gLawnApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED_TWIST)
-	{
-		if (theSeedType == SeedType::SEED_REPEATER)
-		{
-			return 1000;
-		}
-		else if (theSeedType == SeedType::SEED_FUMESHROOM)
-		{
-			return 500;
-		}
-		else if (theSeedType == SeedType::SEED_TALLNUT)
-		{
-			return 250;
-		}
-		else if (theSeedType == SeedType::SEED_BEGHOULED_BUTTON_SHUFFLE)
-		{
-			return 100;
-		}
-		else if (theSeedType == SeedType::SEED_BEGHOULED_BUTTON_CRATER)
-		{
-			return 200;
-		}
-	}
+    if (gLawnApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED || gLawnApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED_TWIST)
+    {
+        if (theSeedType == SeedType::SEED_REPEATER)
+        {
+            return 1000;
+        }
+        else if (theSeedType == SeedType::SEED_FUMESHROOM)
+        {
+            return 500;
+        }
+        else if (theSeedType == SeedType::SEED_TALLNUT)
+        {
+            return 250;
+        }
+        else if (theSeedType == SeedType::SEED_BEGHOULED_BUTTON_SHUFFLE)
+        {
+            return 100;
+        }
+        else if (theSeedType == SeedType::SEED_BEGHOULED_BUTTON_CRATER)
+        {
+            return 200;
+        }
+    }
 
-	switch (theSeedType)
-	{
-	case SeedType::SEED_SLOT_MACHINE_SUN:           return 0;
-	case SeedType::SEED_SLOT_MACHINE_DIAMOND:       return 0;
-	case SeedType::SEED_ZOMBIQUARIUM_SNORKLE:       return 100;
-	case SeedType::SEED_ZOMBIQUARIUM_TROPHY:        return 1000;
-	case SeedType::SEED_ZOMBIE_NORMAL:              return 50;
-	case SeedType::SEED_ZOMBIE_TRAFFIC_CONE:        return 75;
-	case SeedType::SEED_ZOMBIE_POLEVAULTER:         return 75;
-	case SeedType::SEED_ZOMBIE_PAIL:                return 125;
-	case SeedType::SEED_ZOMBIE_LADDER:              return 150;
-	case SeedType::SEED_ZOMBIE_DIGGER:              return 125;
-	case SeedType::SEED_ZOMBIE_BUNGEE:              return 125;
-	case SeedType::SEED_ZOMBIE_FOOTBALL:            return 175;
-	case SeedType::SEED_ZOMBIE_BALLOON:             return 150;
-	case SeedType::SEED_ZOMBIE_SCREEN_DOOR:         return 100;
-	case SeedType::SEED_ZOMBONI:                    return 175;
-	case SeedType::SEED_ZOMBIE_POGO:                return 200;
-	case SeedType::SEED_ZOMBIE_DANCER:              return 350;
-	case SeedType::SEED_ZOMBIE_GARGANTUAR:          return 300;
-	case SeedType::SEED_ZOMBIE_IMP:                 return 50;
-	default:
-	{
-		if (theSeedType == SeedType::SEED_IMITATER && theImitaterType != SeedType::SEED_NONE)
-		{
-			const PlantDefinition& aPlantDef = GetPlantDefinition(theImitaterType);
-			return aPlantDef.mSeedCost;
-		}
-		else
-		{
-			const PlantDefinition& aPlantDef = GetPlantDefinition(theSeedType);
-			return aPlantDef.mSeedCost;
-		}
-	}
-	}
+    switch (theSeedType)
+    {
+    case SeedType::SEED_SLOT_MACHINE_SUN:           return 0;
+    case SeedType::SEED_SLOT_MACHINE_DIAMOND:       return 0;
+    case SeedType::SEED_ZOMBIQUARIUM_SNORKLE:       return 100;
+    case SeedType::SEED_ZOMBIQUARIUM_TROPHY:        return 1000;
+    case SeedType::SEED_ZOMBIE_NORMAL:              return 50;
+    case SeedType::SEED_ZOMBIE_TRAFFIC_CONE:        return 75;
+    case SeedType::SEED_ZOMBIE_POLEVAULTER:         return 75;
+    case SeedType::SEED_ZOMBIE_PAIL:                return 125;
+    case SeedType::SEED_ZOMBIE_LADDER:              return 150;
+    case SeedType::SEED_ZOMBIE_DIGGER:              return 125;
+    case SeedType::SEED_ZOMBIE_BUNGEE:              return 125;
+    case SeedType::SEED_ZOMBIE_FOOTBALL:            return 175;
+    case SeedType::SEED_ZOMBIE_BALLOON:             return 150;
+    case SeedType::SEED_ZOMBIE_SCREEN_DOOR:         return 100;
+    case SeedType::SEED_ZOMBONI:                    return 175;
+    case SeedType::SEED_ZOMBIE_POGO:                return 200;
+    case SeedType::SEED_ZOMBIE_DANCER:              return 350;
+    case SeedType::SEED_ZOMBIE_GARGANTUAR:          return 300;
+    case SeedType::SEED_ZOMBIE_IMP:                 return 50;
+    default:
+    {
+        SeedType aCostSeedType = theSeedType;
+        if (theSeedType == SeedType::SEED_IMITATER && theImitaterType != SeedType::SEED_NONE)
+        {
+            aCostSeedType = theImitaterType;
+        }
+
+        // @pvz-online: 闯关里蘑菇全醒（见构造函数），售价 +25 阳光（用户定案）。
+        // 卡面显示、扣费、可用判定全走这一个入口，所以自动一致；模仿者按被模仿的那株算。
+        int aCost = GetPlantDefinition(aCostSeedType).mSeedCost;
+        if (gLawnApp->IsRunMode())
+        {
+            // @pvz-online: 批 18 卷心菜「Free Toss」——种植费用变为 0（1 层）。卡面显示、
+            // 扣费、可用判定全走 GetCost 这一个口，所以自动一致；模仿者上面已解析到本株。
+            if (aCostSeedType == SeedType::SEED_CABBAGEPULT && gLawnApp->RunPlantUpgradeCount(SeedType::SEED_CABBAGEPULT) > 0)
+            {
+                return 0;
+            }
+
+            // @pvz-online: 第二 buff 批 2「免植」（分裂豌豆，docs/06 §8.6 #28）：种下 0 费
+            //（1★，费用轴新原型同 Free Toss 先例）。卡面显示、扣费、可用判定同走 GetCost。
+            if (aCostSeedType == SeedType::SEED_SPLITPEA && gLawnApp->RunPlantBuff2Count(SeedType::SEED_SPLITPEA) > 0)
+            {
+                return 0;
+            }
+
+            // @pvz-online: 闯关里紫卡直接种（见 Board::CanPlantAt），售价 = 紫卡原价
+            // + 基础植物原价（用户定案清单）；两笔都按原版取值，不再叠加蘑菇 +25。
+            SeedType aBaseType = GetUpgradeBaseFor(aCostSeedType);
+            if (aBaseType != SeedType::SEED_NONE)
+            {
+                return aCost + GetPlantDefinition(aBaseType).mSeedCost;
+            }
+
+            // @pvz-online: 阳光菇 0 费（用户 2026-10-04 定案）——连蘑菇 +25 加价一起豁免，
+            // 所有模式（战役/挑战/闯关）实际都 0 费；其余蘑菇照旧 +25。
+            if (IsNocturnal(aCostSeedType) && aCostSeedType != SeedType::SEED_SUNSHROOM)
+            {
+                aCost += 25;
+            }
+        }
+        return aCost;
+    }
+    }
 }
 
 std::string Plant::GetNameString(SeedType theSeedType, SeedType theImitaterType)
@@ -5063,21 +5894,24 @@ std::string Plant::GetToolTip(SeedType theSeedType)
 
 int Plant::GetRefreshTime(SeedType theSeedType, SeedType theImitaterType)
 {
-	if (Challenge::IsZombieSeedType(theSeedType))
-	{
-		return 0;
-	}
+    if (Challenge::IsZombieSeedType(theSeedType))
+    {
+        return 0;
+    }
 
-	if (theSeedType == SeedType::SEED_IMITATER && theImitaterType != SeedType::SEED_NONE)
-	{
-		const PlantDefinition& aPlantDef = GetPlantDefinition(theImitaterType);
-		return gLawnApp && gLawnApp->mRunState ? std::max(1, (int)(aPlantDef.mRefreshTime * gLawnApp->RunBuffMul(RUN_BUFF_FASTSEED))) : aPlantDef.mRefreshTime;
-	}
-	else
-	{
-		const PlantDefinition& aPlantDef = GetPlantDefinition(theSeedType);
-		return gLawnApp && gLawnApp->mRunState ? std::max(1, (int)(aPlantDef.mRefreshTime * gLawnApp->RunBuffMul(RUN_BUFF_FASTSEED))) : aPlantDef.mRefreshTime;
-	}
+    // @pvz-online: 「Devotion」（魅惑菇老表 #12）负面：拥有该词条时魅惑菇卡冷却 ×6
+    // （2026-10-11 晚恢复词条时加，750cs→4500cs）——模仿者复制的魅惑菇同乘。
+    SeedType aRealType = theSeedType;
+    if (theSeedType == SeedType::SEED_IMITATER && theImitaterType != SeedType::SEED_NONE)
+    {
+        aRealType = theImitaterType;
+    }
+    int aRefreshTime = GetPlantDefinition(aRealType).mRefreshTime;
+    if (aRealType == SeedType::SEED_HYPNOSHROOM && gLawnApp->RunPlantUpgradeCount(SeedType::SEED_HYPNOSHROOM) > 0)
+    {
+        aRefreshTime *= 6;
+    }
+    return aRefreshTime;
 }
 
 bool Plant::IsNocturnal(SeedType theSeedtype)
@@ -5162,34 +5996,42 @@ Rect Plant::GetPlantRect()
 
 Rect Plant::GetPlantAttackRect(PlantWeapon thePlantWeapon)
 {
-	Rect aRect;
-	if (mApp->IsWallnutBowlingLevel())
-	{
-		aRect = Rect(mX, mY, mWidth - 20, mHeight);
-	}
-	else if (thePlantWeapon == PlantWeapon::WEAPON_SECONDARY && mSeedType == SeedType::SEED_SPLITPEA)
-	{
-		aRect = Rect(0, mY, mX + 16, mHeight);
-	}
-	else switch (mSeedType)
-	{
-	case SeedType::SEED_LEFTPEATER:     aRect = Rect(0,             mY,             mX,                 mHeight);               break;
-	case SeedType::SEED_SQUASH:         aRect = Rect(mX + 20,       mY,             mWidth - 35,        mHeight);               break;
-	case SeedType::SEED_CHOMPER:        aRect = Rect(mX + 80,       mY,             40,                 mHeight);               break;
-	case SeedType::SEED_SPIKEWEED:
-	case SeedType::SEED_SPIKEROCK:      aRect = Rect(mX + 20,       mY,             mWidth - 50,        mHeight);               break;
-	case SeedType::SEED_POTATOMINE:     aRect = Rect(mX,            mY,             mWidth - 25,        mHeight);               break;
-	case SeedType::SEED_TORCHWOOD:      aRect = Rect(mX + 50,       mY,             30,                 mHeight);               break;
-	case SeedType::SEED_PUFFSHROOM:
-	case SeedType::SEED_SEASHROOM:      aRect = Rect(mX + 60,       mY,             230,                mHeight);               break;
-	case SeedType::SEED_FUMESHROOM:     aRect = Rect(mX + 60,       mY,             340,                mHeight);               break;
-	case SeedType::SEED_GLOOMSHROOM:    aRect = Rect(mX - 80,       mY - 80,        240,                240);                   break;
-	case SeedType::SEED_TANGLEKELP:     aRect = Rect(mX,            mY,             mWidth,             mHeight);               break;
-	case SeedType::SEED_CATTAIL:        aRect = Rect(-BOARD_WIDTH,  -BOARD_HEIGHT,  BOARD_WIDTH * 2,    BOARD_HEIGHT * 2);      break;
-	default:                            aRect = Rect(mX + 60,       mY,             BOARD_WIDTH,        mHeight);               break;
-	}
+    Rect aRect;
+    if (mApp->IsWallnutBowlingLevel())
+    {
+        aRect = Rect(mX, mY, mWidth - 20, mHeight);
+    }
+    else if (thePlantWeapon == PlantWeapon::WEAPON_SECONDARY && mSeedType == SeedType::SEED_SPLITPEA)
+    {
+        aRect = Rect(0, mY, mX + 16, mHeight);
+    }
+    else switch (mSeedType)
+    {
+    case SeedType::SEED_LEFTPEATER:     aRect = Rect(0,             mY,             mX,                 mHeight);               break;
+    case SeedType::SEED_SQUASH:         aRect = Rect(mX + 20,       mY,             mWidth - 35,        mHeight);               break;
+    case SeedType::SEED_CHOMPER:        aRect = Rect(mX + 80,       mY,             40,                 mHeight);               break;
+    case SeedType::SEED_SPIKEWEED:
+    case SeedType::SEED_SPIKEROCK:      aRect = Rect(mX + 20,       mY,             mWidth - 50,        mHeight);               break;
+    case SeedType::SEED_POTATOMINE:     aRect = Rect(mX,            mY,             mWidth - 25,        mHeight);               break;
+    case SeedType::SEED_TORCHWOOD:      aRect = Rect(mX + 50,       mY,             30,                 mHeight);               break;
+    case SeedType::SEED_PUFFSHROOM:
+    case SeedType::SEED_SEASHROOM:      aRect = Rect(mX + 60,       mY,             230,                mHeight);               break;
+    // @pvz-online: 批 18 大喷菇行改为「Fume Rush 攻击间隔 ×0.25」——射程恢复原版 340（原射程挂点删除）。
+    case SeedType::SEED_FUMESHROOM:     aRect = Rect(mX + 60,       mY,             340,                mHeight);               break;
+    // @pvz-online: 闯关「Gloom」（忧郁菇，批 14）：光环范围每层 +1 格——240×240（3 格）
+    // 逐层 +160px、中心不动（n 层 = 3+2n 格宽）；纵向行差在 DoRowAreaDamage 同步外扩。
+    case SeedType::SEED_GLOOMSHROOM:
+    {
+        int aGloomExtra = mApp->RunPlantUpgradeCount(SeedType::SEED_GLOOMSHROOM);
+        aRect = Rect(mX - 80 - 80 * aGloomExtra, mY - 80 - 80 * aGloomExtra, 240 + 160 * aGloomExtra, 240 + 160 * aGloomExtra);
+        break;
+    }
+    case SeedType::SEED_TANGLEKELP:     aRect = Rect(mX,            mY,             mWidth,             mHeight);               break;
+    case SeedType::SEED_CATTAIL:        aRect = Rect(-BOARD_WIDTH,  -BOARD_HEIGHT,  BOARD_WIDTH * 2,    BOARD_HEIGHT * 2);      break;
+    default:                            aRect = Rect(mX + 60,       mY,             BOARD_WIDTH,        mHeight);               break;
+    }
 
-	return aRect;
+    return aRect;
 }
 
 void Plant::PreloadPlantResources(SeedType theSeedType)

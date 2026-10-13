@@ -1,5 +1,18 @@
 # Android 开发更新记录
 
+## 2026-10-14 · 完整 buff、倍选与金币重摇
+
+- 固定 PC 61c37d6 / Build 44，全量迁入 96 条目录的实际消费者；92 条可抽取、3 条存量、1 条沿 PC 停用，常规植物池开放 48 株。
+- 接入多发/攻速、穿透、范围/直伤/护甲、持续效果、连砸/补雷/吞噬/再生等状态及植物依赖；费用、冷却、Kind 与叠层取整沿用 PC。
+- 加入 ×1/×2/×3 增益选择倍率、每屏免费刷新与金币阶梯重摇，闯关金币正常记入冒险档案；选择页补完整中英说明。
+- Portable v4 增加可选效果扩展块，旧 Android 冒险局内档可恢复；MuMu 代表机制、实际扣费保存和新字段读写通过。测试结束恢复五个原始用户文件，哈希一致。
+- 最终 ARM64 APK 已构建并更新安装；完整验收范围和哈希见 [BUFF-PORT-STATUS.md](BUFF-PORT-STATUS.md)。联机、新增僵尸与高级模式仍待迁入。
+
+### English
+
+The Android run now ports all active buff consumers from pinned PC commit 61c37d6 (Build 44): 92 selectable effects, three retained legacy effects and one disabled entry. All 48 ordinary plants, x1/x2/x3 buff picks and escalating coin rerolls are supported. Run coins enter the adventure profile as on PC. An optional v4 chunk stores new effect fields while existing Android adventure saves remain readable. Representative MuMu checks, real wallet persistence and effect-state round trips passed; the original five user files were restored with matching hashes. Networking, new zombie types and advanced modes remain pending.
+
+
 ## 2026-10-13 · 五场景战斗基础与重打
 
 - 闯关出怪表、权重、波数、标准场景难度及血量接入固定 PC 来源；未实现僵尸 34–41 过滤，每波上限 20 只。

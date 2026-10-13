@@ -25,6 +25,13 @@
 class RunState
 {
 public:
+    enum { RUN_BUFFMULT_X1 = 0, RUN_BUFFMULT_X2 = 1, RUN_BUFFMULT_X3 = 2 };
+    static const int RUN_PAID_REROLL_COST = 100;
+    int mBuffMult = 0;
+    int mPaidRerollCount = 0;
+    void PaidReroll();
+    int GetPaidRerollCost() const;
+    static int BuffMultValueFor(int theBuffMult);
 	// @pvz-online: 时长档（M4-b）。完整版一局 25 关；普通版抽每场景第 1/5 关（10 关，=原快速表）、
 	// 快速版抽第 5 关（5 关）——短一局用更密的奖励屏补内容量（倍乘见 BeginLevelEndPicks）。
 	// 无尽档（2026-10-10 用户定案）：多人无尽的第四档——锁一个场景、在该场景 5 个原型里无限
@@ -142,7 +149,7 @@ public:
 	// 卡池直接给满全部 48 株常规植物（2026-10-11 用户令「开局全植物」——模仿者照旧不给）。
 	void				StartNew(int theRunSeed, int theRunMode = RUN_MODE_FULL, int theRunDiff = RUN_DIFF_STD,
 							int theRunScale = RUN_SCALE_STD, int theRunTempo = RUN_TEMPO_STD, int theZombotany = 0,
-							int theEndlessScene = 0, int theBossFlag = 0);
+							int theEndlessScene = 0, int theBossFlag = 0, int theBuffMult = 0);
 
 	// 时长档的关数口径：每场景关数（5/2/1）与总关数（25/10/5）。模式非法按完整版。
 	// 无尽档的 LevelCountForMode = RUN_ENDLESS_LEVEL_COUNT（软上限）；LevelsPerScene 对

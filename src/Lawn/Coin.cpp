@@ -442,7 +442,7 @@ void Coin::ScoreCoin()
 	else if (IsMoney())
 	{
 		int aCoinValue = Coin::GetCoinValue(mType);
-		if (!mApp->mRunState) mApp->mPlayerInfo->AddCoins(aCoinValue);
+		mApp->mPlayerInfo->AddCoins(aCoinValue);
 		if (mBoard)
 		{
 			mBoard->mCoinsCollected += aCoinValue;

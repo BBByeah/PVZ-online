@@ -153,6 +153,15 @@ public:
 		return std::default_sentinel;
 	}
 
+	// PC effect code uses a cursor; keep the same ascending live-slot order as range iteration.
+	bool DataArrayIterate(T*& theItem)
+	{
+		unsigned int index = theItem ? static_cast<unsigned int>(static_cast<DataArrayItem*>(theItem) - mItems.get()) + 1U : 0U;
+		while (index < mMaxUsedCount && !(mItemIds[index] & DATA_ARRAY_KEY_MASK)) ++index;
+		theItem = index < mMaxUsedCount ? &mItems[index] : nullptr;
+		return theItem != nullptr;
+	}
+
 	T* DataArrayAlloc()
 	{
 		PVZP_ASSERT(mSize < mMaxSize, "Data array full: {}", mName);

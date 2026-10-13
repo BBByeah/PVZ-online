@@ -89,7 +89,9 @@ enum SaveChunkTypeV4
 	SAVE4_CHUNK_SEEDBANK = 17,
 	SAVE4_CHUNK_SEEDPACKETS = 18,
 	SAVE4_CHUNK_CHALLENGE = 19,
-	SAVE4_CHUNK_MUSIC = 20
+	SAVE4_CHUNK_MUSIC = 20,
+	// Optional extension: unchanged base chunks let existing Android v4 saves keep loading.
+	SAVE4_CHUNK_RUN_EFFECTS = 100
 };
 
 static constexpr const uint32_t SAVE4_CHUNK_VERSION = 1U;
@@ -1960,12 +1962,64 @@ static void SyncBoardPortable(PortableSaveContext& theContext, Board* theBoard)
 }
 
 
+template <typename T, typename SyncFn>
+static void SyncRunEffectArray(PortableSaveContext& context, DataArray<T>& array, SyncFn sync)
+{
+	uint32_t count = array.mSize;
+	context.SyncUInt32(count);
+	if (context.mFailed || count > array.mMaxSize) { context.mFailed = true; return; }
+	if (context.mReading)
+	{
+		for (uint32_t i = 0; i < count && !context.mFailed; ++i)
+		{
+			uint32_t id = 0;
+			context.SyncUInt32(id);
+			T* item = array.DataArrayTryToGet(id);
+			if (!item) { context.mFailed = true; return; }
+			sync(context, *item);
+		}
+	}
+	else
+	{
+		for (T* item : array)
+		{
+			uint32_t id = array.DataArrayGetID(item);
+			context.SyncUInt32(id);
+			sync(context, *item);
+		}
+	}
+}
+
+static void SyncRunEffectsPortable(PortableSaveContext& context, Board* board)
+{
+	SyncRunEffectArray(context, board->mPlants, [](PortableSaveContext& c, Plant& p) {
+		for (auto& id : p.mExtraTanglekelpIDs) SyncEnum32(c, id);
+		c.SyncInt32(p.mExtraTanglekelpCount);
+		c.SyncInt32(p.mSquashSmashesLeft);
+		c.SyncFloat(p.mSquashFromX); c.SyncFloat(p.mSquashFromY);
+		c.SyncInt32(p.mMineregrowsLeft); c.SyncInt32(p.mChainBitesLeft);
+		if (p.mExtraTanglekelpCount < 0 || p.mExtraTanglekelpCount > 2) c.mFailed = true;
+	});
+	SyncRunEffectArray(context, board->mProjectiles, [](PortableSaveContext& c, Projectile& p) {
+		c.SyncInt32(p.mPricklyHitsLeft);
+		for (auto& id : p.mPricklyHitIds) SyncEnum32(c, id);
+		c.SyncInt32(p.mPricklyHitCount);
+		if (p.mPricklyHitCount < 0) c.mFailed = true;
+	});
+	SyncRunEffectArray(context, board->mZombies, [](PortableSaveContext& c, Zombie& z) {
+		c.SyncInt32(z.mFetidSlowCounter); c.SyncInt32(z.mScorchedCounter);
+		c.SyncInt32(z.mFrostArmorCounter); c.SyncBool(z.mIceShroomTrap);
+	});
+}
+
 typedef void (*ChunkSyncFn)(PortableSaveContext&, Board*);
 
 static ChunkSyncFn GetChunkSyncFn(uint32_t theChunkType)
 {
 	switch (theChunkType)
 	{
+	case SAVE4_CHUNK_RUN_EFFECTS:
+		return SyncRunEffectsPortable;
 	case SAVE4_CHUNK_BOARD_BASE:
 		return SyncBoardBasePortable;
 	case SAVE4_CHUNK_ZOMBIES:
@@ -2813,6 +2867,7 @@ bool LawnSaveGame(Board* theBoard, const std::string& theFilePath)
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_SEEDPACKETS, theBoard)) return false;
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_CHALLENGE, theBoard)) return false;
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_MUSIC, theBoard)) return false;
+	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_RUN_EFFECTS, theBoard)) return false;
 
 	SaveFileHeaderV4 aHeader{};
 	memcpy(aHeader.mMagic, SAVE_FILE_MAGIC_V4, sizeof(aHeader.mMagic));

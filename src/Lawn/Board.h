@@ -127,6 +127,11 @@ struct BungeeDropGrid
 class Board : public Widget, public ButtonListener
 {
 public:
+    bool IteratePlants(Plant*& p) { return mPlants.DataArrayIterate(p); }
+    bool IterateZombies(Zombie*& p) { return mZombies.DataArrayIterate(p); }
+    bool IterateProjectiles(Projectile*& p) { return mProjectiles.DataArrayIterate(p); }
+    bool IterateCoins(Coin*& p) { return mCoins.DataArrayIterate(p); }
+    bool IterateGridItems(GridItem*& p) { return mGridItems.DataArrayIterate(p); }
 	LawnApp*						mApp;
 	DataArray<Zombie>				mZombies;
 	DataArray<Plant>				mPlants;
@@ -424,7 +429,7 @@ public:
 	bool							IsValidCobCannonSpot(int theGridX, int theGridY);
 	bool							IsValidCobCannonSpotHelper(int theGridX, int theGridY);
 	void							MouseDownCobcannonFire(int x, int y, int theClickCount);
-	int								KillAllZombiesInRadius(int theRow, int theX, int theY, int theRadius, int theRowRange, bool theBurn, int theDamageRangeFlags);
+	int								KillAllZombiesInRadius(int theRow, int theX, int theY, int theRadius, int theRowRange, bool theBurn, int theDamageRangeFlags, int theDirectDamage = 0);
 	int					GetSeedBankExtraWidth();
 	bool							IsFlagWave(int theWaveNumber);
 	void							DrawHouseDoorTop(Graphics* g);

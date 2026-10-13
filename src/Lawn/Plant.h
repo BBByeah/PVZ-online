@@ -211,6 +211,14 @@ public:
 	bool                    mIsAsleep;
 	bool                    mIsOnBoard;
 	bool                    mHighlighted;
+	// PC build 44 effect state; serialized explicitly by the portable save path.
+	ZombieID mExtraTanglekelpIDs[2] = {};
+	int32_t mExtraTanglekelpCount = 0;
+	int32_t mSquashSmashesLeft = -1;
+	float mSquashFromX = 0.0f;
+	float mSquashFromY = 0.0f;
+	int32_t mMineregrowsLeft = 0;
+	int32_t mChainBitesLeft = 0;
 
 public:
 	Plant();
@@ -222,7 +230,10 @@ public:
 	void                    MouseDown(int x, int y, int theClickCount);
 	void                    DoSpecial();
 	void                    Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon = PlantWeapon::WEAPON_PRIMARY);
-	Zombie*                 FindTargetZombie(int theRow, PlantWeapon thePlantWeapon = PlantWeapon::WEAPON_PRIMARY);
+	Zombie*                 FindTargetZombie(int theRow, PlantWeapon thePlantWeapon = PlantWeapon::WEAPON_PRIMARY, Zombie* theExclude1 = nullptr, Zombie* theExclude2 = nullptr);
+	static int SpikeweedCycleFrames(LawnApp* theApp, SeedType theSeedType);
+	void AttachTanglekelpGrab(Zombie* theZombie);
+	bool IsTangleKelpTargeting(ZombieID theZombieID);
 	void                    Die();
 	void                    UpdateProductionPlant();
 	void                    UpdateShooter();

@@ -33,13 +33,14 @@ void LawnApp::ShowRunMenu()
     mWidgetManager->SetFocus(mRunFlowScreen.get());
 }
 
-void LawnApp::StartRun(int mode)
+void LawnApp::StartRun(int mode, int buffMult)
 {
     KillRunFlowScreen();
     KillBoard();
     KillGameSelector();
     mRunState = std::make_unique<RunState>();
     mRunState->StartNew(Sexy::Rand(), mode, RunState::RUN_DIFF_STD);
+    mRunState->mBuffMult = buffMult;
     mRunState->BeginStartPicks();
     ShowRunPicks();
 }
@@ -111,11 +112,184 @@ void LawnApp::NoteRunFailure()
         PvzpLogLn("[run] could not save failure checkpoint");
 }
 
-float LawnApp::RunBuffMul(int id) const
+void LawnApp::RunPickPaidReroll()
 {
-    if (!mRunState || !RunChoiceImplemented(id)) return 1.0f;
-    const int count = mRunState->GetBuffCount(id);
-    const auto& def = GetRunBuffDef(id);
-    return std::max(0.05f, def.mMultiplicative ? (float)std::pow(1.0f + def.mPerStackMul, count) :
-        1.0f + def.mPerStackMul * count);
+    if (!mRunState || !mPlayerInfo || !mRunState->mPickReRolled) return;
+    const int cost = mRunState->GetPaidRerollCost();
+    if (mPlayerInfo->mCoins < cost) return;
+    mPlayerInfo->AddCoins(-cost);
+    mRunState->PaidReroll();
+}
+
+
+
+// Effect consumers ported from PC build 44 (61c37d6), CC0 source.
+float LawnApp::RunBuffMul(int theBuffId) const
+{
+	if (mRunState == nullptr) return 1.0f;
+
+	const RunBuffDef& aDef = GetRunBuffDef(theBuffId);
+	int aStacks = mRunState->GetBuffCount(theBuffId);
+	float aMul = 1.0f;
+	if (aDef.mMultiplicative)
+	{
+		for (int i = 0; i < aStacks; i++) aMul *= 1.0f + aDef.mPerStackMul;
+	}
+	else
+	{
+		aMul = 1.0f + aDef.mPerStackMul * (float)aStacks;
+	}
+	return aMul < 0.1f ? 0.1f : aMul;
+}
+
+bool LawnApp::RunSkySunAtNight() const
+{
+	return mRunState != nullptr && mRunState->GetBuffCount(RUN_BUFF_SKYFALL) > 0;
+}
+
+float LawnApp::RunSkySunIntervalMul() const
+{
+	return RunSkySunAtNight() ? (1.0f / 2.0f) : 1.0f;
+}
+
+int LawnApp::RunMirrorStacks() const
+{
+	if (mRunState == nullptr) return 0;
+	return mRunState->GetBuffCount(RUN_BUFF_MIRROR);
+}
+
+int LawnApp::RunBuffAdd(int theBuffId) const
+{
+	if (mRunState == nullptr) return 0;
+	return GetRunBuffDef(theBuffId).mPerStackAdd * mRunState->GetBuffCount(theBuffId);
+}
+
+float LawnApp::RunPlantUpgradeMul(SeedType thePlant) const
+{
+	if (mRunState == nullptr) return 1.0f;
+
+	int aIndex = RunPlantUpgradeIndexFor(thePlant);
+	if (aIndex < 0) return 1.0f;
+
+	const RunPlantUpgradeDef& aDef = GetRunPlantUpgradeDef(aIndex);
+	int aStacks = mRunState->GetBuffCount(RUN_BUFF_COUNT + aIndex);
+	float aMul = 1.0f;
+	if (aDef.mMultiplicative)
+	{
+		for (int i = 0; i < aStacks; i++) aMul *= 1.0f + aDef.mPerStackMul;
+	}
+	else
+	{
+		aMul = 1.0f + aDef.mPerStackMul * (float)aStacks;
+	}
+	return aMul < 0.1f ? 0.1f : aMul;
+}
+
+int LawnApp::RunPlantUpgradeCount(SeedType thePlant) const
+{
+	if (mRunState == nullptr) return 0;
+
+	int aIndex = RunPlantUpgradeIndexFor(thePlant);
+	if (aIndex < 0) return 0;
+	return mRunState->GetBuffCount(RUN_BUFF_COUNT + aIndex);
+}
+
+float LawnApp::RunPlantUpgradeMulKind(SeedType thePlant, RunPlantUpgradeKind theKind) const
+{
+	if (mRunState == nullptr) return 1.0f;
+	int aIndex = RunPlantUpgradeIndexFor(thePlant);
+	if (aIndex < 0) return 1.0f;
+	const RunPlantUpgradeDef& aDef = GetRunPlantUpgradeDef(aIndex);
+	if (aDef.mKind != theKind) return 1.0f;
+	int aStacks = mRunState->GetBuffCount(RUN_BUFF_COUNT + aIndex);
+	if (aDef.mMaxStacks > 0 && aStacks > aDef.mMaxStacks) aStacks = aDef.mMaxStacks;
+	float aMul = 1.0f;
+	if (aDef.mMultiplicative)
+	{
+		for (int i = 0; i < aStacks; i++) aMul *= 1.0f + aDef.mPerStackMul;
+	}
+	else
+	{
+		aMul = 1.0f + aDef.mPerStackMul * (float)aStacks;
+	}
+	return aMul < 0.1f ? 0.1f : aMul;
+}
+
+int LawnApp::RunPlantUpgradeCountKind(SeedType thePlant, RunPlantUpgradeKind theKind) const
+{
+	if (mRunState == nullptr) return 0;
+	int aIndex = RunPlantUpgradeIndexFor(thePlant);
+	if (aIndex < 0) return 0;
+	const RunPlantUpgradeDef& aDef = GetRunPlantUpgradeDef(aIndex);
+	if (aDef.mKind != theKind) return 0;
+	int aStacks = mRunState->GetBuffCount(RUN_BUFF_COUNT + aIndex);
+	if (aDef.mMaxStacks > 0 && aStacks > aDef.mMaxStacks) aStacks = aDef.mMaxStacks;
+	return aStacks;
+}
+
+float LawnApp::RunPlantBuff2Mul(SeedType thePlant) const
+{
+	if (mRunState == nullptr) return 1.0f;
+	int aIndex = RunPlantBuff2IndexFor(thePlant);
+	if (aIndex < 0) return 1.0f;
+	const RunPlantUpgradeDef& aDef = GetRunPlantBuff2Def(aIndex);
+	int aStacks = mRunState->GetBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + aIndex);
+	float aMul = 1.0f;
+	if (aDef.mMultiplicative)
+	{
+		for (int i = 0; i < aStacks; i++) aMul *= 1.0f + aDef.mPerStackMul;
+	}
+	else
+	{
+		aMul = 1.0f + aDef.mPerStackMul * (float)aStacks;
+	}
+	return aMul < 0.1f ? 0.1f : aMul;
+}
+
+int LawnApp::RunPlantBuff2Count(SeedType thePlant) const
+{
+	if (mRunState == nullptr) return 0;
+	int aIndex = RunPlantBuff2IndexFor(thePlant);
+	if (aIndex < 0) return 0;
+	return mRunState->GetBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + aIndex);
+}
+
+float LawnApp::RunPlantBuff2MulKind(SeedType thePlant, RunPlantUpgradeKind theKind) const
+{
+	if (mRunState == nullptr) return 1.0f;
+	int aIndex = RunPlantBuff2IndexFor(thePlant);
+	if (aIndex < 0) return 1.0f;
+	const RunPlantUpgradeDef& aDef = GetRunPlantBuff2Def(aIndex);
+	if (aDef.mKind != theKind) return 1.0f;
+	int aStacks = mRunState->GetBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + aIndex);
+	if (aDef.mMaxStacks > 0 && aStacks > aDef.mMaxStacks) aStacks = aDef.mMaxStacks;
+	float aMul = 1.0f;
+	if (aDef.mMultiplicative)
+	{
+		for (int i = 0; i < aStacks; i++) aMul *= 1.0f + aDef.mPerStackMul;
+	}
+	else
+	{
+		aMul = 1.0f + aDef.mPerStackMul * (float)aStacks;
+	}
+	return aMul < 0.1f ? 0.1f : aMul;
+}
+
+int LawnApp::RunPlantBuff2CountKind(SeedType thePlant, RunPlantUpgradeKind theKind) const
+{
+	if (mRunState == nullptr) return 0;
+	int aIndex = RunPlantBuff2IndexFor(thePlant);
+	if (aIndex < 0) return 0;
+	const RunPlantUpgradeDef& aDef = GetRunPlantBuff2Def(aIndex);
+	if (aDef.mKind != theKind) return 0;
+	int aStacks = mRunState->GetBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + aIndex);
+	if (aDef.mMaxStacks > 0 && aStacks > aDef.mMaxStacks) aStacks = aDef.mMaxStacks;
+	return aStacks;
+}
+
+float LawnApp::RunCoffeeBeanRefreshMul(SeedType thePlant, SeedType theImitaterType) const
+{
+	if (mRunState == nullptr) return 1.0f;
+	if (thePlant == SeedType::SEED_IMITATER && theImitaterType != SeedType::SEED_NONE) thePlant = theImitaterType;
+	return thePlant == SeedType::SEED_INSTANT_COFFEE ? 1.6f : 1.0f;
 }

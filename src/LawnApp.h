@@ -48,6 +48,7 @@ class TitleScreen;
 class ChallengeScreen;
 class StoreScreen;
 class AlmanacDialog;
+#include "Lawn/Run/RunBuffs.h"
 class RunState;
 class RunFlowScreen;
 class TypingCheck;
@@ -79,7 +80,8 @@ public:
 	std::unique_ptr<RunState> mRunState;
 	std::unique_ptr<RunFlowScreen> mRunFlowScreen;
 	void ShowRunMenu();
-	void StartRun(int mode);
+	void StartRun(int mode, int buffMult = 0);
+	void RunPickPaidReroll();
 	void ResumeRun();
 	void ShowRunPicks();
 	void StartRunLevel();
@@ -87,6 +89,20 @@ public:
 	void NoteRunFailure();
 	void KillRunFlowScreen();
 	float RunBuffMul(int id) const;
+    bool RunSkySunAtNight() const;
+    float RunSkySunIntervalMul() const;
+    int RunMirrorStacks() const;
+    int RunBuffAdd(int theBuffId) const;
+    float RunPlantUpgradeMul(SeedType thePlant) const;
+    int RunPlantUpgradeCount(SeedType thePlant) const;
+    float RunPlantUpgradeMulKind(SeedType thePlant, RunPlantUpgradeKind theKind) const;
+    int RunPlantUpgradeCountKind(SeedType thePlant, RunPlantUpgradeKind theKind) const;
+    float RunPlantBuff2Mul(SeedType thePlant) const;
+    int RunPlantBuff2Count(SeedType thePlant) const;
+    float RunPlantBuff2MulKind(SeedType thePlant, RunPlantUpgradeKind theKind) const;
+    int RunPlantBuff2CountKind(SeedType thePlant, RunPlantUpgradeKind theKind) const;
+    float RunCoffeeBeanRefreshMul(SeedType thePlant, SeedType theImitaterType) const;
+    inline bool IsRunMode() const { return mRunState != nullptr; }
 	std::unique_ptr<TitleScreen>	mTitleScreen;
 	std::unique_ptr<GameSelector>	mGameSelector;
 	std::unique_ptr<SeedChooserScreen>	mSeedChooserScreen;

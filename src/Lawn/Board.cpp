@@ -71,6 +71,13 @@ constexpr const int FLAG_RAISE_TIME = 100;
 
 bool gShownMoreSunTutorial = false;
 
+
+
+
+
+
+
+
 Board::Board(LawnApp* theApp)
 {
 	mApp = theApp;
@@ -1390,9 +1397,9 @@ void Board::InitLevel()
 		mRowPickingArray[aRow].mItem = aRow;
 	}
 	mNumSunsFallen = 0;
-	if (!StageIsNight())
+	if (!StageIsNight() || mApp->RunSkySunAtNight())
 	{
-		mSunCountDown = RandRangeInt(425, 700);
+		mSunCountDown = (int)(RandRangeInt(425, 700) * mApp->RunSkySunIntervalMul() + 0.5f);
 	}
 	memset(mHelpDisplayed, 0, sizeof(mHelpDisplayed));
 	mSeedBank->mNumPackets = GetNumSeedsInBank();
@@ -2750,11 +2757,13 @@ bool Board::IsIceAt(int theGridX, int theGridY)
 
 PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedType)
 {
+	// 目标位置不在场地内，则返回“不能种在那里”
 	if (theGridX < 0 || theGridX >= MAX_GRID_SIZE_X || theGridY < 0 || theGridY >= MAX_GRID_SIZE_Y)
 	{
 		return PlantingReason::PLANTING_NOT_HERE;
 	}
 
+	// 从关卡玩法上，判断能否种植
 	PlantingReason aReason = mChallenge->CanPlantAt(theGridX, theGridY, theSeedType);
 	if (aReason != PlantingReason::PLANTING_OK || Challenge::IsZombieSeedType(theSeedType))
 	{
@@ -2777,6 +2786,7 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 		return PlantingReason::PLANTING_OK;
 	}
 
+	// 墓碑吞噬者只能种植在墓碑上
 	bool aHasGrave = GetGraveStoneAt(theGridX, theGridY);
 	if (theSeedType == SeedType::SEED_GRAVEBUSTER)
 	{
@@ -2794,6 +2804,19 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 			return PlantingReason::PLANTING_NOT_HERE;
 		}
 
+		// @pvz-online: 闯关里蘑菇全醒，没有"睡着的植物"可浇——咖啡豆改行产阳光
+		// （见 Plant::DoSpecial），种植条件因此放宽成"下面任意一株普通植物"
+		if (mApp->IsRunMode())
+		{
+			if (!aPlantOnLawn.mNormalPlant ||
+				aPlantOnLawn.mNormalPlant->mOnBungeeState == PlantOnBungeeState::GETTING_GRABBED_BY_BUNGEE)
+			{
+				return PlantingReason::PLANTING_NOT_HERE;
+			}
+
+			return PlantingReason::PLANTING_OK;
+		}
+
 		if (!aPlantOnLawn.mNormalPlant || !aPlantOnLawn.mNormalPlant->mIsAsleep || aPlantOnLawn.mNormalPlant->mWakeUpCounter > 0 ||
 			aPlantOnLawn.mNormalPlant->mOnBungeeState == PlantOnBungeeState::GETTING_GRABBED_BY_BUNGEE)
 		{
@@ -2802,6 +2825,7 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 
 		return PlantingReason::PLANTING_OK;
 	}
+	// 非墓碑吞噬者且非飞行植物，则不能种在墓碑上
 	if (aHasGrave)
 	{
 		return Plant::IsFlying(theSeedType) ? PlantingReason::PLANTING_OK : PlantingReason::PLANTING_NOT_ON_GRAVE;
@@ -2819,6 +2843,7 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 		aHasLilypad = aUnderPlant->mSeedType == SeedType::SEED_LILYPAD;
 		aHasFlowerPot = aUnderPlant->mSeedType == SeedType::SEED_FLOWERPOT;
 	}
+	// 部分情况下的格子中不能种植植物
 	if (GetCraterAt(theGridX, theGridY))
 	{
 		return PlantingReason::PLANTING_NOT_ON_CRATER;
@@ -2832,10 +2857,13 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 	{
 		return PlantingReason::PLANTING_NOT_HERE;
 	}
+	// 水生植物只能种在水上
 	Plant* aNormalPlant = aPlantOnLawn.mNormalPlant;
 	if (theSeedType == SeedType::SEED_LILYPAD || theSeedType == SeedType::SEED_TANGLEKELP || theSeedType == SeedType::SEED_SEASHROOM)
 	{
-		if (!IsPoolSquare(theGridX, theGridY) && (!mApp->mRunState || StageHasRoof()))
+		// @pvz-online: 闯关里这几样也能种在草坪上（用户 2026-10-03 定案）——非泳池格不再
+		// 拒种，占位规则与水里一致（空格子才放得下）；屋顶不放开，仍按"只能种水上"拒。
+		if (!IsPoolSquare(theGridX, theGridY) && (!mApp->IsRunMode() || StageHasRoof()))
 		{
 			return PlantingReason::PLANTING_ONLY_IN_POOL;
 		}
@@ -2846,6 +2874,7 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 	{
 		return aPlantOnLawn.mFlyingPlant ? PlantingReason::PLANTING_NOT_HERE : PlantingReason::PLANTING_OK;
 	}
+	// 地刺/地刺王只能种在坚固的地面
 	if (theSeedType == SeedType::SEED_SPIKEWEED || theSeedType == SeedType::SEED_SPIKEROCK)
 	{
 		if (aGridSquare == GridSquareType::GRIDSQUARE_POOL || StageHasRoof() || aUnderPlant)
@@ -2853,7 +2882,7 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 			return PlantingReason::PLANTING_NEEDS_GROUND;
 		}
 	}
-	// non-aquatic plants need a lily pad on water, but a pumpkin shell may go on a cattail
+	// 非水生植物不能种在水面上（南瓜头可以种在香蒲上）
 	Plant* aPumpkinPlant = aPlantOnLawn.mPumpkinPlant;
 	if (aGridSquare == GridSquareType::GRIDSQUARE_POOL && !aHasLilypad && theSeedType != SeedType::SEED_CATTAIL)
 	{
@@ -2862,26 +2891,33 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 			return PlantingReason::PLANTING_NOT_ON_WATER;
 		}
 	}
+	// 花盆的种植条件
 	if (theSeedType == SeedType::SEED_FLOWERPOT)
 	{
 		return (aNormalPlant || aUnderPlant || aPumpkinPlant) ? PlantingReason::PLANTING_NOT_HERE : PlantingReason::PLANTING_OK;
 	}
+	// 屋顶种植需要花盆
 	if (StageHasRoof() && !aHasFlowerPot)
 	{
 		return PlantingReason::PLANTING_NEEDS_POT;
 	}
-	bool aAidPurchased = !mApp->mRunState && mApp->mPlayerInfo->mPurchases[StoreItem::STORE_ITEM_FIRSTAID] > 0;
+	// 南瓜头的种植条件
+	// @pvz-online: 档案买的"急救"（坚果包扎术）不进联机/闯关局（§5.9），按未购买算。
+	bool aAidPurchased = !false && !mApp->IsRunMode() &&
+		mApp->mPlayerInfo->mPurchases[StoreItem::STORE_ITEM_FIRSTAID] > 0;
 	if (theSeedType == SeedType::SEED_PUMPKINSHELL)
 	{
+		// 不可种植在玉米加农炮上
 		if (aNormalPlant && aNormalPlant->mSeedType == SeedType::SEED_COBCANNON)
 		{
 			return PlantingReason::PLANTING_NOT_HERE;
 		}
+		// 无南瓜头时，可以种植南瓜头
 		if (!aPumpkinPlant)
 		{
 			return PlantingReason::PLANTING_OK;
 		}
-		// wall-nut first aid on a damaged pumpkin
+		// 南瓜头的坚果包扎术
 		if (aAidPurchased && aPumpkinPlant->mPlantHealth < aPumpkinPlant->mPlantMaxHealth * 2 / 3 &&
 			aPumpkinPlant->mSeedType == SeedType::SEED_PUMPKINSHELL && aPumpkinPlant->mOnBungeeState != PlantOnBungeeState::GETTING_GRABBED_BY_BUNGEE)
 		{
@@ -2890,6 +2926,7 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 
 		return PlantingReason::PLANTING_NOT_HERE;
 	}
+	// 土豆地雷只能种在陆地上
 	if (aHasLilypad && theSeedType == SeedType::SEED_POTATOMINE)
 	{
 		return PlantingReason::PLANTING_ONLY_ON_GROUND;
@@ -2897,6 +2934,7 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 
 	if (aUnderPlant)
 	{
+		// 香蒲对底端植物的紫卡升级
 		if (theSeedType == SeedType::SEED_CATTAIL)
 		{
 			if (aNormalPlant)
@@ -2907,13 +2945,15 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 			{
 				return PlantingReason::PLANTING_OK;
 			}
-			if (Plant::IsUpgrade(theSeedType))
+			// @pvz-online: 闯关里紫卡直接种（不用底座）——香蒲不再要求"先有睡莲才能升"
+			if (Plant::IsUpgrade(theSeedType) && !mApp->IsRunMode())
 			{
 				return PlantingReason::PLANTING_NEEDS_UPGRADE;
 			}
 		}
 		else
 		{
+			// 模仿中的模仿者不可作为花盆或睡莲
 			if (aUnderPlant->mSeedType == SeedType::SEED_IMITATER)
 			{
 				return PlantingReason::PLANTING_NOT_HERE;
@@ -2921,18 +2961,21 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 		}
 	}
 
+	// 一般紫卡植物的更迭判断
 	if (aNormalPlant)
 	{
+		// 紫卡植物的升级
 		if (aNormalPlant->IsUpgradableTo(theSeedType) && aNormalPlant->mOnBungeeState != PlantOnBungeeState::GETTING_GRABBED_BY_BUNGEE)
 		{
 			return PlantingReason::PLANTING_OK;
 		}
-		if (Plant::IsUpgrade(theSeedType))
+		// @pvz-online: 闯关里紫卡就是普通植物（直接种），落在地块已占的位置按"占位"处理
+		if (Plant::IsUpgrade(theSeedType) && !mApp->IsRunMode())
 		{
 			return PlantingReason::PLANTING_NEEDS_UPGRADE;
 		}
 
-		// wall-nut first aid
+		// 坚果包扎术
 		if ((theSeedType == SeedType::SEED_WALLNUT || theSeedType == SeedType::SEED_TALLNUT) && aAidPurchased)
 		{
 			if (aNormalPlant->mPlantHealth < aNormalPlant->mPlantMaxHealth * 2 / 3 &&
@@ -2945,18 +2988,50 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 		return PlantingReason::PLANTING_NOT_HERE;
 	}
 
-	// the easy planting cheat skips the upgrade requirement
-	if (!mApp->mEasyPlantingCheat && Plant::IsUpgrade(theSeedType))
+	// 免费种植模式下紫卡的额外判断（闯关里紫卡直接种、不吃这条）
+	if (!mApp->mEasyPlantingCheat && Plant::IsUpgrade(theSeedType) && !mApp->IsRunMode())
 	{
 		return PlantingReason::PLANTING_NEEDS_UPGRADE;
 	}
+	// @pvz-online: 闯关里加农炮同样直接种（用户 2026-10-03 定案）——不必先凑两个玉米投手；
+	// 它占锚点格 + 右邻格（占位见 GetPlantsOnLawn），所以右邻格也得留出地方：越界或已有
+	// 普通/南瓜头/飞行植物都算种不下，免得两株叠在同一格（非闯关照旧要合法炮弹位）。
 	if (theSeedType == SeedType::SEED_COBCANNON && !IsValidCobCannonSpot(theGridX, theGridY))
 	{
-		return PlantingReason::PLANTING_NEEDS_UPGRADE;
+		if (!mApp->IsRunMode())
+		{
+			return PlantingReason::PLANTING_NEEDS_UPGRADE;
+		}
+		PlantsOnLawn aRightLawn;
+		GetPlantsOnLawn(theGridX + 1, theGridY, &aRightLawn);
+		if (theGridX + 1 >= MAX_GRID_SIZE_X ||
+			aRightLawn.mNormalPlant || aRightLawn.mPumpkinPlant || aRightLawn.mFlyingPlant)
+		{
+			return PlantingReason::PLANTING_NOT_HERE;
+		}
 	}
-	else if (theSeedType == SeedType::SEED_CATTAIL && aGridSquare != GridSquareType::GRIDSQUARE_POOL)
+	// @pvz-online: 香蒲同理（用户 2026-10-03 定案）——闯关里草坪也能直接种；非闯关照旧只限泳池
+	else if (theSeedType == SeedType::SEED_CATTAIL && aGridSquare != GridSquareType::GRIDSQUARE_POOL && !mApp->IsRunMode())
 	{
 		return PlantingReason::PLANTING_NOT_HERE;
+	}
+
+	// @pvz-online: 批 18 玉米投手「Artillery」——种下即变玉米加农炮（1 层）。加农炮占锚点格 +
+	// 右邻格（占位见 GetPlantsOnLawn）：右邻格越界或已有普通/南瓜头/飞行植物都算放不下，拦在
+	// 这里——校验在扣费之前，所以是"提示种不下、不扣阳光"（用户拍板 ④）。mEasyPlantingCheat
+	// 短路一是照抄上面紫卡的老规矩，二是断递归——cheat 开时 IsValidCobCannonSpotHelper 会递归
+	// 调回 CanPlantAt(KERNELPULT)。
+	if (theSeedType == SeedType::SEED_KERNELPULT && mApp->IsRunMode() &&
+		mApp->RunPlantUpgradeCount(SeedType::SEED_KERNELPULT) > 0 &&
+		!(mApp->mEasyPlantingCheat || IsValidCobCannonSpot(theGridX, theGridY)))
+	{
+		PlantsOnLawn aRightLawn;
+		GetPlantsOnLawn(theGridX + 1, theGridY, &aRightLawn);
+		if (theGridX + 1 >= MAX_GRID_SIZE_X ||
+			aRightLawn.mNormalPlant || aRightLawn.mPumpkinPlant || aRightLawn.mFlyingPlant)
+		{
+			return PlantingReason::PLANTING_NOT_HERE;
+		}
 	}
 
 	return PlantingReason::PLANTING_OK;
@@ -3234,7 +3309,7 @@ void Board::UpdateMousePosition()
 		int aGridY = PlantingPixelToGridY(mApp->mWidgetManager->mLastMouseX, mApp->mWidgetManager->mLastMouseY, aCursorSeedType);
 
 		Plant* aPlant = GetTopPlantAt(aGridX, aGridY, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION);
-		if (aPlant && aPlant->mIsAsleep && CanPlantAt(aGridX, aGridY, SeedType::SEED_INSTANT_COFFEE) == PlantingReason::PLANTING_OK)
+		if (aPlant && (mApp->IsRunMode() || aPlant->mIsAsleep) && CanPlantAt(aGridX, aGridY, SeedType::SEED_INSTANT_COFFEE) == PlantingReason::PLANTING_OK)
 		{
 			aPlant->mHighlighted = true;
 		}
@@ -3655,6 +3730,7 @@ void Board::MouseDownCobcannonFire(int x, int y, int theClickCount)
 
 void Board::MouseDownWithPlant(int x, int y, int theClickCount)
 {
+	// 右击鼠标：放下卡牌
 	if (theClickCount < 0)
 	{
 		RefreshSeedPacketFromCursor();
@@ -3662,6 +3738,7 @@ void Board::MouseDownWithPlant(int x, int y, int theClickCount)
 		return;
 	}
 
+	// 我是僵尸模式中，交由 Challenge 处理
 	if (mApp->IsIZombieLevel())
 	{
 		mChallenge->IZombieMouseDownWithZombie(x, y, theClickCount);
@@ -3672,7 +3749,8 @@ void Board::MouseDownWithPlant(int x, int y, int theClickCount)
 	int aGridX = PlantingPixelToGridX(x, y, aPlantingSeedType);
 	int aGridY = PlantingPixelToGridY(x, y, aPlantingSeedType);
 
-	if (aGridX < 0 || aGridX >= MAX_GRID_SIZE_X || aGridY < 0 || aGridY > MAX_GRID_SIZE_Y)
+	// 不在场地内的点击：放下卡牌
+	if (aGridX < 0 || aGridX >= MAX_GRID_SIZE_X || aGridY < 0 || aGridY >= MAX_GRID_SIZE_Y)
 	{
 		RefreshSeedPacketFromCursor();
 		mApp->PlayFoley(FoleyType::FOLEY_DROP);
@@ -3682,73 +3760,74 @@ void Board::MouseDownWithPlant(int x, int y, int theClickCount)
 	PlantingReason aReason = CanPlantAt(aGridX, aGridY, aPlantingSeedType);
 	if (aReason != PlantingReason::PLANTING_OK)
 	{
+		// 根据不同的种植原因播放相应的提示字幕
 		if (aReason == PlantingReason::PLANTING_ONLY_ON_GRAVES)
 		{
-			DisplayAdvice("[ADVICE_GRAVEBUSTERS_ON_GRAVES]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_GRAVEBUSTERS_ON_GRAVES);
+			DisplayAdvice(("[ADVICE_GRAVEBUSTERS_ON_GRAVES]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_GRAVEBUSTERS_ON_GRAVES);
 		}
 		else if (aPlantingSeedType == SeedType::SEED_LILYPAD)
 		{
 			if (aReason == PlantingReason::PLANTING_ONLY_IN_POOL)
 			{
-				DisplayAdvice("[ADVICE_LILYPAD_ON_WATER]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_LILYPAD_ON_WATER);
+				DisplayAdvice(("[ADVICE_LILYPAD_ON_WATER]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_LILYPAD_ON_WATER);
 			}
 		}
 		else if (aPlantingSeedType == SeedType::SEED_TANGLEKELP)
 		{
 			if (aReason == PlantingReason::PLANTING_ONLY_IN_POOL)
 			{
-				DisplayAdvice("[ADVICE_TANGLEKELP_ON_WATER]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_TANGLEKELP_ON_WATER);
+				DisplayAdvice(("[ADVICE_TANGLEKELP_ON_WATER]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_TANGLEKELP_ON_WATER);
 			}
 		}
 		else if (aPlantingSeedType == SeedType::SEED_SEASHROOM)
 		{
 			if (aReason == PlantingReason::PLANTING_ONLY_IN_POOL)
 			{
-				DisplayAdvice("[ADVICE_SEASHROOM_ON_WATER]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_SEASHROOM_ON_WATER);
+				DisplayAdvice(("[ADVICE_SEASHROOM_ON_WATER]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_SEASHROOM_ON_WATER);
 			}
 		}
 		else if (aReason == PlantingReason::PLANTING_ONLY_ON_GROUND)
 		{
-			DisplayAdvice("[ADVICE_POTATO_MINE_ON_LILY]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_POTATOE_MINE_ON_LILY);
+			DisplayAdvice(("[ADVICE_POTATO_MINE_ON_LILY]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_POTATOE_MINE_ON_LILY);
 		}
 		else if (aReason == PlantingReason::PLANTING_NOT_PASSED_LINE)
 		{
-			DisplayAdvice("[ADVICE_NOT_PASSED_LINE]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_NOT_PASSED_LINE);
+			DisplayAdvice(("[ADVICE_NOT_PASSED_LINE]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_NOT_PASSED_LINE);
 		}
 		else if (aReason == PlantingReason::PLANTING_NEEDS_UPGRADE)
 		{
 			switch (aPlantingSeedType)
 			{
 			case SeedType::SEED_GATLINGPEA:
-				DisplayAdvice("[ADVICE_ONLY_ON_REPEATERS]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_ONLY_ON_REPEATERS);
+				DisplayAdvice(("[ADVICE_ONLY_ON_REPEATERS]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_ONLY_ON_REPEATERS);
 				break;
 
 			case SeedType::SEED_TWINSUNFLOWER:
-				DisplayAdvice("[ADVICE_ONLY_ON_SUNFLOWER]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_ONLY_ON_SUNFLOWER);
+				DisplayAdvice(("[ADVICE_ONLY_ON_SUNFLOWER]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_ONLY_ON_SUNFLOWER);
 				break;
 
 			case SeedType::SEED_GLOOMSHROOM:
-				DisplayAdvice("[ADVICE_ONLY_ON_FUMESHROOM]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_ONLY_ON_FUMESHROOM);
+				DisplayAdvice(("[ADVICE_ONLY_ON_FUMESHROOM]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_ONLY_ON_FUMESHROOM);
 				break;
 
 			case SeedType::SEED_CATTAIL:
-				DisplayAdvice("[ADVICE_ONLY_ON_LILYPAD]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_ONLY_ON_LILYPAD);
+				DisplayAdvice(("[ADVICE_ONLY_ON_LILYPAD]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_ONLY_ON_LILYPAD);
 				break;
 
 			case SeedType::SEED_WINTERMELON:
-				DisplayAdvice("[ADVICE_ONLY_ON_MELONPULT]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_ONLY_ON_MELONPULT);
+				DisplayAdvice(("[ADVICE_ONLY_ON_MELONPULT]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_ONLY_ON_MELONPULT);
 				break;
 
 			case SeedType::SEED_GOLD_MAGNET:
-				DisplayAdvice("[ADVICE_ONLY_ON_MAGNETSHROOM]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_ONLY_ON_MAGNETSHROOM);
+				DisplayAdvice(("[ADVICE_ONLY_ON_MAGNETSHROOM]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_ONLY_ON_MAGNETSHROOM);
 				break;
 
 			case SeedType::SEED_SPIKEROCK:
-				DisplayAdvice("[ADVICE_ONLY_ON_SPIKEWEED]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_ONLY_ON_SPIKEWEED);
+				DisplayAdvice(("[ADVICE_ONLY_ON_SPIKEWEED]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_ONLY_ON_SPIKEWEED);
 				break;
 
 			case SeedType::SEED_COBCANNON:
-				DisplayAdvice("[ADVICE_ONLY_ON_KERNELPULT]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_ONLY_ON_KERNELPULT);
+				DisplayAdvice(("[ADVICE_ONLY_ON_KERNELPULT]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_ONLY_ON_KERNELPULT);
 				break;
 			default:
 				break;
@@ -3757,67 +3836,79 @@ void Board::MouseDownWithPlant(int x, int y, int theClickCount)
 		else if (aReason == PlantingReason::PLANTING_NOT_ON_ART)
 		{
 			std::string aSeedName = Plant::GetNameString(mChallenge->GetArtChallengeSeed(aGridX, aGridY), SeedType::SEED_NONE);
-			std::string aMessage = PvzpReplaceString("[ADVICE_WRONG_ART_TYPE]", "{SEED}", aSeedName);
+			std::string aMessage = PvzpReplaceString(("ADVICE_WRONG_ART_TYPE"), ("{SEED}"), aSeedName);
 			DisplayAdvice(aMessage, MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_WRONG_ART_TYPE);
 		}
 		else if (aReason == PlantingReason::PLANTING_NEEDS_POT)
 		{
 			if (mApp->IsFirstTimeAdventureMode() && mLevel == 41)
 			{
-				DisplayAdvice("[ADVICE_PLANT_NEED_POT1]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_NEED_POT);
+				DisplayAdvice(("[ADVICE_PLANT_NEED_POT1]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_NEED_POT);
 			}
 			else
 			{
-				DisplayAdvice("[ADVICE_PLANT_NEED_POT2]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_NEED_POT);
+				DisplayAdvice(("[ADVICE_PLANT_NEED_POT2]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_NEED_POT);
 			}
 		}
 		else if (aReason == PlantingReason::PLANTING_NOT_ON_GRAVE)
 		{
-			DisplayAdvice("[ADVICE_PLANT_NOT_ON_GRAVE]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_NOT_ON_GRAVE);
+			DisplayAdvice(("[ADVICE_PLANT_NOT_ON_GRAVE]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_NOT_ON_GRAVE);
 		}
 		else if (aReason == PlantingReason::PLANTING_NOT_ON_CRATER)
 		{
 			if (IsPoolSquare(aGridX, aGridY))
 			{
-				DisplayAdvice("[ADVICE_CANT_PLANT_THERE]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_CANT_PLANT_THERE);
+				DisplayAdvice(("[ADVICE_CANT_PLANT_THERE]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_CANT_PLANT_THERE);
 			}
 			else
 			{
-				DisplayAdvice("[ADVICE_PLANT_NOT_ON_CRATER]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_NOT_ON_CRATER);
+				DisplayAdvice(("[ADVICE_PLANT_NOT_ON_CRATER]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_NOT_ON_CRATER);
 			}
 		}
 		else if (aReason == PlantingReason::PLANTING_NOT_ON_WATER)
 		{
 			if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN && mApp->mZenGarden->mGardenType == GardenType::GARDEN_AQUARIUM)
 			{
-				DisplayAdvice("[ZEN_ONLY_AQUATIC_PLANTS]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_NONE);
+				DisplayAdvice(("[ZEN_ONLY_AQUATIC_PLANTS]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_NONE);
 			}
 			else if (aPlantingSeedType == SeedType::SEED_POTATOMINE)
 			{
-				DisplayAdvice("[ADVICE_POTATO_MINE_ON_LILY]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_POTATOE_MINE_ON_LILY);
+				DisplayAdvice(("[ADVICE_POTATO_MINE_ON_LILY]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_POTATOE_MINE_ON_LILY);
 			}
 			else
 			{
-				DisplayAdvice("[ADVICE_PLANT_NOT_ON_WATER]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_NOT_ON_WATER);
+				DisplayAdvice(("[ADVICE_PLANT_NOT_ON_WATER]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANT_NOT_ON_WATER);
 			}
 		}
 		else if (aReason == PlantingReason::PLANTING_NEEDS_GROUND)
 		{
-			DisplayAdvice("[ADVICE_PLANTING_NEEDS_GROUND]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANTING_NEEDS_GROUND);
+			DisplayAdvice(("[ADVICE_PLANTING_NEEDS_GROUND]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANTING_NEEDS_GROUND);
 		}
 		else if (aReason == PlantingReason::PLANTING_NEEDS_SLEEPING)
 		{
-			DisplayAdvice("[ADVICE_PLANTING_NEED_SLEEPING]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANTING_NEED_SLEEPING);
+			DisplayAdvice(("[ADVICE_PLANTING_NEED_SLEEPING]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_PLANTING_NEED_SLEEPING);
+		}
+		else if (aReason == PlantingReason::PLANTING_NOT_HERE &&
+			aPlantingSeedType == SeedType::SEED_KERNELPULT && mApp->IsRunMode() &&
+			mApp->RunPlantUpgradeCount(SeedType::SEED_KERNELPULT) > 0)
+		{
+			// @pvz-online: 批 18 玉米投手「Artillery」——通用 NOT_HERE 原本静默（沿用原版习惯），
+			// 但这条路径用户要求"提示种不下"（拍板 ④），补上标准「不能种在这里」提示。
+			DisplayAdvice(("[ADVICE_CANT_PLANT_THERE]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_CANT_PLANT_THERE);
 		}
 
+		// 特定情况下，放下原有手持的植物
 		if (mCursorObject->mCursorType == CursorType::CURSOR_TYPE_PLANT_FROM_GLOVE || mApp->IsWhackAZombieLevel())
 		{
 			RefreshSeedPacketFromCursor();
 			mApp->PlayFoley(FoleyType::FOLEY_DROP);
 		}
+		// 不可种植的情况至此结束，直接跳转至返回
 		return;
 	}
 
+	/* 以下为植物类型可以种植的情况 */
+	// 清除种植相关的提示字幕
 	ClearAdvice(AdviceType::ADVICE_PLANTING_NEED_SLEEPING);
 	ClearAdvice(AdviceType::ADVICE_CANT_PLANT_THERE);
 	ClearAdvice(AdviceType::ADVICE_PLANTING_NEEDS_GROUND);
@@ -3842,6 +3933,7 @@ void Board::MouseDownWithPlant(int x, int y, int theClickCount)
 	ClearAdvice(AdviceType::ADVICE_PLANT_POTATOE_MINE_ON_LILY);
 	ClearAdvice(AdviceType::ADVICE_SURVIVE_FLAGS);
 
+	// 无免费种植、非传送带关卡的卡槽植物，判断阳光是否充足：充足则扣除阳光，不足则退出
 	if (!mApp->mEasyPlantingCheat && mCursorObject->mCursorType == CursorType::CURSOR_TYPE_PLANT_FROM_BANK && !HasConveyorBeltSeedBank())
 	{
 		if (!TakeSunMoney(GetCurrentPlantCost(aPlantingSeedType, SeedType::SEED_NONE)))
@@ -3850,7 +3942,19 @@ void Board::MouseDownWithPlant(int x, int y, int theClickCount)
 		}
 	}
 
-	// upgrades and wall-nut first aid replace the original plant
+	bool aKernelToCob = false;
+	// @pvz-online: 批 18 玉米投手「Artillery」替换点——扣费之后（按玉米投手 100 扣）把种植类型
+	// 整换成加农炮：后面的升级杀锚点、杀右邻格、落地 AddPlant 全按加农炮走，等同闯关里已有的
+	// 直接种加农炮路径。只换卡槽种植——手套搬运也读游标类型，不能把搬玉米变成种加农炮。
+	if (mCursorObject->mCursorType == CursorType::CURSOR_TYPE_PLANT_FROM_BANK &&
+		aPlantingSeedType == SeedType::SEED_KERNELPULT && mApp->IsRunMode() &&
+		mApp->RunPlantUpgradeCount(SeedType::SEED_KERNELPULT) > 0)
+	{
+		aPlantingSeedType = SeedType::SEED_COBCANNON;
+		aKernelToCob = true;
+	}
+
+	// 升级种植或坚果包扎术等情况时，先将原植物销毁
 	bool aIsAwake = false;
 	int aWakeUpCounter = 0;
 	PlantsOnLawn aPlantOnLawn;
@@ -3917,7 +4021,16 @@ void Board::MouseDownWithPlant(int x, int y, int theClickCount)
 	}
 	else if (mCursorObject->mCursorType == CursorType::CURSOR_TYPE_PLANT_FROM_BANK)
 	{
-		Plant* aPlant = AddPlant(aGridX, aGridY, mCursorObject->mType, mCursorObject->mImitaterType);
+		SeedType aSpawnType = mCursorObject->mType;
+		SeedType aSpawnImitater = mCursorObject->mImitaterType;
+		// @pvz-online: 批 18 玉米投手「Artillery」——换过加农炮时游标仍指着玉米（模仿者是
+		// SEED_IMITATER），落地显式改种加农炮本体；模仿游标也种本体——没有加农炮的模仿版。
+		if (aKernelToCob)
+		{
+			aSpawnType = SeedType::SEED_COBCANNON;
+			aSpawnImitater = SeedType::SEED_NONE;
+		}
+		Plant* aPlant = AddPlant(aGridX, aGridY, aSpawnType, aSpawnImitater);
 		if (aIsAwake)
 		{
 			aPlant->SetSleeping(false);
@@ -3928,13 +4041,42 @@ void Board::MouseDownWithPlant(int x, int y, int theClickCount)
 		}
 
 		mSeedBank->mSeedPackets[mCursorObject->mSeedBankIndex].WasPlanted();
+
+		// @pvz-online: 批 A「排山倒海」（2026-10-09）——种下后在上下相邻空格免费补种同款，
+		// 只落 1 株：先试下格、被占/不可种再试上格，都不行就算了。免阳光、不刷 CD、
+		// 不递归（本分支只由玩家点击进）。aSpawnType 用换装后的（Artillery 情境复制株
+		// 也是加农炮）；睡眠态随主株。
+		if (mApp->RunMirrorStacks() > 0)
+		{
+			int aMirrorRow = -1;
+			if (aGridY + 1 < MAX_GRID_SIZE_Y && CanPlantAt(aGridX, aGridY + 1, aSpawnType) == PlantingReason::PLANTING_OK)
+			{
+				aMirrorRow = aGridY + 1;
+			}
+			else if (aGridY - 1 >= 0 && CanPlantAt(aGridX, aGridY - 1, aSpawnType) == PlantingReason::PLANTING_OK)
+			{
+				aMirrorRow = aGridY - 1;
+			}
+			if (aMirrorRow >= 0)
+			{
+				Plant* aMirrorPlant = AddPlant(aGridX, aMirrorRow, aSpawnType, aSpawnImitater);
+				if (aIsAwake)
+				{
+					aMirrorPlant->SetSleeping(false);
+				}
+				else
+				{
+					aMirrorPlant->mWakeUpCounter = aWakeUpCounter;
+				}
+			}
+		}
 	}
 	else
 	{
 		PVZP_ASSERT(false);
 	}
 
-	// Column levels plant a whole column at once
+	// 柱子关卡中，一列种植
 	if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_COLUMN)
 	{
 		for (int aRow = 0; aRow < MAX_GRID_SIZE_Y; aRow++)
@@ -3962,6 +4104,7 @@ void Board::MouseDownWithPlant(int x, int y, int theClickCount)
 		}
 	}
 
+	// 设置教程状态相关
 	if (mTutorialState == TutorialState::TUTORIAL_LEVEL_1_PLANT_PEASHOOTER)
 	{
 		SetTutorialState(mPlants.mSize >= 2 ? TutorialState::TUTORIAL_LEVEL_1_COMPLETED : TutorialState::TUTORIAL_LEVEL_1_REFRESH_PEASHOOTER);
@@ -3971,7 +4114,7 @@ void Board::MouseDownWithPlant(int x, int y, int theClickCount)
 		int aSunFlowersCount = CountSunFlowers();
 		if (aPlantingSeedType == SeedType::SEED_SUNFLOWER && aSunFlowersCount == 2)
 		{
-			DisplayAdvice("[ADVICE_MORE_SUNFLOWERS]", MessageStyle::MESSAGE_STYLE_TUTORIAL_LEVEL2, AdviceType::ADVICE_NONE);
+			DisplayAdvice(("[ADVICE_MORE_SUNFLOWERS]"), MessageStyle::MESSAGE_STYLE_TUTORIAL_LEVEL2, AdviceType::ADVICE_NONE);
 			if (!mSeedBank->mSeedPackets[1].CanPickUp())
 			{
 				SetTutorialState(TutorialState::TUTORIAL_LEVEL_2_REFRESH_SUNFLOWER);
@@ -3999,7 +4142,7 @@ void Board::MouseDownWithPlant(int x, int y, int theClickCount)
 		if (CountSunFlowers() >= 3)
 		{
 			SetTutorialState(TutorialState::TUTORIAL_MORESUN_COMPLETED);
-			DisplayAdvice("[ADVICE_PLANT_SUNFLOWER5]", MessageStyle::MESSAGE_STYLE_TUTORIAL_LATER, AdviceType::ADVICE_PLANT_SUNFLOWER5);
+			DisplayAdvice(("[ADVICE_PLANT_SUNFLOWER5]"), MessageStyle::MESSAGE_STYLE_TUTORIAL_LATER, AdviceType::ADVICE_PLANT_SUNFLOWER5);
 			mTutorialTimer = -1;
 		}
 		else if (!mSeedBank->mSeedPackets[1].CanPickUp())
@@ -4012,11 +4155,13 @@ void Board::MouseDownWithPlant(int x, int y, int theClickCount)
 		}
 	}
 
+	// 保龄球关卡，播放保龄球滚动的音效
 	if (mApp->IsWallnutBowlingLevel())
 	{
 		mApp->PlaySample(Sexy::SOUND_BOWLING);
 	}
 
+	// 重置鼠标
 	ClearCursor();
 }
 
@@ -5291,8 +5436,8 @@ bool Board::HasLevelAwardDropped()
 
 void Board::UpdateSunSpawning()
 {
-	if (StageIsNight() ||
-		HasLevelAwardDropped() ||
+	if ((StageIsNight() && !mApp->RunSkySunAtNight()) ||
+		(HasLevelAwardDropped()) ||
 		mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_RAINING_SEEDS ||
 		mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_ICE ||
 		mApp->mGameMode == GameMode::GAMEMODE_UPSELL ||
@@ -5321,7 +5466,10 @@ void Board::UpdateSunSpawning()
 		return;
 
 	mNumSunsFallen++;
-	mSunCountDown = std::min(SUN_COUNTDOWN_MAX, SUN_COUNTDOWN + mNumSunsFallen * 10) + Rand(SUN_COUNTDOWN_RANGE);
+	// @pvz-online: 闯关 buff「天降」（2026-10-06 重做口径）：二值 ×0.25（有层就 ×0.25，
+	// 旧档多层不叠乘）；结果恒 ≥1 帧（最小 435×0.25 ≈ 108），不会出现"倒计时为 0 永不
+	// 掉落"的死值——见上面那句 mSunCountDown != 0 的早退。
+	mSunCountDown = (int)((std::min(SUN_COUNTDOWN_MAX, SUN_COUNTDOWN + mNumSunsFallen * 10) + Rand(SUN_COUNTDOWN_RANGE)) * mApp->RunSkySunIntervalMul() + 0.5f);
 	CoinType aSunType = mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_SUNNY_DAY ? CoinType::COIN_LARGESUN : CoinType::COIN_SUN;
 	AddCoin(RandRangeInt(100, 649), 60, aSunType, CoinMotion::COIN_MOTION_FROM_SKY);
 }
@@ -7414,16 +7562,17 @@ void Board::UpdateFog()
 		}
 	}
 
-	for (Plant* aPlant : mPlants)
+	Plant* aPlant = nullptr;
+	while (IteratePlants(aPlant))
 	{
-		if (aPlant->mDead)
-			continue;
 		if (aPlant->NotOnGround())
 			continue;
 
 		if (aPlant->mSeedType == SeedType::SEED_PLANTERN)
 		{
-			ClearFogAroundPlant(aPlant, 4);
+			// @pvz-online: 单株升级「Lantern Light」（路灯花，批 14）：迷雾关照亮范围每层
+			// +1 格——半径 4 起、最大 6；形状逐层膨胀在 ClearFogAroundPlant 内。
+			ClearFogAroundPlant(aPlant, 4 + mApp->RunPlantUpgradeCount(SeedType::SEED_PLANTERN));
 		}
 		else if (aPlant->mSeedType == SeedType::SEED_TORCHWOOD)
 		{
@@ -8867,8 +9016,9 @@ int Board::PlantingPixelToGridY(int theX, int theY, SeedType theSeedType)
 	{
 		int aGridX = PixelToGridX(theX, theY);
 
+		// @pvz-online: 闯关里咖啡豆认任意植物（蘑菇全醒），吸附跟着放宽（原来只吸睡着的）
 		Plant* aPlant = GetTopPlantAt(aGridX, aGridY, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION);
-		if (aPlant && aPlant->mIsAsleep)
+		if (aPlant && (mApp->IsRunMode() || aPlant->mIsAsleep))
 		{
 			return aGridY;
 		}
@@ -8877,7 +9027,7 @@ int Board::PlantingPixelToGridY(int theX, int theY, SeedType theSeedType)
 		if (aGridYDown != aGridY)
 		{
 			Plant* aPlantDown = GetTopPlantAt(aGridX, aGridYDown, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION);
-			if (aPlantDown && aPlantDown->mIsAsleep)
+			if (aPlantDown && (mApp->IsRunMode() || aPlantDown->mIsAsleep))
 			{
 				return aGridYDown;
 			}
@@ -8887,7 +9037,7 @@ int Board::PlantingPixelToGridY(int theX, int theY, SeedType theSeedType)
 		if (aGridYUp != aGridY)
 		{
 			Plant* aPlantUp = GetTopPlantAt(aGridX, aGridYUp, PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION);
-			if (aPlantUp && aPlantUp->mIsAsleep)
+			if (aPlantUp && (mApp->IsRunMode() || aPlantUp->mIsAsleep))
 			{
 				return aGridYUp;
 			}
@@ -9089,7 +9239,7 @@ unsigned int Board::SeedNotRecommendedForLevel(SeedType theSeedType)
 	{
 		SetBit(aNotRec, NotRecommend::NOT_RECOMMENDED_NOCTURNAL, true);
 	}
-	if (theSeedType == SeedType::SEED_INSTANT_COFFEE && StageIsNight())
+	if (theSeedType == SeedType::SEED_INSTANT_COFFEE && StageIsNight() && !mApp->IsRunMode())
 	{
 		SetBit(aNotRec, NotRecommend::NOT_RECOMMENDED_AT_NIGHT, true);
 	}
@@ -9395,6 +9545,7 @@ void Board::UpdateGridItems()
 
 bool Board::PlantingRequirementsMet(SeedType theSeedType)
 {
+    if (mApp->IsRunMode()) return true;
 	switch (theSeedType)
 	{
 	case SeedType::SEED_GATLINGPEA:			return CountPlantByType(SeedType::SEED_REPEATER);
@@ -9409,13 +9560,12 @@ bool Board::PlantingRequirementsMet(SeedType theSeedType)
 	}
 }
 
-int Board::KillAllZombiesInRadius(int theRow, int theX, int theY, int theRadius, int theRowRange, bool theBurn, int theDamageRangeFlags)
+int Board::KillAllZombiesInRadius(int theRow, int theX, int theY, int theRadius, int theRowRange, bool theBurn, int theDamageRangeFlags, int theDirectDamage)
 {
-	int aKilledZombies = 0;
-	for (Zombie* aZombie : mZombies)
+	Zombie* aZombie = nullptr;
+	int aKilledZombies = 0; // @Patoke: implemented this
+	while (IterateZombies(aZombie))
 	{
-		if (aZombie->mDead)
-			continue;
 		if (aZombie->EffectedByDamage(theDamageRangeFlags))
 		{
 			Rect aZombieRect = aZombie->GetZombieRect();
@@ -9429,11 +9579,17 @@ int Board::KillAllZombiesInRadius(int theRow, int theX, int theY, int theRadius,
 			{
 				if (theBurn)
 				{
-					aZombie->ApplyBurn();
+					// @pvz-online: theDirectDamage 透传给 ApplyBurn（0 = 默认）；毁灭菇单株升级
+					//「Annihilation」的 6000 直伤覆写走这条（批八b；2026-10-09 夜 50000→6000）。
+					aZombie->ApplyBurn(theDirectDamage);
 				}
 				else
 				{
-					aZombie->TakeDamage(1800, 18U);
+					// @pvz-online: 闯关 buff「爆破」：爆炸直伤 ×(1+60%/层)。走 theBurn=false
+					// 这条的只有土豆雷；燃烧那条（樱桃/辣椒/末日菇）在 Zombie::ApplyBurn 里加。
+					// 单株升级「宽装药」只加半径（见 Plant::DoSpecial 土豆雷支），这里不再乘单株。
+					int aBlastBase = theDirectDamage > 0 ? theDirectDamage : 1800;
+					aZombie->TakeDamage((int)(aBlastBase * mApp->RunBuffMul(RUN_BUFF_BLAST) + 0.5f), 18U);
 				}
 
 				aKilledZombies++;
@@ -9443,10 +9599,9 @@ int Board::KillAllZombiesInRadius(int theRow, int theX, int theY, int theRadius,
 
 	int aGridX = PixelToGridXKeepOnBoard(theX, theY);
 	int aGridY = PixelToGridYKeepOnBoard(theX, theY);
-	for (GridItem* aGridItem : mGridItems)
+	GridItem* aGridItem = nullptr;
+	while (IterateGridItems(aGridItem))
 	{
-		if (aGridItem->mDead)
-			continue;
 		if (aGridItem->mGridItemType == GridItemType::GRIDITEM_LADDER)
 		{
 			if (GridInRange(aGridItem->mGridX, aGridItem->mGridY, aGridX, aGridY, theRowRange, theRowRange))

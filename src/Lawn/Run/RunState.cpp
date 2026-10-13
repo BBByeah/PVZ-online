@@ -124,7 +124,7 @@ static void FillPoolWithAllPlants(std::vector<SeedType>& thePool)
 	}
 }
 
-void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag)
+void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag, int theBuffMult)
 {
 	mRunSeed = theRunSeed;
 	mMode = theRunMode;
@@ -137,6 +137,9 @@ void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theR
 	mZombotany = theZombotany;
 	// 关底 boss 开关：无尽档没有关底，恒记 0（与读档的非无尽口径一致）。
 	mBossFlag = (theRunMode != RUN_MODE_ENDLESS && theBossFlag != 0) ? 1 : 0;
+	// 增益倍选（2026-10-13）：非法档不在这儿夹——消费全走 BuffMultValueFor（与 mScale/mTempo
+	// 同口径：档位合法性归各自的 *For 函数）。
+	mBuffMult = theBuffMult;
 	mLevelIndex = 0;
 	mPool.clear();
 	if (theRunMode == RUN_MODE_ENDLESS)
@@ -158,6 +161,7 @@ void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theR
 	mPendingBuffPicks = 0;
 	mChoicesRolled = false;
 	mPickReRolled = false;
+	mPaidRerollCount = 0;		// 重摇阶梯价：新局从头起算（实际每屏还会在 RollChoices 清零）
 	mPickSeenBuffCount = 0;		// 候选去重批：新局无露脸/冷却
 	mPickCooldownBuffCount = 0;
 	mPickCounter = 0;
@@ -189,8 +193,9 @@ void RunState::BeginStartPicks()
 	mPickCooldownBuffCount = 0;
 	int aExtra = (mMode == RUN_MODE_QUICK || mMode == RUN_MODE_ENDLESS) ? 2 : 0;
 	mPendingPlantPicks = CanOfferPlantPick() ? 4 + aExtra : 0;
-	mPendingBuffPicks = 2 + aExtra;
-	PvzpLogLn("[run] start picks: {} plant(s) + {} buff(s) (mode {})", mPendingPlantPicks, mPendingBuffPicks, mMode);
+	// 增益倍选（2026-10-13 用户令）：发放的 buff 屏数按倍率翻倍（只乘 buff 屏，植物屏不动）。
+	mPendingBuffPicks = (2 + aExtra) * BuffMultValueFor(mBuffMult);
+	PvzpLogLn("[run] start picks: {} plant(s) + {} buff(s) (mode {}, buff mult x{})", mPendingPlantPicks, mPendingBuffPicks, mMode, BuffMultValueFor(mBuffMult));
 }
 
 void RunState::BeginLevelEndPicks()
@@ -233,8 +238,8 @@ void RunState::BeginLevelEndPicks()
 		aBuffs = mLevelIndex + 2;
 		if (aBuffs > 5) aBuffs = 5;
 	}
-	mPendingBuffPicks = aBuffs;
-	PvzpLogLn("[run] level end picks: {} plant(s) + {} buff(s) (level {}, mode {})", mPendingPlantPicks, mPendingBuffPicks, mLevelIndex, mMode);
+	mPendingBuffPicks = aBuffs * BuffMultValueFor(mBuffMult);	// 增益倍选（2026-10-13）：屏数乘倍
+	PvzpLogLn("[run] level end picks: {} plant(s) + {} buff(s) (level {}, mode {}, buff mult x{})", mPendingPlantPicks, mPendingBuffPicks, mLevelIndex, mMode, BuffMultValueFor(mBuffMult));
 }
 
 bool RunState::CanOfferPlantPick() const
@@ -278,6 +283,9 @@ void RunState::RollChoices(bool theReroll)
 	// 每抽一次刷新机会回满——「换一批」自己会把它用掉（见 RerollChoices）。
 	mChoicesRolled = true;
 	mPickReRolled = false;
+	// 「重摇」阶梯价按屏起算（花园批同日用户令，拍板"每屏重置"）：非重抽 = 这是一屏新的
+	// 候选，价格回底价；重抽（免费/付费）都在同一屏里，计数照旧累着。
+	if (!theReroll) mPaidRerollCount = 0;
 
 	unsigned int aSeed = (unsigned int)mRunSeed
 		^ (0x9E3779B9u * (unsigned int)(mLevelIndex + 1))
@@ -303,7 +311,7 @@ void RunState::RollChoices(bool theReroll)
 		int aCount = 0;
 		for (int i = 0; i < NUM_SEEDS_IN_CHOOSER; i++)
 		{
-			if (RunPlantImplemented((SeedType)i) && !aOwned[i]) aCandidates[aCount++] = (SeedType)i;
+			if (i != (int)SeedType::SEED_IMITATER && !aOwned[i]) aCandidates[aCount++] = (SeedType)i;
 		}
 
 		// 候选去重批（2026-10-10）：「换一批」把本屏刚摆的三株从候选摘掉——池子够时重抽
@@ -361,7 +369,6 @@ void RunState::RollChoices(bool theReroll)
 		int aTotalW = 0;
 		for (int i = 0; i < RUN_BUFF_COUNT; i++)
 		{
-			if (!RunChoiceImplemented(i)) continue;
 			int aCap = GetRunChoiceMaxStacks(i);
 			if (aCap > 0 && GetBuffCount(i) >= aCap) continue;
 			aCandidates[aCount] = i;
@@ -372,7 +379,6 @@ void RunState::RollChoices(bool theReroll)
 		for (int i = 0; i < RUN_PLANT_UPGRADE_COUNT; i++)
 		{
 			int aId = RUN_BUFF_COUNT + i;
-			if (!RunChoiceImplemented(aId)) continue;
 			if (!RunPlantUpgradeInPool(GetRunPlantUpgradeDef(i).mPlant)) continue;
 			if (!HasPlant(GetRunPlantUpgradeDef(i).mPlant)) continue;
 			int aCap = GetRunChoiceMaxStacks(aId);
@@ -388,7 +394,6 @@ void RunState::RollChoices(bool theReroll)
 		for (int i = 0; i < RUN_PLANT_BUFF2_COUNT; i++)
 		{
 			int aId = RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + i;
-			if (!RunChoiceImplemented(aId)) continue;
 			if (!RunPlantBuff2InPool(i)) continue;
 			if (!HasPlant(GetRunPlantBuff2Def(i).mPlant)) continue;
 			int aCap = GetRunChoiceMaxStacks(aId);
@@ -515,7 +520,7 @@ void RunState::RerollChoices()
 	if (mPickReRolled) return;
 	RollChoices(true);
 	mPickReRolled = true;
-	PvzpLogLn("[run] the choices were refreshed (pick counter %u)", mPickCounter);
+	PvzpLogLn("[run] the choices were refreshed (pick counter {})", mPickCounter);
 }
 
 void RunState::TakePlantChoice(int theIndex)
@@ -842,7 +847,7 @@ bool RunState::Save(int theProfileId) const
 	}
 
 	AppendU16(aData, mMowerUsedRows);	// v5：末位推车记账（bit = 行号）
-	AppendU16(aData, (unsigned int)((mScale & 3) | ((mTempo & 3) << 2) | ((mZombotany & 1) << 4)));	// v10：高级选项位包
+	AppendU16(aData, (unsigned int)((mScale & 3) | ((mTempo & 3) << 2) | ((mZombotany & 1) << 4) | ((mBuffMult & 3) << 5)));	// v10：高级选项位包
 	// v11（第二 buff 批 0）：buff 列表格式不变（BuffStack 通用 id+count），但 mBuffs 里
 	// 从此可能出现第二表 id（57..95）。老版本读到会当老单株解出错误条目，故抬版本号让
 	// 老构建直接拒档；v10 及更老档没有这类 id，读平即可，不需要迁移链。
@@ -1048,6 +1053,8 @@ bool RunState::Load(int theProfileId)
 	mScale = (int)(aOptions & 3);
 	mTempo = (int)((aOptions >> 2) & 3);
 	mZombotany = (int)((aOptions >> 4) & 1);
+    mBuffMult = (int)((aOptions >> 5) & 3);
+    mPaidRerollCount = 0;
 	mBossFlag = (aBossFlag != 0) ? 1 : 0;
 	mLevelIndex = aLevelIndex;
 	memcpy(mFailCounts, aFailCounts, sizeof(mFailCounts));
@@ -1065,4 +1072,27 @@ bool RunState::Load(int theProfileId)
 	mPickSeenBuffCount = 0;
 	mPickCooldownBuffCount = 0;
 	return true;
+}
+
+void RunState::PaidReroll()
+{
+	RollChoices(true);
+	mPickReRolled = true;
+	mPaidRerollCount++;
+	PvzpLogLn("[run] the choices were rerolled for coins: #{} this screen, next price {} (pick counter {})", mPaidRerollCount, GetPaidRerollCost(), mPickCounter);
+}
+
+int RunState::GetPaidRerollCost() const
+{
+	int aCost = RUN_PAID_REROLL_COST;
+	int aSteps = (mPaidRerollCount > 7) ? 7 : mPaidRerollCount;
+	for (int i = 0; i < aSteps; i++) aCost *= 10;
+	return aCost;
+}
+
+int RunState::BuffMultValueFor(int theBuffMult)
+{
+	static const int aMult[] = { 1, 2, 3 };
+	if (theBuffMult < RUN_BUFFMULT_X1 || theBuffMult > RUN_BUFFMULT_X3) return aMult[RUN_BUFFMULT_X1];
+	return aMult[theBuffMult];
 }

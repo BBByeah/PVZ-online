@@ -159,6 +159,10 @@ public:
 	ReanimationID                   mMoweredReanimID;
 	ReanimationID                   mZombatarHeadReanimID;
 	int32_t                         mLastPortalX;
+	int32_t mFetidSlowCounter = 0;
+	int32_t mScorchedCounter = 0;
+	int32_t mFrostArmorCounter = 0;
+	bool mIceShroomTrap = false;
 
 public:
 	Zombie();
@@ -274,7 +278,7 @@ public:
 	void                            UpdateClimbingLadder();
 	void                            UpdateZombieGargantuar();
 	int                             GetBodyDamageIndex();
-	void                            ApplyBurn();
+	void                            ApplyBurn(int theDirectDamage = 0);
 	void                            UpdateBurn();
 	bool                            ZombieNotWalking();
 	Zombie*                         FindZombieTarget();
@@ -290,7 +294,8 @@ public:
 	bool                 IsOnBoard();
 	void                            DrawButter(Graphics* g, const ZombieDrawPosition& theDrawPos);
 	bool                            IsImmobilizied();
-	void                            ApplyButter();
+	void                            ApplyButter(int theFrames = 400);
+	void SwitchLanes();
 	float                           ZombieTargetLeadX(float theTime);
 	void                            UpdateZombieImp();
 	void                            SquishAllInSquare(int theX, int theY, ZombieAttackType theAttackType);

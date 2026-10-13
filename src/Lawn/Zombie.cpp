@@ -26,6 +26,7 @@
 #include "Board.h"
 #include "../ConstEnums.h"
 #include "Zombie.h"
+#include "Run/RunBuffs.h"
 #include "Run/RunState.h"
 #include "Cutscene.h"
 #include "GridItem.h"
@@ -73,6 +74,55 @@ constexpr const float CLIP_HEIGHT_LIMIT = -100.0f;
 constexpr const float CLIP_HEIGHT_OFF = -200.0f;
 constexpr Color ZOMBIE_MINDCONTROLLED_COLOR = Color(128, 64, 192, 255);
 
+void Zombie::SwitchLanes()
+{
+    if (false)  // @pvz-online: 关底巨型 boss 免疫大蒜换道（MOD_BUILD 38）
+        return;
+    bool aCanGoUp = true;
+    bool aCanGoDown = true;
+    bool aIsPool = mBoard->mPlantRow[mRow] == PlantRowType::PLANTROW_POOL;
+    if (!mBoard->RowCanHaveZombies(mRow - 1))
+    {
+        aCanGoUp = false;
+    }
+    else if (mBoard->mPlantRow[mRow - 1] == PlantRowType::PLANTROW_POOL && !aIsPool)
+    {
+        aCanGoUp = false;
+    }
+    else if (mBoard->mPlantRow[mRow - 1] != PlantRowType::PLANTROW_POOL && aIsPool)
+    {
+        aCanGoUp = false;
+    }
+    if (!mBoard->RowCanHaveZombies(mRow + 1))
+    {
+        aCanGoDown = false;
+    }
+    else if (mBoard->mPlantRow[mRow + 1] == PlantRowType::PLANTROW_POOL && !aIsPool)
+    {
+        aCanGoDown = false;
+    }
+    else if (mBoard->mPlantRow[mRow + 1] != PlantRowType::PLANTROW_POOL && aIsPool)
+    {
+        aCanGoDown = false;
+    }
+
+    if (aCanGoDown && !aCanGoUp)
+    {
+        SetRow(mRow + 1);
+    }
+    else if (!aCanGoDown && aCanGoUp)
+    {
+        SetRow(mRow - 1);
+    }
+    else if (aCanGoDown && aCanGoUp)
+    {
+        SetRow((Rand(2) == 0) ? (mRow + 1) : (mRow - 1));
+    }
+    else
+    {
+        PVZP_ASSERT();
+    }
+}
 static std::string ZombatarTrackName(const char* thePrefix, int theIndex)
 {
 	return std::format("{}{:02d}", thePrefix, theIndex);
@@ -893,7 +943,9 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
 		mShieldHealth = mShieldHealth * scale / 1000;
 		mFlyingHealth = mFlyingHealth * scale / 1000;
 	}
-	mBodyMaxHealth = mBodyHealth;
+	mFetidSlowCounter = mScorchedCounter = mFrostArmorCounter = 0;
+    mIceShroomTrap = false;
+    mBodyMaxHealth = mBodyHealth;
 	mHelmMaxHealth = mHelmHealth;
 	mShieldMaxHealth = mShieldHealth;
 	mFlyingMaxHealth = mFlyingHealth;
@@ -2089,210 +2141,279 @@ void Zombie::UpdateZombieJackInTheBox()
 
 void Zombie::UpdateZombieGargantuar()
 {
-	if (mZombiePhase == ZombiePhase::PHASE_GARGANTUAR_SMASHING)
-	{
-		Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
-		if (aBodyReanim->ShouldTriggerTimedEvent(0.64f))
-		{
+    if (mZombiePhase == ZombiePhase::PHASE_GARGANTUAR_SMASHING)
+    {
+        Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
+        if (aBodyReanim->ShouldTriggerTimedEvent(0.64f))
+        {
 #ifdef DO_FIX_BUGS
-			if (mMindControlled)  // hypnotized gargantuars smash zombies
-			{
-				Zombie* aZombie = FindZombieTarget();
-				if (aZombie)
-				{
-					int aDamage = mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR ? 1000 : 500;
-					aZombie->TakeDamage(aDamage, 0U);
-				}
-			}
-			else
-#endif
-			{
-				Plant* aPlant = FindPlantTarget(ZombieAttackType::ATTACKTYPE_CHEW);
-				if (aPlant)
-				{
-					if (aPlant->mSeedType == SeedType::SEED_SPIKEROCK)
-					{
-						TakeDamage(20, 32U);
-						aPlant->SpikeRockTakeDamage();
-						if (aPlant->mPlantHealth <= 0)
-						{
-							SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
-						}
-					}
-					else
-					{
-						SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
-					}
-				}
+            if (mMindControlled)  // 魅惑巨人砸僵尸
+            {
+                Zombie* aZombie = FindZombieTarget();
+                if (aZombie)
+                {
+                    int aDamage = mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR ? 1000 : 500;
+                    aZombie->TakeDamage(aDamage, 0U);
+                }
+            }
+            else
+            {
+                Plant* aPlant = FindPlantTarget(ZombieAttackType::ATTACKTYPE_CHEW);
+                if (aPlant)
+                {
+                    if (false)
+                    {
+                        // @pvz-online: 关底巨型 boss 砸击破耐砸（MOD_BUILD 38，用户定案「真伤」口径）：
+                        // 地刺王/忧郁菇/坚果/大蒜的耐砸减血特例一律跳过，一击压扁整格。
+                        SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
+                    }
+                    else if (aPlant->mSeedType == SeedType::SEED_SPIKEROCK)
+                    {
+                        TakeDamage(20, 32U);
+                        aPlant->SpikeRockTakeDamage();
+                        if (aPlant->mPlantHealth <= 0)
+                        {
+                            SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
+                        }
+                    }
+                    else if (aPlant->mSeedType == SeedType::SEED_GLOOMSHROOM && mApp->RunPlantBuff2Count(SeedType::SEED_GLOOMSHROOM) > 0)
+                    {
+                        // @pvz-online: 第二 buff 批 3「耐砸」（忧郁菇，docs/06 §8.6 #42）：巨人砸
+                        // 每次固定 -50（与被啃同额；2026-10-11 由 -200 改），砸空才没——像坚果耐砸分支一样不秒杀。
+                        aPlant->mPlantHealth -= 50;
+                        if (aPlant->mPlantHealth <= 0)
+                        {
+                            SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
+                        }
+                    }
+                    else if ((aPlant->mSeedType == SeedType::SEED_GARLIC && mApp->RunPlantUpgradeCount(SeedType::SEED_GARLIC) > 0)
+                          || ((aPlant->mSeedType == SeedType::SEED_WALLNUT || aPlant->mSeedType == SeedType::SEED_TALLNUT)
+                              && mApp->RunPlantUpgradeCount(aPlant->mSeedType) > 0))
+                    {
+                        // @pvz-online: 批 18 大蒜「Iron Clove」+ 批七 坚果/高坚果——像地刺王一样耐砸：
+                        // 大蒜每砸 -50 血、坚果/高坚果每砸 -200 血（用户 2026-10-04 定），不反伤，
+                        // 砸空才被吃掉（大蒜 400 血 = 8 次；坚果 4000 血 = 20 次、高坚果 8000 = 40 次；
+                        // 受击形象按血线自动更新）。
+                        aPlant->mPlantHealth -= (aPlant->mSeedType == SeedType::SEED_GARLIC) ? 50 : 200;
+                        if (aPlant->mPlantHealth <= 0)
+                        {
+                            SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
+                        }
+                    }
+                    else
+                    {
+                        SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
+                    }
+                }
 
-				if (mApp->IsScaryPotterLevel())
-				{
-					int aGridX = mBoard->PixelToGridX(mPosX, mPosY);
-					GridItem* aScaryPot = mBoard->GetScaryPotAt(aGridX, mRow);
-					if (aScaryPot)
-					{
-						mBoard->mChallenge->ScaryPotterOpenPot(aScaryPot);
-					}
-				}
+                if (mApp->IsScaryPotterLevel())
+                {
+                    int aGridX = mBoard->PixelToGridX(mPosX, mPosY);
+                    GridItem* aScaryPot = mBoard->GetScaryPotAt(aGridX, mRow);
+                    if (aScaryPot)
+                    {
+                        mBoard->mChallenge->ScaryPotterOpenPot(aScaryPot);
+                    }
+                }
 
-				if (mApp->IsIZombieLevel())
-				{
-					GridItem* aBrain = mBoard->mChallenge->IZombieGetBrainTarget(this);
-					if (aBrain)
-					{
-						mBoard->mChallenge->IZombieSquishBrain(aBrain);
-					}
-				}
-			}
-
-			mApp->PlayFoley(FoleyType::FOLEY_THUMP);
-			mBoard->ShakeBoard(0, 3);
-		}
-
-		if (aBodyReanim->mLoopCount > 0)
-		{
-			mZombiePhase = ZombiePhase::PHASE_ZOMBIE_NORMAL;
-			StartWalkAnim(20);
-		}
-
-		return;
-	}
-
-	float aThrowingDistance = mPosX - 360.0f;
-	if (mZombiePhase == ZombiePhase::PHASE_GARGANTUAR_THROWING)
-	{
-		Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
-		if (aBodyReanim->ShouldTriggerTimedEvent(0.74f))
-		{
-			mHasObject = false;
-			ReanimShowPrefix("Zombie_imp", RENDER_GROUP_HIDDEN);
-			ReanimShowTrack("Zombie_gargantuar_whiterope", RENDER_GROUP_HIDDEN);
-			mApp->PlayFoley(FoleyType::FOLEY_SWING);
-
-			Zombie* aZombieImp = mBoard->AddZombie(ZombieType::ZOMBIE_IMP, mFromWave);
-			if (aZombieImp == nullptr)
-				return;
-
-			float aMinThrowDistance = 40.0f;
-			if (mBoard->StageHasRoof())
-			{
-				aThrowingDistance -= 180.0f;
-				aMinThrowDistance = -140.0f;
-			}
-			if (aThrowingDistance < aMinThrowDistance)
-			{
-				aThrowingDistance = aMinThrowDistance;
-			}
-			else if (aThrowingDistance > 140.0f)
-			{
-				aThrowingDistance -= RandRangeFloat(0.0f, 100.0f);
-			}
-
-			aZombieImp->mPosX = mPosX - 133.0f;
-			aZombieImp->mPosY = GetPosYBasedOnRow(mRow);
-			aZombieImp->SetRow(mRow);
-			aZombieImp->mVariant = false;
-			aZombieImp->mAltitude = 88.0f;
-			aZombieImp->mRenderOrder = mRenderOrder + 1;
-			aZombieImp->mZombiePhase = ZombiePhase::PHASE_IMP_GETTING_THROWN;
-#ifdef DO_FIX_BUGS
-			aZombieImp->mScaleZombie = mScaleZombie;
-			aZombieImp->mBodyHealth *= mScaleZombie * mScaleZombie;
-			aZombieImp->mBodyMaxHealth *= mScaleZombie * mScaleZombie;
-
-			if (mMindControlled)
-			{
-				aZombieImp->mPosX = mPosX + mWidth;
-				aZombieImp->StartMindControlled();
-				aZombieImp->mVelX = -3.0f;
-			}
-			else
-			{
-				aZombieImp->mVelX = 3.0f;
-			}
+                if (mApp->IsIZombieLevel())
+                {
+                    GridItem* aBrain = mBoard->mChallenge->IZombieGetBrainTarget(this);
+                    if (aBrain)
+                    {
+                        mBoard->mChallenge->IZombieSquishBrain(aBrain);
+                    }
+                }
+            }
 #else
-			aZombieImp->mVelX = 3.0f;
+            Plant* aPlant = FindPlantTarget(ZombieAttackType::ATTACKTYPE_CHEW);
+            if (aPlant)
+            {
+                if (false)
+                {
+                    // @pvz-online: 关底巨型 boss 砸击破耐砸——同上一份（DO_FIX_BUGS 版）的 boss 分支。
+                    SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
+                }
+                else if (aPlant->mSeedType == SeedType::SEED_SPIKEROCK)
+                {
+                    TakeDamage(20, 32U);
+                    aPlant->SpikeRockTakeDamage();
+                    if (aPlant->mPlantHealth <= 0)
+                    {
+                        SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
+                    }
+                }
+                else if (aPlant->mSeedType == SeedType::SEED_GLOOMSHROOM && mApp->RunPlantBuff2Count(SeedType::SEED_GLOOMSHROOM) > 0)
+                {
+                    // @pvz-online: 第二 buff 批 3「耐砸」（忧郁菇）——同上一份（DO_FIX_BUGS 版）的分支（每次固定 -50）。
+                    aPlant->mPlantHealth -= 50;
+                    if (aPlant->mPlantHealth <= 0)
+                    {
+                        SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
+                    }
+                }
+                else if ((aPlant->mSeedType == SeedType::SEED_GARLIC && mApp->RunPlantUpgradeCount(SeedType::SEED_GARLIC) > 0)
+                      || ((aPlant->mSeedType == SeedType::SEED_WALLNUT || aPlant->mSeedType == SeedType::SEED_TALLNUT)
+                          && mApp->RunPlantUpgradeCount(aPlant->mSeedType) > 0))
+                {
+                    // @pvz-online: 批 18 大蒜「Iron Clove」+ 批七 坚果/高坚果——同上一份（DO_FIX_BUGS 版）的耐砸分支。
+                    aPlant->mPlantHealth -= (aPlant->mSeedType == SeedType::SEED_GARLIC) ? 50 : 200;
+                    if (aPlant->mPlantHealth <= 0)
+                    {
+                        SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
+                    }
+                }
+                else
+                {
+                    SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
+                }
+            }
+
+            if (mApp->IsScaryPotterLevel())
+            {
+                int aGridX = mBoard->PixelToGridX(mPosX, mPosY);
+                GridItem* aScaryPot = mBoard->GetScaryPotAt(aGridX, mRow);
+                if (aScaryPot)
+                {
+                    mBoard->mChallenge->ScaryPotterOpenPot(aScaryPot);
+                }
+            }
+
+            if (mApp->IsIZombieLevel())
+            {
+                GridItem* aBrain = mBoard->mChallenge->IZombieGetBrainTarget(this);
+                if (aBrain)
+                {
+                    mBoard->mChallenge->IZombieSquishBrain(aBrain);
+                }
+            }
 #endif
-			aZombieImp->mChilledCounter = mChilledCounter;
-			aZombieImp->mVelZ = 0.5f * (aThrowingDistance / aZombieImp->mVelX) * THOWN_ZOMBIE_GRAVITY;
-			aZombieImp->PlayZombieReanim("anim_thrown", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 18.0f);
-			aZombieImp->UpdateReanim();
-			mApp->PlayFoley(FoleyType::FOLEY_IMP);
-		}
 
-		if (aBodyReanim->mLoopCount > 0)
-		{
-			mZombiePhase = ZombiePhase::PHASE_ZOMBIE_NORMAL;
-			StartWalkAnim(20);
-		}
+            mApp->PlayFoley(FoleyType::FOLEY_THUMP);
+            mBoard->ShakeBoard(0, 3);
+        }
 
-		return;
-	}
+        if (aBodyReanim->mLoopCount > 0)
+        {
+            mZombiePhase = ZombiePhase::PHASE_ZOMBIE_NORMAL;
+            StartWalkAnim(20);
+        }
 
-	if (IsImmobilizied() || !mHasHead)
-		return;
+        return;
+    }
 
-	if (mHasObject && mBodyHealth < mBodyMaxHealth / 2 && aThrowingDistance > 40.0f)
-	{
-		mZombiePhase = ZombiePhase::PHASE_GARGANTUAR_THROWING;
-		PlayZombieReanim("anim_throw", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 24.0f);
-		return;
-	}
+    float aThrowingDistance = mPosX - 360.0f;
+    if (mZombiePhase == ZombiePhase::PHASE_GARGANTUAR_THROWING)
+    {
+        Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
+        if (aBodyReanim->ShouldTriggerTimedEvent(0.74f))
+        {
+            mHasObject = false;
+            ReanimShowPrefix("Zombie_imp", RENDER_GROUP_HIDDEN);
+            ReanimShowTrack("Zombie_gargantuar_whiterope", RENDER_GROUP_HIDDEN);
+            mApp->PlayFoley(FoleyType::FOLEY_SWING);
+
+            Zombie* aZombieImp = mBoard->AddZombie(ZombieType::ZOMBIE_IMP, mFromWave);
+            if (aZombieImp == nullptr)
+                return;
+
+            float aMinThrowDistance = 40.0f;
+            if (mBoard->StageHasRoof())
+            {
+                aThrowingDistance -= 180.0f;
+                aMinThrowDistance = -140.0f;
+            }
+            if (aThrowingDistance < aMinThrowDistance)
+            {
+                aThrowingDistance = aMinThrowDistance;
+            }
+            else if (aThrowingDistance > 140.0f)
+            {
+                aThrowingDistance -= RandRangeFloat(0.0f, 100.0f);
+            }
+
+            aZombieImp->mPosX = mPosX - 133.0f;
+            aZombieImp->mPosY = GetPosYBasedOnRow(mRow);
+            aZombieImp->SetRow(mRow);
+            aZombieImp->mVariant = false;
+            aZombieImp->mAltitude = 88.0f;
+            aZombieImp->mRenderOrder = mRenderOrder + 1;
+            aZombieImp->mZombiePhase = ZombiePhase::PHASE_IMP_GETTING_THROWN;
+#ifdef DO_FIX_BUGS
+            aZombieImp->mScaleZombie = mScaleZombie;
+            aZombieImp->mBodyHealth *= mScaleZombie * mScaleZombie;
+            aZombieImp->mBodyMaxHealth *= mScaleZombie * mScaleZombie;
+
+            if (mMindControlled)
+            {
+                aZombieImp->mPosX = mPosX + mWidth;
+                aZombieImp->StartMindControlled();
+                aZombieImp->mVelX = -3.0f;
+            }
+            else
+            {
+                aZombieImp->mVelX = 3.0f;
+            }
+#else
+            aZombieImp->mVelX = 3.0f;
+#endif
+            aZombieImp->mChilledCounter = mChilledCounter;
+            aZombieImp->mVelZ = 0.5f * (aThrowingDistance / aZombieImp->mVelX) * THOWN_ZOMBIE_GRAVITY;
+            aZombieImp->PlayZombieReanim("anim_thrown", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 18.0f);
+            aZombieImp->UpdateReanim();
+            mApp->PlayFoley(FoleyType::FOLEY_IMP);
+        }
+
+        if (aBodyReanim->mLoopCount > 0)
+        {
+            mZombiePhase = ZombiePhase::PHASE_ZOMBIE_NORMAL;
+            StartWalkAnim(20);
+        }
+
+        return;
+    }
+
+    if (IsImmobilizied() || !mHasHead)
+        return;
+
+    if (mHasObject && mBodyHealth < mBodyMaxHealth / 2 && aThrowingDistance > 40.0f)
+    {
+        mZombiePhase = ZombiePhase::PHASE_GARGANTUAR_THROWING;
+        PlayZombieReanim("anim_throw", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 24.0f);
+        return;
+    }
 
 #ifdef DO_FIX_BUGS
-	bool doSmash = false;
-	if (mMindControlled)
-	{
-		doSmash = FindZombieTarget() != nullptr;
-	}
-	else if (FindPlantTarget(ZombieAttackType::ATTACKTYPE_CHEW))
-	{
-		doSmash = true;
-	}
-	else if (mApp->IsScaryPotterLevel())
-	{
-		int aGridX = mBoard->PixelToGridX(mPosX, mPosY);
-		if (mBoard->GetScaryPotAt(aGridX, mRow))
-		{
-			doSmash = true;
-		}
-	}
-	else if (mApp->IsIZombieLevel())
-	{
-		if (mBoard->mChallenge->IZombieGetBrainTarget(this))
-		{
-			doSmash = true;
-		}
-	}
+    bool doSmash = FindZombieTarget();
 #else
-	bool doSmash = false;
-	if (FindPlantTarget(ZombieAttackType::ATTACKTYPE_CHEW))
-	{
-		doSmash = true;
-	}
-	else if (mApp->IsScaryPotterLevel())
-	{
-		int aGridX = mBoard->PixelToGridX(mPosX, mPosY);
-		if (mBoard->GetScaryPotAt(aGridX, mRow))
-		{
-			doSmash = true;
-		}
-	}
-	else if (mApp->IsIZombieLevel())
-	{
-		if (mBoard->mChallenge->IZombieGetBrainTarget(this))
-		{
-			doSmash = true;
-		}
-	}
+    bool doSmash = false;
+    if (FindPlantTarget(ZombieAttackType::ATTACKTYPE_CHEW))
+    {
+        doSmash = true;
+    }
+    else if (mApp->IsScaryPotterLevel())
+    {
+        int aGridX = mBoard->PixelToGridX(mPosX, mPosY);
+        if (mBoard->GetScaryPotAt(aGridX, mRow))
+        {
+            doSmash = true;
+        }
+    }
+    else if (mApp->IsIZombieLevel())
+    {
+        if (mBoard->mChallenge->IZombieGetBrainTarget(this))
+        {
+            doSmash = true;
+        }
+    }
 #endif
 
-	if (doSmash)
-	{
-		mZombiePhase = ZombiePhase::PHASE_GARGANTUAR_SMASHING;
-		mApp->PlayFoley(FoleyType::FOLEY_LOW_GROAN);
-		PlayZombieReanim("anim_smash", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 16.0f);
-	}
+    if (doSmash)
+    {
+        mZombiePhase = ZombiePhase::PHASE_GARGANTUAR_SMASHING;
+        mApp->PlayFoley(FoleyType::FOLEY_LOW_GROAN);
+        PlayZombieReanim("anim_smash", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 16.0f);
+    }
 }
 
 void Zombie::UpdateZombieImp()
@@ -4585,114 +4706,168 @@ void Zombie::CheckForBoardEdge()
 
 void Zombie::UpdatePlaying()
 {
-	PVZP_ASSERT(mBodyHealth > 0 || mZombiePhase == ZombiePhase::PHASE_BOBSLED_CRASHING);
+    PVZP_ASSERT(mBodyHealth > 0 || mZombiePhase == ZombiePhase::PHASE_BOBSLED_CRASHING);
 
-	mGroanCounter--;
-	int aZombiesCount = mBoard->mZombies.mSize;
-	if (mGroanCounter == 0 && Rand(aZombiesCount) == 0 && mHasHead && mZombieType != ZombieType::ZOMBIE_BOSS && !mBoard->HasLevelAwardDropped())
-	{
-		float aPitch = 0.0f;
-		if (mApp->IsLittleTroubleLevel())
-		{
-			aPitch = RandRangeFloat(40.0f, 50.0f);
-		}
+    mGroanCounter--;
+    int aZombiesCount = mBoard->mZombies.mSize;
+    // @pvz-online: 等待窗里呻吟照旧（清空 ≠ 结束，见 Board::OnlineWaitingForTeam）
+    if (mGroanCounter == 0 && Rand(aZombiesCount) == 0 && mHasHead && mZombieType != ZombieType::ZOMBIE_BOSS
+        && (!mBoard->HasLevelAwardDropped() || false))
+    {
+        float aPitch = 0.0f;
+        if (mApp->IsLittleTroubleLevel())
+        {
+            aPitch = RandRangeFloat(40.0f, 50.0f);
+        }
 
-		if (mZombieType == ZombieType::ZOMBIE_GARGANTUAR)
-		{
-			mApp->PlayFoley(FoleyType::FOLEY_LOW_GROAN);
-		}
-		else if (mVariant)
-		{
-			mApp->PlayFoleyPitch(FoleyType::FOLEY_BRAINS, aPitch);
-		}
-		else if (mApp->mSukhbirMode)
-		{
-			mApp->PlayFoleyPitch(FoleyType::FOLEY_SUKHBIR, aPitch);
-		}
-		else
-		{
-			mApp->PlayFoleyPitch(FoleyType::FOLEY_GROAN, aPitch);
-		}
+        if (mZombieType == ZombieType::ZOMBIE_GARGANTUAR)
+        {
+            mApp->PlayFoley(FoleyType::FOLEY_LOW_GROAN);
+        }
+        else if (mVariant)
+        {
+            mApp->PlayFoleyPitch(FoleyType::FOLEY_BRAINS, aPitch);
+        }
+        else if (mApp->mSukhbirMode)
+        {
+            mApp->PlayFoleyPitch(FoleyType::FOLEY_SUKHBIR, aPitch);
+        }
+        else
+        {
+            mApp->PlayFoleyPitch(FoleyType::FOLEY_GROAN, aPitch);
+        }
 
-		mGroanCounter = Rand(1000) + 500;
-	}
+        mGroanCounter = Rand(1000) + 500;
+    }
 
-	if (mIceTrapCounter > 0)
-	{
-		mIceTrapCounter--;
-		if (mIceTrapCounter == 0)
-		{
-			RemoveIceTrap();
-			AddAttachedParticle(75, 106, ParticleEffect::PARTICLE_ICE_TRAP_RELEASE);
-		}
-	}
-	if (mChilledCounter > 0)
-	{
-		mChilledCounter--;
-		if (mChilledCounter == 0)
-		{
-			UpdateAnimSpeed();
-		}
-	}
-	if (mButteredCounter > 0)
-	{
-		mButteredCounter--;
-		if (mButteredCounter == 0)
-		{
-			RemoveButter();
-		}
-	}
+    if (mIceTrapCounter > 0)
+    {
+        mIceTrapCounter--;
+        if (mIceTrapCounter == 0)
+        {
+            // @pvz-online: 第二 buff「霜甲」（寒冰菇 #14，docs/06 §8.6，3★ cap1）：寒冰菇冰冻
+            // 自然解冻瞬间，全场僵尸减速 35% 持续 20 秒（2000 帧）——只认寒冰菇冻
+            //（mIceShroomTrap 由 HitIceTrap 置位；冰西瓜深冻/死亡清冻结不触发）；逐只取
+            // max 刷新，多只同时解冻不叠时长。
+            if (mIceShroomTrap)
+            {
+                mIceShroomTrap = false;
+                if (mApp->RunPlantBuff2Count(SeedType::SEED_ICESHROOM) > 0)
+                {
+                    Zombie* aFrostZombie = nullptr;
+                    while (mBoard->IterateZombies(aFrostZombie))
+                    {
+                        if (!aFrostZombie->mDead && aFrostZombie->mFrostArmorCounter < 2000)
+                        {
+                            aFrostZombie->mFrostArmorCounter = 2000;
+                            aFrostZombie->UpdateAnimSpeed();
+                        }
+                    }
+                }
+            }
+            RemoveIceTrap();
+            AddAttachedParticle(75, 106, ParticleEffect::PARTICLE_ICE_TRAP_RELEASE);
+        }
+    }
+    if (mChilledCounter > 0)
+    {
+        mChilledCounter--;
+        if (mChilledCounter == 0)
+        {
+            UpdateAnimSpeed();
+        }
+    }
+    if (mFetidSlowCounter > 0)
+    {
+        mFetidSlowCounter--;
+        if (mFetidSlowCounter == 0)
+        {
+            UpdateAnimSpeed();
+        }
+    }
+    if (mFrostArmorCounter > 0)
+    {
+        // @pvz-online: 第二 buff「霜甲」（寒冰菇 #14）：软减速倒计时，归零恢复原速。
+        mFrostArmorCounter--;
+        if (mFrostArmorCounter == 0)
+        {
+            UpdateAnimSpeed();
+        }
+    }
+    if (mScorchedCounter > 0)
+    {
+        // @pvz-online: 第二 buff「焦土」（樱桃炸弹 #2，docs/06 §8.6）：每 100 帧（1 秒）
+        // 扣 300×层，共 3 秒 3 跳；火随人——挂在僵尸身上随行，不烧地皮。扣血走 TakeDamage
+        // 自带闪白（0U 无特殊 flag）；烧死有正常死亡表现。
+        mScorchedCounter--;
+        if (mScorchedCounter % 100 == 0)
+        {
+            int aScorchStacks = mApp->RunPlantBuff2Count(SeedType::SEED_CHERRYBOMB);
+            if (aScorchStacks > 0)
+            {
+                TakeDamage(300 * aScorchStacks, 0U);
+            }
+        }
+    }
+    if (mButteredCounter > 0)
+    {
+        mButteredCounter--;
+        if (mButteredCounter == 0)
+        {
+            RemoveButter();
+        }
+    }
 
-	if (mZombiePhase == ZombiePhase::PHASE_RISING_FROM_GRAVE)
-	{
-		UpdateZombieRiseFromGrave();
-		return;
-	}
+    if (mZombiePhase == ZombiePhase::PHASE_RISING_FROM_GRAVE)
+    {
+        UpdateZombieRiseFromGrave();
+        return;
+    }
 
-	if (!IsImmobilizied())
-	{
-		UpdateActions();
-		UpdateZombiePosition();
-		CheckIfPreyCaught();
-		CheckForPool();
-		CheckForHighGround();
-		CheckForBoardEdge();
-	}
+    if (!IsImmobilizied())
+    {
+        UpdateActions();
+        UpdateZombiePosition();
+        CheckIfPreyCaught();
+        CheckForPool();
+        CheckForHighGround();
+        CheckForBoardEdge();
+    }
 
-	if (mZombieType == ZombieType::ZOMBIE_BOSS)
-	{
-		UpdateBoss();
-	}
+    if (mZombieType == ZombieType::ZOMBIE_BOSS)
+    {
+        UpdateBoss();
+    }
 
-	if (!IsDeadOrDying() && mFromWave != Zombie::ZOMBIE_WAVE_WINNER)
-	{
-		bool isDying = !mHasHead;
-		if (mZombieType == ZombieType::ZOMBIE_ZAMBONI || mZombieType == ZombieType::ZOMBIE_CATAPULT)
-		{
-			if (mBodyHealth < 200)
-			{
-				isDying = true;
-			}
-		}
+    if (!IsDeadOrDying() && mFromWave != Zombie::ZOMBIE_WAVE_WINNER)
+    {
+        bool isDying = !mHasHead;
+        if (mZombieType == ZombieType::ZOMBIE_ZAMBONI || mZombieType == ZombieType::ZOMBIE_CATAPULT)
+        {
+            if (mBodyHealth < 200)
+            {
+                isDying = true;
+            }
+        }
 
-		if (isDying)
-		{
-			int aDamage = 1;
-			if (mZombieType == ZombieType::ZOMBIE_YETI)
-			{
-				aDamage = 10;
-			}
-			if (mBodyMaxHealth >= 500)
-			{
-				aDamage = 3;
-			}
+        if (isDying)
+        {
+            int aDamage = 1;
+            if (mZombieType == ZombieType::ZOMBIE_YETI)
+            {
+                aDamage = 10;
+            }
+            if (mBodyMaxHealth >= 500)
+            {
+                aDamage = 3;
+            }
 
-			if (Rand(5) == 0)
-			{
-				TakeDamage(aDamage, 9U);
-			}
-		}
-	}
+            if (Rand(5) == 0)
+            {
+                TakeDamage(aDamage, 9U);
+            }
+        }
+    }
 }
 
 bool Zombie::HasYuckyFaceImage()
@@ -6642,11 +6817,26 @@ void Zombie::SetAnimRate(float theAnimRate)
 
 void Zombie::ApplyAnimRate(float theAnimRate)
 {
-	Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
-	if (aBodyReanim)
-	{
-		aBodyReanim->mAnimRate = IsMovingAtChilledSpeed() ? theAnimRate * 0.5f : theAnimRate;
-	}
+    Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
+    if (aBodyReanim)
+    {
+        // @pvz-online: 第二 buff「腐臭之息」（大喷菇，docs/06 §8.6 #10）：软减速 20%/层
+        // （cap2 = 至多 -40%）——与 chill 固定半速异轴并存，chill 优先（不叠乘）。
+        // 「霜甲」（寒冰菇 #14）：软减速固定 35%，与腐臭之息叠乘（两条都持有时一起吃）。
+        float aRate = theAnimRate;
+        if (IsMovingAtChilledSpeed())
+        {
+            aRate *= 0.5f;
+        }
+        else
+        {
+            if (mFetidSlowCounter > 0)
+                aRate *= 1.0f - 0.2f * mApp->RunPlantBuff2Count(SeedType::SEED_FUMESHROOM);
+            if (mFrostArmorCounter > 0)
+                aRate *= 0.65f;
+        }
+        aBodyReanim->mAnimRate = aRate;
+    }
 }
 
 void Zombie::UpdateAnimSpeed()
@@ -6993,155 +7183,256 @@ void Zombie::CheckForHighGround()
 
 void Zombie::StartMindControlled()
 {
-	mApp->PlaySample(SOUND_MINDCONTROLLED);
-	mMindControlled = true;
-	mLastPortalX = -1;
+    if (false)  // @pvz-online: 关底巨型 boss 免疫魅惑（MOD_BUILD 38）
+        return;
+    mApp->PlaySample(SOUND_MINDCONTROLLED);
 
-	if (mZombieType == ZombieType::ZOMBIE_DANCER)
-	{
-		for (int i = 0; i < NUM_BACKUP_DANCERS; i++)
-		{
-			mFollowerZombieID[i] = ZombieID::ZOMBIEID_NULL;
-		}
-	}
-	else if (mZombieType == ZombieType::ZOMBIE_BACKUP_DANCER)
-	{
-		Zombie* aLeader = mBoard->ZombieTryToGet(mRelatedZombieID);
-		if (aLeader)
-		{
-			ZombieID aId = mBoard->ZombieGetID(this);
-			for (int i = 0; i < NUM_BACKUP_DANCERS; i++)
-			{
-				if (aLeader->mFollowerZombieID[i] == aId)
-				{
-					aLeader->mFollowerZombieID[i] = ZombieID::ZOMBIEID_NULL;
-					break;
-				}
-			}
-		}
+    // @pvz-online: 第二 buff「迷魂香」（2026-10-11 双轴改）·血量半轴：转化瞬间血量 ×2^层
+    // （叠乘 ×2/×4）。本函数是全转化路径的唯一汇合点（魅惑菇本体嚼倒戈的 AnimateChewSound
+    // 支、魅惑巨人扔小鬼的 ThrowImp 支）；mBodyMaxHealth 同乘（照 Board.cpp:5770-5771
+    // 巨型 boss 先例）——臂/头掉落阈值与血条比例都按新底子走。幂等闸：只认第一次转化；
+    // 转化瞬间定格，后拿条不追溯。
+    if (!mMindControlled)
+    {
+        float aMul = mApp->RunPlantBuff2Mul(SeedType::SEED_HYPNOSHROOM);
+        if (aMul > 1.0f)
+        {
+            mBodyHealth = (int)(mBodyHealth * aMul + 0.5f);
+            mBodyMaxHealth = (int)(mBodyMaxHealth * aMul + 0.5f);
+        }
+    }
 
-		mRelatedZombieID = ZombieID::ZOMBIEID_NULL;
-	}
-	else
-	{
-		Zombie* aZombie = mBoard->ZombieTryToGet(mRelatedZombieID);
-		if (aZombie)
-		{
-			aZombie->mRelatedZombieID = ZombieID::ZOMBIEID_NULL;
-			mRelatedZombieID = ZombieID::ZOMBIEID_NULL;
-		}
-	}
+    mMindControlled = true;
+    mLastPortalX = -1;
+
+    if (mZombieType == ZombieType::ZOMBIE_DANCER)
+    {
+        for (int i = 0; i < NUM_BACKUP_DANCERS; i++)
+        {
+            mFollowerZombieID[i] = ZombieID::ZOMBIEID_NULL;
+        }
+    }
+    else if (mZombieType == ZombieType::ZOMBIE_BACKUP_DANCER)
+    {
+        Zombie* aLeader = mBoard->ZombieTryToGet(mRelatedZombieID);
+        if (aLeader)
+        {
+            ZombieID aId = mBoard->ZombieGetID(this);
+            for (int i = 0; i < NUM_BACKUP_DANCERS; i++)
+            {
+                if (aLeader->mFollowerZombieID[i] == aId)
+                {
+                    aLeader->mFollowerZombieID[i] = ZombieID::ZOMBIEID_NULL;
+                    break;
+                }
+            }
+        }
+
+        mRelatedZombieID = ZombieID::ZOMBIEID_NULL;
+    }
+    else
+    {
+        Zombie* aZombie = mBoard->ZombieTryToGet(mRelatedZombieID);
+        if (aZombie)
+        {
+            aZombie->mRelatedZombieID = ZombieID::ZOMBIEID_NULL;
+            mRelatedZombieID = ZombieID::ZOMBIEID_NULL;
+        }
+    }
 }
 
 void Zombie::EatPlant(Plant* thePlant)
 {
-	if (mZombiePhase == ZombiePhase::PHASE_DANCER_DANCING_IN)
-	{
-		mPhaseCounter = 1;
-		return;
-	}
+    if (mZombiePhase == ZombiePhase::PHASE_DANCER_DANCING_IN)
+    {
+        mPhaseCounter = 1;
+        return;
+    }
 
-	if (mYuckyFace)
-		return;
+    if (mYuckyFace)
+        return;
 
-	if (mBoard->GetLadderAt(thePlant->mPlantCol, thePlant->mRow) && mZombieType != ZombieType::ZOMBIE_DIGGER)  // digger zombies ignore ladders
-	{
-		StopEating();
+    if (mBoard->GetLadderAt(thePlant->mPlantCol, thePlant->mRow) && mZombieType != ZombieType::ZOMBIE_DIGGER)  // 矿工僵尸无视梯子
+    {
+        StopEating();
 
-		if (mZombieHeight == ZombieHeight::HEIGHT_ZOMBIE_NORMAL && mUseLadderCol != thePlant->mPlantCol)
-		{
-			mZombieHeight = ZombieHeight::HEIGHT_UP_LADDER;
-			mUseLadderCol = thePlant->mPlantCol;
-		}
+        if (mZombieHeight == ZombieHeight::HEIGHT_ZOMBIE_NORMAL && mUseLadderCol != thePlant->mPlantCol)
+        {
+            mZombieHeight = ZombieHeight::HEIGHT_UP_LADDER;
+            mUseLadderCol = thePlant->mPlantCol;
+        }
 
-		return;
-	}
+        return;
+    }
 
-	StartEating();
-	if (thePlant->mSeedType == SeedType::SEED_JALAPENO ||
-		thePlant->mSeedType == SeedType::SEED_CHERRYBOMB ||
-		thePlant->mSeedType == SeedType::SEED_DOOMSHROOM ||
-		thePlant->mSeedType == SeedType::SEED_ICESHROOM ||
-		thePlant->mSeedType == SeedType::SEED_HYPNOSHROOM ||
-		thePlant->mState == PlantState::STATE_FLOWERPOT_INVULNERABLE ||
-		thePlant->mState == PlantState::STATE_LILYPAD_INVULNERABLE ||
-		thePlant->mState == PlantState::STATE_SQUASH_LOOK ||
-		thePlant->mState == PlantState::STATE_SQUASH_PRE_LAUNCH)
-	{
-		if (!thePlant->mIsAsleep)
-		{
-			return;
-		}
-	}
-	if (thePlant->mSeedType == SeedType::SEED_POTATOMINE && thePlant->mState != PlantState::STATE_NOTREADY)
-	{
-		return;
-	}
+    StartEating();
+    if (thePlant->mSeedType == SeedType::SEED_JALAPENO ||
+        thePlant->mSeedType == SeedType::SEED_CHERRYBOMB ||
+        thePlant->mSeedType == SeedType::SEED_DOOMSHROOM ||
+        thePlant->mSeedType == SeedType::SEED_ICESHROOM ||
+        thePlant->mSeedType == SeedType::SEED_HYPNOSHROOM ||
+        thePlant->mState == PlantState::STATE_FLOWERPOT_INVULNERABLE ||
+        thePlant->mState == PlantState::STATE_LILYPAD_INVULNERABLE ||
+        thePlant->mState == PlantState::STATE_SQUASH_LOOK ||
+        thePlant->mState == PlantState::STATE_SQUASH_PRE_LAUNCH)
+    {
+        if (!thePlant->mIsAsleep)
+        {
+            return;
+        }
+    }
+    if (thePlant->mSeedType == SeedType::SEED_POTATOMINE && thePlant->mState != PlantState::STATE_NOTREADY)
+    {
+        return;
+    }
 
-	bool triggered = false;
-	if (thePlant->mSeedType == SeedType::SEED_BLOVER)
-	{
-		triggered = true;
-	}
-	if (thePlant->mSeedType == SeedType::SEED_ICESHROOM  && !thePlant->mIsAsleep)
-	{
-		triggered = true;
-	}
-	if (triggered)
-	{
-		thePlant->DoSpecial();
-		return;
-	}
+    bool triggered = false;
+    if (thePlant->mSeedType == SeedType::SEED_BLOVER)
+    {
+        triggered = true;
+    }
+    if (thePlant->mSeedType == SeedType::SEED_ICESHROOM  && !thePlant->mIsAsleep)
+    {
+        triggered = true;
+    }
+    if (triggered)
+    {
+        thePlant->DoSpecial();
+        return;
+    }
 
-	if (mChilledCounter > 0 && mZombieAge % 2 == 1)
-		return;
+    if (mChilledCounter > 0 && mZombieAge % 2 == 1)
+        return;
 
-	if (mApp->IsIZombieLevel() && thePlant->mSeedType == SeedType::SEED_SUNFLOWER)
-	{
-		int aStageBeforeChew = thePlant->mPlantHealth / 40;
-		int aStageAfterChew = (thePlant->mPlantHealth - DAMAGE_PER_EAT) / 40;
-		if (aStageAfterChew < aStageBeforeChew || thePlant->mPlantHealth - DAMAGE_PER_EAT <= 0)  // if this chew lowers the plant's health by at least one stage
-		{
-			mBoard->AddCoin(thePlant->mX, thePlant->mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
-		}
-	}
+    if (mApp->IsIZombieLevel() && thePlant->mSeedType == SeedType::SEED_SUNFLOWER)
+    {
+        int aStageBeforeChew = thePlant->mPlantHealth / 40;
+        int aStageAfterChew = (thePlant->mPlantHealth - DAMAGE_PER_EAT) / 40;
+        if (aStageAfterChew < aStageBeforeChew || thePlant->mPlantHealth - DAMAGE_PER_EAT <= 0)  // 若本次啃食令植物血量下降了至少 1 个阶段
+        {
+            mBoard->AddCoin(thePlant->mX, thePlant->mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
+        }
+    }
 
-	thePlant->mPlantHealth -= DAMAGE_PER_EAT;
-	thePlant->mRecentlyEatenCountdown = 50;
-	if (mApp->IsIZombieLevel() && mJustGotShotCounter < -500)
-	{
-		if (thePlant->mSeedType == SeedType::SEED_WALLNUT || thePlant->mSeedType == SeedType::SEED_TALLNUT || thePlant->mSeedType == SeedType::SEED_PUMPKINSHELL)
-		{
-			thePlant->mPlantHealth -= DAMAGE_PER_EAT;
-		}
-	}
+    // @pvz-online: 关底橄榄球 boss「极速啃食」（MOD_BUILD 39 批，2026-10-11 用户定案）：
+    // 破阵=啃食轴拉大——每口 200（普通僵尸 4；25 口/秒 ⇒ 5000 血/秒，高坚果 8000 血
+    // 约 1.6 秒啃穿）。上面的冰冻慢啃（节拍减半）照旧折半——所以减速能压它的啃食速度。
+    // 巨人 boss 走砸击轴不受影响；普通橄榄球僵尸维持每口 4。
+    int aBiteDamage = DAMAGE_PER_EAT;
+    if (mZombieType == ZombieType::ZOMBIE_FOOTBALL && false)
+    {
+        aBiteDamage = 200;
+    }
 
-	if (thePlant->mPlantHealth <= 0)
-	{
-		mApp->PlaySample(SOUND_GULP);
+    thePlant->mPlantHealth -= aBiteDamage;
+    // @pvz-online: 第二 buff 批 3「耐砸」（忧郁菇，docs/06 §8.6 #42）：被击固定扣 50/口
+    //（500 血 = 10 口；1★；2026-10-11 由 200 改）。巨人砸分支同额 -50/砸（见 Zombie::Update 的 Squish 分支）。
+    if (thePlant->mSeedType == SeedType::SEED_GLOOMSHROOM && mApp->RunPlantBuff2Count(SeedType::SEED_GLOOMSHROOM) > 0)
+    {
+        thePlant->mPlantHealth -= (50 - aBiteDamage);	// 上面已扣 aBiteDamage，补差到固定 50
+    }
+    thePlant->mRecentlyEatenCountdown = 50;
+    // @pvz-online: 第二 buff「荆棘之壁」（坚果墙 #3，docs/06 §8.6，2★ cap2）：啃食者受
+    // 40/层·秒反伤——啃食节拍 4 帧/口（25 口 = 1 秒），每 25 口给啃食者自己反伤 40×层；
+    // 计数器借坚果的 mLaunchCounter（该株只在保龄球模式用它，与闯关词条不共存）。
+    // 冰冻慢啃（节拍翻倍）时反伤同步减半——反伤跟着啃食动作走。
+    if (thePlant->mSeedType == SeedType::SEED_WALLNUT)
+    {
+        int aThornStacks = mApp->RunPlantBuff2Count(SeedType::SEED_WALLNUT);
+        if (aThornStacks > 0 && ++thePlant->mLaunchCounter % 25 == 0)
+        {
+            TakeDamage(40 * aThornStacks, 0U);
+        }
+    }
+    if (mApp->IsIZombieLevel() && mJustGotShotCounter < -500)
+    {
+        if (thePlant->mSeedType == SeedType::SEED_WALLNUT || thePlant->mSeedType == SeedType::SEED_TALLNUT || thePlant->mSeedType == SeedType::SEED_PUMPKINSHELL)
+        {
+            thePlant->mPlantHealth -= DAMAGE_PER_EAT;
+        }
+    }
 
-		mBoard->mPlantsEaten++;
-		thePlant->Die();
-		mBoard->mChallenge->ZombieAtePlant(thePlant);
+    if (thePlant->mPlantHealth <= 0)
+    {
+        mApp->PlaySample(SOUND_GULP);
 
-		if (mBoard->mLevel >= 2 && mBoard->mLevel <= 4 && mApp->IsFirstTimeAdventureMode())
-		{
-			if (thePlant->mPlantCol > 4 && mBoard->mPlants.mSize < 15 && thePlant->mSeedType == SeedType::SEED_PEASHOOTER)
-			{
-				mBoard->DisplayAdvice("[ADVICE_PEASHOOTER_DIED]", MessageStyle::MESSAGE_STYLE_HINT_TALL_FAST, AdviceType::ADVICE_PEASHOOTER_DIED);
-			}
-		}
-	}
+        mBoard->mPlantsEaten++;
+        // @pvz-online: 第二 buff 批 3「引路蒜」（大蒜，docs/06 §8.6 #36）：蒜被吃掉时
+        // 全行僵尸换道——逐只 SwitchLanes（上/下可行判定各自算；带老条「Iron Clove」
+        // 耐砸的同株组合：20 血只挨一下砸，负面前置换来的换道价值，矛盾设计接受）。
+        if (thePlant->mSeedType == SeedType::SEED_GARLIC && mApp->RunPlantBuff2Count(SeedType::SEED_GARLIC) > 0)
+        {
+            Zombie* aRowZombie = nullptr;
+            while (mBoard->IterateZombies(aRowZombie))
+            {
+                if (!aRowZombie->mDead && aRowZombie->mRow == thePlant->mRow)
+                {
+                    aRowZombie->SwitchLanes();
+                }
+            }
+        }
+        // @pvz-online: 第二 buff 批 4「亡语孢子」（小喷菇 #8 / 海蘑菇 #24，docs/06 §8.6）：
+        // 被啃掉时原地爆炸——900 直伤/层（土豆雷式半径 60，走非燃烧直伤通道照毁灭菇先例）。
+        // 「遗泽」（双子向日葵 #41）：被吃掉时补产 1 轮阳光（2 枚 = 双子标准单轮产量）。
+        int aDeathBoomStacks = mApp->RunPlantBuff2Count(thePlant->mSeedType);
+        if (aDeathBoomStacks > 0 &&
+            (thePlant->mSeedType == SeedType::SEED_PUFFSHROOM || thePlant->mSeedType == SeedType::SEED_SEASHROOM))
+        {
+            int aBoomX = thePlant->mX + thePlant->mWidth / 2 - 20;
+            int aBoomY = thePlant->mY + thePlant->mHeight / 2;
+            int aBoomFlags = thePlant->GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
+            mBoard->KillAllZombiesInRadius(thePlant->mRow, aBoomX, aBoomY, 60, 0, false, aBoomFlags, 900 * aDeathBoomStacks);
+            int aBoomRender = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PARTICLE, thePlant->mRow, 0);
+            mApp->AddPvzpParticle(aBoomX + 20.0f, aBoomY, aBoomRender, ParticleEffect::PARTICLE_POTATO_MINE);
+            mBoard->ShakeBoard(3, -4);
+        }
+        else if (thePlant->mSeedType == SeedType::SEED_TWINSUNFLOWER && mApp->RunPlantBuff2Count(SeedType::SEED_TWINSUNFLOWER) > 0)
+        {
+            mBoard->AddCoin(thePlant->mX, thePlant->mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
+            mBoard->AddCoin(thePlant->mX, thePlant->mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
+        }
+        thePlant->Die();
+        mBoard->mChallenge->ZombieAtePlant(thePlant);
+
+        if (mBoard->mLevel >= 2 && mBoard->mLevel <= 4 && mApp->IsFirstTimeAdventureMode())
+        {
+            if (thePlant->mPlantCol > 4 && mBoard->mPlants.mSize < 15 && thePlant->mSeedType == SeedType::SEED_PEASHOOTER)
+            {
+                mBoard->DisplayAdvice(("[ADVICE_PEASHOOTER_DIED]"), MessageStyle::MESSAGE_STYLE_HINT_TALL_FAST, AdviceType::ADVICE_PEASHOOTER_DIED);
+            }
+        }
+    }
 }
 
 void Zombie::EatZombie(Zombie* theZombie)
 {
-	theZombie->TakeDamage(DAMAGE_PER_EAT, 9U);
-	StartEating();
-	if (theZombie->mBodyHealth <= 0)
-	{
-		mApp->PlaySample(SOUND_GULP);
-	}
+    // @pvz-online: 单株升级「Devotion」（魅惑菇老表 #12）：被魅惑僵尸咬到的僵尸也倒戈——
+    // 1 层成型（上限 1）。EatZombie 只被魅惑僵尸的吃循环调到（FindZombieTarget 要求两边
+    // mMindControlled 不同），倒戈照魅惑菇本体走 StartMindControlled + 同款粒子 + 过关
+    // 检查（同 AnimateChewSound 的魅惑菇支：倒戈可能干掉最后一只敌人）。2026-10-11 曾
+    // 短暂下架（太强），当晚恢复并附加负面「魅惑菇冷却 ×6」（挂点 Plant::GetRefreshTime）。
+    if (mMindControlled && !theZombie->mMindControlled && !theZombie->IsDeadOrDying() &&
+        mApp->RunPlantUpgradeCount(SeedType::SEED_HYPNOSHROOM) > 0)
+    {
+        theZombie->StartMindControlled();
+        mApp->AddPvzpParticle(theZombie->mPosX + 60.0f, theZombie->mPosY + 40.0f, theZombie->mRenderOrder + 1, ParticleEffect::PARTICLE_MIND_CONTROL);
+        theZombie->TrySpawnLevelAward();
+    }
+
+    // @pvz-online: 第二 buff「迷魂香」（魅惑菇 #12，docs/06 §8.6，2★ cap2 叠乘）·伤害半轴：
+    // 被魅惑僵尸的啃咬伤害 ×2^层（表行 mMultiplicative = (1+1.0)^n）——只加在魅惑僵尸出手
+    // 这侧；普通僵尸啃魅惑僵尸不变。血量半轴见 Zombie::StartMindControlled。
+    int aEatZombieDamage = DAMAGE_PER_EAT;
+    if (mMindControlled && mApp->RunPlantBuff2Count(SeedType::SEED_HYPNOSHROOM) > 0)
+    {
+        aEatZombieDamage = (int)(DAMAGE_PER_EAT * mApp->RunPlantBuff2Mul(SeedType::SEED_HYPNOSHROOM) + 0.5f);
+    }
+    theZombie->TakeDamage(aEatZombieDamage, 9U);
+    StartEating();
+    if (theZombie->mBodyHealth <= 0)
+    {
+        mApp->PlaySample(SOUND_GULP);
+    }
 }
 
 bool Zombie::TrySpawnLevelAward()
@@ -7188,7 +7479,12 @@ bool Zombie::TrySpawnLevelAward()
 	}
 
 	CoinType aCoinType;
-	if (mApp->IsScaryPotterLevel() && !mBoard->IsFinalScaryPotterStage())
+	if (mApp->IsRunMode())
+    {
+        aCoinType = CoinType::COIN_NONE;
+        mBoard->FadeOutLevel();
+    }
+    else if (mApp->IsScaryPotterLevel() && !mBoard->IsFinalScaryPotterStage())
 	{
 		aCoinType = CoinType::COIN_NONE;
 		mBoard->mChallenge->PuzzlePhaseComplete(mBoard->PixelToGridXKeepOnBoard(mPosX + 75, mPosY), mRow);
@@ -7979,31 +8275,52 @@ void Zombie::TakeBodyDamage(int theDamage, unsigned int theDamageFlags)
 
 void Zombie::TakeDamage(int theDamage, unsigned int theDamageFlags)
 {
-	if (mZombiePhase == ZombiePhase::PHASE_JACK_IN_THE_BOX_POPPING || IsDeadOrDying())
-		return;
+    if (mZombiePhase == ZombiePhase::PHASE_JACK_IN_THE_BOX_POPPING || IsDeadOrDying())
+        return;
 
-	int aDamageRemaining = theDamage;
+    // @pvz-online: 批 18 全局「Precision 所有伤害 +15%」——僵尸受击的总入口，先放大再走
+    // 各分支（护盾/头盔/本体的依次分配、HITS_SHIELD_AND_BODY 的重置全吃放大值）。
+    // 火力（Firepower）在弹种基数上先乘，这里末梢再乘，两条全局乘性叠加；非闯关自动 1.0。
+    theDamage = (int)(theDamage * mApp->RunBuffMul(RUN_BUFF_PRECISION) + 0.5f);
 
-	if (IsFlying())
-	{
-		aDamageRemaining = TakeFlyingDamage(aDamageRemaining, theDamageFlags);
-	}
-	if (aDamageRemaining > 0 && mShieldType != ShieldType::SHIELDTYPE_NONE && !TestBit(theDamageFlags, static_cast<int>(DamageFlags::DAMAGE_BYPASSES_SHIELD)))
-	{
-		aDamageRemaining = TakeShieldDamage(aDamageRemaining, theDamageFlags);
-		if (TestBit(theDamageFlags, static_cast<int>(DamageFlags::DAMAGE_HITS_SHIELD_AND_BODY)))
-		{
-			aDamageRemaining = theDamage;
-		}
-	}
-	if (aDamageRemaining > 0 && mHelmType != HelmType::HELMTYPE_NONE)
-	{
-		aDamageRemaining = TakeHelmDamage(aDamageRemaining, theDamageFlags);
-	}
-	if (aDamageRemaining > 0)
-	{
-		TakeBodyDamage(aDamageRemaining, theDamageFlags);
-	}
+    // @pvz-online: 第二 buff「伤口加深」（地刺 #21，docs/06 §8.6）：被扎者——脚下格
+    // 正踩着地刺的僵尸——受全伤害 ×(1+30%/层)（站上去才开始生效、离开即止，无需状态位；
+    // 只认地刺本体格，南瓜/花盆不算）。词条未抽取时短路，高频入口零开销。
+    if (mApp->RunPlantBuff2Count(SeedType::SEED_SPIKEWEED) > 0)
+    {
+        Rect aZombieRect = GetZombieRect();
+        Plant* aUnderPlant = mBoard->GetTopPlantAt(
+            mBoard->PixelToGridX(aZombieRect.mX + aZombieRect.mWidth / 2, aZombieRect.mY + aZombieRect.mHeight / 2),
+            mBoard->PixelToGridY(aZombieRect.mX + aZombieRect.mWidth / 2, aZombieRect.mY + aZombieRect.mHeight / 2),
+            PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION);
+        if (aUnderPlant != nullptr && aUnderPlant->mSeedType == SeedType::SEED_SPIKEWEED)
+        {
+            theDamage = (int)(theDamage * (1.0f + 0.3f * mApp->RunPlantBuff2Count(SeedType::SEED_SPIKEWEED)) + 0.5f);
+        }
+    }
+
+    int aDamageRemaining = theDamage;
+
+    if (IsFlying())
+    {
+        aDamageRemaining = TakeFlyingDamage(aDamageRemaining, theDamageFlags);
+    }
+    if (aDamageRemaining > 0 && mShieldType != ShieldType::SHIELDTYPE_NONE && !TestBit(theDamageFlags, (int)DamageFlags::DAMAGE_BYPASSES_SHIELD))
+    {
+        aDamageRemaining = TakeShieldDamage(aDamageRemaining, theDamageFlags);
+        if (TestBit(theDamageFlags, (int)DamageFlags::DAMAGE_HITS_SHIELD_AND_BODY))
+        {
+            aDamageRemaining = theDamage;
+        }
+    }
+    if (aDamageRemaining > 0 && mHelmType != HelmType::HELMTYPE_NONE)
+    {
+        aDamageRemaining = TakeHelmDamage(aDamageRemaining, theDamageFlags);
+    }
+    if (aDamageRemaining > 0)
+    {
+        TakeBodyDamage(aDamageRemaining, theDamageFlags);
+    }
 }
 
 float Zombie::GetPosYBasedOnRow(int theRow)
@@ -8394,59 +8711,69 @@ void Zombie::RemoveIceTrap()
 
 void Zombie::HitIceTrap()
 {
-	bool cold = false;
-	if (mChilledCounter > 0 || mIceTrapCounter != 0)
-	{
-		cold = true;
-	}
+    bool cold = false;
+    if (mChilledCounter > 0 || mIceTrapCounter != 0)
+    {
+        cold = true;
+    }
 
-	ApplyChill(true);
-	if (!CanBeFrozen())
-		return;
+    ApplyChill(true);
+    if (!CanBeFrozen())
+        return;
 
-	if (mInPool)
-	{
-		mIceTrapCounter = 300;
-	}
-	else if (cold)
-	{
-		mIceTrapCounter = RandRangeInt(300, 400);
-	}
-	else
-	{
-		mIceTrapCounter = RandRangeInt(400, 600);
-	}
+    if (mInPool)
+    {
+        mIceTrapCounter = 300;
+    }
+    else if (cold)
+    {
+        mIceTrapCounter = RandRangeInt(300, 400);
+    }
+    else
+    {
+        mIceTrapCounter = RandRangeInt(400, 600);
+    }
 
-	StopZombieSound();
-	if (mZombieType == ZombieType::ZOMBIE_BALLOON)
-	{
-		BalloonPropellerHatSpin(false);
-	}
-	if (mZombiePhase == ZombiePhase::PHASE_BOSS_HEAD_SPIT)
-	{
-		mBoard->RemoveParticleByType(ParticleEffect::PARTICLE_ZOMBIE_BOSS_FIREBALL);
-	}
+    // @pvz-online: 单株升级「Deep Freeze」（寒冰菇，表行 SEED_ICESHROOM）：全场冰冻
+    // +6 秒/层（计数型、至多 2 层；2026-10-05 批八 +2→+4 秒，2026-10-09 夜 +4→+6 秒）
+    // → 各档冻结时长再 +600 帧/层。HitIceTrap 的唯一调用者是寒冰菇的 Plant::IceZombies；
+    // CanBeFrozen 挡下的僵尸在上面已早退，不硬塞。非闯关局 RunPlantUpgradeCount 恒 0，加 0 无副作用。
+    mIceTrapCounter += 600 * mApp->RunPlantUpgradeCount(SeedType::SEED_ICESHROOM);
 
-	TakeDamage(20, 1U);
-	UpdateAnimSpeed();
+    // @pvz-online: 第二 buff「霜甲」（寒冰菇 #14）：标记这次冻结来自寒冰菇——自然解冻时
+    // 触发的全场软减速只认它（见 Zombie::Update 的解冻点）。
+    mIceShroomTrap = true;
+
+    StopZombieSound();
+    if (mZombieType == ZombieType::ZOMBIE_BALLOON)
+    {
+        BalloonPropellerHatSpin(false);
+    }
+    if (mZombiePhase == ZombiePhase::PHASE_BOSS_HEAD_SPIT)
+    {
+        mBoard->RemoveParticleByType(ParticleEffect::PARTICLE_ZOMBIE_BOSS_FIREBALL);
+    }
+
+    TakeDamage(20, 1U);
+    UpdateAnimSpeed();
 }
 
 bool Zombie::IsTangleKelpTarget()
 {
-	if (mZombieHeight == ZombieHeight::HEIGHT_DRAGGED_UNDER)
-		return true;
+    if (mZombieHeight == ZombieHeight::HEIGHT_DRAGGED_UNDER)
+        return true;
 
-	for (Plant* aPlant : mBoard->mPlants)
-	{
-		if (aPlant->mDead)
-			continue;
-		if (aPlant->mSeedType == SeedType::SEED_TANGLEKELP && aPlant->mTargetZombieID == mBoard->ZombieGetID(this))
-		{
-			return true;
-		}
-	}
+    Plant* aPlant = nullptr;
+    while (mBoard->IteratePlants(aPlant))
+    {
+        // @pvz-online: 判定走 Plant::IsTangleKelpTargeting（批 13 多缠：主目标 + 额外目标都算）。
+        if (aPlant->mSeedType == SeedType::SEED_TANGLEKELP && aPlant->IsTangleKelpTargeting(mBoard->ZombieGetID(this)))
+        {
+            return true;
+        }
+    }
 
-	return false;
+    return false;
 }
 
 bool Zombie::IsSquashTarget(Plant* theExcept)
@@ -8524,45 +8851,49 @@ void Zombie::RemoveButter()
 	StartZombieSound();
 }
 
-void Zombie::ApplyButter()
+void Zombie::ApplyButter(int theFrames)
 {
-	if (!mHasHead || !CanBeFrozen())
-		return;
+    if (!mHasHead || !CanBeFrozen())
+        return;
 
-	if (mZombieType == ZombieType::ZOMBIE_ZAMBONI || mZombieType == ZombieType::ZOMBIE_BOSS || IsTangleKelpTarget() || IsBobsledTeamWithSled() || IsFlying())
-		return;
+    if (mZombieType == ZombieType::ZOMBIE_ZAMBONI || mZombieType == ZombieType::ZOMBIE_BOSS || IsTangleKelpTarget() || IsBobsledTeamWithSled() || IsFlying())
+        return;
+    if (false)  // @pvz-online: 关底巨型 boss 免疫黄油（MOD_BUILD 38）
+        return;
 
-	mButteredCounter = 400;
-	Zombie* aZombie = mBoard->ZombieTryToGet(mRelatedZombieID);
-	if (aZombie)
-	{
-		aZombie->mRelatedZombieID = ZombieID::ZOMBIEID_NULL;
-		mRelatedZombieID = ZombieID::ZOMBIEID_NULL;
-	}
+    // @pvz-online: 帧参数化（权重批数值对齐 2026-10-09）：默认 400 = 原黄油时长不变；
+    // 土豆雷「震雷」按 2 秒/层传入（docs/06 §8.2.4）。
+    mButteredCounter = theFrames;
+    Zombie* aZombie = mBoard->ZombieTryToGet(mRelatedZombieID);
+    if (aZombie)
+    {
+        aZombie->mRelatedZombieID = ZombieID::ZOMBIEID_NULL;
+        mRelatedZombieID = ZombieID::ZOMBIEID_NULL;
+    }
 
-	if (mZombieType == ZombieType::ZOMBIE_POGO)
-	{
-		mAltitude = 0.0f;
-		if (mOnHighGround)
-		{
-			mAltitude += HIGH_GROUND_HEIGHT;
-		}
-	}
-	else if (mZombieType == ZombieType::ZOMBIE_BALLOON)
-	{
-		BalloonPropellerHatSpin(false);
-	}
-	else if (Zombie::IsZombotany(mZombieType))
-	{
-		Reanimation* aHeadReanim = mApp->ReanimationTryToGet(mSpecialHeadReanimID);
-		if (aHeadReanim)
-		{
-			aHeadReanim->mAnimRate = 0.0f;
-		}
-	}
+    if (mZombieType == ZombieType::ZOMBIE_POGO)
+    {
+        mAltitude = 0.0f;
+        if (mOnHighGround)
+        {
+            mAltitude += HIGH_GROUND_HEIGHT;
+        }
+    }
+    else if (mZombieType == ZombieType::ZOMBIE_BALLOON)
+    {
+        BalloonPropellerHatSpin(false);
+    }
+    else if (Zombie::IsZombotany(mZombieType))
+    {
+        Reanimation* aHeadReanim = mApp->ReanimationTryToGet(mSpecialHeadReanimID);
+        if (aHeadReanim)
+        {
+            aHeadReanim->mAnimRate = 0.0f;
+        }
+    }
 
-	UpdateAnimSpeed();
-	StopZombieSound();
+    UpdateAnimSpeed();
+    StopZombieSound();
 }
 
 void Zombie::MowDown()
@@ -8668,154 +8999,155 @@ void Zombie::RemoveColdEffects()
 	}
 }
 
-void Zombie::ApplyBurn()
+void Zombie::ApplyBurn(int theDirectDamage)
 {
-	if (mDead || mZombiePhase == ZombiePhase::PHASE_ZOMBIE_BURNED)
-		return;
+    if (mDead || mZombiePhase == ZombiePhase::PHASE_ZOMBIE_BURNED)
+        return;
 
-	if (mBodyHealth >= 1800 || mZombieType == ZombieType::ZOMBIE_BOSS)
-	{
-		TakeDamage(1800, 18U);
-		return;
-	}
+    if (mBodyHealth >= 1800 || mZombieType == ZombieType::ZOMBIE_BOSS)
+    {
+        // @pvz-online: 闯关 buff「爆破」：一次性植物的燃烧直伤 ×(1+60%/层)。这条只在目标
+        // 血够厚（≥1800）时走——普通僵尸无论 1800 还是 2340 都是"烧死"，加伤只对血牛有意义。
+        // 闯关关卡里的燃烧源就是樱桃/辣椒/末日菇（僵尸自爆类不出现，僵尸侧蹭到也无妨）。
+        int aBlastBase = theDirectDamage > 0 ? theDirectDamage : 1800;
+        TakeDamage((int)(aBlastBase * mApp->RunBuffMul(RUN_BUFF_BLAST) + 0.5f), 18U);
+        return;
+    }
 
-	if (mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD && !mHasHead)
-	{
-		mApp->RemoveReanimation(mSpecialHeadReanimID);
-		mSpecialHeadReanimID = ReanimationID::REANIMATIONID_NULL;
-	}
+    if ((mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD) && !mHasHead)
+    {
+        mApp->RemoveReanimation(mSpecialHeadReanimID);
+        mSpecialHeadReanimID = ReanimationID::REANIMATIONID_NULL;
+    }
 
-	if (mIceTrapCounter > 0)
-	{
-		RemoveIceTrap();
-	}
-	mButteredCounter = std::min(mButteredCounter, 0);
+    if (mIceTrapCounter > 0)
+    {
+        RemoveIceTrap();
+    }
+    if (mButteredCounter > 0)
+    {
+        mButteredCounter = 0;
+    }
 
-	AttachmentDetachCrossFadeParticleType(mAttachmentID, ParticleEffect::PARTICLE_ZAMBONI_SMOKE, nullptr);
-	BungeeDropPlant();
+    AttachmentDetachCrossFadeParticleType(mAttachmentID, ParticleEffect::PARTICLE_ZAMBONI_SMOKE, nullptr);
+    BungeeDropPlant();
 
-	if (mZombiePhase == ZombiePhase::PHASE_ZOMBIE_DYING ||
-		mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_IN_VAULT ||
-		mZombiePhase == ZombiePhase::PHASE_IMP_GETTING_THROWN ||
-		mZombiePhase == ZombiePhase::PHASE_RISING_FROM_GRAVE ||
-		mZombiePhase == ZombiePhase::PHASE_DANCER_RISING ||
-		mZombiePhase == ZombiePhase::PHASE_DOLPHIN_INTO_POOL ||
-		mZombiePhase == ZombiePhase::PHASE_DOLPHIN_IN_JUMP ||
-		mZombiePhase == ZombiePhase::PHASE_DOLPHIN_RIDING ||
-		mZombiePhase == ZombiePhase::PHASE_SNORKEL_INTO_POOL ||
-		mZombiePhase == ZombiePhase::PHASE_DIGGER_TUNNELING ||
-		mZombiePhase == ZombiePhase::PHASE_DIGGER_TUNNELING_PAUSE_WITHOUT_AXE ||
-		mZombiePhase == ZombiePhase::PHASE_DIGGER_RISING ||
-		mZombiePhase == ZombiePhase::PHASE_DIGGER_RISE_WITHOUT_AXE ||
-		mZombiePhase == ZombiePhase::PHASE_ZOMBIE_MOWERED ||
-		mInPool)
-	{
-		DieWithLoot();
-	}
-	else if (mZombieType == ZOMBIE_BUNGEE || mZombieType == ZOMBIE_YETI || Zombie::IsZombotany(mZombieType) || IsBobsledTeamWithSled() || IsFlying() || !mHasHead)
-	{
-		SetAnimRate(0.0f);
-		Reanimation* aHeadReanim = mApp->ReanimationTryToGet(mSpecialHeadReanimID);
-		if (aHeadReanim)
-		{
-			aHeadReanim->mAnimRate = 0.0f;
-		}
+    if (mZombiePhase == ZombiePhase::PHASE_ZOMBIE_DYING ||
+        mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_IN_VAULT ||
+        mZombiePhase == ZombiePhase::PHASE_IMP_GETTING_THROWN ||
+        mZombiePhase == ZombiePhase::PHASE_RISING_FROM_GRAVE ||
+        mZombiePhase == ZombiePhase::PHASE_DANCER_RISING ||
+        mZombiePhase == ZombiePhase::PHASE_DOLPHIN_INTO_POOL ||
+        mZombiePhase == ZombiePhase::PHASE_DOLPHIN_IN_JUMP ||
+        mZombiePhase == ZombiePhase::PHASE_DOLPHIN_RIDING ||
+        mZombiePhase == ZombiePhase::PHASE_SNORKEL_INTO_POOL ||
+        mZombiePhase == ZombiePhase::PHASE_DIGGER_TUNNELING ||
+        mZombiePhase == ZombiePhase::PHASE_DIGGER_TUNNELING_PAUSE_WITHOUT_AXE ||
+        mZombiePhase == ZombiePhase::PHASE_DIGGER_RISING ||
+        mZombiePhase == ZombiePhase::PHASE_DIGGER_RISE_WITHOUT_AXE ||
+        mZombiePhase == ZombiePhase::PHASE_ZOMBIE_MOWERED ||
+        mInPool)
+    {
+        DieWithLoot();
+    }
+    else if (mZombieType == ZOMBIE_BUNGEE || mZombieType == ZOMBIE_YETI || Zombie::IsZombotany(mZombieType) || IsBobsledTeamWithSled() || IsFlying() || !mHasHead)
+    {
+        SetAnimRate(0.0f);
+        Reanimation* aHeadReanim = mApp->ReanimationTryToGet(mSpecialHeadReanimID);
+        if (aHeadReanim)
+        {
+            aHeadReanim->mAnimRate = 0.0f;
+        }
 
-		mZombiePhase = ZombiePhase::PHASE_ZOMBIE_BURNED;
-		mPhaseCounter = 300;
-		mJustGotShotCounter = 0;
-		DropLoot();
+        mZombiePhase = ZombiePhase::PHASE_ZOMBIE_BURNED;
+        mPhaseCounter = 300;
+        mJustGotShotCounter = 0;
+        DropLoot();
 
-		if (mZombieType == ZombieType::ZOMBIE_BALLOON)
-		{
-			BalloonPropellerHatSpin(false);
-		}
-	}
-	else
-	{
-		ReanimationType aReanimType = ReanimationType::REANIM_ZOMBIE_CHARRED;
-		float aCharredPosX = mPosX + 22.0f;
-		float aCharredPosY = mPosY - 10.0f;
-		if (mZombieType == ZombieType::ZOMBIE_BALLOON)
-		{
-			aCharredPosY += 31.0f;
-		}
-		if (mZombieType == ZombieType::ZOMBIE_IMP)
-		{
-			aCharredPosX -= 6.0f;
-			aReanimType = ReanimationType::REANIM_ZOMBIE_CHARRED_IMP;
-		}
-		if (mZombieType == ZombieType::ZOMBIE_DIGGER)
-		{
-			if (IsWalkingBackwards())
-			{
-				aCharredPosX += 14.0f;
-			}
-			aReanimType = ReanimationType::REANIM_ZOMBIE_CHARRED_DIGGER;
-		}
-		if (mZombieType == ZombieType::ZOMBIE_ZAMBONI)
-		{
-			aReanimType = ReanimationType::REANIM_ZOMBIE_CHARRED_ZAMBONI;
-			aCharredPosX += 61.0f;
-			aCharredPosY -= 16.0f;
-		}
-		if (mZombieType == ZombieType::ZOMBIE_CATAPULT)
-		{
-			aReanimType = ReanimationType::REANIM_ZOMBIE_CHARRED_CATAPULT;
-			aCharredPosX -= 36.0f;
-			aCharredPosY -= 20.0f;
-		}
-		if (mZombieType == ZombieType::ZOMBIE_GARGANTUAR || mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR)
-		{
-			aReanimType = ReanimationType::REANIM_ZOMBIE_CHARRED_GARGANTUAR;
-			aCharredPosX -= 15.0f;
-			aCharredPosY -= 10.0f;
-		}
+        if (mZombieType == ZombieType::ZOMBIE_BALLOON)
+        {
+            BalloonPropellerHatSpin(false);
+        }
+    }
+    else
+    {
+        ReanimationType aReanimType = ReanimationType::REANIM_ZOMBIE_CHARRED;
+        float aCharredPosX = mPosX + 22.0f;
+        float aCharredPosY = mPosY - 10.0f;
+        if (mZombieType == ZombieType::ZOMBIE_BALLOON)
+        {
+            aCharredPosY += 31.0f;
+        }
+        if (mZombieType == ZombieType::ZOMBIE_IMP)
+        {
+            aCharredPosX -= 6.0f;
+            aReanimType = ReanimationType::REANIM_ZOMBIE_CHARRED_IMP;
+        }
+        if (mZombieType == ZombieType::ZOMBIE_DIGGER)
+        {
+            if (IsWalkingBackwards())
+            {
+                aCharredPosX += 14.0f;
+            }
+            aReanimType = ReanimationType::REANIM_ZOMBIE_CHARRED_DIGGER;
+        }
+        if (mZombieType == ZombieType::ZOMBIE_ZAMBONI)
+        {
+            aReanimType = ReanimationType::REANIM_ZOMBIE_CHARRED_ZAMBONI;
+            aCharredPosX += 61.0f;
+            aCharredPosY -= 16.0f;
+        }
+        if (mZombieType == ZombieType::ZOMBIE_CATAPULT)
+        {
+            aReanimType = ReanimationType::REANIM_ZOMBIE_CHARRED_CATAPULT;
+            aCharredPosX -= 36.0f;
+            aCharredPosY -= 20.0f;
+        }
+        if (mZombieType == ZombieType::ZOMBIE_GARGANTUAR || mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR)
+        {
+            aReanimType = ReanimationType::REANIM_ZOMBIE_CHARRED_GARGANTUAR;
+            aCharredPosX -= 15.0f;
+            aCharredPosY -= 10.0f;
+        }
 
-		Reanimation* aCharredReanim = mApp->AddReanimation(aCharredPosX, aCharredPosY, mRenderOrder, aReanimType);
-		aCharredReanim->mAnimRate *= RandRangeFloat(0.9f, 1.1f);
-		if (mZombiePhase == ZombiePhase::PHASE_DIGGER_WALKING_WITHOUT_AXE)
-		{
-			aCharredReanim->SetFramesForLayer("anim_crumble_noaxe");
-		}
-		else if (mZombieType == ZombieType::ZOMBIE_DIGGER)
-		{
-			aCharredReanim->SetFramesForLayer("anim_crumble");
-		}
-		else if ((mZombieType == ZombieType::ZOMBIE_GARGANTUAR || mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR) && !mHasObject)
-		{
-			aCharredReanim->SetImageOverride("impblink", IMAGE_BLANK);
-			aCharredReanim->SetImageOverride("imphead", IMAGE_BLANK);
-		}
+        Reanimation* aCharredReanim = mApp->AddReanimation(aCharredPosX, aCharredPosY, mRenderOrder, aReanimType);
+        aCharredReanim->mAnimRate *= RandRangeFloat(0.9f, 1.1f);
+        if (mZombiePhase == ZombiePhase::PHASE_DIGGER_WALKING_WITHOUT_AXE)
+        {
+            aCharredReanim->SetFramesForLayer("anim_crumble_noaxe");
+        }
+        else if (mZombieType == ZombieType::ZOMBIE_DIGGER)
+        {
+            aCharredReanim->SetFramesForLayer("anim_crumble");
+        }
+        else if ((mZombieType == ZombieType::ZOMBIE_GARGANTUAR || mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR) && !mHasObject)
+        {
+            aCharredReanim->SetImageOverride("impblink", IMAGE_BLANK);
+            aCharredReanim->SetImageOverride("imphead", IMAGE_BLANK);
+        }
 
-		float aCharredScale = mScaleZombie;
-		if (mZombieType == ZombieType::ZOMBIE_DANCER || mZombieType == ZombieType::ZOMBIE_BACKUP_DANCER)
-		{
-			aCharredScale = 1.0f;
-		}
+        if (mScaleZombie != 1.0f)
+        {
+            aCharredReanim->mOverlayMatrix.m00 = mScaleZombie;
+            aCharredReanim->mOverlayMatrix.m11 = mScaleZombie;
+            aCharredReanim->mOverlayMatrix.m02 += 20.0f - mScaleZombie * 20.0f;
+            aCharredReanim->mOverlayMatrix.m12 += 120.0f - mScaleZombie * 120.0f;
+            aCharredReanim->OverrideScale(mScaleZombie, mScaleZombie);
+        }
 
-		if (aCharredScale != 1.0f)
-		{
-			aCharredReanim->mOverlayMatrix.m00 = aCharredScale;
-			aCharredReanim->mOverlayMatrix.m11 = aCharredScale;
-			aCharredReanim->mOverlayMatrix.m02 += 20.0f - aCharredScale * 20.0f;
-			aCharredReanim->mOverlayMatrix.m12 += 120.0f - aCharredScale * 120.0f;
-			aCharredReanim->OverrideScale(aCharredScale, aCharredScale);
-		}
+        if (IsWalkingBackwards())
+        {
+            aCharredReanim->OverrideScale(-mScaleZombie, mScaleZombie);
+            aCharredReanim->mOverlayMatrix.m02 += 60.0f * mScaleZombie;
+        }
 
-		if (IsWalkingBackwards())
-		{
-			aCharredReanim->OverrideScale(-aCharredScale, aCharredScale);
-			aCharredReanim->mOverlayMatrix.m02 += 60.0f * aCharredScale;
-		}
+        DieWithLoot();
+    }
 
-		DieWithLoot();
-	}
-
-	if (mZombieType == ZombieType::ZOMBIE_BOBSLED)
-	{
-		BobsledBurn();
-	}
+    if (mZombieType == ZombieType::ZOMBIE_BOBSLED)
+    {
+        BobsledBurn();
+    }
 }
 
 void Zombie::AttachShield()

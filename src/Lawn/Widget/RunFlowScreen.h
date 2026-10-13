@@ -3,10 +3,13 @@
 #include "widget/ButtonListener.h"
 
 class LawnApp;
+namespace Sexy { class ButtonWidget; }
 class RunFlowScreen : public Sexy::Widget, public Sexy::ButtonListener
 {
     LawnApp* mApp;
     bool mModePage;
+    int mBuffMult = 0;
+    Sexy::ButtonWidget* mBuffMultButton = nullptr;
 public:
     explicit RunFlowScreen(LawnApp* app, bool modePage);
     ~RunFlowScreen() override;

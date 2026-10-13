@@ -1,15 +1,14 @@
 #pragma once
 #include "RunBuffs.h"
 
-// @pvz-online: only offer effects with live Android consumers during the staged port.
+// @pvz-online: validate stored IDs; the PC catalogue decides which effects enter the pool.
 inline bool RunChoiceImplemented(int id)
 {
-    return id == RUN_BUFF_FIREPOWER || id == RUN_BUFF_ROOTED || id == RUN_BUFF_FASTSEED;
+    return id >= 0 && id < RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + RUN_PLANT_BUFF2_COUNT;
 }
 
 inline bool RunPlantImplemented(SeedType seed)
 {
-    // Coffee and upgrade plants still need their mod-specific rules; base mushrooms/aquatics are ready.
-    return (seed >= SEED_PEASHOOTER && seed <= SEED_KERNELPULT) ||
-        (seed >= SEED_GARLIC && seed <= SEED_MELONPULT);
+    // All 48 ordinary PC run plants now have their required consumers.
+    return seed >= SEED_PEASHOOTER && seed <= SEED_COBCANNON;
 }

@@ -73,6 +73,11 @@ public:
 	int32_t                 mCobTargetRow;
 	ZombieID                mTargetZombieID;
 	int32_t                 mLastPortalX;
+	int32_t mPricklyHitsLeft = 0;
+	ZombieID mPricklyHitIds[16] = {};
+	int32_t mPricklyHitCount = 0;
+	bool WasZombiePricklyHit(Zombie* theZombie);
+	void RecordPricklyHit(Zombie* theZombie);
 
 public:
 	Projectile();

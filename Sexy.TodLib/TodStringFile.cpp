@@ -237,7 +237,7 @@ void TodWriteStringSetFormat(const char* theFormat, TodStringListFormat& theCurr
 	}
 }
 
-bool CharIsSpaceInFormat(char theChar, const TodStringListFormat& theCurrentFormat)
+bool CharIsSpaceInFormat(wchar_t theChar, const TodStringListFormat& theCurrentFormat)
 {
 	return theChar == ' ' || (TestBit(theCurrentFormat.mFormatFlags, TodStringFormatFlag::TOD_FORMAT_IGNORE_NEWLINES) && theChar == '\n');
 }
@@ -343,21 +343,25 @@ int TodDrawStringWrappedHelper(Graphics* g, const SexyString& theText, const Rec
 	size_t aLineFeedPos = 0;
 	size_t aCurPos = 0;
 	int aCurWidth = 0;
-	SexyChar aCurChar = '\0';
-	SexyChar aPrevChar = '\0';
+	// @pvz-online: 汉化批 ②A——按字解码迭代（ASCII 与旧逐字节行为一致；UTF-8 按整字步进，
+	// 断行/空格位置全部落在字符边界上）
+	wchar_t aCurChar = 0;
+	wchar_t aPrevChar = 0;
 	int aSpacePos = -1;
 	int aMaxWidth = 0;
 	while (aCurPos < theText.size())
 	{
-		aCurChar = theText[aCurPos];
+		int aCharStart = (int)aCurPos;
+		aCurChar = UTF8NextChar(theText, aCharStart);
+		aCurPos = (size_t)aCharStart;
 		if (aCurChar == '{')  // 如果当前字符是特殊格式控制字符的起始标志（即“{”）
 		{
-			const char* aFmtStart = aCurPos + theText.c_str();
+			const char* aFmtStart = aCharStart + theText.c_str();
 			const char* aFormat = aFmtStart + 1;
 			const char* aFmtEnd = strchr(aFormat, '}');
 			if (aFmtEnd != nullptr)  // 如果存在与“{”对应的“}”，即存在完整的控制字符
 			{
-				aCurPos += aFmtEnd - aFormat;  // aCurPos 移至“}”的下一个字符处
+				aCurPos = (size_t)(aCharStart + (aFmtEnd - aFmtStart) - 1);  // 与旧字节步进等价（aCurPos 移至“}”）
 				int aOldAscentOffset = theFont->GetAscent() - theFont->GetAscentPadding();
 				Color aExistingColor = aCurrentFormat.mNewColor;  // 备份当前格式的颜色
 				TodWriteStringSetFormat(aFormat, aCurrentFormat);  // 根据当前控制字符设置新的格式
@@ -370,14 +374,14 @@ int TodDrawStringWrappedHelper(Graphics* g, const SexyString& theText, const Rec
 		}
 		else if (CharIsSpaceInFormat(aCurChar, aCurrentFormat))
 		{
-			aSpacePos = aCurPos;
+			aSpacePos = aCharStart;
 			aCurChar = ' ';
 		}
 		else if (aCurChar == '\n')
 		{
-			aSpacePos = aCurPos;
+			aSpacePos = aCharStart;
 			aCurWidth = theRect.mWidth + 1;
-			aCurPos++;
+			// 旧代码此处 aCurPos++ 跳过换行——解码已前移，等价
 		}
 
 		aCurWidth += (*aCurrentFormat.mNewFont)->CharWidthKern(aCurChar, aPrevChar);  // 当前宽度加上当前字符的宽度
@@ -416,8 +420,10 @@ int TodDrawStringWrappedHelper(Graphics* g, const SexyString& theText, const Rec
 			}
 			else
 			{
-				if (aCurPos < aLineFeedPos + 1)
-					aCurPos++;  // 确保每行至少有 1 个字符
+				// @pvz-online: ②A——超宽的当前字符留给下一行（旧：aCurPos 还停在字符上，切片不含它）；
+				// 行首字符自身超宽时保持已越过状态=至少消费 1 字（等价旧 aCurPos++）
+				if ((size_t)aCharStart > aLineFeedPos)
+					aCurPos = (size_t)aCharStart;
 
 				aLineWidth = TodWriteWordWrappedHelper(
 					g,
@@ -444,10 +450,7 @@ int TodDrawStringWrappedHelper(Graphics* g, const SexyString& theText, const Rec
 			aCurWidth = 0;
 			aPrevChar = '\0';
 		}
-		else  // 当前宽度未超过限制区域宽度时
-		{
-			aCurPos++;  // 继续下一个字符
-		}
+		// else：解码时 aCurPos 已前移至下一字符（等价旧逐字节 aCurPos++），此处无需再推进
 	}
 
 	if (aLineFeedPos < theText.size())

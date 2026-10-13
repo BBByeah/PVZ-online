@@ -30,8 +30,8 @@ public:
 	virtual int				GetLineSpacingOffset();
 	virtual int				GetLineSpacing();
 	virtual int				StringWidth(const SexyString& theString);
-	virtual int				CharWidth(SexyChar theChar);
-	virtual int				CharWidthKern(SexyChar theChar, SexyChar thePrevChar);
+	virtual int				CharWidth(wchar_t theChar);
+	virtual int				CharWidthKern(wchar_t theChar, wchar_t thePrevChar);
 
 	virtual void			DrawString(Graphics* g, int theX, int theY, const SexyString& theString, const Color& theColor, const Rect& theClipRect);
 

@@ -156,16 +156,21 @@ void MessageWidget::LayoutReanimText()
 	float aCurPosY = 0.0f;
 	float aCurPosX = -aLineWidth[0] * 0.5f;
 	// 以下遍历字幕中的所有文本，分别在适当的位置创建每一个文字的动画
-	for (int aPos = 0; aPos < aLabelLen; aPos++)
+	// @pvz-online: 汉化批 ②A——按字（非按字节）解码迭代，一个 UTF-8 字符建一个文字动画
+	SexyString aLabelStr(mLabel);
+	int aCharNum = 0;
+	for (int aPos = 0; aPos < aLabelLen; aCharNum++)
 	{
+		wchar_t aChar = UTF8NextChar(aLabelStr, aPos);
+
 		// 创建文字的动画
 		Reanimation* aReanimText = mApp->AddReanimation(aCurPosX, aCurPosY, 0, mReanimType);
 		aReanimText->mIsAttachment = true;
 		aReanimText->PlayReanim("anim_enter", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0.0f, 0.0f);
-		mTextReanimID[aPos] = mApp->ReanimationGetID(aReanimText);
+		mTextReanimID[aCharNum] = mApp->ReanimationGetID(aReanimText);
 
-		aCurPosX += aFont->CharWidth(mLabel[aPos]);  // 坐标调整至下一个文字的位置
-		if (mLabel[aPos] == _S('\n'))  // 换行处理
+		aCurPosX += aFont->CharWidth(aChar);  // 坐标调整至下一个文字的位置
+		if (aChar == _S('\n'))  // 换行处理
 		{
 			aCurLine++;
 			TOD_ASSERT(aCurLine < MAX_REANIM_LINES);
@@ -198,9 +203,13 @@ void MessageWidget::Update()
 
 	int aLabelLen = sexystrlen(mLabel);
 	// 以下遍历每个文字的动画，设置其动画速率并更新其动画
-	for (int aPos = 0; aPos < aLabelLen; aPos++)
+	// @pvz-online: 汉化批 ②A——按字解码迭代（动画按字符序号索引，与 Layout 一致）
+	SexyString aLabelStr(mLabel);
+	int aCharNum = 0;
+	for (int aPos = 0; aPos < aLabelLen; aCharNum++)
 	{
-		Reanimation* aTextReanim = mApp->ReanimationTryToGet(mTextReanimID[aPos]);
+		UTF8NextChar(aLabelStr, aPos);
+		Reanimation* aTextReanim = mApp->ReanimationTryToGet(mTextReanimID[aCharNum]);
 		if (aTextReanim == nullptr)
 		{
 			break;  // 当不存在文本动画时，跳出循环，直接返回
@@ -216,7 +225,7 @@ void MessageWidget::Update()
 			}
 			else
 			{
-				aTextReanim->mAnimRate = TodAnimateCurveFloat(0, 50, (mDisplayTime - mDuration) * aTextSpeed - aPos, 0.0f, 40.0f, TodCurves::CURVE_LINEAR);
+				aTextReanim->mAnimRate = TodAnimateCurveFloat(0, 50, (mDisplayTime - mDuration) * aTextSpeed - aCharNum, 0.0f, 40.0f, TodCurves::CURVE_LINEAR);
 			}
 		}
 		else
@@ -225,7 +234,7 @@ void MessageWidget::Update()
 			{
 				aTextReanim->PlayReanim("anim_leave", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 0.0f);
 			}
-			aTextReanim->mAnimRate = TodAnimateCurveFloat(0, 50, (mSlideOffTime - mDuration) * aTextSpeed - aPos, 0.0f, 40.0f, TodCurves::CURVE_LINEAR);
+			aTextReanim->mAnimRate = TodAnimateCurveFloat(0, 50, (mSlideOffTime - mDuration) * aTextSpeed - aCharNum, 0.0f, 40.0f, TodCurves::CURVE_LINEAR);
 		}
 
 		aTextReanim->Update();  //更新动画
@@ -236,9 +245,14 @@ void MessageWidget::Update()
 void MessageWidget::DrawReanimatedText(Graphics* g, _Font* theFont, const Color& theColor, float thePosY)
 {
 	int aLabelLen = sexystrlen(mLabel);
-	for (int aPos = 0; aPos < aLabelLen; aPos++)
+	// @pvz-online: 汉化批 ②A——按字解码迭代（动画按字符序号索引；整字 UTF-8 切片交给 TodDrawStringMatrix）
+	SexyString aLabelStr(mLabel);
+	int aCharNum = 0;
+	for (int aPos = 0; aPos < aLabelLen; aCharNum++)
 	{
-		Reanimation* aTextReanim = mApp->ReanimationTryToGet(mTextReanimID[aPos]);
+		int aCharStart = aPos;
+		UTF8NextChar(aLabelStr, aPos);
+		Reanimation* aTextReanim = mApp->ReanimationTryToGet(mTextReanimID[aCharNum]);
 		if (aTextReanim == nullptr)
 		{
 			break;  // 当不存在文本动画时，跳出循环，直接返回
@@ -265,8 +279,7 @@ void MessageWidget::DrawReanimatedText(Graphics* g, _Font* theFont, const Color&
 
 		SexyMatrix3 aMatrix;
 		Reanimation::MatrixFromTransform(aTransform, aMatrix);
-		SexyString aLetter;
-		aLetter.append(1, mLabel[aPos]);
+		SexyString aLetter(mLabel + aCharStart, aPos - aCharStart);
 		TodDrawStringMatrix(g, theFont, aMatrix, aLetter, aFinalColor);
 	}
 }

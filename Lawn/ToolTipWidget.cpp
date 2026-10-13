@@ -24,6 +24,8 @@ ToolTipWidget::ToolTipWidget()
 //0x51A530
 void ToolTipWidget::GetLines(std::vector<SexyString>& theLines)
 {
+	// @pvz-online: 汉化批 ②A——按字解码迭代（英文断行与旧逐字节行为完全一致）；
+	// 中文（≥0x80 多字节字符）无空格可断，在超宽时按整字硬断行
 	int aLineWidth = 0;
 	unsigned int aIndexStart = 0;
 	unsigned int aIndexInLine = 0;
@@ -32,14 +34,22 @@ void ToolTipWidget::GetLines(std::vector<SexyString>& theLines)
 	{
 		while (aIndexInLine < mLabel.size() && mLabel[aIndexInLine] != ' ' && mLabel[aIndexInLine] != '\n')
 		{
-			aLineWidth += FONT_PICO129->CharWidth(mLabel[aIndexInLine]);
-			aIndexInLine++;
+			int aCharPos = (int)aIndexInLine;
+			wchar_t aChar = UTF8NextChar(mLabel, aCharPos);
+			int aCharWidth = FONT_PICO129->CharWidth(aChar);
+			if (aChar >= 0x80 && aLineWidth > 0 && aLineWidth + aCharWidth > mGetsLinesWidth)
+				break;  // 中文硬断行：此整字留给下一行（英文词内永不触发）
+
+			aLineWidth += aCharWidth;
+			aIndexInLine = (unsigned int)aCharPos;
 		}
 
 		if (aIndexInLine != mLabel.size() && aLineWidth < mGetsLinesWidth && mLabel[aIndexInLine] != '\n')
 		{
-			aLineWidth += FONT_PICO129->CharWidth(mLabel[aIndexInLine]);
-			aIndexInLine++;
+			int aCharPos = (int)aIndexInLine;
+			wchar_t aChar = UTF8NextChar(mLabel, aCharPos);
+			aLineWidth += FONT_PICO129->CharWidth(aChar);
+			aIndexInLine = (unsigned int)aCharPos;
 		}
 		else
 		{

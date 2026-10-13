@@ -12,7 +12,8 @@ namespace Sexy
 class SexyAppBase;
 class Image;
 
-typedef std::map<SexyChar, int> CharIntMap;
+// @pvz-online: 汉化批 ②A——字形/kerning 表键型由单字节改为宽字符（码位），UTF-8 汉字可直接入表
+typedef std::map<wchar_t, int> CharIntMap;
 
 class CharData
 {
@@ -28,7 +29,7 @@ public:
 };
 
 class FontData;
-typedef std::map<SexyChar, CharData> CharDataMap;
+typedef std::map<wchar_t, CharData> CharDataMap;
 
 class FontLayer
 {
@@ -61,7 +62,7 @@ public:
 	FontLayer(FontData* theFontData);
 	FontLayer(const FontLayer& theFontLayer);
 
-	CharData*				GetCharData(SexyChar theChar);
+	CharData*				GetCharData(wchar_t theChar);
 };
 
 typedef std::map<SexyChar, SexyChar> CharMap;
@@ -102,7 +103,7 @@ public:
 	bool					LoadLegacy(Image* theFontImage, const std::string& theFontDescFileName);
 };
 
-typedef std::map<SexyChar, Rect> CharRectMap;
+typedef std::map<wchar_t, Rect> CharRectMap;
 
 class ActiveFontLayer
 {
@@ -161,8 +162,8 @@ public:
 	ImageFont(Image* theFontImage, const std::string& theFontDescFileName);
 	//ImageFont(const ImageFont& theImageFont, Image* theImage);
 	
-	virtual int				CharWidth(SexyChar theChar);
-	virtual int				CharWidthKern(SexyChar theChar, SexyChar thePrevChar);
+	virtual int				CharWidth(wchar_t theChar);
+	virtual int				CharWidthKern(wchar_t theChar, wchar_t thePrevChar);
 	virtual int				StringWidth(const SexyString& theString);
 	virtual void			DrawString(Graphics* g, int theX, int theY, const SexyString& theString, const Color& theColor, const Rect& theClipRect);
 

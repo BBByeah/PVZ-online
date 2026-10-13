@@ -1204,8 +1204,9 @@ int	Graphics::WriteWordWrapped(const Rect& theRect, const SexyString& theLine, i
 	ulong aCurPos = 0;
 	int aLineStartPos = 0;
 	int aCurWidth = 0;
-	SexyChar aCurChar = 0;
-	SexyChar aPrevChar = 0;
+	// @pvz-online: 汉化批 ②A——按字解码迭代（ASCII 与旧逐字节一致；UTF-8 按整字步进）
+	wchar_t aCurChar = 0;
+	wchar_t aPrevChar = 0;
 	int aSpacePos = -1;
 	int aMaxWidth = 0;
 	int anIndentX = 0;
@@ -1218,27 +1219,29 @@ int	Graphics::WriteWordWrapped(const Rect& theRect, const SexyString& theLine, i
 
 	while (aCurPos < theLine.length())
 	{	
-		aCurChar = theLine[aCurPos];
+		int aCharStart = (int)aCurPos;
+		aCurChar = UTF8NextChar(theLine, aCharStart);
+		aCurPos = (ulong)aCharStart;
 		if(aCurChar==_S('^') && mWriteColoredString) // Handle special color modifier
 		{
-			if(aCurPos+1<theLine.length())
+			if(aCurPos<theLine.length())
 			{
-				if(theLine[aCurPos+1]==_S('^'))
+				if(theLine[aCurPos]==_S('^'))
 					aCurPos++; // literal '^' -> just skip the extra '^'
 				else 
 				{
-					aCurPos+=8;
+					aCurPos = aCharStart + 8;
 					continue; // skip the color specifier when calculating the width
 				}
 			}
 		}
 		else if(aCurChar==_S(' '))
-			aSpacePos = aCurPos;
+			aSpacePos = aCharStart;
 		else if(aCurChar==_S('\n'))
 		{
 			aCurWidth = theRect.mWidth+1; // force word wrap
-			aSpacePos = aCurPos;
-			aCurPos++; // skip enter on next go round
+			aSpacePos = aCharStart;
+			// 旧代码此处 aCurPos++ 跳过换行——解码已前移，等价
 		}
 
 		aCurWidth += aFont->CharWidthKern(aCurChar, aPrevChar);
@@ -1277,8 +1280,9 @@ int	Graphics::WriteWordWrapped(const Rect& theRect, const SexyString& theLine, i
 			}
 			else
 			{
-				if((int)aCurPos<aLineStartPos+1)
-					aCurPos++; // ensure at least one character gets written
+				// @pvz-online: ②A——超宽的当前字符留给下一行；行首字自身超宽时保持已越过=至少消费 1 字
+				if(aCharStart > aLineStartPos)
+					aCurPos = (ulong)aCharStart;
 
 				aWrittenWidth = WriteWordWrappedHelper(this, theLine, theRect.mX + anIndentX, theRect.mY + aYOffset, theRect.mWidth, 
 					theJustification, true, aLineStartPos, aCurPos-aLineStartPos, anOrigColorInt, theMaxChars);
@@ -1302,8 +1306,7 @@ int	Graphics::WriteWordWrapped(const Rect& theRect, const SexyString& theLine, i
 			anIndentX = 0;
 			aYOffset += theLineSpacing;
 		}
-		else
-			aCurPos++;
+		// 未超宽分支：解码时 aCurPos 已前移至下一字符（等价旧 aCurPos++），无需再推进
 	}
 
 	if(aLineStartPos<(int)theLine.length()) // write the last piece

@@ -141,7 +141,7 @@ FontLayer::FontLayer(const FontLayer& theFontLayer) :
 	}
 }
 
-CharData* FontLayer::GetCharData(SexyChar theChar)
+CharData* FontLayer::GetCharData(wchar_t theChar)
 {
 	auto anItr = mCharDataMap.find(theChar);
 	if (anItr == mCharDataMap.end())
@@ -1420,11 +1420,14 @@ void ImageFont::GenerateActiveFontLayers()
 
 int ImageFont::StringWidth(const SexyString& theString)
 {
+	// @pvz-online: 汉化批 ②A——按字解码迭代（ASCII 与旧逐字节行为完全一致；多字节按整字步进）
 	int aWidth = 0;
-	SexyChar aPrevChar = 0;
-	for (int i = 0; i < (int)theString.length(); i++)
+	wchar_t aPrevChar = 0;
+	int aCharNum = 0;
+	int aLen = (int)theString.length();
+	while (aCharNum < aLen)
 	{
-		SexyChar aChar = theString[i];
+		wchar_t aChar = UTF8NextChar(theString, aCharNum);
 		aWidth += CharWidthKern(aChar, aPrevChar);
 		aPrevChar = aChar;
 	}
@@ -1432,7 +1435,7 @@ int ImageFont::StringWidth(const SexyString& theString)
 	return aWidth;
 }
 
-int ImageFont::CharWidthKern(SexyChar theChar, SexyChar thePrevChar)
+int ImageFont::CharWidthKern(wchar_t theChar, wchar_t thePrevChar)
 {
 	Prepare();
 
@@ -1442,9 +1445,11 @@ int ImageFont::CharWidthKern(SexyChar theChar, SexyChar thePrevChar)
 	//theChar = mFontData->mCharMap[(uchar)theChar];
 	//if (thePrevChar != 0)
 	//	thePrevChar = mFontData->mCharMap[(uchar)thePrevChar];
-	theChar = GetMappedChar(theChar);
-	if (thePrevChar != 0)
-		thePrevChar = GetMappedChar(thePrevChar);
+	// @pvz-online: 汉化批 ②A——字符映射（mCharMap）只含 ASCII 条目，仅对 ASCII 码位应用，保持旧行为
+	if ((unsigned)theChar < 0x80)
+		theChar = (wchar_t)(uchar)GetMappedChar((SexyChar)theChar);
+	if (thePrevChar != 0 && (unsigned)thePrevChar < 0x80)
+		thePrevChar = (wchar_t)(uchar)GetMappedChar((SexyChar)thePrevChar);
 
 	ActiveFontLayerList::iterator anItr = mActiveLayerList.begin();
 	while (anItr != mActiveLayerList.end())
@@ -1498,7 +1503,7 @@ int ImageFont::CharWidthKern(SexyChar theChar, SexyChar thePrevChar)
 	return aMaxXPos;
 }
 
-int ImageFont::CharWidth(SexyChar theChar)
+int ImageFont::CharWidth(wchar_t theChar)
 {
 	return CharWidthKern(theChar, 0);
 }
@@ -1545,13 +1550,25 @@ void ImageFont::DrawStringEx(Graphics* g, int theX, int theY, const SexyString& 
 	int aCurXPos = theX;
 	int aCurPoolIdx = 0;
 
-	for (ulong aCharNum = 0; aCharNum < theString.length(); aCharNum++)
+	// @pvz-online: 汉化批 ②A——按字解码迭代（ASCII 与旧逐字节行为一致，UTF-8 按整字步进）
+	ulong aCharNum = 0;
+	ulong aStringLen = (ulong)theString.length();
+	while (aCharNum < aStringLen)
 	{
-		SexyChar aChar = GetMappedChar(theString[aCharNum]);//mFontData->mCharMap[(uchar) theString[aCharNum]];
+		int aCharStart = (int)aCharNum;
+		wchar_t aChar = UTF8NextChar(theString, aCharStart);
+		aCharNum = (ulong)aCharStart;
+		if ((unsigned)aChar < 0x80)		// 字符映射（mCharMap）只含 ASCII，保持旧行为
+			aChar = (wchar_t)(uchar)GetMappedChar((SexyChar)aChar);
 
-		SexyChar aNextChar = 0;
-		if (aCharNum < theString.length() - 1)
-			aNextChar = GetMappedChar(theString[aCharNum + 1]);//mFontData->mCharMap[(uchar) theString[aCharNum+1]];
+		wchar_t aNextChar = 0;
+		if (aCharNum < aStringLen)
+		{
+			int aNextStart = (int)aCharNum;
+			aNextChar = UTF8NextChar(theString, aNextStart);
+			if ((unsigned)aNextChar < 0x80)
+				aNextChar = (wchar_t)(uchar)GetMappedChar((SexyChar)aNextChar);
+		}
 
 		int aMaxXPos = aCurXPos;
 

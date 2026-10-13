@@ -480,13 +480,22 @@ void TodDrawStringMatrix(Graphics* g, const _Font* theFont, const SexyMatrix3& t
 	aFont->Prepare();
 	int aCurXPos = 0;
 	int aCurPoolIdx = 0;
-	for (int aCharNum = 0; aCharNum < (int)aFinalString.size(); aCharNum++)
+	// @pvz-online: 汉化批 ②A——按字解码迭代（ASCII 与旧逐字节一致，UTF-8 按整字步进）
+	int aStringLen = (int)aFinalString.size();
+	int aCharNum = 0;
+	while (aCharNum < aStringLen)
 	{
-		SexyChar aChar = aFont->GetMappedChar(aFinalString[aCharNum]);
-		SexyChar aNextChar = '\0';
-		if (aCharNum < (int)aFinalString.size() - 1)
+		wchar_t aChar = UTF8NextChar(aFinalString, aCharNum);
+		if ((unsigned)aChar < 0x80)		// 字符映射（mCharMap）只含 ASCII，保持旧行为
+			aChar = (wchar_t)(uchar)aFont->GetMappedChar((SexyChar)aChar);
+
+		wchar_t aNextChar = '\0';
+		if (aCharNum < aStringLen)
 		{
-			aNextChar = aFont->GetMappedChar(aFinalString[aCharNum + 1]);
+			int aNextStart = aCharNum;
+			aNextChar = UTF8NextChar(aFinalString, aNextStart);
+			if ((unsigned)aNextChar < 0x80)
+				aNextChar = (wchar_t)(uchar)aFont->GetMappedChar((SexyChar)aNextChar);
 		}
 
 		int aMaxXPos = aCurXPos;

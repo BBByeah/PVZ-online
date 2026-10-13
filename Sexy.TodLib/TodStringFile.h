@@ -43,7 +43,7 @@ SexyString			TodStringTranslate(const SexyString& theString);
 SexyString			TodStringTranslate(const SexyChar* theString);
 bool                TodStringListExists(const SexyString& theString);
 void                TodStringRemoveReturnChars(std::string& theString);
-bool                CharIsSpaceInFormat(char theChar, const TodStringListFormat& theCurrentFormat);
+bool                CharIsSpaceInFormat(wchar_t theChar, const TodStringListFormat& theCurrentFormat);
 int                 TodWriteString(Graphics* g, const SexyString& theString, int theX, int theY, TodStringListFormat& theCurrentFormat, int theWidth, DrawStringJustification theJustification, bool drawString, int theOffset, int theLength);
 /*inline*/ int      TodWriteWordWrappedHelper(Graphics* g, const SexyString& theString, int theX, int theY, TodStringListFormat& theCurrentFormat, int theWidth, DrawStringJustification theJustification, bool drawString, int theOffset, int theLength, int theMaxChars);
 int                 TodDrawStringWrappedHelper(Graphics* g, const SexyString& theText, const Rect& theRect, _Font* theFont, const Color& theColor, DrawStringJustification theJustification, bool drawString);

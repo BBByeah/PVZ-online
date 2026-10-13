@@ -1334,6 +1334,48 @@ std::wstring Sexy::UTF8StringToWString(const std::string theString)
 	return result;
 }
 
+// @pvz-online: 汉化批 ②A——按 UTF-8 解码一个字符并前移 thePos。
+// ASCII（<0x80）与 3 字节汉字走标准路径；非法首字节/截断/坏续字节按单字节吞掉，不会死循环。
+wchar_t Sexy::UTF8NextChar(const std::string& theString, int& thePos)
+{
+	int aLen = (int)theString.length();
+	if (thePos < 0 || thePos >= aLen)
+		return 0;
+
+	unsigned char aByte0 = (unsigned char)theString[thePos++];
+	if (aByte0 < 0x80)
+		return (wchar_t)aByte0;
+
+	int aExtra;
+	wchar_t aChar;
+	if (aByte0 < 0xC0)				// 落单的续字节：按单字节处理
+		return (wchar_t)aByte0;
+	else if (aByte0 < 0xE0)
+	{
+		aExtra = 1;
+		aChar = (wchar_t)(aByte0 & 0x1F);
+	}
+	else if (aByte0 < 0xF0)
+	{
+		aExtra = 2;
+		aChar = (wchar_t)(aByte0 & 0x0F);
+	}
+	else
+		return (wchar_t)aByte0;		// 4 字节及以上（本字体集不含）：按单字节处理
+
+	for (int i = 0; i < aExtra; i++)
+	{
+		if (thePos >= aLen)
+			return aChar;
+		unsigned char aByte = (unsigned char)theString[thePos];
+		if ((aByte & 0xC0) != 0x80)
+			return aChar;			// 坏续字节：停在这里，下一轮从它重新解码
+		thePos++;
+		aChar = (wchar_t)((aChar << 6) | (aByte & 0x3F));
+	}
+	return aChar;
+}
+
 void Sexy::SMemR(void*& _Src, void* _Dst, size_t _Size)
 {
 	memcpy(_Dst, _Src, _Size);

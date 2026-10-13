@@ -138,6 +138,8 @@ std::string			GetFullPath(const std::string& theRelPath);
 std::string			GetPathFrom(const std::string& theRelPath, const std::string& theDir);
 bool				AllowAllAccess(const std::string& theFileName);
 std::wstring		UTF8StringToWString(const std::string theString);
+// @pvz-online: 汉化批 ②A——从 thePos 处解码一个 UTF-8 字符并前移 thePos（ASCII 单字节等价；非法/截断序列按单字节吞掉）
+wchar_t				UTF8NextChar(const std::string& theString, int& thePos);
 
 // Read memory and then move the pointer
 void				SMemR(void*& _Src, void* _Dst, size_t _Size);

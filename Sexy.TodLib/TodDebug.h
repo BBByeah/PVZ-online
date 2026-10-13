@@ -19,6 +19,8 @@ public:
 
 void				TodLog(const char* theFormat, ...);
 void				TodLogString(const char* theMsg);
+// @pvz-online: 最近 200 条日志（含行尾换行）按时间顺序拷进 theBuffer，恒以 '\0' 结尾。
+void				TodGetRecentLog(char* theBuffer, int theBufferSize);
 void				TodTrace(const char* theFormat, ...);
 void				TodTraceMemory();
 void				TodTraceAndLog(const char* theFormat, ...);

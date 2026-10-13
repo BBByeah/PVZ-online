@@ -430,15 +430,16 @@ GameSelector::GameSelector(LawnApp* theApp)
 	// not a BACK sign - hide it until ShowQuickPlayScreen() exists and can own it.
 	mQuickPlayButton->mVisible = false;
 	// @pvz-online: M1 模式裁剪——主菜单只留「关卡(冒险) / 无尽(生存) / 图鉴 / 成就 / 换用户 /
-	// 选项 / 帮助 / 退出」。小游戏、解谜、商店、禅境花园、僵尸工坊的入口整体下架。
+	// 选项 / 帮助 / 退出」。小游戏、解谜、僵尸工坊的入口整体下架。
 	// 隐藏即不可点：WidgetContainer 只把鼠标事件派发给 mVisible 的子控件。
-	// 美术：这五个按钮里小游戏/解谜/商店/禅境花园都用真图（IMAGE_*）画自己，隐藏
-	// widget 即隐藏美术；僵尸工坊是例外——它用 IMAGE_BLANK，木牌由 reanim 的
-	// woodsign3 轨道画，必须单独隐藏该轨道（woodsign2=换用户，保留）。
+	// 美术：这三个按钮里小游戏/解谜都用真图（IMAGE_*）画自己，隐藏 widget 即隐藏美术；
+	// 僵尸工坊是例外——它用 IMAGE_BLANK，木牌由 reanim 的 woodsign3 轨道画，必须单独
+	// 隐藏该轨道（woodsign2=换用户，保留）。
+	// @pvz-online: 花园批（2026-10-13 用户拍板）：商店与禅境花园入口恢复——这里不再压
+	// 回 false，可见性完全交给 SyncButtons（构造 :381 SyncProfile(false) 已先调到，
+	// 随后按钮保持 SyncButtons 里置的可见状态）。
 	mMinigameButton->mVisible = false;
 	mPuzzleButton->mVisible = false;
-	mStoreButton->mVisible = false;
-	mZenGardenButton->mVisible = false;
 	mZombatarButton->mVisible = false;
 	aSelectorReanim->AssignRenderGroupToTrack("woodsign3", RENDER_GROUP_HIDDEN);
 	this->AddWidget(mOverlayWidget);
@@ -474,10 +475,10 @@ void GameSelector::SyncButtons()
 
 	mAlmanacButton->mDisabled = !aAlmanacAvailable;
 	mAlmanacButton->mVisible = aAlmanacAvailable;
-	// @pvz-online: M1 裁剪——商店 / 禅境花园 / 僵尸工坊入口下架，不随解锁状态再显示
-	//（mDisabled 照旧跟随解锁状态，只影响已隐藏按钮的颜色，无副作用）
+	// @pvz-online: 花园批（2026-10-13 用户拍板「商店只放与花园有关的内容」）——商店入口
+	// 跟图鉴/花园一个口径常驻显示；店内只摆花园两页（见 StoreScreen::IsPageShown）。
 	mStoreButton->mDisabled = !aStoreOpen;
-	mStoreButton->mVisible = false;
+	mStoreButton->mVisible = aStoreOpen;
 	mZombatarButton->mDisabled = false; // @Patoke: added these
 	mZombatarButton->mVisible = false;
 
@@ -1505,6 +1506,22 @@ void GameSelector::ButtonDepress(int theId)
 		mApp->KillGameSelector();
 		mApp->PreNewGame(GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN, false);
 		break;
+	case GameSelector::GameSelector_Store:
+	{
+		// @pvz-online: 商店入口恢复（2026-10-13 花园批）——照上游原文补回：买下智慧树后
+		// mGoToTreeNow 直入树场景，否则留在选关界面并确保标题音乐在放。
+		StoreScreen* aStore = mApp->ShowStoreScreen();
+		aStore->WaitForResult(true);
+		if (aStore->mGoToTreeNow)
+		{
+			mApp->KillGameSelector();
+			mApp->PreNewGame(GameMode::GAMEMODE_TREE_OF_WISDOM, false);
+		}
+		else
+			mApp->mMusic->MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_TITLE_CRAZY_DAVE_MAIN_THEME);
+
+		break;
+	}
 	case GameSelector::GameSelector_AchievementsBack: // @Patoke: seems to be unused
 		SlideTo(0, 0);
 		break;

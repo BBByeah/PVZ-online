@@ -5072,7 +5072,10 @@ bool LawnApp::CanShowStore()
 	if (mPlayerInfo == nullptr)
 		return false;
 
-	return HasFinishedAdventure() || mPlayerInfo->mHasSeenUpsell || mPlayerInfo->mLevel >= 25;
+	// @pvz-online: 商店直接解锁（花园批 2026-10-13 用户拍板）——不再随档案进度锁
+	// （原版条件 HasFinishedAdventure() || mHasSeenUpsell || mLevel >= 25）。店内只摆
+	// 花园相关两页（见 StoreScreen::IsPageShown），价格/购买规则照旧。
+	return true;
 }
 
 //0x4540C0

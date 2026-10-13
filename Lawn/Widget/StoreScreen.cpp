@@ -56,7 +56,9 @@ StoreScreen::StoreScreen(LawnApp* theApp) : Dialog(nullptr, nullptr, DIALOG_STOR
     mBubbleClickToContinue = false;
     mAmbientSpeechCountDown = 200;
     mPreviousAmbientSpeechIndex = -1;
-    mPage = STORE_PAGE_SLOT_UPGRADES;
+    // @pvz-online: 商店恢复（花园批 2026-10-13）——首开直接落在花园工具页（升级页已不可见，
+    // 若仍从 STORE_PAGE_SLOT_UPGRADES 起步，首帧会摆出被过滤的页再等玩家翻走）。
+    mPage = STORE_PAGE_ZEN1;
     mMouseOverItem = STORE_ITEM_INVALID;
     mHatchTimer = 0;
     mShakeX = 0;
@@ -807,16 +809,11 @@ void StoreScreen::ButtonPress(int theId)
 //0x48C440
 bool StoreScreen::IsPageShown(StorePages thePage)
 {
-    // 试玩模式下，仅显示默认页
-    if (mApp->IsTrialStageLocked()) return thePage == STORE_PAGE_SLOT_UPGRADES;
-    // 一周目完成后，所有页全解锁
-    if (mApp->HasFinishedAdventure()) return true;
-    // 到达或已通过冒险模式 5-2 关卡时，显示紫卡页
-    if (thePage == STORE_PAGE_PLANT_UPGRADES) return mApp->mPlayerInfo->mLevel >= 42;
-    // 到达或已通过冒险模式 5-5 关卡时，显示花园工具页
-    if (thePage == STORE_PAGE_ZEN1) return mApp->mPlayerInfo->mLevel >= 45;
-    // 冒险模式未完成时，不显示智慧树工具页
-    return thePage != STORE_PAGE_ZEN2;
+    // @pvz-online: 商店恢复（花园批 2026-10-13 用户拍板「商店只放与花园有关的内容」）——
+    // 只显示花园两页：ZEN1（盆栽/园艺工具）+ ZEN2（蘑菇园/水族馆/手推车/蜗牛/智慧树/树肥）；
+    // 升级页与植物升级页被本函数过滤掉、不再显示。翻页循环（ButtonDepress 里的 do-while）
+    // 靠本函数跳过隐藏页，天然只剩两页互绕（Next 从 ZEN2 绕回 ZEN1，Prev 反向同理）。
+    return thePage == STORE_PAGE_ZEN1 || thePage == STORE_PAGE_ZEN2;
 }
 
 //0x48C4D0

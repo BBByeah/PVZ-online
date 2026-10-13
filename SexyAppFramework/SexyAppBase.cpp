@@ -4735,6 +4735,20 @@ std::string	SexyAppBase::NotifyCrashHook()
 	return "";
 }
 
+// @pvz-online: 无边框全屏窗口的目标矩形——主显示器的全尺寸（含任务栏），物理像素
+// （进程 SYSTEM_AWARE，见 main.cpp）。全屏一律放主显示器，不跟随窗口当前所在屏。
+static RECT GetFullscreenMonitorRect(HWND theWindow)
+{
+	HMONITOR aMonitor = ::MonitorFromWindow(theWindow ? theWindow : ::GetDesktopWindow(),
+											MONITOR_DEFAULTTOPRIMARY);
+	MONITORINFO anInfo;
+	anInfo.cbSize = sizeof(anInfo);
+	RECT aRect = {0, 0, ::GetSystemMetrics(SM_CXSCREEN), ::GetSystemMetrics(SM_CYSCREEN)};
+	if (aMonitor && ::GetMonitorInfo(aMonitor, &anInfo))
+		aRect = anInfo.rcMonitor;
+	return aRect;
+}
+
 void SexyAppBase::MakeWindow()
 {
 	//OutputDebugString("MAKING WINDOW\r\n");
@@ -4825,22 +4839,28 @@ void SexyAppBase::MakeWindow()
 	}
 	else
 	{
+		// @pvz-online: 全屏=无边框窗口——WS_POPUP 铺满主显示器，不切显示模式
+		// （规范 §7：永不用 SetDisplayMode/DDSCL_EXCLUSIVE，老独占全屏是闪屏根因）。
+		// DDraw 仍走 DDSCL_NORMAL（mIsPhysWindowed=true），800x600 画布由呈现矩形
+		// 等比放大（InitDDInterface 回读客户区）。不带 WS_VISIBLE：与窗口化分支一致，
+		// 等 ShowWindow 显示，避免未初始化的整屏大窗先露脸。
+		RECT aMonitorRect = GetFullscreenMonitorRect(NULL);
 
 		mHWnd = CreateWindowEx(
 			WS_EX_TOPMOST,
 			_S("MainWindow"),
 			SexyStringToStringFast(mTitle).c_str(),
-			WS_POPUP | WS_VISIBLE,
-			0,
-			0,
-			mWidth,
-			mHeight,
+			WS_POPUP,
+			aMonitorRect.left,
+			aMonitorRect.top,
+			aMonitorRect.right - aMonitorRect.left,
+			aMonitorRect.bottom - aMonitorRect.top,
 			NULL,
 			NULL,
 			gHInstance,
 			0);
 
-		mIsPhysWindowed = false;
+		mIsPhysWindowed = true;
 	}
 
 	/*char aStr[256];
@@ -4876,18 +4896,12 @@ void SexyAppBase::MakeWindow()
 	if (mDDInterface->mD3DTester!=NULL && mDDInterface->mD3DTester->ResultsChanged())
 		RegistryEraseValue(_S("Is3D"));
 
-	if ((mIsWindowed) && (aResult == DDInterface::RESULT_INVALID_COLORDEPTH))
+	// @pvz-online: 无边框全屏不再有"转独占再试"的出路（规范 §7 禁 SetDisplayMode），
+	// 桌面色深不满足时窗口化/全屏同样救不了，直接报错退出（与禁用期行为一致）。
+	if ((mIsPhysWindowed) && (aResult == DDInterface::RESULT_INVALID_COLORDEPTH))
 	{
-		if (mForceWindowed)
-		{
-			Popup(GetString("PLEASE_SET_COLOR_DEPTH", _S("Please set your desktop color depth to 16 bit.")));
-			DoExit(1);
-		}
-		else
-		{
-			mForceFullscreen = true;
-			SwitchScreenMode(false);
-		}
+		Popup(GetString("PLEASE_SET_COLOR_DEPTH", _S("Please set your desktop color depth to 16 bit.")));
+		DoExit(1);
 		return;
 	}
 	else if ((!mIsWindowed) && 
@@ -5084,12 +5098,6 @@ void SexyAppBase::SwitchScreenMode(bool wantWindowed, bool is3d, bool force)
 {
 	if (mForceFullscreen)
 		wantWindowed = false;
-	// @pvz-online: mirror guard for the forced-windowed flag (user request, 2026-10-04) —
-	// this is the chokepoint every fullscreen request funnels through, so one guard here
-	// covers the options checkbox, SIZE_MAXIMIZED and the DDInterface fallbacks alike.
-	// If both flags are ever set, windowed wins (last write).
-	if (mForceWindowed)
-		wantWindowed = true;
 
 	if (mIsWindowed == wantWindowed && !force)
 	{

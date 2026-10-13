@@ -580,15 +580,11 @@ void SexyApp::InitPropertiesHook()
 	}
 
 	mProdName = GetString("ProdName", mProdName);
+	// @pvz-online: partner.xml 默认独占全屏（会劫持桌面），无注册表记录的首启一律窗口化；
+	// 玩家上次的选择由 ReadFromRegistry 的 ScreenMode 覆盖（SexyAppBase.cpp 先例 1915-1916）。
+	// 全屏已改为无边框窗口（docs/03 §5.87），mForceWindowed 常置已随 2026-10-13 批撤销。
 	mIsWindowed = GetBoolean("DefaultWindowed", mIsWindowed);
-	// @pvz-online: force windowed for development — Steam partner.xml defaults to
-	// exclusive fullscreen, which hijacks the whole display and survives crashes badly
 	mIsWindowed = true;
-	// @pvz-online: fullscreen is disabled outright (user request, 2026-10-04). This flag
-	// blocks Alt+Enter and lets SexyAppBase::SwitchScreenMode() veto every fullscreen
-	// request (options checkbox, window maximize, DDInterface fallbacks); the options
-	// checkbox itself answers with a notice dialog instead (NewOptionsDialog).
-	mForceWindowed = true;
 
 	std::string aNewTitle = GetString("Title", "");
 	if (aNewTitle.length() > 0)

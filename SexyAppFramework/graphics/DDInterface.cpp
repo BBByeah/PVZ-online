@@ -238,6 +238,12 @@ int DDInterface::Init(HWND theWindow, bool IsWindowed)
 
 	mInitialized = false;
 
+	// @pvz-online: 规范 §7 —— 独占全屏（SetDisplayMode + DDSCL_EXCLUSIVE）永久停用
+	// （老独占全屏是闪屏根因，历史上还把桌面窗口管理器搞崩过）。全屏一律走无边框窗口
+	// （DDraw NORMAL）。这里直接钳死，即使将来有人把 mIsPhysWindowed 置回 false 也到不了
+	// 独占分支。见 docs/03 §5.87。
+	IsWindowed = true;
+
 	/*DDImageSet aReleasedImageSet;
 
 	DDImageSet::iterator anItr = mDDImageSet.begin();

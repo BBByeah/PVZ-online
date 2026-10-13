@@ -415,20 +415,7 @@ void NewOptionsDialog::CheckboxChecked(int theId, bool checked)
     switch (theId)
     {
     case NewOptionsDialog::NewOptionsDialog_Fullscreen:
-        if (checked)
-        {
-            // @pvz-online: 全屏已禁用（2026-10-04 用户要求，落在 SexyApp::InitPropertiesHook 的
-            // mForceWindowed + SwitchScreenMode 的镜像守卫）。勾了也切不过去——弹个说明再弹回去，
-            // 别让玩家以为点了没反应。
-            mFullscreenCheckbox->SetChecked(false, false);
-            OnlineStartDialog* aDialog = new OnlineStartDialog(mApp,
-                ModText::Tr("全屏已禁用", "Fullscreen Disabled"),
-                ModText::Tr("本版本固定以窗口模式运行，无法切换全屏。", "This build always runs in windowed mode. Fullscreen is not available."),
-                ModText::Tr("知道了", "OK"), nullptr, OnlineStartDialog::NOTIFY_NONE);
-            mApp->AddDialog(Dialogs::DIALOG_ONLINE_START, aDialog);
-            aDialog->WaitForResult();
-        }
-        else if (!checked && mApp->mForceFullscreen)
+        if (!checked && mApp->mForceFullscreen)
         {
             mApp->DoDialog(
                 Dialogs::DIALOG_COLORDEPTH_EXP, 

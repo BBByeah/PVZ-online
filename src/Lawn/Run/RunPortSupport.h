@@ -9,10 +9,7 @@ inline bool RunChoiceImplemented(int id)
 
 inline bool RunPlantImplemented(SeedType seed)
 {
-    // Upgrades, awake mushrooms and aquatic planting need their mod-specific rules first.
-    return (seed >= SEED_PEASHOOTER && seed <= SEED_REPEATER) ||
-        seed == SEED_SQUASH || seed == SEED_THREEPEATER ||
-        (seed >= SEED_JALAPENO && seed <= SEED_TALLNUT) ||
-        (seed >= SEED_PLANTERN && seed <= SEED_KERNELPULT) ||
+    // Coffee and upgrade plants still need their mod-specific rules; base mushrooms/aquatics are ready.
+    return (seed >= SEED_PEASHOOTER && seed <= SEED_KERNELPULT) ||
         (seed >= SEED_GARLIC && seed <= SEED_MELONPULT);
 }

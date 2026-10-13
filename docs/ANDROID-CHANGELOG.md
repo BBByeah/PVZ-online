@@ -1,5 +1,17 @@
 # Android 开发更新记录
 
+## 2026-10-13 · 五场景战斗基础与重打
+
+- 闯关出怪表、权重、波数、标准场景难度及血量接入固定 PC 来源；未实现僵尸 34–41 过滤，每波上限 20 只。
+- 基础植物抽取池增至 39，蘑菇白天不睡，水生植物可在非屋顶陆地种植；卡池不超过 10 时自动带入。
+- 单机不生成推车与购买的耙子，不享受急救购买加成；失败保存计数，重打保持关号、卡池、增益和种子。
+- 阻止随机花园植物/巧克力进入原版档案。MuMu 代表性场景种植和白天真实胜利通过，检查后恢复用户检查点，原版存档哈希不变。
+- 仍只开放火力、扎根、速种。联机、新增僵尸、特殊植物与完整增益继续开发；本批不代表全关卡平衡验收。
+
+### English
+
+Finite solo runs now use the supported PC zombie roster, wave counts, scene budgets and health scaling. The base plant pool grows to 39, mushrooms stay awake, and aquatic plants can be planted on non-roof land. Retries preserve the checkpoint and seed; solo runs have no mowers or purchased advantages. Representative MuMu checks passed with the original profile unchanged. Networking, new zombie types and the remaining buffs are still pending.
+
 ## 2026-10-13 · 底座与拖放
 
 - 首个 ARM64 开发 APK 可在 MuMu Android 15 安装启动，资源由玩家自己的正版副本提供。

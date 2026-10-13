@@ -51,7 +51,7 @@ file(GLOB SOURCES CONFIGURE_DEPENDS
 	src/Lawn/System/*.cpp
 )
 # @pvz-online: include the portable run model explicitly; armored zombie behavior is a later batch.
-list(APPEND SOURCES src/Lawn/Run/RunState.cpp src/Lawn/Run/RunBuffs.cpp src/Lawn/Run/RunFlow.cpp)
+list(APPEND SOURCES src/Lawn/Run/RunState.cpp src/Lawn/Run/RunBuffs.cpp src/Lawn/Run/RunFlow.cpp src/Lawn/Run/RunZombieRoster.cpp)
 
 option(LOW_MEMORY "Enable low memory mode" OFF)
 if(NINTENDO_SWITCH)

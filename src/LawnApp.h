@@ -83,6 +83,8 @@ public:
 	void ResumeRun();
 	void ShowRunPicks();
 	void StartRunLevel();
+	void RetryRunLevel();
+	void NoteRunFailure();
 	void KillRunFlowScreen();
 	float RunBuffMul(int id) const;
 	std::unique_ptr<TitleScreen>	mTitleScreen;

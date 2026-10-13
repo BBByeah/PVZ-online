@@ -511,6 +511,11 @@ void GameOverDialog::ButtonDepress(int theId)
 	}
 	else if (theId == Dialog::ID_FOOTER)
 	{
+		if (mApp->mRunState)
+		{
+			mApp->RetryRunLevel();
+			return;
+		}
 		mApp->KillDialog(Dialogs::DIALOG_GAME_OVER);
 		mApp->EndLevel();
 	}

@@ -26,6 +26,7 @@
 #include "Board.h"
 #include "../ConstEnums.h"
 #include "Zombie.h"
+#include "Run/RunState.h"
 #include "Cutscene.h"
 #include "GridItem.h"
 #include "LawnMower.h"
@@ -883,6 +884,15 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
 		ReanimShowPrefix("anim_tongue", RENDER_GROUP_NORMAL);
 	}
 
+	// Match PC scene scaling once, after type-specific health and before maximums.
+	if (mApp->mRunState && IsOnBoard())
+	{
+		const int scale = mApp->mRunState->GetDifficultyPermille();
+		mBodyHealth = mBodyHealth * scale / 1000;
+		mHelmHealth = mHelmHealth * scale / 1000;
+		mShieldHealth = mShieldHealth * scale / 1000;
+		mFlyingHealth = mFlyingHealth * scale / 1000;
+	}
 	mBodyMaxHealth = mBodyHealth;
 	mHelmMaxHealth = mHelmHealth;
 	mShieldMaxHealth = mShieldHealth;

@@ -26,6 +26,7 @@
 #include "ZenGarden.h"
 #include "BoardInclude.h"
 #include "Run/RunState.h"
+#include "Run/RunZombieRoster.h"
 #include "LawnCommon.h"
 #include "System/Music.h"
 #include "System/SaveGame.h"
@@ -561,7 +562,9 @@ void Board::PutZombieInWave(ZombieType theZombieType, int theWaveNumber, ZombieP
 	{
 		mZombiesInWave[theWaveNumber][theZombiePicker->mZombieCount] = ZombieType::ZOMBIE_INVALID;
 	}
-	theZombiePicker->mZombiePoints -= GetZombieDefinition(theZombieType).mZombieValue;
+	const int value = mApp->mRunState && (theZombieType == ZOMBIE_GARGANTUAR || theZombieType == ZOMBIE_REDEYE_GARGANTUAR) ?
+		RunState::RUN_GARGANTUAR_VALUE : GetZombieDefinition(theZombieType).mZombieValue;
+	theZombiePicker->mZombiePoints -= value;
 	theZombiePicker->mZombieTypeCount[theZombieType]++;
 	theZombiePicker->mAllWavesZombieTypeCount[theZombieType]++;
 }
@@ -589,7 +592,7 @@ void Board::PickZombieWaves()
 		else
 		{
 			mNumWaves = gZombieWaves[std::clamp(mLevel - 1, 0, NUM_LEVELS - 1)];
-			if (!mApp->IsFirstTimeAdventureMode() && !mApp->IsMiniBossLevel())
+			if (!mApp->mRunState && !mApp->IsFirstTimeAdventureMode() && !mApp->IsMiniBossLevel())
 			{
 				mNumWaves = mNumWaves < 10 ? 20 : mNumWaves + 10;
 			}
@@ -648,6 +651,10 @@ void Board::PickZombieWaves()
 		{
 			aZombiePoints = (mChallenge->mSurvivalStage * GetNumWavesPerSurvivalStage() + aWave) * 2 / 5 + 1;
 		}
+		else if (mApp->mRunState)
+		{
+			aZombiePoints = aWave * 2 / 5 + 3;
+		}
 		else if (mApp->IsAdventureMode() && mApp->HasFinishedAdventure() && mLevel != 5)
 		{
 			aZombiePoints = aWave * 2 / 5 + 1;
@@ -656,6 +663,9 @@ void Board::PickZombieWaves()
 		{
 			aZombiePoints = aWave / 3 + 1;
 		}
+
+		if (mApp->mRunState)
+			aZombiePoints = aZombiePoints * mApp->mRunState->GetDifficultyPermille() / 1000;
 
 		if (aIsFlagWave)
 		{
@@ -695,7 +705,8 @@ void Board::PickZombieWaves()
 		}
 
 		// Newly introduced zombies have fixed spawns in specific waves
-		if (aIntroZombieType != ZombieType::ZOMBIE_INVALID && aIntroZombieType != ZombieType::ZOMBIE_DUCKY_TUBE)
+		if (aIntroZombieType != ZombieType::ZOMBIE_INVALID && aIntroZombieType != ZombieType::ZOMBIE_DUCKY_TUBE &&
+			(!mApp->mRunState || CanZombieSpawnOnLevel(aIntroZombieType, mLevel)))
 		{
 			bool aSpawnIntro = false;
 			if ((aIntroZombieType == ZombieType::ZOMBIE_DIGGER || aIntroZombieType == ZombieType::ZOMBIE_BALLOON))
@@ -729,7 +740,7 @@ void Board::PickZombieWaves()
 			PutZombieInWave(ZombieType::ZOMBIE_GARGANTUAR, aWave, &aZombiePicker);
 		}
 		// The final wave of an adventure level includes every zombie type of the level
-		if (mApp->IsAdventureMode() && aIsFinalWave)
+		if (!mApp->mRunState && mApp->IsAdventureMode() && aIsFinalWave)
 		{
 			PutInMissingZombies(aWave, &aZombiePicker);
 		}
@@ -768,7 +779,8 @@ void Board::PickZombieWaves()
 		}
 
 		// Spend the remaining zombie points on random zombies
-		while (aZombiePoints > 0 && aZombiePicker.mZombieCount < MAX_ZOMBIES_IN_WAVE)
+		const int cap = mApp->mRunState ? std::min(RunState::RUN_WAVE_ZOMBIE_CAP, MAX_ZOMBIES_IN_WAVE - 1) : MAX_ZOMBIES_IN_WAVE;
+		while (aZombiePoints > 0 && aZombiePicker.mZombieCount < cap)
 		{
 			ZombieType aZombieType = PickZombieType(aZombiePoints, aWave, &aZombiePicker);
 			PutZombieInWave(aZombieType, aWave, &aZombiePicker);
@@ -778,6 +790,7 @@ void Board::PickZombieWaves()
 
 int Board::GetLevelRandSeed()
 {
+	if (mApp->mRunState) return mApp->mRunState->GetLevelSeed();
 	int aRndSeed = mApp->mPlayerInfo->mId + mBoardRandSeed;
 	if (mApp->IsAdventureMode())
 	{
@@ -1159,7 +1172,7 @@ void Board::InitZombieWavesForLevel(int theForLevel)
 
 bool Board::IsZombieWaveDistributionOk()
 {
-	if (!mApp->IsAdventureMode())
+	if (mApp->mRunState || !mApp->IsAdventureMode())
 		return true;
 
 	int aZombieTypeCount[ZombieType::NUM_ZOMBIE_TYPES] = { 0 };
@@ -1512,6 +1525,11 @@ void Board::InitLevel()
 		mSeedBank->mSeedPackets[0].SetPacketType(SeedType::SEED_ZOMBIQUARIUM_SNORKLE);
 		mSeedBank->mSeedPackets[1].SetPacketType(SeedType::SEED_ZOMBIQUARIUM_TROPHY);
 	}
+	else if (mApp->mRunState && !ChooseSeedsOnCurrentLevel())
+	{
+		for (int i = 0; i < mSeedBank->mNumPackets; ++i)
+			mSeedBank->mSeedPackets[i].SetPacketType(mApp->mRunState->mPool[i]);
+	}
 	else if (!ChooseSeedsOnCurrentLevel() && !HasConveyorBeltSeedBank())
 	{
 		mSeedBank->mNumPackets = GetNumSeedsInBank();
@@ -1544,6 +1562,7 @@ Reanimation* Board::CreateRakeReanim(float theRakeX, float theRakeY, int theRend
 
 void Board::PlaceRake()
 {
+	if (mApp->mRunState) return;
 	if (!mApp->mPlayerInfo->mPurchases[StoreItem::STORE_ITEM_RAKE])
 		return;
 
@@ -1596,6 +1615,8 @@ void Board::PlaceRake()
 
 void Board::InitLawnMowers()
 {
+	// PC single-player runs have no mower; persistent last-seat mowers belong to the later relay port.
+	if (mApp->mRunState) return;
 	GameMode aGameMode = mApp->mGameMode;
 	// levels that never have lawn mowers
 	if (aGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED || aGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED_TWIST ||
@@ -1619,6 +1640,7 @@ void Board::InitLawnMowers()
 
 bool Board::ChooseSeedsOnCurrentLevel()
 {
+	if (mApp->mRunState) return mApp->mRunState->mPool.size() > RunState::RUN_SEED_SLOTS;
 	if (mApp->IsChallengeWithoutSeedBank() || HasConveyorBeltSeedBank())
 		return false;
 
@@ -1636,6 +1658,10 @@ bool Board::ChooseSeedsOnCurrentLevel()
 
 void Board::StartLevel()
 {
+	if (mApp->mRunState)
+		PvzpLogLn("[run] board: index={} engine={} waves={} difficulty={} seed={} plants={} mowers={}",
+			mApp->mRunState->mLevelIndex, mLevel, mNumWaves, mApp->mRunState->GetDifficultyPermille(),
+			GetLevelRandSeed(), mApp->mRunState->mPool.size(), CountUntriggerLawnMowers());
 	mCoinBankFadeCount = 0;
 	mApp->mLastLevelStats->Reset();
 	mChallenge->StartLevel();
@@ -2350,6 +2376,8 @@ Projectile* Board::AddProjectile(int theX, int theY, int theRenderOrder, int the
 
 bool Board::CanZombieSpawnOnLevel(ZombieType theZombieType, int theLevel)
 {
+	if (gLawnApp->mRunState)
+		return RunZombieAllowedOnLevel(theZombieType, RunLevelIndexForEngineLevel(theLevel));
 	const ZombieDefinition& aZombieDef = GetZombieDefinition(theZombieType);
 	if (theZombieType == ZombieType::ZOMBIE_YETI)
 	{
@@ -2432,6 +2460,14 @@ ZombieType Board::PickZombieType(int theZombiePoints, int theWaveIndex, ZombiePi
 				continue;
 			}
 		}
+		else if (mApp->mRunState)
+		{
+			const bool giant = aZombieType == ZOMBIE_GARGANTUAR || aZombieType == ZOMBIE_REDEYE_GARGANTUAR;
+			const int value = giant ? RunState::RUN_GARGANTUAR_VALUE : aZombieDef.mZombieValue;
+			if (theZombiePoints < value) continue;
+			if (giant && theZombiePicker->mZombieTypeCount[ZOMBIE_GARGANTUAR] +
+				theZombiePicker->mZombieTypeCount[ZOMBIE_REDEYE_GARGANTUAR] >= RunState::RUN_GARGANTUAR_CAP) continue;
+		}
 		else if (aGameMode != GameMode::GAMEMODE_CHALLENGE_POGO_PARTY && aGameMode != GameMode::GAMEMODE_CHALLENGE_BOBSLED_BONANZA && aGameMode != GameMode::GAMEMODE_CHALLENGE_AIR_RAID)
 		{
 			int aFirstAllowedWave = aZombieDef.mFirstAllowedWave;
@@ -2490,11 +2526,23 @@ ZombieType Board::PickZombieType(int theZombiePoints, int theWaveIndex, ZombiePi
 				aPickWeight = PvzpAnimateCurve(10, 50, aFlags, aPickWeight, aPickWeight / 4, PvzpCurves::CURVE_LINEAR);
 			}
 		}
+		if (mApp->mRunState) aPickWeight = RunZombieWeight((ZombieType)aZombieType);
 		aZombieWeightArray[aPickCount].mItem = aZombieType;
 		aZombieWeightArray[aPickCount].mWeight = aPickWeight;
 		aPickCount++;
 	}
 
+	if (mApp->mRunState && theZombiePoints >= RunState::RUN_HEAVY_POINTS)
+	{
+		int heavyWeight = 0;
+		for (int i = 0; i < aPickCount; ++i)
+			if (GetZombieDefinition((ZombieType)aZombieWeightArray[i].mItem).mZombieValue >= RunState::RUN_HEAVY_VALUE)
+				heavyWeight += aZombieWeightArray[i].mWeight;
+		if (heavyWeight > 0)
+			for (int i = 0; i < aPickCount; ++i)
+				if (GetZombieDefinition((ZombieType)aZombieWeightArray[i].mItem).mZombieValue < RunState::RUN_HEAVY_VALUE)
+					aZombieWeightArray[i].mWeight = 0;
+	}
 	return (ZombieType)PvzpPickFromWeightedArray(aZombieWeightArray, aPickCount);
 }
 
@@ -2787,7 +2835,7 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 	Plant* aNormalPlant = aPlantOnLawn.mNormalPlant;
 	if (theSeedType == SeedType::SEED_LILYPAD || theSeedType == SeedType::SEED_TANGLEKELP || theSeedType == SeedType::SEED_SEASHROOM)
 	{
-		if (!IsPoolSquare(theGridX, theGridY))
+		if (!IsPoolSquare(theGridX, theGridY) && (!mApp->mRunState || StageHasRoof()))
 		{
 			return PlantingReason::PLANTING_ONLY_IN_POOL;
 		}
@@ -2822,7 +2870,7 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 	{
 		return PlantingReason::PLANTING_NEEDS_POT;
 	}
-	bool aAidPurchased = mApp->mPlayerInfo->mPurchases[StoreItem::STORE_ITEM_FIRSTAID] > 0;
+	bool aAidPurchased = !mApp->mRunState && mApp->mPlayerInfo->mPurchases[StoreItem::STORE_ITEM_FIRSTAID] > 0;
 	if (theSeedType == SeedType::SEED_PUMPKINSHELL)
 	{
 		if (aNormalPlant && aNormalPlant->mSeedType == SeedType::SEED_COBCANNON)
@@ -5115,6 +5163,8 @@ void Board::ZombiesWon(Zombie* theZombie)
 {
 	if (mApp->mGameScene == GameScenes::SCENE_ZOMBIES_WON)
 		return;
+	if (mApp->mRunState && mApp->mBoardResult != BoardResult::BOARDRESULT_LOST)
+		mApp->NoteRunFailure();
 
 	ClearAdvice(AdviceType::ADVICE_NONE);
 	mApp->mBoardResult = BoardResult::BOARDRESULT_LOST;
@@ -9035,7 +9085,7 @@ void Board::KillAllPlantsInRadius(int theX, int theY, int theRadius)
 unsigned int Board::SeedNotRecommendedForLevel(SeedType theSeedType)
 {
 	unsigned int aNotRec = 0;
-	if (Plant::IsNocturnal(theSeedType) && !StageIsNight())
+	if (Plant::IsNocturnal(theSeedType) && !StageIsNight() && !mApp->mRunState)
 	{
 		SetBit(aNotRec, NotRecommend::NOT_RECOMMENDED_NOCTURNAL, true);
 	}
@@ -9059,7 +9109,7 @@ unsigned int Board::SeedNotRecommendedForLevel(SeedType theSeedType)
 	{
 		SetBit(aNotRec, NotRecommend::NOT_RECOMMENDED_ON_ROOF, true);
 	}
-	if (!StageHasPool() && Plant::IsAquatic(theSeedType))
+	if (!StageHasPool() && Plant::IsAquatic(theSeedType) && !mApp->mRunState)
 	{
 		SetBit(aNotRec, NotRecommend::NOT_RECOMMENDED_NEEDS_POOL, true);
 	}
@@ -9198,6 +9248,9 @@ void Board::DropLootPiece(int thePosX, int thePosY, int theDropFactor)
 		aCoinType = CoinType::COIN_SILVER;
 	}
 	else return;
+	// Runs do not grant garden plants/chocolate to the player's adventure profile.
+	if (mApp->mRunState && (aCoinType == CoinType::COIN_PRESENT_PLANT || aCoinType == CoinType::COIN_CHOCOLATE))
+		aCoinType = CoinType::COIN_GOLD;
 
 	if (mApp->IsWallnutBowlingLevel() && Coin::IsMoney(aCoinType))
 		return;

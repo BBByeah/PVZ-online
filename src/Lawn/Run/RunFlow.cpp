@@ -5,6 +5,8 @@
 #include "../ModText.h"
 #include "../Widget/RunFlowScreen.h"
 #include "../System/PlayerInfo.h"
+#include "../System/Music.h"
+#include "../../PvzpLib/PvzpDebug.h"
 #include "../Widget/LawnDialog.h"
 #include "../Board.h"
 #include "widget/WidgetManager.h"
@@ -46,6 +48,10 @@ void LawnApp::ResumeRun()
 {
     auto run = std::make_unique<RunState>();
     bool compatible = run->Load(mPlayerInfo->mId);
+    // Only finite, standard runs are exposed by this APK; imported option flags need real consumers.
+    if (run->mMode < RunState::RUN_MODE_FULL || run->mMode > RunState::RUN_MODE_QUICK || run->IsComplete() ||
+        run->mDiff != RunState::RUN_DIFF_STD || run->mScale != RunState::RUN_SCALE_STD ||
+        run->mTempo != RunState::RUN_TEMPO_STD || run->mZombotany || run->mBossFlag) compatible = false;
     // @pvz-online: a later port may have more effects; don't silently resume them without consumers.
     for (const auto& buff : run->mBuffs) if (!RunChoiceImplemented(buff.mId)) compatible = false;
     for (const auto seed : run->mPool) if (!RunPlantImplemented(seed)) compatible = false;
@@ -82,6 +88,27 @@ void LawnApp::StartRunLevel()
     mGameMode = GAMEMODE_ADVENTURE;
     mAppRandSeed = mRunState->GetLevelSeed();
     NewGame();
+}
+
+void LawnApp::RetryRunLevel()
+{
+    if (!mRunState) return;
+    KillDialog(DIALOG_GAME_OVER);
+    KillDialog(DIALOG_CONFIRM_RESTART);
+    KillNewOptionsDialog();
+    mMusic->StopAllMusic();
+    mSoundSystem->CancelPausedFoley();
+    PvzpLogLn("[run] retry index={} seed={}", mRunState->mLevelIndex, mRunState->GetLevelSeed());
+    StartRunLevel();
+}
+
+void LawnApp::NoteRunFailure()
+{
+    if (!mRunState) return;
+    mRunState->NoteLevelFailed();
+    PvzpLogLn("[run] failed index={} count={}", mRunState->mLevelIndex, mRunState->mFailCounts[mRunState->mLevelIndex]);
+    if (!mRunState->Save(mPlayerInfo->mId))
+        PvzpLogLn("[run] could not save failure checkpoint");
 }
 
 float LawnApp::RunBuffMul(int id) const

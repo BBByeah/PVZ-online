@@ -1,6 +1,6 @@
 # PvZ Online Android（移植中）
 
-此 `android-port` 分支是 PvZ Online 的 Android 移植工程，当前已在 MuMu Android 15 运行，包含单机闯关原型与中英文资源切换。合作联机、完整 PC 增益和难度规则仍在迁移中。
+此 `android-port` 分支是 PvZ Online 的 Android 移植工程，当前已在 MuMu Android 15 运行，包含单机闯关、中英文资源切换、现有僵尸出怪规则、标准场景难度、39 种基础植物和失败重打。合作联机、新增僵尸、完整 PC 增益及高级难度仍在迁移中。当前交付及有限验收见 [进度](PORTING-STATUS.md) 与 [后续批次](docs/NEXT-BATCH.md)。
 
 - 两人协作与同伴任务：[docs/COLLABORATION.md](docs/COLLABORATION.md)
 - 开发入口：[DEVELOPMENT.md](DEVELOPMENT.md)

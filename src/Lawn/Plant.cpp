@@ -184,7 +184,7 @@ void Plant::PlantInitialize(int theGridX, int theGridY, SeedType theSeedType, Se
 		mBlinkCountdown = 400 + Sexy::Rand(400);
 	}
 
-	if (IsNocturnal(mSeedType) && mBoard && !mBoard->StageIsNight())
+	if (IsNocturnal(mSeedType) && mBoard && !mBoard->StageIsNight() && !mApp->mRunState)
 		SetSleeping(true);
 
 	if (mLaunchRate > 0)

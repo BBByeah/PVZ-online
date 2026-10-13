@@ -345,6 +345,12 @@ bool LawnApp::WriteCurrentUserConfig()
 
 void LawnApp::PreNewGame(GameMode theGameMode, bool theLookForSavedGame)
 {
+	// A run retry must not erase or load the player's adventure save.
+	if (mRunState && theGameMode == GAMEMODE_ADVENTURE)
+	{
+		RetryRunLevel();
+		return;
+	}
 	//if (NeedRegister())
 	//{
 	//	ShowGameSelector();
@@ -1414,6 +1420,7 @@ void LawnApp::CheckForGameEnd()
 	if (mRunState)
 	{
 		mBoardResult = BoardResult::BOARDRESULT_WON;
+		PvzpLogLn("[run] cleared index={} engine={}", mRunState->mLevelIndex, mBoard->mLevel);
 		mRunState->AdvanceLevel();
 		KillBoard();
 		if (mRunState->IsComplete())

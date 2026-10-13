@@ -4181,6 +4181,11 @@ void LawnApp::LoadingThreadProc()
 		return;
 
 	TodStringListLoad("Properties\\LawnStrings.txt");
+	if (ModText::IsChinese())
+	{
+		// 中文档按键覆盖英文（缺失键保留英文）；pak 里没有或读取失败则静默保持全英文
+		TodStringListReadFile("Properties\\LawnStrings_zh.txt");
+	}
 
 	if (mTitleScreen)
 	{

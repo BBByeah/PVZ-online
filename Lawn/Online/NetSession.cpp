@@ -2800,7 +2800,7 @@ void NetSession::SendHelloAck(bool theAccepted, uint8_t theTarget)
 bool NetSession::SendStartLevel(uint8_t theGameMode, uint32_t theLevel, int32_t theLevelSeed,
 	bool theIsRun, int32_t theRunSeed, uint16_t theRunLevelIndex, uint8_t theTargetSeat, uint8_t theRunMode,
 	uint8_t theRunDiff, uint8_t theRunScale, uint8_t theRunTempo, uint8_t theRunZombotany,
-	uint8_t theRunEndlessScene, uint8_t theRunBossFlag)
+	uint8_t theRunEndlessScene, uint8_t theRunBossFlag, uint8_t theRunBuffMult)
 {
 	if (mRole != Role::HOST || !IsConnected()) return false;
 
@@ -2820,6 +2820,7 @@ bool NetSession::SendStartLevel(uint8_t theGameMode, uint32_t theLevel, int32_t 
 	aMsg.mRunZombotany = theRunZombotany;
 	aMsg.mRunEndlessScene = theRunEndlessScene;
 	aMsg.mRunBossFlag = theRunBossFlag;
+	aMsg.mRunBuffMult = theRunBuffMult;
 
 	uint8_t aPayload[NetProto::MAX_PAYLOAD];
 	int aSize = NetProto::EncodeStartLevel(aPayload, (int)sizeof(aPayload), aMsg);
@@ -2827,9 +2828,10 @@ bool NetSession::SendStartLevel(uint8_t theGameMode, uint32_t theLevel, int32_t 
 
 	if (theIsRun)
 	{
-		TodLog("[net] telling the client to enter run level %u (run seed %d, level index %u, mode %u, diff %u, scale %u, tempo %u, zombotany %u, endless scene %u)",
+		TodLog("[net] telling the client to enter run level %u (run seed %d, level index %u, mode %u, diff %u, scale %u, tempo %u, zombotany %u, endless scene %u, buff mult %u)",
 			(unsigned)theLevel, (int)theRunSeed, (unsigned)theRunLevelIndex, (unsigned)theRunMode, (unsigned)theRunDiff,
-			(unsigned)theRunScale, (unsigned)theRunTempo, (unsigned)theRunZombotany, (unsigned)theRunEndlessScene);
+			(unsigned)theRunScale, (unsigned)theRunTempo, (unsigned)theRunZombotany, (unsigned)theRunEndlessScene,
+			(unsigned)theRunBuffMult);
 	}
 	else
 	{

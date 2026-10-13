@@ -52,6 +52,7 @@ public:
 	int					mTempoSel;			// RunState::RUN_TEMPO_*（默认标准）
 	int					mZombotanySel;		// 植物僵尸混入开关（0 关 1 开，默认关）
 	int					mBossSel;			// 巨型 boss 开关（0 关 1 开，默认关；无尽档恒按关处理）
+	int					mBuffMultSel;		// 增益倍选档（RunState::RUN_BUFFMULT_*，默认 ×1；MOD_BUILD 43）
 	CjkStoneButton*	mCancelButton;		// 取消 = 关弹窗不开局
 	CjkStoneButton*	mStartButton;		// 无尽变体的「开始」（普通页 nullptr）
 	ButtonWidget*		mOptionsButton;		// 「高级选项…」（mShowDiff 为假时 nullptr）

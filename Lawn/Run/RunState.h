@@ -44,6 +44,10 @@ public:
 	// 进检查点（v10）；单机局同样可选。
 	enum	{ RUN_SCALE_HALF = 0, RUN_SCALE_STD = 1, RUN_SCALE_DOUBLE = 2, RUN_SCALE_QUAD = 3 };
 	enum	{ RUN_TEMPO_FAST = 0, RUN_TEMPO_STD = 1, RUN_TEMPO_SLOW = 2 };
+	// @pvz-online: 增益倍选（2026-10-13 用户令「每次选 buff 1 2 3 倍」）：房主在高级选项里
+	// 选的倍数——每屏照旧三选一拿 1 条，但发放的三选一屏数 ×1/×2/×3（拿到的总数翻倍，
+	// 代价是连点更多屏）。0-based 索引，倍率值走 BuffMultValueFor（非法按 1 倍）。
+	enum	{ RUN_BUFFMULT_X1 = 0, RUN_BUFFMULT_X2 = 1, RUN_BUFFMULT_X3 = 2 };
 
 	static const int	RUN_LEVEL_COUNT		= 25;	// 完整版总关数 = 5 场景 × 5 关（数组/静态表的尺寸上限）
 	static const int	RUN_SCENE_COUNT		= 5;	// 白天 → 夜 → 泳池 → 迷雾 → 屋顶
@@ -128,6 +132,11 @@ public:
 	// 关底刷巨型 boss（仅第一席；无尽档没有关底、恒不刷）。房间级设置，随 START_LEVEL 广播、
 	// 随检查点 v13 持久；联机各端无条件按房主的值对齐（不参与重建判等）。
 	int							mBossFlag;
+	// @pvz-online: 增益倍选（2026-10-13 用户令）：1/2/3 倍的索引（RUN_BUFFMULT_*）。房间级
+	// 设置，随 START_LEVEL 广播（MOD_BUILD 43）、随检查点 v10 位包 bit5..6 持久（老档读 0
+	// = ×1，安全降级；不抬检查点版本）；联机各端无条件按房主的值对齐（不参与重建判等）。
+	// 消费见 BeginStartPicks / BeginLevelEndPicks（只乘 buff 屏数）与 BuffMultValueFor。
+	int							mBuffMult;
 	// @pvz-online: 补发追赶的目标关序号（R5）。队友没有检查点 / 检查点落后于主机时，
 	// 不是"跳到主机的关"，而是从这一局的起点一屏一屏地把欠下的三选一补齐——
 	// 补做的屏与真打过的一模一样（候选由 runSeed + 关序号推导）。开着的时候
@@ -140,9 +149,10 @@ public:
 	// 全新一局：卡池回到两株、失败计数清零、从第 1 关开打。
 	// 无尽档（theRunMode == RUN_MODE_ENDLESS）：theEndlessScene 锁场景（0..4，越界钳 0）；
 	// 卡池直接给满全部 48 株常规植物（2026-10-11 用户令「开局全植物」——模仿者照旧不给）。
+	// theBuffMult（2026-10-13）：增益倍选索引（RUN_BUFFMULT_*，非法按 ×1——消费端钳）。
 	void				StartNew(int theRunSeed, int theRunMode = RUN_MODE_FULL, int theRunDiff = RUN_DIFF_STD,
 							int theRunScale = RUN_SCALE_STD, int theRunTempo = RUN_TEMPO_STD, int theZombotany = 0,
-							int theEndlessScene = 0, int theBossFlag = 0);
+							int theEndlessScene = 0, int theBossFlag = 0, int theBuffMult = 0);
 
 	// 时长档的关数口径：每场景关数（5/2/1）与总关数（25/10/5）。模式非法按完整版。
 	// 无尽档的 LevelCountForMode = RUN_ENDLESS_LEVEL_COUNT（软上限）；LevelsPerScene 对
@@ -159,6 +169,9 @@ public:
 	// 档位非法按标准 1000——与 DiffPermilleFor 同一套纪律，消费点不用再操心合法性。
 	static int			ScalePermilleFor(int theRunScale);
 	static int			TempoPermilleFor(int theRunTempo);
+
+	// 增益倍选的倍率值（1/2/3）。档位非法按 1——与上面同一套纪律，消费点不用再操心合法性。
+	static int			BuffMultValueFor(int theBuffMult);
 
 	// 该选植物 / 该选 buff 了（一局开始时先挑四株 + 两个增益——进第 1 关前手里就有 6 株；
 	// 快速版开局加厚成六株 + 四个增益，批十 2026-10-05；无尽档开局只发四个增益，2026-10-11

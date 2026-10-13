@@ -10,15 +10,21 @@ class CjkStoneButton;
 
 // @pvz-online: 高级选项（批 C，MOD_BUILD 35）：出怪规模 / 节奏 / 植物僵尸三行开关，由
 // RunModeDialog 的「高级选项…」按钮弹出（仅主机那一行摆按钮；单机档位恒标准，同出怪
-// 难度行的纪律）。三行都是"小标题 + 一排 CjkStoneButton"，选中 = 按下态贴图，点了只
+// 难度行的纪律）。各行都是"小标题 + 一排 CjkStoneButton"，选中 = 按下态贴图，点了只
 // 换选中、不关弹窗（照 RunModeDialog 的难度行）。档位含义见 RunState.h 的
 // RUN_SCALE_*/RUN_TEMPO_* 注释；植物僵尸开关改出怪名单（见 RunZombieRoster）。
 // 第四行「滑动收阳光」（2026-10-10 用户定案）与前不同：本机即时设置，不随开局广播——
 // 确定即由打开方落注册表并热改 LawnApp::mSlideCollect，取消不动（同"确定才收值"纪律）。
 // 第五行「巨型 Boss」（MOD_BUILD 38，2026-10-10 用户定案）：回到房间级设置口径——随
-// START_LEVEL 广播（START_LEVEL 载荷 24→25），无尽档没有关底、该行不摆。
+// START_LEVEL 广播，无尽档没有关底、该行不摆。
+// 翻页批（2026-10-13 用户令「高级选项现在出格了，需要翻页功能」）：行数加到六行
+// （第六行「增益倍选」，MOD_BUILD 43），一屏摆不下——**六行分两页、每页三行**：第 1 页
+// 「出怪规模/节奏/植物僵尸」，第 2 页「滑动收阳光/巨型Boss/增益倍选」。翻页行
+// （上一页/下一页 + 「第 n / 2 页」指示）贴在确定行上面一行；两枚按钮环绕翻页。
+// 页切换只挪控件：当前页的行摆进行槽位，其余整行 Resize 去屏外（画不着、点不着）——
+// 选中态存在各按钮的 mInverted 上，翻回来原样还在。
 // 阻塞式 WaitForResult 收结果：确定 = RunOptionsDialog_OK、取消 = Dialog::ID_NO；
-// 五个选择值由打开方在 WaitForResult 之后读成员带走（取消保留原值）。嵌套阻塞没问题：
+// 六个选择值由打开方在 WaitForResult 之后读成员带走（取消保留原值）。嵌套阻塞没问题：
 // WaitForResult 泵的就是主循环（见 Dialog::WaitForResult），父弹窗只是继续等自己的结果。
 class RunOptionsDialog : public LawnDialog
 {
@@ -30,7 +36,13 @@ public:
 		RunOptionsDialog_Tempo0 = 140,	// 出怪节奏三枚（值 = RunState::RUN_TEMPO_* 的顺序）
 		RunOptionsDialog_Zombotany0 = 150,	// 植物僵尸两枚（0 关 / 1 开）
 		RunOptionsDialog_Slide0 = 160,	// 滑动收阳光两枚（0 关 / 1 开；本机即时设置）
-		RunOptionsDialog_Boss0 = 170	// 巨型 boss 两枚（0 关 / 1 开）
+		RunOptionsDialog_Boss0 = 170,	// 巨型 boss 两枚（0 关 / 1 开）
+		RunOptionsDialog_BuffMult0 = 180,	// 增益倍选三枚（值 = RunState::RUN_BUFFMULT_* 的顺序；MOD_BUILD 43）
+		RunOptionsDialog_PrevPage = 190,	// 上一页（翻页批：两页环绕）
+		RunOptionsDialog_NextPage = 191,	// 下一页
+		RUN_OPTIONS_ROW_COUNT = 6,		// 六行分 2 页、每页 3 行（行序 = 槽位序，见 PlaceRows）
+		RUN_OPTIONS_ROWS_PER_PAGE = 3,
+		RUN_OPTIONS_PAGE_COUNT = 2
 	};
 
 	ButtonWidget*	mScaleButtons[4];
@@ -38,40 +50,49 @@ public:
 	ButtonWidget*	mZombotanyButtons[2];
 	ButtonWidget*	mSlideButtons[2];
 	ButtonWidget*	mBossButtons[2];
+	ButtonWidget*	mBuffMultButtons[3];
 	int				mScaleSel;			// 选中的规模档（RunState::RUN_SCALE_*）
 	int				mTempoSel;			// 选中的节奏档（RunState::RUN_TEMPO_*）
 	int				mZombotanySel;		// 植物僵尸开关（0 关 1 开）
 	int				mSlideSel;			// 滑动收阳光开关（0 关 1 开）
 	int				mBossSel;			// 巨型 boss 开关（0 关 1 开）
+	int				mBuffMultSel;		// 增益倍选档（RunState::RUN_BUFFMULT_*）
+	int				mPage;				// 当前页（0 = 第 1 页 / 1 = 第 2 页）
 	CjkStoneButton*	mOkButton;
 	CjkStoneButton*	mCancelButton;
+	CjkStoneButton*	mPrevButton;
+	CjkStoneButton*	mNextButton;
 	int				mOkWidth;
 	int				mCancelWidth;
+	int				mPrevWidth;
+	int				mNextWidth;
+	int				mPageTextX;			// 翻页行里页码文字的左上角 / 量好的宽（Layout 用）
+	int				mPageTextY;
+	int				mPageTextW;
 	int				mScaleWidths[4];	// 各行按钮等宽（取最长标签量好）
 	int				mTempoWidths[3];
 	int				mZombotanyWidths[2];
 	int				mSlideWidths[2];
 	int				mBossWidths[2];
-	int				mTitleY;			// 各文字行的顶部（ModText 顶对齐口径）
-	int				mScaleCaptionY;
-	int				mTempoCaptionY;
-	int				mZombotanyCaptionY;
-	int				mSlideCaptionY;
-	int				mBossCaptionY;
+	int				mBuffMultWidths[3];
+	int				mTitleY;			// 标题顶部（ModText 顶对齐口径）
+	int				mCaptionYs[RUN_OPTIONS_ROW_COUNT];	// 各行小标题顶部（行序同 mRows 表；非当前页 = 屏外）
 	std::string		mTitle;				// UTF-8 原样（绘制走 ModText::WideFromUtf8）
 	std::string		mScaleCaption;
 	std::string		mTempoCaption;
 	std::string		mZombotanyCaption;
 	std::string		mSlideCaption;
 	std::string		mBossCaption;
+	std::string		mBuffMultCaption;
 	std::string		mScaleLabels[4];
 	std::string		mTempoLabels[3];
 	std::string		mZombotanyLabels[2];
 	std::string		mSlideLabels[2];
 	std::string		mBossLabels[2];
+	std::string		mBuffMultLabels[3];
 
 public:
-	RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTempoSel, int theZombotanySel, int theSlideSel, int theBossSel);
+	RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTempoSel, int theZombotanySel, int theSlideSel, int theBossSel, int theBuffMultSel);
 	virtual ~RunOptionsDialog();
 
 	virtual void		Draw(Graphics* g);
@@ -81,6 +102,11 @@ public:
 	virtual void		ButtonPress(int theId);
 	virtual void		ButtonDepress(int theId);
 	virtual void		KeyDown(KeyCode theKey);
+
+private:
+	// 摆一次全部控件：一页三行的行槽位（当前页上场、其余挪去屏外）+ 翻页行 + 确定行。
+	// Resize 与翻页都走它——构造期首次摆位由 CalcSize 触发的 Resize 完成（此时按钮已建好）。
+	void				PlaceRows();
 };
 
 #endif

@@ -123,7 +123,7 @@ static void FillPoolWithAllPlants(std::vector<SeedType>& thePool)
 	}
 }
 
-void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag)
+void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag, int theBuffMult)
 {
 	mRunSeed = theRunSeed;
 	mMode = theRunMode;
@@ -136,6 +136,9 @@ void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theR
 	mZombotany = theZombotany;
 	// 关底 boss 开关：无尽档没有关底，恒记 0（与读档的非无尽口径一致）。
 	mBossFlag = (theRunMode != RUN_MODE_ENDLESS && theBossFlag != 0) ? 1 : 0;
+	// 增益倍选（2026-10-13）：非法档不在这儿夹——消费全走 BuffMultValueFor（与 mScale/mTempo
+	// 同口径：档位合法性归各自的 *For 函数）。
+	mBuffMult = theBuffMult;
 	mLevelIndex = 0;
 	mPool.clear();
 	if (theRunMode == RUN_MODE_ENDLESS)
@@ -188,8 +191,9 @@ void RunState::BeginStartPicks()
 	mPickCooldownBuffCount = 0;
 	int aExtra = (mMode == RUN_MODE_QUICK || mMode == RUN_MODE_ENDLESS) ? 2 : 0;
 	mPendingPlantPicks = CanOfferPlantPick() ? 4 + aExtra : 0;
-	mPendingBuffPicks = 2 + aExtra;
-	TodLog("[run] start picks: %d plant(s) + %d buff(s) (mode %d)", mPendingPlantPicks, mPendingBuffPicks, mMode);
+	// 增益倍选（2026-10-13 用户令）：发放的 buff 屏数按倍率翻倍（只乘 buff 屏，植物屏不动）。
+	mPendingBuffPicks = (2 + aExtra) * BuffMultValueFor(mBuffMult);
+	TodLog("[run] start picks: %d plant(s) + %d buff(s) (mode %d, buff mult x%d)", mPendingPlantPicks, mPendingBuffPicks, mMode, BuffMultValueFor(mBuffMult));
 }
 
 void RunState::BeginLevelEndPicks()
@@ -232,8 +236,8 @@ void RunState::BeginLevelEndPicks()
 		aBuffs = mLevelIndex + 2;
 		if (aBuffs > 5) aBuffs = 5;
 	}
-	mPendingBuffPicks = aBuffs;
-	TodLog("[run] level end picks: %d plant(s) + %d buff(s) (level %d, mode %d)", mPendingPlantPicks, mPendingBuffPicks, mLevelIndex, mMode);
+	mPendingBuffPicks = aBuffs * BuffMultValueFor(mBuffMult);	// 增益倍选（2026-10-13）：屏数乘倍
+	TodLog("[run] level end picks: %d plant(s) + %d buff(s) (level %d, mode %d, buff mult x%d)", mPendingPlantPicks, mPendingBuffPicks, mLevelIndex, mMode, BuffMultValueFor(mBuffMult));
 }
 
 bool RunState::CanOfferPlantPick() const
@@ -671,6 +675,15 @@ int RunState::TempoPermilleFor(int theRunTempo)
 	return aPermille[theRunTempo];
 }
 
+// 增益倍选的倍率值（2026-10-13 用户令）：×1/×2/×3——只乘"发放的三选一屏数"，每屏照旧
+// 拿 1 条。档位非法按 1 倍。
+int RunState::BuffMultValueFor(int theBuffMult)
+{
+	static const int aMult[] = { 1, 2, 3 };
+	if (theBuffMult < RUN_BUFFMULT_X1 || theBuffMult > RUN_BUFFMULT_X3) return aMult[RUN_BUFFMULT_X1];
+	return aMult[theBuffMult];
+}
+
 // 按时长档从同一张 25 关表里抽行（批十 2026-10-05 按玩家反馈改版）：普通版每场景取
 // 第 1/5 关（10 关，即原快速表）、快速版取第 5 关（5 关，每场景收尾的难关）。
 // 抽出来的还是这张表里的引擎关号——波数、出怪、种类名单都按引擎关走，
@@ -842,7 +855,9 @@ bool RunState::Save(int theProfileId) const
 	}
 
 	AppendU16(aData, mMowerUsedRows);	// v5：末位推车记账（bit = 行号）
-	AppendU16(aData, (unsigned int)((mScale & 3) | ((mTempo & 3) << 2) | ((mZombotany & 1) << 4)));	// v10：高级选项位包
+	// v10：高级选项位包（bit5..6 = 增益倍选，2026-10-13 启用——老版本读 0 = ×1，安全降级，
+	// 不抬版本；消费端 BuffMultValueFor 钳非法档）。
+	AppendU16(aData, (unsigned int)((mScale & 3) | ((mTempo & 3) << 2) | ((mZombotany & 1) << 4) | ((mBuffMult & 3) << 5)));
 	// v11（第二 buff 批 0）：buff 列表格式不变（BuffStack 通用 id+count），但 mBuffs 里
 	// 从此可能出现第二表 id（57..95）。老版本读到会当老单株解出错误条目，故抬版本号让
 	// 老构建直接拒档；v10 及更老档没有这类 id，读平即可，不需要迁移链。
@@ -1048,6 +1063,9 @@ bool RunState::Load(int theProfileId)
 	mScale = (int)(aOptions & 3);
 	mTempo = (int)((aOptions >> 2) & 3);
 	mZombotany = (int)((aOptions >> 4) & 1);
+	// 增益倍选（2026-10-13，位包 bit5..6）：v13 及更老的档该两位恒 0 = ×1；读到非法档（3）
+	// 也不拒档——BuffMultValueFor 消费时按 ×1 处理（与其他档同一套纪律）。
+	mBuffMult = (int)((aOptions >> 5) & 3);
 	mBossFlag = (aBossFlag != 0) ? 1 : 0;
 	mLevelIndex = aLevelIndex;
 	memcpy(mFailCounts, aFailCounts, sizeof(mFailCounts));

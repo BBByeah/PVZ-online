@@ -204,6 +204,8 @@ public:
 	// theRunLevelIndex 由 u8 改 u16（MOD_BUILD 37）：无尽档的关序号会过 255；theRunEndlessScene
 	// （MOD_BUILD 37）是无尽档锁定的场景 0..4，队友按同一场景建局；单关局/非无尽档默认 0。
 	// theRunBossFlag（MOD_BUILD 38）= 闯关关底巨型 boss 开关（仅第一席生效）；默认 0。
+	// theRunBuffMult（MOD_BUILD 43）= 增益倍选档（RunState::RUN_BUFFMULT_*，0/1/2 = ×1/×2/×3）；
+	// 默认 0（单关局与非闯关路径不传）。
 	// theTargetSeat 默认 SEAT_UNSET = 发给所有队友；中途拉一个人进关必须点名单发——
 	// 扇出会把已经在打的人重新点名一遍（那会重建棋盘）。
 	bool			SendStartLevel(uint8_t theGameMode, uint32_t theLevel, int32_t theLevelSeed,
@@ -211,7 +213,8 @@ public:
 						uint8_t theTargetSeat = NetProto::SEAT_UNSET, uint8_t theRunMode = 0,
 						uint8_t theRunDiff = 1, uint8_t theRunScale = 1,
 						uint8_t theRunTempo = 1, uint8_t theRunZombotany = 0,
-						uint8_t theRunEndlessScene = 0, uint8_t theRunBossFlag = 0);
+						uint8_t theRunEndlessScene = 0, uint8_t theRunBossFlag = 0,
+						uint8_t theRunBuffMult = 0);
 
 	// 客户端侧：取出主机发来的开局命令（同时清掉）。没有就返回 false。
 	// 单槽而不是队列：开局命令只有"最新那条"有意义，堆着旧的开局命令没有用处。

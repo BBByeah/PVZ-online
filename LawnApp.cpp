@@ -860,7 +860,7 @@ void LawnApp::UpdateOnlineStart()
 			(unsigned)aStart.mRunLevelIndex, (int)aStart.mRunSeed);
 		AlignRunToHost((int)aStart.mRunSeed, (int)aStart.mRunLevelIndex, (int)aStart.mRunMode, (int)aStart.mRunDiff,
 			(int)aStart.mRunScale, (int)aStart.mRunTempo, (int)aStart.mRunZombotany,
-			(int)aStart.mRunEndlessScene, (int)aStart.mRunBossFlag);
+			(int)aStart.mRunEndlessScene, (int)aStart.mRunBossFlag, (int)aStart.mRunBuffMult);
 		mOnlineRunStartHeld = true;
 		mOnlineRunGo = false;		// 这条是新命令：上一次的放行作废
 		mOnlineSession->SendStartAck();
@@ -989,7 +989,7 @@ void LawnApp::OnlineStartPromptAnswer(bool theAccepted)
 			(unsigned)aMsg.mRunLevelIndex, (int)aMsg.mRunSeed);
 		AlignRunToHost((int)aMsg.mRunSeed, (int)aMsg.mRunLevelIndex, (int)aMsg.mRunMode, (int)aMsg.mRunDiff,
 			(int)aMsg.mRunScale, (int)aMsg.mRunTempo, (int)aMsg.mRunZombotany,
-			(int)aMsg.mRunEndlessScene, (int)aMsg.mRunBossFlag);
+			(int)aMsg.mRunEndlessScene, (int)aMsg.mRunBossFlag, (int)aMsg.mRunBuffMult);
 		mOnlineRunStartHeld = true;
 		mOnlineRunGo = false;
 		mOnlineSession->SendStartAck();
@@ -1315,7 +1315,8 @@ void LawnApp::UpdateOnlineEvents()
 					true, mRunState->mRunSeed, (uint16_t)mRunState->mLevelIndex,
 					NetProto::SEAT_UNSET, (uint8_t)mRunState->mMode, (uint8_t)mRunState->mDiff,
 					(uint8_t)mRunState->mScale, (uint8_t)mRunState->mTempo, (uint8_t)mRunState->mZombotany,
-					(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag);
+					(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag,
+					(uint8_t)mRunState->mBuffMult);
 			}
 			break;
 
@@ -1380,7 +1381,8 @@ void LawnApp::UpdateOnlineEvents()
 					true, mRunState->mRunSeed, (uint16_t)mRunState->mLevelIndex,
 					anEvent.mSeat, (uint8_t)mRunState->mMode, (uint8_t)mRunState->mDiff,
 					(uint8_t)mRunState->mScale, (uint8_t)mRunState->mTempo, (uint8_t)mRunState->mZombotany,
-					(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag);
+					(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag,
+					(uint8_t)mRunState->mBuffMult);
 			}
 			break;
 
@@ -1598,7 +1600,8 @@ void LawnApp::RetryOnlineLevel()
 			true, mRunState->mRunSeed, (uint16_t)mRunState->mLevelIndex,
 			NetProto::SEAT_UNSET, (uint8_t)mRunState->mMode, (uint8_t)mRunState->mDiff,
 			(uint8_t)mRunState->mScale, (uint8_t)mRunState->mTempo, (uint8_t)mRunState->mZombotany,
-			(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag);
+			(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag,
+			(uint8_t)mRunState->mBuffMult);
 		return;
 	}
 
@@ -1800,7 +1803,7 @@ void LawnApp::UpdateAdventureRequest()
 		}
 		StartRun(RunState::RUN_MODE_ENDLESS, aModeDialog->mDiffSel,
 			aModeDialog->mScaleSel, aModeDialog->mTempoSel, aModeDialog->mZombotanySel, aEndlessScene,
-			aModeDialog->mBossSel);
+			aModeDialog->mBossSel, aModeDialog->mBuffMultSel);
 		return;
 	}
 
@@ -1845,7 +1848,7 @@ void LawnApp::UpdateAdventureRequest()
 	}
 	StartRun(aModeResult - RunModeDialog::RunModeDialog_Mode0, aModeDialog->mDiffSel,
 		aModeDialog->mScaleSel, aModeDialog->mTempoSel, aModeDialog->mZombotanySel, 0,
-		aModeDialog->mBossSel);
+		aModeDialog->mBossSel, aModeDialog->mBuffMultSel);
 }
 
 // @pvz-online: 进入游戏后的玩法公告（2026-10-03 用户要的）：启动后第一次落到主菜单时弹一次，
@@ -1908,14 +1911,15 @@ void LawnApp::UpdateStartupAnnounce()
 	aDialog->WaitForResult();
 }
 
-void LawnApp::StartRun(int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag)
+void LawnApp::StartRun(int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag, int theBuffMult)
 {
 	delete mRunState;
 	mRunState = new RunState();
-	mRunState->StartNew(MakeRunSeed(mAppCounter), theRunMode, theRunDiff, theRunScale, theRunTempo, theZombotany, theEndlessScene, theBossFlag);
-	TodLog("[run] a new run starts (seed %d, mode %d, diff %d, scale %d, tempo %d, zombotany %d, endless scene %d, boss %d)",
+	mRunState->StartNew(MakeRunSeed(mAppCounter), theRunMode, theRunDiff, theRunScale, theRunTempo, theZombotany, theEndlessScene, theBossFlag, theBuffMult);
+	TodLog("[run] a new run starts (seed %d, mode %d, diff %d, scale %d, tempo %d, zombotany %d, endless scene %d, boss %d, buff mult %d)",
 		mRunState->mRunSeed, mRunState->mMode, mRunState->mDiff,
-		mRunState->mScale, mRunState->mTempo, mRunState->mZombotany, mRunState->mEndlessScene, mRunState->mBossFlag);
+		mRunState->mScale, mRunState->mTempo, mRunState->mZombotany, mRunState->mEndlessScene, mRunState->mBossFlag,
+		mRunState->mBuffMult);
 	// 手里的两株不够开局：先挑四株 + 两个增益（共六次三选一），选完 RunPickChosen 才进第 1 关。
 	// 无尽档不挑植物（StartNew 已给满卡池）：开屏是四个增益 + 原版选卡界面挑 10 株。
 	mRunState->BeginStartPicks();
@@ -1969,7 +1973,8 @@ void LawnApp::EnterRunLevel()
 			true, mRunState->mRunSeed, (uint16_t)mRunState->mLevelIndex,
 			NetProto::SEAT_UNSET, (uint8_t)mRunState->mMode, (uint8_t)mRunState->mDiff,
 			(uint8_t)mRunState->mScale, (uint8_t)mRunState->mTempo, (uint8_t)mRunState->mZombotany,
-			(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag);
+			(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag,
+			(uint8_t)mRunState->mBuffMult);
 		return;
 	}
 
@@ -2007,7 +2012,8 @@ void LawnApp::EnterRunLevel()
 // 档不对的检查点续了也是错的关表。无尽档（MOD_BUILD 37）还要对上锁定的场景
 // （theEndlessScene）：同一局种子换张卡就是另一个场景的无尽，对不上同样按重建处理。
 void LawnApp::AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode, int theRunDiff,
-	int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag)
+	int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag,
+	int theBuffMult)
 {
 	// 时长档来自对端（构建代次不同只提示、不拒连）：非法值按完整版处理，别让它把
 	// 越界模式一路带进关卡表。无尽档（3）是合法档，得放行——钳成完整版会让客户端
@@ -2057,6 +2063,13 @@ void LawnApp::AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode,
 		theBossFlag = 0;
 	}
 
+	// 增益倍选同理（MOD_BUILD 43）：非法值按 ×1，别让它把越界倍数一路带进发屏算式。
+	if (theBuffMult < RunState::RUN_BUFFMULT_X1 || theBuffMult > RunState::RUN_BUFFMULT_X3)
+	{
+		TodLog("[run] the host named an unknown buff pick multiplier %d - treating it as x1", theBuffMult);
+		theBuffMult = RunState::RUN_BUFFMULT_X1;
+	}
+
 	// 关序号来自对端（构建代次不同只提示、不拒连）：越界就按第 1 关处理——
 	// 旧构建的关卡表只有 5 格，混搭时别让它把越界值一路带进 LevelForIndex。
 	if (theTargetIndex < 0 || theTargetIndex >= RunState::LevelCountForMode(theRunMode))
@@ -2104,10 +2117,12 @@ void LawnApp::AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode,
 
 	// 高级选项三字段（批 C）是房间级设置、房主权威：不管检查点续没续上，对齐完一律按
 	// 房主的值覆盖（不参与上面的重建判等——改这三样不该把队友手里的整局作废）。
+	// 增益倍选（MOD_BUILD 43）同口径：房间级设置、只覆盖不参与重建判等。
 	mRunState->mScale = theRunScale;
 	mRunState->mTempo = theRunTempo;
 	mRunState->mZombotany = theZombotany;
 	mRunState->mBossFlag = (theBossFlag != 0 && mRunState->mMode != RunState::RUN_MODE_ENDLESS) ? 1 : 0;
+	mRunState->mBuffMult = theBuffMult;
 
 	if (mRunState->mLevelIndex < theTargetIndex)
 	{

@@ -36,10 +36,10 @@ const char* const	PHRASES_EN[PHRASE_COUNT] =
 	"Powered up",
 	"Feeling sunny ^_^",
 	"Well played",
-	"?!You dare?!",
+	"?!Maggot?!",
 	"Then who's covering my magical cat?!",
 	"Come get it yourself, you know the rules",
-	"Boom! Boom!",
+	"Bungee! Bungee!",
 	"Gimme sun!"
 };
 

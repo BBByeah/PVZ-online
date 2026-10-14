@@ -78,6 +78,8 @@ RunModeDialog::RunModeDialog(LawnApp* theApp, bool theShowDiff, int theEndlessSc
 	mZombotanySel = 0;
 	mBossSel = 0;
 	mBuffMultSel = 0;
+	mLadderSel = RunState::RUN_LADDER_STD;	// 默认 = 现状 ×1.33 档（MOD_BUILD 45）
+	mZombieBuffSel = 0;						// 默认不开（MOD_BUILD 45）
 	mOptionsButton = nullptr;
 	mOptionsWidth = 0;
 	mDiffCaptionY = 0;
@@ -399,9 +401,10 @@ void RunModeDialog::ButtonDepress(int theId)
 	}
 	// 「高级选项…」：嵌套阻塞开 RunOptionsDialog（见那边的头注释——WaitForResult 泵的就
 	// 是主循环）。确定才收值，取消保留原选择；不关本弹窗，选完模式一并带走。
+	// 无尽变体（mEndlessScene >= 0）把"无尽"告诉面板：「场景难度」行不摆（无尽不吃阶梯）。
 	if (theId == RunModeDialog_Options)
 	{
-		RunOptionsDialog* aDialog = new RunOptionsDialog(mApp, mScaleSel, mTempoSel, mZombotanySel, mApp->mSlideCollect ? 1 : 0, mBossSel, mBuffMultSel);
+		RunOptionsDialog* aDialog = new RunOptionsDialog(mApp, mScaleSel, mTempoSel, mZombotanySel, mApp->mSlideCollect ? 1 : 0, mBossSel, mBuffMultSel, mLadderSel, mZombieBuffSel, mEndlessScene >= 0);
 		mApp->CenterDialog(aDialog, aDialog->mWidth, aDialog->mHeight);
 		mApp->AddDialog(Dialogs::DIALOG_RUN_OPTIONS, aDialog);
 		if (aDialog->WaitForResult() == RunOptionsDialog::RunOptionsDialog_OK)
@@ -411,6 +414,8 @@ void RunModeDialog::ButtonDepress(int theId)
 			mZombotanySel = aDialog->mZombotanySel;
 			mBossSel = aDialog->mBossSel;
 			mBuffMultSel = aDialog->mBuffMultSel;
+			mLadderSel = aDialog->mLadderSel;
+			mZombieBuffSel = aDialog->mZombieBuffSel;
 			// 滑动收阳光是本机即时设置（2026-10-10，不进联机载荷）：确定即落注册表并热改
 			// LawnApp 缓存，正在打的局当刻生效；取消不动。
 			if (mApp->mSlideCollect != (aDialog->mSlideSel != 0))

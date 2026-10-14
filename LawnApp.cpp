@@ -1803,7 +1803,8 @@ void LawnApp::UpdateAdventureRequest()
 		}
 		StartRun(RunState::RUN_MODE_ENDLESS, aModeDialog->mDiffSel,
 			aModeDialog->mScaleSel, aModeDialog->mTempoSel, aModeDialog->mZombotanySel, aEndlessScene,
-			aModeDialog->mBossSel, aModeDialog->mBuffMultSel);
+			aModeDialog->mBossSel, aModeDialog->mBuffMultSel,
+			aModeDialog->mLadderSel, aModeDialog->mZombieBuffSel);
 		return;
 	}
 
@@ -1848,7 +1849,8 @@ void LawnApp::UpdateAdventureRequest()
 	}
 	StartRun(aModeResult - RunModeDialog::RunModeDialog_Mode0, aModeDialog->mDiffSel,
 		aModeDialog->mScaleSel, aModeDialog->mTempoSel, aModeDialog->mZombotanySel, 0,
-		aModeDialog->mBossSel, aModeDialog->mBuffMultSel);
+		aModeDialog->mBossSel, aModeDialog->mBuffMultSel,
+		aModeDialog->mLadderSel, aModeDialog->mZombieBuffSel);
 }
 
 // @pvz-online: 进入游戏后的玩法公告（2026-10-03 用户要的）：启动后第一次落到主菜单时弹一次，
@@ -1911,15 +1913,15 @@ void LawnApp::UpdateStartupAnnounce()
 	aDialog->WaitForResult();
 }
 
-void LawnApp::StartRun(int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag, int theBuffMult)
+void LawnApp::StartRun(int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag, int theBuffMult, int theLadder, int theZombieBuff)
 {
 	delete mRunState;
 	mRunState = new RunState();
-	mRunState->StartNew(MakeRunSeed(mAppCounter), theRunMode, theRunDiff, theRunScale, theRunTempo, theZombotany, theEndlessScene, theBossFlag, theBuffMult);
-	TodLog("[run] a new run starts (seed %d, mode %d, diff %d, scale %d, tempo %d, zombotany %d, endless scene %d, boss %d, buff mult %d)",
+	mRunState->StartNew(MakeRunSeed(mAppCounter), theRunMode, theRunDiff, theRunScale, theRunTempo, theZombotany, theEndlessScene, theBossFlag, theBuffMult, theLadder, theZombieBuff);
+	TodLog("[run] a new run starts (seed %d, mode %d, diff %d, scale %d, tempo %d, zombotany %d, endless scene %d, boss %d, buff mult %d, ladder %d, zombie buff %d)",
 		mRunState->mRunSeed, mRunState->mMode, mRunState->mDiff,
 		mRunState->mScale, mRunState->mTempo, mRunState->mZombotany, mRunState->mEndlessScene, mRunState->mBossFlag,
-		mRunState->mBuffMult);
+		mRunState->mBuffMult, mRunState->mLadder, mRunState->mZombieBuffMode);
 	// 手里的两株不够开局：先挑四株 + 两个增益（共六次三选一），选完 RunPickChosen 才进第 1 关。
 	// 无尽档不挑植物（StartNew 已给满卡池）：开屏是四个增益 + 原版选卡界面挑 10 株。
 	mRunState->BeginStartPicks();

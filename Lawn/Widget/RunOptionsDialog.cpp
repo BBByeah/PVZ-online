@@ -16,9 +16,31 @@
 static const int kGapX = 12;
 static const int kBottomGapX = 20;
 
-// 六行的行数表（构造/摆位/注册/绘制共用；行序 = 槽位序 = 页序：
-// 第 1 页「规模/节奏/植物僵尸」、第 2 页「滑动收阳光/巨型Boss/增益倍选」）。
-static const int kRowCounts[RunOptionsDialog::RUN_OPTIONS_ROW_COUNT] = { 4, 3, 2, 2, 2, 3 };
+// 八行的行数表（构造/摆位/注册/绘制共用；行序 = 槽位序 = 页序：
+// 第 1 页「规模/节奏/植物僵尸」、第 2 页「滑动收阳光/巨型Boss/增益倍选」、
+// 第 3 页「僵尸 buff/场景难度」）。
+static const int kRowCounts[RunOptionsDialog::RUN_OPTIONS_ROW_COUNT] = { 4, 3, 2, 2, 2, 3, 3, 5 };
+
+// 「场景难度」行的槽位号（行序末位）。无尽档不吃阶梯，该行整行不摆（2026-10-14 用户
+// 裁决）——mShowLadderRow 为假时它永远不上场（Resize 去屏外，画不着、点不着）。
+// 摆在末位还有个好处：无尽档末页只剩僵尸 buff 一行贴顶，不留空槽。
+static const int kRowLadder = 7;
+
+// 「场景难度」行的按钮顺序与枚举顺序不同：UI 按倍率从小到大摆（用户 2026-10-14 令
+// 「做 1 1.2 1.33 1.5 2 五档」），枚举里 RUN_LADDER_STD（= 现状 ×1.33）是 0（sentinel
+// 保老档不静默变难度）。value ↔ 槽位 的桥就这一张表：按钮 i 的值 = kLadderUiValues[i]。
+static const int kLadderUiValues[5] = {
+	RunState::RUN_LADDER_X1, RunState::RUN_LADDER_X12, RunState::RUN_LADDER_STD,
+	RunState::RUN_LADDER_X15, RunState::RUN_LADDER_X2
+};
+static int LadderUiIndex(int theValue)
+{
+	for (int i = 0; i < 5; i++)
+	{
+		if (kLadderUiValues[i] == theValue) return i;
+	}
+	return 2;	// 非法档归「×1.33」槽位（= STD，与 LadderPermilleFor 的兜底同口径）
+}
 
 // 小标题居中直绘（RunModeDialog 的难度行同款颜色）。
 static void DrawRowCaption(Graphics* g, ModText::Font* theFont, const std::string& theText, int theY, int theWidth)
@@ -35,7 +57,7 @@ static std::string MakePageText(int thePage)
 		+ std::to_string(RunOptionsDialog::RUN_OPTIONS_PAGE_COUNT) + ModText::Tr(" 页", "");
 }
 
-RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTempoSel, int theZombotanySel, int theSlideSel, int theBossSel, int theBuffMultSel)
+RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTempoSel, int theZombotanySel, int theSlideSel, int theBossSel, int theBuffMultSel, int theLadderSel, int theZombieBuffSel, bool theEndless)
 	: LawnDialog(theApp, Dialogs::DIALOG_RUN_OPTIONS, true, _S(""), _S(""), _S(""), Dialog::BUTTONS_NONE)
 {
 	mTitle = ModText::Tr("高级选项", "Advanced Options");
@@ -53,6 +75,11 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 	if (mBossSel != 0 && mBossSel != 1) mBossSel = 0;
 	mBuffMultSel = theBuffMultSel;
 	if (mBuffMultSel < RunState::RUN_BUFFMULT_X1 || mBuffMultSel > RunState::RUN_BUFFMULT_X3) mBuffMultSel = RunState::RUN_BUFFMULT_X1;
+	mZombieBuffSel = theZombieBuffSel;
+	if (mZombieBuffSel < 0 || mZombieBuffSel > 2) mZombieBuffSel = 0;
+	mLadderSel = theLadderSel;
+	if (mLadderSel < RunState::RUN_LADDER_STD || mLadderSel > RunState::RUN_LADDER_X2) mLadderSel = RunState::RUN_LADDER_STD;
+	mShowLadderRow = !theEndless;	// 无尽档不吃阶梯 → 整行不摆（2026-10-14 用户裁决）
 
 	mScaleCaption = ModText::Tr("出怪规模（全队倍率）", "Zombie scale (team multiplier)");
 	mScaleLabels[0] = ModText::Tr("少 ×0.5", "Few ×0.5");
@@ -84,6 +111,23 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 	mBuffMultLabels[1] = ModText::Tr("×2", "×2");
 	mBuffMultLabels[2] = ModText::Tr("×3", "×3");
 
+	// 第七行「僵尸 buff」（2026-10-14 用户令，MOD_BUILD 45）：0/1/2 = 每进一个新场景给
+	// 僵尸叠几条强化（全队投票选具体哪几条；无尽档五关一选）。0 = 整条机制不开。
+	mZombieBuffCaption = ModText::Tr("僵尸 buff（每新场景）", "Zombie buffs (per new scene)");
+	mZombieBuffLabels[0] = ModText::Tr("关闭", "Off");
+	mZombieBuffLabels[1] = ModText::Tr("1 条", "1 buff");
+	mZombieBuffLabels[2] = ModText::Tr("2 条", "2 buffs");
+
+	// 第八行「场景难度」（2026-10-14 用户令，MOD_BUILD 45）：阶梯倍率乘在僵尸血量与
+	// 出怪点数上；×1.33 = 现状（老档/默认；枚举值是 sentinel 0）。无尽档不吃阶梯，
+	// 该行整行不摆（mShowLadderRow，构造参数 theEndless）。
+	mLadderCaption = ModText::Tr("场景难度阶梯（血量+出怪）", "Scene difficulty ladder (HP+spawns)");
+	mLadderLabels[0] = ModText::Tr("×1", "×1");
+	mLadderLabels[1] = ModText::Tr("×1.2", "×1.2");
+	mLadderLabels[2] = ModText::Tr("×1.33", "×1.33");
+	mLadderLabels[3] = ModText::Tr("×1.5", "×1.5");
+	mLadderLabels[4] = ModText::Tr("×2", "×2");
+
 	mTitleY = 0;
 	for (int i = 0; i < RUN_OPTIONS_ROW_COUNT; i++) mCaptionYs[i] = 0;
 
@@ -91,20 +135,27 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 	// 量宽用按钮实际画标签的那档字号（CjkPointSize(CJK_BUTTON_LABEL_PX)），量画同一份。
 	ModText::Font* aLabelFont = ModText::GetFont(CjkPointSize(CJK_BUTTON_LABEL_PX), false);
 	const std::string* aLabelSets[RUN_OPTIONS_ROW_COUNT] = {
-		mScaleLabels, mTempoLabels, mZombotanyLabels, mSlideLabels, mBossLabels, mBuffMultLabels
+		mScaleLabels, mTempoLabels, mZombotanyLabels, mSlideLabels, mBossLabels, mBuffMultLabels,
+		mZombieBuffLabels, mLadderLabels
 	};
 	ButtonWidget** aSlots[RUN_OPTIONS_ROW_COUNT] = {
-		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons
+		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons,
+		mZombieBuffButtons, mLadderButtons
 	};
 	int* aWidthSets[RUN_OPTIONS_ROW_COUNT] = {
-		mScaleWidths, mTempoWidths, mZombotanyWidths, mSlideWidths, mBossWidths, mBuffMultWidths
+		mScaleWidths, mTempoWidths, mZombotanyWidths, mSlideWidths, mBossWidths, mBuffMultWidths,
+		mZombieBuffWidths, mLadderWidths
 	};
 	static const int kRowIdBase[RUN_OPTIONS_ROW_COUNT] = {
 		RunOptionsDialog_Scale0, RunOptionsDialog_Tempo0, RunOptionsDialog_Zombotany0,
-		RunOptionsDialog_Slide0, RunOptionsDialog_Boss0, RunOptionsDialog_BuffMult0
+		RunOptionsDialog_Slide0, RunOptionsDialog_Boss0, RunOptionsDialog_BuffMult0,
+		RunOptionsDialog_ZombieBuff0, RunOptionsDialog_Ladder0
 	};
-	const int* aSelValues[RUN_OPTIONS_ROW_COUNT] = {
-		&mScaleSel, &mTempoSel, &mZombotanySel, &mSlideSel, &mBossSel, &mBuffMultSel
+	// 每行"选中槽位号"：多数行 = 值本身（枚举顺序 = 按钮顺序）；「场景难度」行例外
+	// （UI 顺序与枚举顺序不同，走 kLadderUiValues 映射）。
+	const int aSelIndex[RUN_OPTIONS_ROW_COUNT] = {
+		mScaleSel, mTempoSel, mZombotanySel, mSlideSel, mBossSel, mBuffMultSel,
+		mZombieBuffSel, LadderUiIndex(mLadderSel)
 	};
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
 	{
@@ -123,7 +174,7 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 			aButton->SetLabel(aLabelSets[aRow][i]);
 			aButton->mHasAlpha = true;
 			aButton->mHasTransparencies = true;
-			aButton->mInverted = (i == *aSelValues[aRow]);
+			aButton->mInverted = (i == aSelIndex[aRow]);
 			aSlots[aRow][i] = aButton;
 		}
 	}
@@ -165,7 +216,7 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 	mTallBottom = true;
 	mVerticalCenterText = false;
 
-	// 版心（翻页批后按"一页"算）：宽 = 标题与六行按钮总宽的最大者；高 = 标题 + 间隔 + 三行
+	// 版心（翻页批后按"一页"算）：宽 = 标题与八行按钮总宽的最大者；高 = 标题 + 间隔 + 三行
 	// （小标题 + 按钮）+ 翻页行 + 确定行。CalcSize 会按对话框贴图再取整/加高，多出来的
 	// 空隙由 PlaceRows 里"首行贴顶、翻页/确定贴底"吸收。
 	ModText::Font* aTitleFont = ModText::GetFont(16, true);
@@ -206,7 +257,8 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 RunOptionsDialog::~RunOptionsDialog()
 {
 	ButtonWidget** aSlots[RUN_OPTIONS_ROW_COUNT] = {
-		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons
+		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons,
+		mZombieBuffButtons, mLadderButtons
 	};
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
 	{
@@ -221,6 +273,7 @@ RunOptionsDialog::~RunOptionsDialog()
 // 一次摆好全部控件（Resize 与翻页共用）。一页三行：行槽位固定（页只决定谁上场）——
 // 当前页的行摆进槽位，其余整行挪去负坐标（画不着、点不着；选中态留在各按钮的 mInverted 上，
 // 翻回来原样在）。翻页行与确定行都贴底算，中部的多余空隙吸收在末行与翻页行之间。
+// 无尽档的「场景难度」行永远不上场（mShowLadderRow = 假，同"挪去屏外"处理）。
 void RunOptionsDialog::PlaceRows()
 {
 	ModText::Font* aTitleFont = ModText::GetFont(16, true);
@@ -228,10 +281,12 @@ void RunOptionsDialog::PlaceRows()
 	int aButtonHeight = IMAGE_BUTTON_LEFT->mHeight;
 
 	ButtonWidget** aSlots[RUN_OPTIONS_ROW_COUNT] = {
-		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons
+		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons,
+		mZombieBuffButtons, mLadderButtons
 	};
 	int* aWidthSets[RUN_OPTIONS_ROW_COUNT] = {
-		mScaleWidths, mTempoWidths, mZombotanyWidths, mSlideWidths, mBossWidths, mBuffMultWidths
+		mScaleWidths, mTempoWidths, mZombotanyWidths, mSlideWidths, mBossWidths, mBuffMultWidths,
+		mZombieBuffWidths, mLadderWidths
 	};
 
 	int aTitleTop = mContentInsets.mTop + mBackgroundInsets.mTop + DIALOG_HEADER_OFFSET;
@@ -242,7 +297,8 @@ void RunOptionsDialog::PlaceRows()
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
 	{
 		int aRowY = aRowTop + (aRow % RUN_OPTIONS_ROWS_PER_PAGE) * aRowHeight;
-		bool aOnPage = (aRow / RUN_OPTIONS_ROWS_PER_PAGE == mPage);
+		bool aOnPage = (aRow / RUN_OPTIONS_ROWS_PER_PAGE == mPage)
+			&& (aRow != kRowLadder || mShowLadderRow);
 		mCaptionYs[aRow] = aOnPage ? aRowY : -2000;
 		int aButtonY = aOnPage ? aRowY + ModText::LineHeight(aCaptionFont) + 6 : -2000;
 
@@ -288,7 +344,8 @@ void RunOptionsDialog::AddedToManager(WidgetManager* theWidgetManager)
 {
 	LawnDialog::AddedToManager(theWidgetManager);
 	ButtonWidget** aSlots[RUN_OPTIONS_ROW_COUNT] = {
-		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons
+		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons,
+		mZombieBuffButtons, mLadderButtons
 	};
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
 	{
@@ -304,7 +361,8 @@ void RunOptionsDialog::RemovedFromManager(WidgetManager* theWidgetManager)
 {
 	LawnDialog::RemovedFromManager(theWidgetManager);
 	ButtonWidget** aSlots[RUN_OPTIONS_ROW_COUNT] = {
-		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons
+		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons,
+		mZombieBuffButtons, mLadderButtons
 	};
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
 	{
@@ -332,11 +390,13 @@ void RunOptionsDialog::Draw(Graphics* g)
 	// 当前页三行的小标题（各行的按钮自己画自己，走控件那套；非当前页的行已被挪去屏外）。
 	ModText::Font* aCaptionFont = ModText::GetFont(12, false);
 	const std::string* aCaptions[RUN_OPTIONS_ROW_COUNT] = {
-		&mScaleCaption, &mTempoCaption, &mZombotanyCaption, &mSlideCaption, &mBossCaption, &mBuffMultCaption
+		&mScaleCaption, &mTempoCaption, &mZombotanyCaption, &mSlideCaption, &mBossCaption, &mBuffMultCaption,
+		&mZombieBuffCaption, &mLadderCaption
 	};
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
 	{
 		if (aRow / RUN_OPTIONS_ROWS_PER_PAGE != mPage) continue;
+		if (aRow == kRowLadder && !mShowLadderRow) continue;	// 无尽档不摆（同 PlaceRows）
 		DrawRowCaption(g, aCaptionFont, *aCaptions[aRow], mCaptionYs[aRow], mWidth);
 	}
 
@@ -399,7 +459,21 @@ void RunOptionsDialog::ButtonDepress(int theId)
 		for (int i = 0; i < 3; i++) mBuffMultButtons[i]->mInverted = (i == mBuffMultSel);
 		return;
 	}
-	// 翻页（2026-10-13）：两页环绕翻——翻完重摆一次（当前页行上场、其余挪去屏外）。
+	if (theId >= RunOptionsDialog_ZombieBuff0 && theId <= RunOptionsDialog_ZombieBuff0 + 2)
+	{
+		mZombieBuffSel = theId - RunOptionsDialog_ZombieBuff0;
+		for (int i = 0; i < 3; i++) mZombieBuffButtons[i]->mInverted = (i == mZombieBuffSel);
+		return;
+	}
+	// 「场景难度」：按钮槽位 ≠ 枚举值（UI 按倍率从小到大，枚举 STD=0 是第三枚），
+	// 经 kLadderUiValues 换算；按下态也按"值相等"刷新。
+	if (theId >= RunOptionsDialog_Ladder0 && theId <= RunOptionsDialog_Ladder0 + 4)
+	{
+		mLadderSel = kLadderUiValues[theId - RunOptionsDialog_Ladder0];
+		for (int i = 0; i < 5; i++) mLadderButtons[i]->mInverted = (kLadderUiValues[i] == mLadderSel);
+		return;
+	}
+	// 翻页（2026-10-13）：三页环绕翻——翻完重摆一次（当前页行上场、其余挪去屏外）。
 	if (theId == RunOptionsDialog_PrevPage || theId == RunOptionsDialog_NextPage)
 	{
 		if (theId == RunOptionsDialog_PrevPage)

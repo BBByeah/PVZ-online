@@ -314,7 +314,10 @@ public:
 	// 非无尽档一律 0。
 	// theBuffMult（MOD_BUILD 43）：增益倍选档（RunState::RUN_BUFFMULT_*，0/1/2 = ×1/×2/×3）；
 	// 非法档在实现里钳——消费端 RunState::BuffMultValueFor 再兜一道。
-	void							StartRun(int theRunMode, int theRunDiff, int theRunScale = 1, int theRunTempo = 1, int theZombotany = 0, int theEndlessScene = 0, int theBossFlag = 0, int theBuffMult = 0);	// theRunMode = RunState::RUN_MODE_*（时长档）、theRunDiff = RunState::RUN_DIFF_*（出怪难度档）
+	// theLadder/theZombieBuff（MOD_BUILD 45）：场景难度阶梯档（RunState::RUN_LADDER_*，
+	// 0 = 现状 ×1.33）与僵尸 buff 档（0/1/2，每新场景叠几条）；非法档在实现里钳——
+	// 消费端 LadderPermilleFor / GetZombieBuffPerScene 再兜一道。
+	void							StartRun(int theRunMode, int theRunDiff, int theRunScale = 1, int theRunTempo = 1, int theZombotany = 0, int theEndlessScene = 0, int theBossFlag = 0, int theBuffMult = 0, int theLadder = 0, int theZombieBuff = 0);	// theRunMode = RunState::RUN_MODE_*（时长档）、theRunDiff = RunState::RUN_DIFF_*（出怪难度档）
 	void							ContinueRun();
 	void							EnterRunLevel();
 	// @pvz-online: 联机闯关（R5）：把本机进度对齐到主机点名的这一关。同一局种子就接着走

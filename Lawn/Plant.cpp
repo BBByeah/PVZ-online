@@ -577,13 +577,13 @@ void Plant::PlantInitialize(int theGridX, int theGridY, SeedType theSeedType, Se
     mPlantHealth = (int)(mPlantHealth * mApp->RunBuffMul(RUN_BUFF_ROOTED) * mApp->RunPlantUpgradeMulKind(theSeedType, RUN_UPGRADE_KIND_HEALTH) + 0.5f);
     // @pvz-online: 第二 buff 批 3「血量改写」（docs/06 §8.6 #13/#42/#36）：绝对值覆盖——
     // 乘法链（扎根/老血量条）算完后按词条写死（「变为 N」语义，全局血量 buff 不再放大）。
-    // 磐石 4000（1★）/ 耐砸 500 + 每击固定 50（1★，2026-10-11 由 1000/200 改；扣法在
-    // Zombie 啃咬与巨人砸分支）/
+    // 磐石 4000（1★）/ 耐砸 1000 + 仅巨人砸每次 -200（2★，2026-10-15 由 500/每击固定50
+    // 改版=坚果耐砸同款口径；砸分支在 Zombie::Update，啃咬与其他伤害正常结算）/
     // 引路蒜 20 + 被吃全行换道（2★，换道在 Zombie::EatPlant → SwitchLanes）。
     if (mApp->RunPlantBuff2Count(theSeedType) > 0)
     {
         if (theSeedType == SeedType::SEED_SCAREDYSHROOM) mPlantHealth = 4000;
-        else if (theSeedType == SeedType::SEED_GLOOMSHROOM) mPlantHealth = 500;
+        else if (theSeedType == SeedType::SEED_GLOOMSHROOM) mPlantHealth = 1000;
         else if (theSeedType == SeedType::SEED_GARLIC) mPlantHealth = 20;
     }
     // @pvz-online: steel shell halves the final HP after existing health multipliers.
@@ -775,11 +775,34 @@ bool Plant::IsSpiky()
     return mSeedType == SeedType::SEED_SPIKEWEED || mSeedType == SeedType::SEED_SPIKEROCK;
 }
 
+// @pvz-online: 「emotional damage」（2026-10-15 用户定案）的条件判定：周围 8 格
+//（3×3 减自身）没有任何植物——花盆/睡莲也算有。即时判定口径（用户拍板）：每发
+// 雾爆各自查，种上/铲掉的下一发即刻生效；同帧同态下整轮四发结果一致。
+static bool GloomIsLonely(Plant* thePlant)
+{
+    Plant* aPlant = nullptr;
+    while (thePlant->mBoard->IteratePlants(aPlant))
+    {
+        if (aPlant == thePlant || aPlant->mDead) continue;
+        if (abs(aPlant->mPlantCol - thePlant->mPlantCol) <= 1 &&
+            abs(aPlant->mRow - thePlant->mRow) <= 1)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 //0x45ED00
 void Plant::DoRowAreaDamage(int theDamage, unsigned int theDamageFlags)
 {
     int aDamageRangeFlags = GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
     Rect aAttackRect = GetPlantAttackRect(PlantWeapon::WEAPON_PRIMARY);
+
+    // @pvz-online: 「emotional damage」回血预门：只有忧郁菇且词条在手、且此刻孤高才回
+    //（每发雾爆各判一次；回血量 = 2% 最大生命/命中，无每轮封顶——用户拍板的大胆口径）。
+    bool anEmoHeal = mSeedType == SeedType::SEED_GLOOMSHROOM &&
+        mApp->RunExtraBuffCount(RUN_BUFF2_EMO_DAMAGE) > 0 && GloomIsLonely(this);
 
     Zombie* aZombie = nullptr;
     while (mBoard->IterateZombies(aZombie))
@@ -819,6 +842,13 @@ void Plant::DoRowAreaDamage(int theDamage, unsigned int theDamageFlags)
 
                 aZombie->TakeDamage(aDamage, theDamageFlags);
                 mApp->PlayFoley(FoleyType::FOLEY_SPLAT);
+
+                // @pvz-online: 「emotional damage」命中回血：每命中一只回 2% 最大生命
+                //（耐砸改版后 1000 血 = 每次 +20），钳满血为止、无每轮封顶。
+                if (anEmoHeal)
+                {
+                    mPlantHealth = std::min(mPlantMaxHealth, mPlantHealth + mPlantMaxHealth / 50);
+                }
 
                 // @pvz-online: 单株升级「Barbed Spikes」（地刺，表行 SEED_SPIKEWEED）：扎过的
                 // 僵尸减速 +3 秒/层（计数型、至多 2 层）。语义照 Zombie::ApplyChill——CanBeChilled
@@ -5294,7 +5324,14 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
     }
     if (mSeedType == SeedType::SEED_GLOOMSHROOM)
     {
-        DoRowAreaDamage(20, 2U);
+        // @pvz-online: 「emotional damage」（2026-10-15）：孤高（周围 8 格无植物）时
+        // 每发雾爆 20 → 60（×3，cap1 质变条）；有植物或没词条走原值。
+        int aGloomDamage = 20;
+        if (mApp->RunExtraBuffCount(RUN_BUFF2_EMO_DAMAGE) > 0 && GloomIsLonely(this))
+        {
+            aGloomDamage = 60;
+        }
+        DoRowAreaDamage(aGloomDamage, 2U);
         return;
     }
     if (mSeedType == SeedType::SEED_STARFRUIT)

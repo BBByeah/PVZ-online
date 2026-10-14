@@ -354,7 +354,7 @@ static const RunPlantUpgradeDef gRunPlantBuff2Defs[RUN_PLANT_BUFF2_COUNT] =
 	{ SeedType::SEED_MELONPULT,     "Rolling Burst", "滚爆", "落地后向前滚 1 格\n并再炸一次",         "Rolls 1 tile and bursts again",                       0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
 	{ SeedType::SEED_GATLINGPEA,    "Fire Peas", "火豆",     "子弹变火豆：伤害翻倍\n命中解除冰冻减速", "Peas become fire peas: double damage\nRemoves chill on hit", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_TWINSUNFLOWER, "Legacy", "遗泽",        "被吃掉时产 1 次阳光",                  "Yields sun once when eaten",                          0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_GLOOMSHROOM,   "Rock Flesh", "耐砸",    "血量变为 500\n每次被击固定扣 50",      "Health becomes 500\nTakes flat 50 per hit",          0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_GLOOMSHROOM,   "Rock Flesh", "耐砸",    "血量变为 1000\n仅巨人砸击每次 -200",   "Health becomes 1000\nOnly Gargantuar smashes deal flat 200", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_WINTERMELON,   "Deep Freeze", "冰封",   "+20% 概率冻结命中者 2 秒\n（每层）",    "+20% chance to freeze on hit\nfor 2 sec (per stack)", 0.00f, 3, false, RUN_UPGRADE_KIND_EFFECT, 3 },
 	{ SeedType::SEED_GOLD_MAGNET,   "Gold Touch", "金石",    "+25% 概率银币升金币\n（每层）",         "+25% chance silver becomes gold\n(per stack)",        0.00f, 3, false, RUN_UPGRADE_KIND_EFFECT, 1 },
 	{ SeedType::SEED_COBCANNON,     "Twin Cob", "双联装",      "每轮多发 1 枚",                        "Fires 1 extra cob per volley",                        0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
@@ -374,6 +374,11 @@ static const RunPlantUpgradeDef gRunPlantBuff2Defs[RUN_PLANT_BUFF2_COUNT] =
 	{ SeedType::SEED_MARIGOLD, "Reroll Fund", "重摇基金", "存活60秒过关获1张重摇券，每关1张，最多持有2张", "Survive 60 sec to earn 1 reroll voucher on clear; hold up to 2", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	// @pvz-online: append the new choice so existing checkpoint IDs stay stable.
 	{ SeedType::SEED_SCAREDYSHROOM, "Heart-Eroding Spores", "蚀心孢子", "命中额外造成当前本体生命5%伤害\n额外伤害最高800，对Boss生效", "Hits add 5% of current body HP\nBonus capped at 800; works on bosses", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	// @pvz-online: 「emotional damage」（2026-10-15 用户定案）：孤高条件型——周围 8 格
+	//（3×3 减自身）无植物时伤害 ×3 + 每次命中回 2% 最大生命（即时判定，见 Plant.cpp
+	// GloomIsLonely/DoRowAreaDamage/Fire 挂点）。中英同名按用户原话；3★ 质变口径
+	//（忧郁菇本是阵眼光环植物，「周围全空」是反常态 build-around 条件）。
+	{ SeedType::SEED_GLOOMSHROOM, "emotional damage", "emotional damage", "周围 8 格没有植物时：伤害 ×3\n每次命中回复 2% 最大生命", "x3 damage with no plants in the 8 surrounding tiles\neach hit heals 2% max HP", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
 };
 
 const RunPlantUpgradeDef& GetRunPlantBuff2Def(int theIndex)
@@ -409,7 +414,7 @@ bool RunPlantBuff2InPool(int theIndex)
 	case RUN_BUFF2_HEAVYTOSS:	// 卷心菜伤害 +50%/层（DoImpact 单发分支；2026-10-10 从 DoSplashDamage 挪来）
 		return true;
 	case RUN_BUFF2_BEDROCK:		// 批 3 血量改写族：胆小菇血量写死 4000（Plant 构造）
-	case RUN_BUFF2_ROCKFLESH:	// 忧郁菇 1000 + 每击固定 200（啃咬/巨人砸分支）
+	case RUN_BUFF2_ROCKFLESH:	// 忧郁菇 1000 + 仅巨人砸每次 -200（砸分支；啃咬与其他伤害正常结算，2026-10-15 改版）
 	case RUN_BUFF2_GUIDE:		// 大蒜 20 血 + 被吃全行换道（EatPlant → SwitchLanes）
 		return true;
 	case RUN_BUFF2_DEATHSPORE:	// 批 4 死亡触发族：小喷菇被啃掉爆炸 900/层（EatPlant 死亡点）

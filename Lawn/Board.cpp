@@ -1,4 +1,5 @@
 #include <time.h>
+#include "Run/RunMath.h"
 #include "ZenGarden.h"
 #include "BoardInclude.h"
 #include "System/Music.h"
@@ -5792,11 +5793,11 @@ void Board::SpawnRunBoss()
 
 	aBoss->mScaleZombie = kRunBossScale;
 	int aMult = mApp->OnlineSeatMultiplier() * kRunBossHpFactor;
-	aBoss->mBodyHealth = aBoss->mBodyHealth * aMult;
+	aBoss->mBodyHealth = RunMath::ScaleHealth(aBoss->mBodyHealth, aMult, 1);
 	aBoss->mBodyMaxHealth = aBoss->mBodyHealth;
 	if (aBossType == ZombieType::ZOMBIE_FOOTBALL)
 	{
-		aBoss->mHelmHealth = aBoss->mHelmHealth * aMult;
+		aBoss->mHelmHealth = RunMath::ScaleHealth(aBoss->mHelmHealth, aMult, 1);
 		aBoss->mHelmMaxHealth = aBoss->mHelmHealth;
 	}
 	aBoss->UpdateAnimSpeed();
@@ -6437,7 +6438,8 @@ void Board::UpdateProgressMeter()
 		Zombie* aBoss = GetBossZombie();
 		if (aBoss && !aBoss->IsDeadOrDying())
 		{
-			mProgressMeterWidth = 150 * (aBoss->mBodyMaxHealth - aBoss->mBodyHealth) / aBoss->mBodyMaxHealth;
+			mProgressMeterWidth = aBoss->mBodyMaxHealth > 0
+				? static_cast<int>(static_cast<int64_t>(150) * (aBoss->mBodyMaxHealth - aBoss->mBodyHealth) / aBoss->mBodyMaxHealth) : 0;
 		}
 		else
 		{
@@ -9237,7 +9239,7 @@ int Board::BuildBoardSnapshot(uint8_t* theBuffer, int theCapacity)
 		if (aX < 0) aX = 0;
 		if (aX > 0xFFFF) aX = 0xFFFF;
 		// hp 按体血算（协议口径）；头盔/护盾/气球只传"在不在"，具体甲种观看端不画
-		int aHP = aOne->mBodyMaxHealth > 0 ? aOne->mBodyHealth * 100 / aOne->mBodyMaxHealth : 100;
+		int aHP = aOne->mBodyMaxHealth > 0 ? RunMath::ScaleHealth(aOne->mBodyHealth, 100, aOne->mBodyMaxHealth) : 100;
 		if (aHP < 0) aHP = 0;
 		if (aHP > 100) aHP = 100;
 		uint8_t aFlags = 0;

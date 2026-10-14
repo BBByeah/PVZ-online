@@ -18,6 +18,7 @@
 #include "../Sexy.TodLib/TodParticle.h"
 #include "Run/RunBuffs.h"
 #include "Run/RunState.h"
+#include "Run/RunMath.h"
 
 ZombieDefinition gZombieDefs[NUM_ZOMBIE_TYPES] = {  //0x69DA80
     { ZOMBIE_NORMAL,            REANIM_ZOMBIE,              1,      1,      1,      4000,   _S("ZOMBIE") },
@@ -984,10 +985,10 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
         int aPermille = mApp->GetRunState()->GetDifficultyPermille();
         if (aPermille != 1000)
         {
-            mBodyHealth = mBodyHealth * aPermille / 1000;
-            mHelmHealth = mHelmHealth * aPermille / 1000;
-            mShieldHealth = mShieldHealth * aPermille / 1000;
-            mFlyingHealth = mFlyingHealth * aPermille / 1000;
+            mBodyHealth = RunMath::ScaleHealth(mBodyHealth, aPermille);
+            mHelmHealth = RunMath::ScaleHealth(mHelmHealth, aPermille);
+            mShieldHealth = RunMath::ScaleHealth(mShieldHealth, aPermille);
+            mFlyingHealth = RunMath::ScaleHealth(mFlyingHealth, aPermille);
         }
     }
 
@@ -999,10 +1000,10 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
         int aIronPermille = mApp->GetRunState()->ZombieBuffHealthPermille();
         if (aIronPermille != 1000)
         {
-            mBodyHealth = mBodyHealth * aIronPermille / 1000;
-            mHelmHealth = mHelmHealth * aIronPermille / 1000;
-            mShieldHealth = mShieldHealth * aIronPermille / 1000;
-            mFlyingHealth = mFlyingHealth * aIronPermille / 1000;
+            mBodyHealth = RunMath::ScaleHealth(mBodyHealth, aIronPermille);
+            mHelmHealth = RunMath::ScaleHealth(mHelmHealth, aIronPermille);
+            mShieldHealth = RunMath::ScaleHealth(mShieldHealth, aIronPermille);
+            mFlyingHealth = RunMath::ScaleHealth(mFlyingHealth, aIronPermille);
         }
     }
 
@@ -2462,8 +2463,8 @@ void Zombie::UpdateZombieGargantuar()
             aZombieImp->mZombiePhase = ZombiePhase::PHASE_IMP_GETTING_THROWN;
 #ifdef DO_FIX_BUGS
             aZombieImp->mScaleZombie = mScaleZombie;
-            aZombieImp->mBodyHealth *= mScaleZombie * mScaleZombie;
-            aZombieImp->mBodyMaxHealth *= mScaleZombie * mScaleZombie;
+            aZombieImp->mBodyHealth = RunMath::ScaleHealthFloat(aZombieImp->mBodyHealth, mScaleZombie * mScaleZombie);
+            aZombieImp->mBodyMaxHealth = RunMath::ScaleHealthFloat(aZombieImp->mBodyMaxHealth, mScaleZombie * mScaleZombie);
 
             if (mMindControlled)
             {
@@ -4148,7 +4149,7 @@ void Zombie::UpdateDamageStates(unsigned int theDamageFlags)
     if (!CanLoseBodyParts())
         return;
 
-    if (mHasArm && mBodyHealth < 2 * mBodyMaxHealth / 3 && mBodyHealth > 0)
+    if (mHasArm && mBodyHealth < RunMath::ScaleHealth(mBodyMaxHealth, 2, 3) && mBodyHealth > 0)
     {
         DropArm(theDamageFlags);
     }
@@ -4956,10 +4957,9 @@ void Zombie::UpdatePlaying()
         int aRegenPermille = mApp->GetRunState()->ZombieBuffRegenPermillePerSec();
         if (aRegenPermille > 0 && mBodyHealth > 0 && mBodyHealth < mBodyMaxHealth)
         {
-            int aHeal = mBodyMaxHealth * aRegenPermille / 1000;
+            int aHeal = RunMath::ScaleHealth(mBodyMaxHealth, aRegenPermille);
             if (aHeal < 1) aHeal = 1;
-            mBodyHealth += aHeal;
-            if (mBodyHealth > mBodyMaxHealth) mBodyHealth = mBodyMaxHealth;
+            mBodyHealth += std::min(aHeal, mBodyMaxHealth - mBodyHealth);
         }
     }
 
@@ -6190,7 +6190,7 @@ int Zombie::GetHelmDamageIndex()
         return 2;
     }
 
-    if (mHelmHealth < mHelmMaxHealth * 2 / 3)
+    if (mHelmHealth < RunMath::ScaleHealth(mHelmMaxHealth, 2, 3))
     {
         return 1;
     }
@@ -6208,7 +6208,7 @@ int Zombie::GetBodyDamageIndex()
             return 2;
         }
 
-        if (mBodyHealth < mBodyMaxHealth * 4 / 5)
+        if (mBodyHealth < RunMath::ScaleHealth(mBodyMaxHealth, 4, 5))
         {
             return 1;
         }
@@ -6222,7 +6222,7 @@ int Zombie::GetBodyDamageIndex()
             return 2;
         }
 
-        if (mBodyHealth < mBodyMaxHealth * 2 / 3)
+        if (mBodyHealth < RunMath::ScaleHealth(mBodyMaxHealth, 2, 3))
         {
             return 1;
         }
@@ -7463,8 +7463,8 @@ void Zombie::StartMindControlled()
         float aMul = mApp->RunPlantBuff2Mul(SeedType::SEED_HYPNOSHROOM);
         if (aMul > 1.0f)
         {
-            mBodyHealth = (int)(mBodyHealth * aMul + 0.5f);
-            mBodyMaxHealth = (int)(mBodyMaxHealth * aMul + 0.5f);
+            mBodyHealth = RunMath::ScaleHealthFloat(mBodyHealth, aMul, true);
+            mBodyMaxHealth = RunMath::ScaleHealthFloat(mBodyMaxHealth, aMul, true);
         }
     }
 

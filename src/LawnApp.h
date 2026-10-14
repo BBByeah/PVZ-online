@@ -90,7 +90,7 @@ public:
     bool mPauseMenuWasOpen = false, mPauseMenuFromPeer = false;
     NetProto::MsgStartLevel mOnlineStartPromptMsg{};
     int mOnlineStartPromptFrames = 0;
-    std::string mOnlineAddress = "127.0.0.1", mOnlinePort = "27777", mOnlineRoomCode;
+    std::string mOnlineAddress = "127.0.0.1", mOnlineServer = "101.200.131.182", mOnlineRoomCode;
     void DisconnectOnline();
     void AlignRunToHost(int seed, int index, int mode, int difficulty, int scale, int tempo,
         int zombotany, int scene, int boss, int buffMult, int ladder, int zombieBuff, const uint8_t* stacks);

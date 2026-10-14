@@ -1598,7 +1598,10 @@ void NetSession::UpdateStatusText()
 	case State::CONNECTING:
 		{
 			int anAttempts = GetConnectAttempts();
-			mStatusText = NetText("正在连接 ", "Connecting to ") + mConnectHost + NetText("……", "...");
+            mStatusText = (mTransport == Transport::RELAY
+                ? NetText("正在连接中继 ", "Connecting to relay ")
+                : NetText("正在直连 ", "Connecting directly to "))
+                + mConnectHost + ":" + std::to_string((unsigned)mConnectPort) + NetText("……", "...");
 			// 连不上会一直重试（没有时间上限了），所以重试次数得露出来，
 			// 不然"还在试"和"卡死了"看起来一模一样。
 			if (anAttempts > 1)

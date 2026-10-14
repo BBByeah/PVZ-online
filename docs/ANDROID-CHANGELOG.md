@@ -1,5 +1,15 @@
 # Android 开发更新记录
 
+## 2026-10-14 · 中继连接流程修复
+
+- 核对固定 PC 面板，分开「主机 IP」与「服务器」，加入房间自动使用中继端口 97，直连仍使用 27777，移除混用的端口输入框。
+- 默认服务器、创建/加入房间与输入框回车流程沿用 PC；连接状态明确显示方式与实际端口。
+- Android 已实际加入用户的 PC 中继房间并收到双席位名册；保持协议和玩法规则不变。最终包与验证边界见 [联机记录](NETWORK-GAME-STATUS.md)。
+
+### English
+
+Matched the pinned PC lobby flow: separate direct host IP and relay server fields, with the session choosing port 27777 or 97 automatically. Room creation/join and Enter shortcuts follow PC. Connection status now includes the transport and port. Android successfully joined the user's real PC relay room; battle and team-transition validation remain pending.
+
 ## 2026-10-14 · 房间与游戏侧联机
 
 - 主菜单加入中英联机入口、直连/中继房间、输入框和席位名册；接入 Android 网络权限与会话更新循环。

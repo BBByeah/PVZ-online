@@ -7,7 +7,6 @@
 #include "widget/ButtonWidget.h"
 #include "widget/WidgetManager.h"
 #include "graphics/Graphics.h"
-#include <charconv>
 
 OnlineDialog::OnlineDialog(LawnApp* app)
     : Dialog(nullptr, nullptr, DIALOG_ONLINE, true, "", "", "", BUTTONS_NONE), mApp(app)
@@ -20,9 +19,11 @@ OnlineDialog::OnlineDialog(LawnApp* app)
         e->mMaxChars = max; e->SetText(text); e->Resize(x, y, width, 36);
         AddWidget(e.get()); return e;
     };
-    mAddress = edit(30, 110, 290, 385, app->mOnlineAddress, 253);
-    mPort = edit(31, 580, 290, 125, app->mOnlinePort, 5);
-    mCode = edit(32, 110, 340, 145, app->mOnlineRoomCode, NetProto::ROOM_CODE_LEN);
+    // Match PC: direct host and relay server are independent; session defaults
+    // select their respective ports instead of sharing an editable direct port.
+    mAddress = edit(30, 110, 290, 595, app->mOnlineAddress, 253);
+    mServer = edit(31, 110, 340, 385, app->mOnlineServer, 253);
+    mCode = edit(32, 580, 340, 125, app->mOnlineRoomCode, NetProto::ROOM_CODE_LEN);
     auto button = [&](int id, const char* text, int x, int y, int width) {
         auto b = std::make_unique<Sexy::ButtonWidget>(id, this);
         b->mLabel = text; b->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 24));
@@ -31,22 +32,16 @@ OnlineDialog::OnlineDialog(LawnApp* app)
     };
     button(1, ModText::Tr("直连建房", "Host direct"), 35, 394, 155);
     button(2, ModText::Tr("直连加入", "Join direct"), 210, 394, 155);
-    button(3, ModText::Tr("中继建房", "Create room"), 385, 394, 155);
-    button(4, ModText::Tr("中继加入", "Join room"), 560, 394, 155);
+    button(3, ModText::Tr("创建房间", "Create room"), 385, 394, 155);
+    button(4, ModText::Tr("加入房间", "Join room"), 560, 394, 155);
     button(5, ModText::Tr("断开连接", "Disconnect"), 35, 475, 200);
     button(6, ModText::Tr("关闭面板", "Close panel"), 275, 475, 200);
     button(7, ModText::Tr("房主开始", "Host starts"), 515, 475, 200);
 }
 OnlineDialog::~OnlineDialog()
 {
-    RemoveWidget(mAddress.get()); RemoveWidget(mPort.get()); RemoveWidget(mCode.get());
+    RemoveWidget(mAddress.get()); RemoveWidget(mServer.get()); RemoveWidget(mCode.get());
     for (auto& b : mButtons) RemoveWidget(b.get());
-}
-int OnlineDialog::ReadPort() const
-{
-    int p = 0; const auto& s = mPort->mString;
-    const auto result = std::from_chars(s.data(), s.data() + s.size(), p);
-    return result.ec == std::errc{} && result.ptr == s.data() + s.size() && p > 0 && p <= 65535 ? p : 0;
 }
 void OnlineDialog::Update()
 {
@@ -78,30 +73,35 @@ void OnlineDialog::Draw(Sexy::Graphics* g)
         g->DrawString(ModText::Format("{}号：{}{}", "Seat {}: {}{}", seat, s.GetSeatName(seat),
             seat == s.GetHostSeat() ? ModText::Tr("（房主）", " (host)") : ""), x, y);
     }
-    g->DrawString(ModText::Tr("地址", "Address"), 30, 316);
-    g->DrawString(ModText::Tr("端口", "Port"), 510, 316);
-    g->DrawString(ModText::Tr("房间码", "Code"), 30, 366);
-    g->DrawString(ModText::Format("直连端口 {}；中继端口 {}。", "Direct {}; relay {}.", NetProto::DEFAULT_PORT, NetProto::DEFAULT_RELAY_PORT), 280, 366);
+    g->DrawString(ModText::Tr("主机 IP", "Host IP"), 30, 316);
+    g->DrawString(ModText::Tr("服务器", "Server"), 30, 366);
+    g->DrawString(ModText::Tr("房间码", "Code"), 510, 366);
     g->DrawString(ModText::Tr("关闭面板保留连接；进入闯关由房主发起。", "Closing the panel keeps the connection; the host starts the run."), 35, 461);
 }
 void OnlineDialog::ButtonDepress(int id)
 {
     // Remember editable fields between openings, including after a failed connection.
-    mApp->mOnlineAddress = mAddress->mString; mApp->mOnlinePort = mPort->mString; mApp->mOnlineRoomCode = mCode->mString;
+    mApp->mOnlineAddress = mAddress->mString; mApp->mOnlineServer = mServer->mString; mApp->mOnlineRoomCode = mCode->mString;
     auto* app = mApp;
     if (id == 6) { app->KillDialog(DIALOG_ONLINE); return; }
     if (id == 7) { app->KillDialog(DIALOG_ONLINE); app->ShowRunMenu(); return; }
     if (id == 5) { app->DisconnectOnline(); return; }
-    const int port = ReadPort();
-    if (!port || (id != 1 && mAddress->mString.empty()))
-    { mInputError = ModText::Tr("请填写有效地址和端口。", "Enter a valid address and port."); return; }
+    if (id < 1 || id > 4) return;
+    if (app->mOnlineSession->IsActive() && app->mOnlineSession->GetState() != NetSession::State::DEAD) return;
     mInputError.clear(); auto& session = *app->mOnlineSession;
-    if (id == 1) session.StartHost(port);
-    if (id == 2) session.StartJoin(mAddress->mString.c_str(), port);
-    if (id == 3) session.StartRoomHost(mAddress->mString.c_str(), port);
-    if (id == 4) session.StartRoomJoin(mAddress->mString.c_str(), mCode->mString.c_str(), port);
+    const std::string host = mAddress->mString.empty() ? "127.0.0.1" : mAddress->mString;
+    const std::string server = mServer->mString.empty() ? "127.0.0.1" : mServer->mString;
+    if (id == 1) session.StartHost();
+    if (id == 2) session.StartJoin(host.c_str());
+    if (id == 3) session.StartRoomHost(server.c_str());
+    if (id == 4) session.StartRoomJoin(server.c_str(), mCode->mString.c_str());
     // Stop the IME when leaving the edit fields without closing the live room panel.
     app->mWidgetManager->SetFocus(this);
+}
+void OnlineDialog::EditWidgetText(int id, const std::string&)
+{
+    // PC Enter flow: host IP joins directly; server/code joins the relay room.
+    ButtonDepress(id == 30 ? 2 : 4);
 }
 void OnlineDialog::KeyDown(Sexy::KeyCode key)
 {

@@ -13,7 +13,8 @@
 //   i32 runSeed + i32 levelIndex + u16 failCounts[25]
 //   u16 卡池数 + 每株 u16 SeedType
 //   u16 buff 数 + 每条 (u16 id, u16 层数)
-//   u16 推车记账（v5） + u16 高级选项位包（v10） + u16 无尽场景档（v12）
+//   u16 推车记账（v5） + u16 高级选项位包（v10） + u16 无尽场景档（v12） + u16 boss 开关（v13）
+//   + u16 僵尸强化层数×8 + u16 投票关号（v14）
 // 版本不符 / 越界一律当"没有检查点"——宁可从头开新局，也不带着半截数据进场。
 // v2：一局从 5 关扩到 25 关，failCounts 数组跟着变长——v1 的档一律按"没有"处理。
 // v3：加时长档（M4-b 三档时长）——旧版的保留位恒 0，恰好就是"完整版"，所以 v2 的档
@@ -45,9 +46,15 @@
 //     曲线）与其场景字段 mEndlessScene（0..4）；载荷尾追加 u16 场景档。v11 及更老的档
 //     不可能真是无尽档（mode 3 是 v12 才写的），读到 mode==ENDLESS 的一律拒档（伪造/错位）；
 //     其余档读平，场景按 0 续。关数校验按 LevelCountForMode(3)=60000 封口（软上限）。
+// v13：2026-10-10 关底巨型 boss 开关（mBossFlag，0/1）——载荷尾追加 u16；v12 及更老的档
+//     读不到，按关续（无尽档恒 0）。
+// v14：2026-10-14 阶梯批——位包启用 bit7..9（场景难度阶梯档 RUN_LADDER_*；老档读 0 =
+//     现状标准档，不静默变难度）与 bit10..11（僵尸 buff 档 0/1/2）；载荷尾追加 8 条僵尸
+//     强化层数（u16×8，值域 0..255）与"上一票投在第几关"（u16，0xFFFF = 没投过）。
+//     v13 及更老的档读不到，按"没强过、没投过"续。载荷长度从 v14 起 +18 字节。
 
 static const unsigned int RUN_CHECKPOINT_MAGIC = 0x314E5552;	// 'RUN1'
-static const unsigned short RUN_CHECKPOINT_VERSION = 13;
+static const unsigned short RUN_CHECKPOINT_VERSION = 14;
 
 static std::vector<unsigned char>& AppendU16(std::vector<unsigned char>& theData, unsigned int theValue)
 {
@@ -123,7 +130,7 @@ static void FillPoolWithAllPlants(std::vector<SeedType>& thePool)
 	}
 }
 
-void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag, int theBuffMult)
+void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag, int theBuffMult, int theLadder, int theZombieBuff)
 {
 	mRunSeed = theRunSeed;
 	mMode = theRunMode;
@@ -139,6 +146,13 @@ void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theR
 	// 增益倍选（2026-10-13）：非法档不在这儿夹——消费全走 BuffMultValueFor（与 mScale/mTempo
 	// 同口径：档位合法性归各自的 *For 函数）。
 	mBuffMult = theBuffMult;
+	// 场景难度阶梯（2026-10-14）：同上，合法性归 LadderPermilleFor。无尽档照记（不吃，但
+	// 两端对齐/存档往返必须保真——线传了多少就原样带多少）。
+	mLadder = theLadder;
+	// 僵尸 buff（2026-10-14）：本局层数表清零（叠层只在一局内累积），投票记账归哨兵。
+	mZombieBuffMode = theZombieBuff;
+	memset(mZombieBuffStacks, 0, sizeof(mZombieBuffStacks));
+	mZombieVotedLevel = RUN_ZOMBIE_VOTED_NONE;
 	mLevelIndex = 0;
 	mPool.clear();
 	if (theRunMode == RUN_MODE_ENDLESS)
@@ -713,6 +727,71 @@ int RunState::BuffMultValueFor(int theBuffMult)
 	return aMult[theBuffMult];
 }
 
+// 场景难度阶梯五档（2026-10-14 用户令「做 1 1.2 1.33 1.5 2 五档」）：五档 × 五场景的固定
+// 千分比字面量，全部截尾——档位^场景的逐位整数口径（联机两端各算各的也必须一位不差）。
+// STD 档表与 2026-10-05 定案的现状表一字不差（sentinel 0 = 现状；老档/老协议读 0 不变难度）。
+// 末场景各档：×3.129 / ×1 / ×2.073 / ×5.062 / ×16。档位/场景非法分别回 STD / 场景 0。
+int RunState::LadderPermilleFor(int theLadder, int theScene)
+{
+	static const int aTables[5][RUN_SCENE_COUNT] = {
+		{ 1000, 1330, 1768, 2352, 3129 },	// RUN_LADDER_STD（×1.33^场景 = 现状）
+		{ 1000, 1000, 1000, 1000, 1000 },	// RUN_LADDER_X1
+		{ 1000, 1200, 1440, 1728, 2073 },	// RUN_LADDER_X12
+		{ 1000, 1500, 2250, 3375, 5062 },	// RUN_LADDER_X15
+		{ 1000, 2000, 4000, 8000, 16000 },	// RUN_LADDER_X2
+	};
+	if (theLadder < RUN_LADDER_STD || theLadder > RUN_LADDER_X2) theLadder = RUN_LADDER_STD;
+	if (theScene < 0 || theScene >= RUN_SCENE_COUNT) theScene = 0;
+	return aTables[theLadder][theScene];
+}
+
+// @pvz-online: 僵尸强化各条效果的消费端换算（2026-10-14 用户定池与初值；数值落 docs/07）。
+// 全部整数/千分比 + 饱和封顶（层数 255 封顶之上再各自饱和——投重复只叠数值不放大到失控）。
+// 护心/再生层 0 返回 0 = "不生效"，消费点直接 `if (aCap > 0)` 判断。
+int RunState::ZombieBuffSpeedPermille() const
+{
+	int aPermille = 1000 + 300 * ZombieBuffCount(ZOMBIE_BUFF_SWIFT);
+	return (aPermille > 4000) ? 4000 : aPermille;	// 封顶 ×4（层 10 起）
+}
+
+int RunState::ZombieBuffHealthPermille() const
+{
+	int aPermille = 1000;
+	int aLayers = ZombieBuffCount(ZOMBIE_BUFF_IRON);
+	for (int i = 0; i < aLayers && aPermille < 100000; i++)
+	{
+		aPermille = aPermille * 1500 / 1000;		// ×1.5/层，逐层截尾
+		if (aPermille > 100000) aPermille = 100000;	// 封顶 ×100（层 12 起）
+	}
+	return aPermille;
+}
+
+int RunState::ZombieBuffSingleHitCap() const
+{
+	int aLayers = ZombieBuffCount(ZOMBIE_BUFF_HEARTGUARD);
+	if (aLayers <= 0) return 0;					// 0 = 不封顶
+	int aCap = 250 - 50 * aLayers;				// 层1=200、层2=150、层3=100
+	return (aCap > 50) ? aCap : 50;				// 底 50（层 4 起）
+}
+
+int RunState::ZombieBuffBitePermille() const
+{
+	int aPermille = 1000;
+	int aLayers = ZombieBuffCount(ZOMBIE_BUFF_RAVENOUS);
+	for (int i = 0; i < aLayers && aPermille < 32000; i++)
+	{
+		aPermille *= 2;							// ×2/层
+		if (aPermille > 32000) aPermille = 32000;	// 封顶 ×32（层 5 起）
+	}
+	return aPermille;
+}
+
+int RunState::ZombieBuffRegenPermillePerSec() const
+{
+	int aPermille = 5 * ZombieBuffCount(ZOMBIE_BUFF_REGEN);	// 0.5%/层 = 5‰
+	return (aPermille > 250) ? 250 : aPermille;				// 封顶 25%/s（层 50 起）
+}
+
 // 按时长档从同一张 25 关表里抽行（批十 2026-10-05 按玩家反馈改版）：普通版每场景取
 // 第 1/5 关（10 关，即原快速表）、快速版取第 5 关（5 关，每场景收尾的难关）。
 // 抽出来的还是这张表里的引擎关号——波数、出怪、种类名单都按引擎关走，
@@ -783,21 +862,23 @@ static int EndlessDifficultyPermille(int theLevelIndex)
 	return (aPow < aSq) ? aPow : aSq;
 }
 
-// 难度阶梯（M4-a，用户定案）：每过一个场景血量与数量同乘 ×1.33 → 1.0/1.33/1.77/2.35/3.13
-//（2026-10-04 按玩家反馈"后期难度不足"由 ×1.2 上调、2026-10-05 回调为 ×1.33，见 docs/07 批六/批九；截尾口径同旧表）。
+// 难度阶梯（M4-a，用户定案；2026-10-14 用户令改五档可调）：阶梯因子 = mLadder 档的表值
+// （表见 LadderPermilleFor；STD 档 = 每过一个场景血量与数量同乘 ×1.33 →
+// 1.0/1.33/1.77/2.35/3.13——2026-10-04 按玩家反馈"后期难度不足"由 ×1.2 上调、2026-10-05
+// 回调为 ×1.33，见 docs/07 批六/批九；截尾口径同旧表）。
 // 写成整数千分比表：两边全靠整数乘除，逐位一致——浮点乘的 0.000001 之差就可能让同一只
 // 僵尸在两台机器上一个剩 1 点血、一个已经死了。
-// 无尽档：min(1.1^(n-1), (1+ln n)²) 全量乘数（见 EndlessDifficultyPermille），不再叠场景基准。
+// 无尽档：min(1.1^(n-1), (1+ln n)²) 全量乘数（见 EndlessDifficultyPermille），不再叠场景基准、
+// 也不吃阶梯档（2026-10-14 用户裁决：无尽档不叠阶梯、高级选项不摆该行）。
 int RunState::GetDifficultyPermille() const
 {
-	static const int aPermille[RUN_SCENE_COUNT] = { 1000, 1330, 1768, 2352, 3129 };
 	if (mMode == RUN_MODE_ENDLESS)
 	{
 		int aLevel = GetPlayingLevelIndex();
 		if (aLevel < 0) aLevel = 0;
 		return EndlessDifficultyPermille(aLevel);
 	}
-	return aPermille[GetSceneIndex()];
+	return LadderPermilleFor(mLadder, GetSceneIndex());
 }
 
 // 无尽档的关卡映射：锁定场景内的 5 个原型循环——关序号 % 5 取行（场景锁死，不再随序号换景）。
@@ -885,13 +966,21 @@ bool RunState::Save(int theProfileId) const
 
 	AppendU16(aData, mMowerUsedRows);	// v5：末位推车记账（bit = 行号）
 	// v10：高级选项位包（bit5..6 = 增益倍选，2026-10-13 启用——老版本读 0 = ×1，安全降级，
-	// 不抬版本；消费端 BuffMultValueFor 钳非法档）。
-	AppendU16(aData, (unsigned int)((mScale & 3) | ((mTempo & 3) << 2) | ((mZombotany & 1) << 4) | ((mBuffMult & 3) << 5)));
+	// 不抬版本；消费端 BuffMultValueFor 钳非法档）。v14 启用 bit7..9 = 场景难度阶梯档
+	// （老档读 0 = 现状标准档）、bit10..11 = 僵尸 buff 档（老档读 0 = 不开）；bit12..15 仍空闲。
+	AppendU16(aData, (unsigned int)((mScale & 3) | ((mTempo & 3) << 2) | ((mZombotany & 1) << 4) | ((mBuffMult & 3) << 5)
+		| ((mLadder & 7) << 7) | ((mZombieBuffMode & 3) << 10)));
 	// v11（第二 buff 批 0）：buff 列表格式不变（BuffStack 通用 id+count），但 mBuffs 里
 	// 从此可能出现第二表 id（57..95）。老版本读到会当老单株解出错误条目，故抬版本号让
 	// 老构建直接拒档；v10 及更老档没有这类 id，读平即可，不需要迁移链。
 	AppendU16(aData, (unsigned int)mEndlessScene);	// v12：无尽档锁定的场景（非无尽档恒 0）
 	AppendU16(aData, (unsigned int)(mBossFlag ? 1 : 0));	// v13：关底巨型 boss 开关（无尽档恒 0）
+	// v14：僵尸强化——8 条层数（u16×8，值域 0..255）与"上一票投在第几关"（0xFFFF = 没投过）。
+	for (int i = 0; i < RUN_ZOMBIE_BUFF_COUNT; i++)
+	{
+		AppendU16(aData, (unsigned int)mZombieBuffStacks[i]);
+	}
+	AppendU16(aData, (unsigned int)mZombieVotedLevel);
 
 	MkDir(GetAppDataFolder() + "userdata");
 	if (!gSexyAppBase->WriteBytesToFile(GetCheckpointName(theProfileId), aData.data(), (unsigned long)aData.size()))
@@ -927,9 +1016,10 @@ bool RunState::Load(int theProfileId)
 	// buff 循环与迁移链照旧（迁移条件全是 aVersion < N，对新 id 不触发）。
 	// v12 起才有无尽档与场景字段：v11 及更老档读到 mode==ENDLESS 一律拒档（伪造/错位）；
 	// 非无尽档的场景恒 0。
+	// v13 才有关底 boss 开关；v14 才有僵尸强化字段（位包 bit7..11 与尾追加 8×u16+u16）。
 	int aMode = RUN_MODE_FULL;
 	int aDiff = RUN_DIFF_STD;
-	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
+	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 13 && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
 	{
 		TodLog("[run] checkpoint magic/version mismatch, ignored");
 		return false;
@@ -1049,7 +1139,8 @@ bool RunState::Load(int theProfileId)
 		return false;
 	}
 
-	// v10 才有高级选项位包；v9 及更老的档读不到，按 标准/标准/关 续。位掩码天然合法。
+	// v10 才有高级选项位包；v9 及更老的档读不到，按 标准/标准/关 续。位掩码天然合法
+	//（bit7..11 = 阶梯档/僵尸 buff 档，v14 启用；老档恒 0 = 现状/不开）。
 	unsigned int aOptions = 0;
 	if (aVersion >= 10 && !aReader.ReadU16(aOptions))
 	{
@@ -1085,6 +1176,29 @@ bool RunState::Load(int theProfileId)
 	}
 	if (aMode == RUN_MODE_ENDLESS) aBossFlag = 0;
 
+	// v14 才有僵尸强化字段：8 条层数（u16×8，正常不过 255——读到更大的当伪造/错位，
+	// 钳到 255，饱和口径与运行时一致）+ "上一票投在第几关"（0xFFFF = 没投过）。
+	// v13 及更老的档读不到，按"没强过、没投过"续。
+	unsigned char aZombieStacks[RUN_ZOMBIE_BUFF_COUNT] = { 0 };
+	unsigned int aZombieVotedLevel = RUN_ZOMBIE_VOTED_NONE;
+	if (aVersion >= 14)
+	{
+		for (int i = 0; i < RUN_ZOMBIE_BUFF_COUNT; i++)
+		{
+			unsigned int aStack = 0;
+			if (!aReader.ReadU16(aStack))
+			{
+				return false;
+			}
+			if (aStack > 255) aStack = 255;
+			aZombieStacks[i] = (unsigned char)aStack;
+		}
+		if (!aReader.ReadU16(aZombieVotedLevel))
+		{
+			return false;
+		}
+	}
+
 	mRunSeed = aRunSeed;
 	mMode = aMode;
 	mDiff = aDiff;
@@ -1095,6 +1209,14 @@ bool RunState::Load(int theProfileId)
 	// 增益倍选（2026-10-13，位包 bit5..6）：v13 及更老的档该两位恒 0 = ×1；读到非法档（3）
 	// 也不拒档——BuffMultValueFor 消费时按 ×1 处理（与其他档同一套纪律）。
 	mBuffMult = (int)((aOptions >> 5) & 3);
+	// 场景难度阶梯（2026-10-14，位包 bit7..9）：v13 及更老的档恒 0 = 现状标准档（不静默
+	// 变难度）；读到非法档（5..7）也不拒档——LadderPermilleFor 消费时按 STD 处理。
+	mLadder = (int)((aOptions >> 7) & 7);
+	// 僵尸 buff 档（2026-10-14，位包 bit10..11）：v13 及更老的档恒 0 = 不开；非法档（3）
+	// 消费端 GetZombieBuffPerScene 按 0 处理。
+	mZombieBuffMode = (int)((aOptions >> 10) & 3);
+	memcpy(mZombieBuffStacks, aZombieStacks, sizeof(mZombieBuffStacks));
+	mZombieVotedLevel = (unsigned short)aZombieVotedLevel;
 	mBossFlag = (aBossFlag != 0) ? 1 : 0;
 	mLevelIndex = aLevelIndex;
 	memcpy(mFailCounts, aFailCounts, sizeof(mFailCounts));

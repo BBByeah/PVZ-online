@@ -75,16 +75,22 @@ void CjkStoneButton::Draw(Graphics* g)
 		aImageX++;
 	}
 
-	int aRepeat = (mWidth - aLeftImage->mWidth - aRightImage->mWidth) / aMiddleImage->mWidth;
+	// 石头铺满控件宽（2026-10-14 出框修复，同 GameButton.cpp DrawStoneButton）
+	int aRepeat = (mWidth - aLeftImage->mWidth - aRightImage->mWidth + aMiddleImage->mWidth - 1) / aMiddleImage->mWidth;
+	if (aRepeat < 0) aRepeat = 0;
 	g->DrawImage(aLeftImage, aImageX, 0);
 	aImageX += aLeftImage->mWidth;
+	int aRightX = aImageX + mWidth - aLeftImage->mWidth - aRightImage->mWidth;
 	while (aRepeat > 0)
 	{
-		g->DrawImage(aMiddleImage, aImageX, 0);
+		if (aImageX + aMiddleImage->mWidth <= aRightX)
+			g->DrawImage(aMiddleImage, aImageX, 0);
+		else
+			g->DrawImage(aMiddleImage, aImageX, 0, Rect(0, 0, aRightX - aImageX, aMiddleImage->mHeight));
 		aImageX += aMiddleImage->mWidth;
 		--aRepeat;
 	}
-	g->DrawImage(aRightImage, aImageX, 0);
+	g->DrawImage(aRightImage, aRightX, 0);
 
 	ModText::Font* aFont = ModText::GetFont(CjkPointSize(CJK_BUTTON_LABEL_PX), false);
 	std::wstring aLabel = ModText::WideFromUtf8(mLabel.c_str());

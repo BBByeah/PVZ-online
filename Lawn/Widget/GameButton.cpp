@@ -29,16 +29,27 @@ void DrawStoneButton(Graphics* g, int x, int y, int theWidth, int theHeight, boo
 		aImageX++;
 	}
 
-	int aRepeat = (theWidth - aLeftImage->mWidth - aRightImage->mWidth) / aMiddleImage->mWidth;
+	// 石头铺满控件宽（2026-10-14 用户报「按钮文字出框」根因修复）：旧口径块数向下取整，
+	// 控件宽不是贴片整数时右侧余量（本作贴片最多 45px）不画石头，而标签按整个控件宽居中
+	// ——余量大于留白时字就伸出石头右缘（三选一屏列宽 161、底部重摇/放弃 150 都中招；
+	// 别处的石钮靠 CjkStoneButtonWidth 把控件宽对齐到贴片网格躲过，对齐的按钮此改逐像素不变）。
+	// 右端帽改钉在控件右缘，最后一块中段超出端帽起点的部分用源矩形裁掉——按钮是 Widget
+	// 不是容器，不会被裁到控件矩形（WidgetContainer::DrawAll 的 ClipRect 只管容器自己）。
+	int aRepeat = (theWidth - aLeftImage->mWidth - aRightImage->mWidth + aMiddleImage->mWidth - 1) / aMiddleImage->mWidth;
+	if (aRepeat < 0) aRepeat = 0;
 	g->DrawImage(aLeftImage, aImageX, y);
 	aImageX += aLeftImage->mWidth;
+	int aRightX = aImageX + theWidth - aLeftImage->mWidth - aRightImage->mWidth;
 	while (aRepeat > 0)
 	{
-		g->DrawImage(aMiddleImage, aImageX, y);
+		if (aImageX + aMiddleImage->mWidth <= aRightX)
+			g->DrawImage(aMiddleImage, aImageX, y);
+		else
+			g->DrawImage(aMiddleImage, aImageX, y, Rect(0, 0, aRightX - aImageX, aMiddleImage->mHeight));
 		aImageX += aMiddleImage->mWidth;
 		--aRepeat;
 	}
-	g->DrawImage(aRightImage, aImageX, y);
+	g->DrawImage(aRightImage, aRightX, y);
 
 	g->SetFont(isHighLighted ? Sexy::FONT_DWARVENTODCRAFT18BRIGHTGREENINSET : Sexy::FONT_DWARVENTODCRAFT18GREENINSET);
 	aFontX += (theWidth - Sexy::FONT_DWARVENTODCRAFT18GREENINSET->StringWidth(theLabel)) / 2 + 1;

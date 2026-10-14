@@ -260,6 +260,10 @@ public:
 	// IsOnlineStartAllowed = 现在能不能开局（单机永远可以；联机只有已连上的主机可以）。
 	bool							IsOnlineGame();
 	bool							IsOnlineStartAllowed();
+	// @pvz-online: 本地场景（花园 / 智慧树 / 开场教学 / 试玩演示）——不进协议、没有关卡同步，
+	// 从菜单进它们时联机开局守卫整段让开（2026-10-14：开着"建房等人"的会话点花园会被
+	// 守卫静默弹回菜单，"点休闲花园立刻退出、无法进入"的根因）。
+	bool							IsLocalOnlyMode(GameMode theGameMode) const;
 	// 我这台是"跟着主机走"的那一头吗（客户端）——全队败后开不开新局由主机一个人定，
 	// 所以 GameOverDialog 得先分得出主客（见 LawnApp::RetryOnlineLevel）。
 	bool							IsOnlineClient();

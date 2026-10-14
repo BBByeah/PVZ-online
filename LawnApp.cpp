@@ -512,6 +512,21 @@ void LawnApp::PreNewGame(GameMode theGameMode, bool theLookForSavedGame)
 
 	mGameMode = theGameMode;
 
+	// @pvz-online: 本地场景（花园 / 智慧树 / 开场教学 / 试玩演示）在联机守卫之前整段放行：
+	// 这四个模式是本机的自己的场景，传不了协议也不做关卡同步。2026-10-14 玩家报"点休闲
+	// 花园立刻退出、无法进入"——当时正开着"建房等人"的会话（LISTENING），守卫在这里静默
+	// 走了下面的兜底 ShowGameSelector() 把菜单重建回来，看起来就是点一下被弹回菜单。
+	// （会话不在这儿收：进了花园还能退出来接着等人；守卫只管联机关卡的开局。）
+	if (IsLocalOnlyMode(theGameMode))
+	{
+		TodLog("[app] entering a local-only scene (mode %d) - the online start gate is skipped", (int)theGameMode);
+		mOnlineWaitingStartAck = false;
+		KillDialog(Dialogs::DIALOG_ONLINE);		// 联机面板挡着就收掉（和开花园那条路同口径）
+		EraseFile(GetSavedGameName(mGameMode, mPlayerInfo->mId));
+		NewGame();
+		return;
+	}
+
 	// @pvz-online: 会话开着的时候一律按联机规矩来：
 	//   能开局（已连上的主机）→ 不读档也不删档，把这一局的关卡和波表种子广播出去，
 	//     然后等队友回 START_ACK 再进场（见 UpdateOnlineStart）；
@@ -593,6 +608,17 @@ void LawnApp::PreNewGame(GameMode theGameMode, bool theLookForSavedGame)
 bool LawnApp::IsOnlineGame()
 {
 	return mOnlineSession != nullptr && mOnlineSession->IsConnected();
+}
+
+// @pvz-online: 本地场景（花园 / 智慧树 / 开场教学 / 试玩演示）。这四个 GameMode 不进协议、
+// 没有关卡同步——从菜单点进去永远是本机自己的事，与"现在能不能联机开局"无关。
+// M1 的挑战段裁剪把它们从挑战页的入口下架了，只有这几条内部进路还留着（见 IsPvzModeCulled）。
+bool LawnApp::IsLocalOnlyMode(GameMode theGameMode) const
+{
+	return theGameMode == GAMEMODE_CHALLENGE_ZEN_GARDEN
+		|| theGameMode == GAMEMODE_TREE_OF_WISDOM
+		|| theGameMode == GAMEMODE_INTRO
+		|| theGameMode == GAMEMODE_CHALLENGE_ICE;
 }
 
 // 谁能开局：单机随便；联机局里只有已经连上的主机能定关卡。

@@ -14,34 +14,36 @@
 namespace QuickChat
 {
 
-// id 1..8 = 快捷短语（PHRASES[id - 1]）。UTF-8，绘制侧自行转 ANSI/宽字符。
+// id 1..9 = 快捷短语（PHRASES[id - 1]）。UTF-8，绘制侧自行转 ANSI/宽字符。
 // 中英各一张表（语言批 2026-10-03）：按**本机语言**择一显示（各机各译，不走协议——
 // 编号才是线路身份）；选择在绘制侧做（ModText::Tr），这张头文件保持零依赖。
-const int		PHRASE_COUNT		= 8;
+const int		PHRASE_COUNT		= 9;
 const char* const	PHRASES[PHRASE_COUNT] =
 {
-	"快来帮我",
-	"我这边守得住",
-	"一大波僵尸来了",
-	"我没阳光了",
-	"干得好",
-	"对不起",
-	"我要用樱桃炸弹了",
-	"集合到我这"
+	"快点",
+	"我已启动",
+	"我很阳光^_^",
+	"干得漂亮",
+	"！？区区？！",
+	"那我的魔法猫咪这一块谁补给我啊",
+	"你要自己来取，你知道规则的",
+	"蹦！蹦！",
+	"给我阳光口牙"
 };
 const char* const	PHRASES_EN[PHRASE_COUNT] =
 {
-	"Help me!",
-	"I can hold this side",
-	"Huge wave incoming",
-	"I'm low on sun",
-	"Well done",
-	"Sorry",
-	"Cherry Bomb incoming",
-	"Rally to me"
+	"Hurry up!",
+	"Powered up",
+	"Feeling sunny ^_^",
+	"Well played",
+	"?!You dare?!",
+	"Then who's covering my magical cat?!",
+	"Come get it yourself, you know the rules",
+	"Boom! Boom!",
+	"Gimme sun!"
 };
 
-// id 9..16 = 植物表情（EMOTE_SEEDS[id - 9]）。用户钦定的 8 株，顺序即编号顺序，
+// id 10..17 = 植物表情（EMOTE_SEEDS[id - PHRASE_COUNT]）。用户钦定的 8 株，顺序即编号顺序，
 // 棋盘按 SeedPacketDrawSeed 画同款种子卡图。
 const int		EMOTE_COUNT			= 8;
 const SeedType	EMOTE_SEEDS[EMOTE_COUNT] =

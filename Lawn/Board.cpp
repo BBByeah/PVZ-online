@@ -8975,16 +8975,22 @@ bool Board::HandleQuickChatKey(KeyCode theKey)
 			}
 			return true;
 		}
-		if (theKey >= '1' && theKey <= '8')
+		if (theKey >= '1' && theKey <= '9')
 		{
-			// 按当前页选发：短语页 1-8 发 1..8，表情页 1-8 发 9..16
-			uint8_t anId = (uint8_t)((theKey - '1') + 1 + (mChatEmotePage ? QuickChat::PHRASE_COUNT : 0));
-			CloseQuickChatPanel();
-			if (mApp->mOnlineSession->SendQuickChat(anId))
+			// 按当前页选发：短语页 1-9 发 1..9，表情页 1-8 发 10..17（MOD_BUILD 51 短语加到 9 条）。
+			// 该页没有的号吞掉但不关面板（表情页只有 8 株，'9' 不动作）
+			int anIndex = theKey - '1';
+			int aCount = mChatEmotePage ? QuickChat::EMOTE_COUNT : QuickChat::PHRASE_COUNT;
+			if (anIndex < aCount)
 			{
-				PushQuickChatBanner(mApp->mOnlineSession->GetLocalSeat(), anId);	// 本地回显（我：…）
+				uint8_t anId = (uint8_t)(anIndex + 1 + (mChatEmotePage ? QuickChat::PHRASE_COUNT : 0));
+				CloseQuickChatPanel();
+				if (mApp->mOnlineSession->SendQuickChat(anId))
+				{
+					PushQuickChatBanner(mApp->mOnlineSession->GetLocalSeat(), anId);	// 本地回显（我：…）
+				}
+				// 发送失败（掉线）就什么都不显示——掉线提示走既有路径
 			}
-			// 发送失败（掉线）就什么都不显示——掉线提示走既有路径
 			return true;
 		}
 		return true;
@@ -9099,7 +9105,7 @@ void Board::DrawQuickChat(Graphics* g)
 
 	if (mChatPanelOpen)
 	{
-		const int PANEL_X = 240, PANEL_Y = 130, PANEL_W = 320, PANEL_H = 224;
+		const int PANEL_X = 240, PANEL_Y = 130, PANEL_W = 320, PANEL_H = 246;	// 246 = 28 头 + 9 行×22 + 底部提示
 		g->SetColor(Color(0, 0, 0, 180));
 		g->FillRect(PANEL_X, PANEL_Y, PANEL_W, PANEL_H);
 		g->SetColor(Color(255, 255, 255, 255));
@@ -9107,16 +9113,19 @@ void Board::DrawQuickChat(Graphics* g)
 
 		std::wstring aTitle = ModText::WideFromUtf8(mChatEmotePage
 			? ModText::Tr("表情 (E)", "Emotes (E)") : ModText::Tr("快捷短语 (T)", "Phrases (T)"));
-		std::wstring aHint = ModText::WideFromUtf8(ModText::Tr(
-			"按 1-8 发送 · T/E 切页 · Esc 关闭", "1-8 to send · T/E to switch · Esc to close"));
+		std::wstring aHint = ModText::WideFromUtf8(mChatEmotePage
+			? ModText::Tr("按 1-8 发送 · T/E 切页 · Esc 关闭", "1-8 to send · T/E to switch · Esc to close")
+			: ModText::Tr("按 1-9 发送 · T/E 切页 · Esc 关闭", "1-9 to send · T/E to switch · Esc to close"));
 
 		ModText::DrawTextWide(g, aFont, PANEL_X + 12, PANEL_Y + 6 - anAscent,
 			aTitle, Color(255, 255, 255, 255), g->mClipRect);
 		ModText::DrawTextWide(g, aFont, PANEL_X + 12, PANEL_Y + PANEL_H - 18 - anAscent,
 			aHint, Color(170, 170, 170, 255), g->mClipRect);
 
-		// 八行条目：短语页 = "n  文案"；表情页 = "n  卡图 + 中文名"（行高 22）
-		for (int i = 0; i < QuickChat::PHRASE_COUNT; i++)
+		// 条目行：短语页 = "n  文案"；表情页 = "n  卡图 + 中文名"（行高 22）。
+		// 行数按当前页取——表情页别跟着 PHRASE_COUNT 走，短语加条后那会越界读表情表
+		const int aRowCount = mChatEmotePage ? QuickChat::EMOTE_COUNT : QuickChat::PHRASE_COUNT;
+		for (int i = 0; i < aRowCount; i++)
 		{
 			int aRowY = PANEL_Y + 28 + i * 22;
 			std::wstring aNum = ModText::WideFromUtf8(std::to_string(i + 1).c_str());

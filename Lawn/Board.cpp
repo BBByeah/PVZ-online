@@ -8085,6 +8085,7 @@ void Board::DrawShovel(Graphics* g)
 				g->DrawImage(Sexy::IMAGE_SHOVEL, aShovelRect.mX - 7, aShovelRect.mY - 3);
 				g->SetColorizeImages(false);
 			}
+			DrawKeyboardHint(g, -1, aShovelRect.mX + 5, aShovelRect.mY + 14);
 		}
 	}
 
@@ -9678,26 +9679,93 @@ void Board::DrawWatchNotice(Graphics* g)
 	ModText::DrawTextWide(g, aFont, aBoxX + 12, 141, aText, Color(255, 200, 200, 255), g->mClipRect);
 }
 
+// @pvz-online: these keys address bank slots, not plant IDs; special tools retain their original inputs.
+bool Board::HasPlantKeyboardControls()
+{
+	return (mApp->IsAdventureMode() || mApp->IsSurvivalMode()) &&
+		!HasConveyorBeltSeedBank() && !mApp->IsSlotMachineLevel() && mSeedBank->mNumPackets > 0;
+}
+
+bool Board::HandlePlantKeyboardKey(KeyCode theKey)
+{
+	if ((theKey < '0' || theKey > '9') && theKey != 'Q') return false;
+	if (!HasPlantKeyboardControls()) return false;
+
+	// @pvz-online: CanInteractWithBoardButtons excludes held cards; switching needs the same scene gates separately.
+	if (mApp->mGameScene != GameScenes::SCENE_PLAYING || mPaused || !mApp->mActive || mApp->mMinimized ||
+		mApp->GetDialogCount() > 0 || mBoardFadeOutCounter >= 0 || mTimeStopCounter > 0 ||
+		mApp->mCrazyDaveState != CrazyDaveState::CRAZY_DAVE_OFF ||
+		mWidgetManager->mDownButtons != 0 || mWidgetManager->mActualDownButtons != 0 ||
+		mWidgetManager->mKeyDown[KEYCODE_CONTROL] || mWidgetManager->mKeyDown[KEYCODE_MENU]) return true;
+	CursorType aCursor = mCursorObject->mCursorType;
+	if (aCursor != CursorType::CURSOR_TYPE_NORMAL && aCursor != CursorType::CURSOR_TYPE_PLANT_FROM_BANK &&
+		aCursor != CursorType::CURSOR_TYPE_SHOVEL) return true;
+
+	if (theKey == 'Q')
+	{
+		if (!mShowShovel || aCursor == CursorType::CURSOR_TYPE_SHOVEL) return true;
+		if (aCursor != CursorType::CURSOR_TYPE_NORMAL) RefreshSeedPacketFromCursor();
+		PickUpTool(GameObjectType::OBJECT_TYPE_SHOVEL);
+	}
+	else
+	{
+		int aSlot = theKey == '0' ? 9 : theKey - '1';
+		if (aSlot >= mSeedBank->mNumPackets) return true;
+		if (aCursor == CursorType::CURSOR_TYPE_PLANT_FROM_BANK && mCursorObject->mSeedBankIndex == aSlot) return true;
+		SeedPacket& aPacket = mSeedBank->mSeedPackets[aSlot];
+		if (!aPacket.CanPickUp())
+		{
+			// @pvz-online: the existing rejection path keeps the held card and its real cooldown intact.
+			aPacket.MouseDown(0, 0, 1);
+			return true;
+		}
+		if (aCursor != CursorType::CURSOR_TYPE_NORMAL) RefreshSeedPacketFromCursor();
+		aPacket.MouseDown(0, 0, 1);
+	}
+	UpdateCursor();
+	return true;
+}
+
+void Board::DrawKeyboardHint(Graphics* g, int theSlot, int theX, int theY)
+{
+	if (!HasPlantKeyboardControls() || mApp->mGameScene != GameScenes::SCENE_PLAYING || theSlot >= 10) return;
+	// @pvz-online: game font in the card's top margin leaves cost and plant art readable.
+	SexyChar aKey = (SexyChar)(theSlot < 0 ? 'Q' : (theSlot == 9 ? '0' : '1' + theSlot));
+	SexyString aLabel(1, aKey);
+	Graphics aHint(*g);
+	aHint.SetFont(Sexy::FONT_CONTINUUMBOLD14);
+	aHint.SetColor(Color(35, 30, 20));
+	aHint.DrawString(aLabel, theX + 1, theY + 1);
+	aHint.SetColor(Color(255, 255, 190));
+	aHint.DrawString(aLabel, theX, theY);
+}
+
 //0x41B820
 void Board::KeyDown(KeyCode theKey)
 {
+	// @pvz-online: normalize keypad digits before contextual panels consume their seat/item keys.
+	if (theKey >= KEYCODE_NUMPAD0 && theKey <= KEYCODE_NUMPAD9)
+		theKey = (KeyCode)('0' + theKey - KEYCODE_NUMPAD0);
+	if (mWidgetManager->mIsKeyRepeat && ((theKey >= '0' && theKey <= '9') || theKey == 'Q' ||
+		theKey == KEYCODE_F5 || theKey == KEYCODE_F6)) return;
 	DoTypingCheck(theKey);
 
 	// @pvz-online: 联机局内 T/E 唤出快捷聊天；面板开着时吞掉一切键（含 ESC/SPACE）
 	if (HandleQuickChatKey(theKey)) return;
 
 	// @pvz-online: 发阳光——G 进选择态、选择态中 1-6 直选队友席位（选择态优先拿 1-6，
-	// 含血量键 1/2；5 秒无操作自动退）
+	// 含选卡键 1/2；5 秒无操作自动退）
 	if (HandleSunGiftKey(theKey)) return;
 
 	// @pvz-online: 观战——V 按住进入/退出、观看中 1-6 直选席位、观看中一切键拦截
-	// （必须排在血量 1/2 键之前：观看态优先拿 1/2 当切人键）
+	// （必须排在选卡键之前：观看态优先拿数字当切人键）
 	if (HandleBoardWatchKey(theKey)) return;
+	if (HandlePlantKeyboardKey(theKey)) return;
 
-	// @pvz-online: 血量数字显示开关：1 = 僵尸、2 = 植物（各自切换；纯本地显示）
-	if (theKey == '1' || theKey == '2')
+	// @pvz-online: free the number row for plants; health remains a purely local display option.
+	if (theKey == KEYCODE_F5 || theKey == KEYCODE_F6)
 	{
-		if (theKey == '1')
+		if (theKey == KEYCODE_F5)
 		{
 			gShowZombieHealthNumbers = !gShowZombieHealthNumbers;
 		}
@@ -9766,6 +9834,9 @@ static void TodCrash()
 //0x41B950（原版中废弃）
 void Board::KeyChar(SexyChar theChar)
 {
+	// @pvz-online: WM_CHAR follows WM_KEYDOWN; selecting 6/7/8/Q must never also execute a debug cheat.
+	if (HasPlantKeyboardControls() && ((theChar >= _S('0') && theChar <= _S('9')) ||
+		theChar == _S('q') || theChar == _S('Q'))) return;
 	if (!mApp->mDebugKeysEnabled)
 		return;
 

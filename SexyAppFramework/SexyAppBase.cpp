@@ -4589,7 +4589,8 @@ bool SexyAppBase::ProcessDeferredMessages(bool singleMessage)
 						break;
 				}
 
-				mWidgetManager->KeyDown((KeyCode) wParam);
+				// @pvz-online: bit 30 survives focus/clear-key transitions; held choices must not select plants.
+				mWidgetManager->KeyDown((KeyCode) wParam, (lParam & 0x40000000) != 0);
 				break;
 
 			case WM_KEYUP:

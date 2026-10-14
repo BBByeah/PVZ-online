@@ -778,15 +778,18 @@ bool WidgetManager::KeyChar(SexyChar theChar)
 	return true;
 }
 
-bool WidgetManager::KeyDown(KeyCode key)
+bool WidgetManager::KeyDown(KeyCode key, bool isRepeat)
 {
 	mLastInputUpdateCnt = mUpdateCnt;
+	const bool aPreviousRepeat = mIsKeyRepeat;
+	mIsKeyRepeat = isRepeat || ((key >= 0 && key < 0xFF) && mKeyDown[key]);
 
 	if ((key >= 0) && (key < 0xFF))
 		mKeyDown[key] = true;
 
 	if (mFocusWidget != NULL)
 		mFocusWidget->KeyDown(key);
+	mIsKeyRepeat = aPreviousRepeat;
 	
 	return true;
 }

@@ -72,6 +72,7 @@ public:
 	int						mLastInputUpdateCnt;
 	
 	bool					mKeyDown[0xFF];
+	bool                    mIsKeyRepeat = false; // @pvz-online: distinguish a held key across focus changes.
 	int						mLastDownButtonId;	
 	
 	int						mWidgetFlags;
@@ -121,7 +122,7 @@ public:
 	bool					MouseExit(int x, int y);
 	void					MouseWheel(int theDelta);
 	bool					KeyChar(SexyChar theChar);
-	bool					KeyDown(KeyCode key);
+	bool					KeyDown(KeyCode key, bool isRepeat = false);
 	bool					KeyUp(KeyCode key);
 
 	bool					IsLeftButtonDown();

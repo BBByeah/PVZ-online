@@ -267,6 +267,9 @@ public:
 	virtual void					KeyChar(SexyChar theChar);
 	virtual void					KeyUp(KeyCode theKey);
 	virtual void					KeyDown(KeyCode theKey);
+	bool                            HasPlantKeyboardControls();
+	bool                            HandlePlantKeyboardKey(KeyCode theKey);
+	void                            DrawKeyboardHint(Graphics* g, int theSlot, int theX, int theY);
 	virtual void					Update();
 	void							UpdateLayers();
 	virtual void					Draw(Graphics* g);

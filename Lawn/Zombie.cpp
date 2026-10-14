@@ -151,6 +151,8 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
     // @pvz-online: 僵尸强化「免控」（MOD_BUILD 45）默认值——真正的置位在函数尾部按
     // RunState 层数算；这里先落 false 兜住中部提前 return 的路（无目标的跳跳僵尸）。
     mControlImmune = false;
+    // @pvz-online: 僵尸强化「护心」改版（MOD_BUILD 47）——首伤挡一次，逐实例新鲜起算。
+    mHeartguardUsed = false;
     mMindControlled = false;
     mBlowingAway = false;
     mHasHead = true;
@@ -8622,16 +8624,18 @@ void Zombie::TakeDamage(int theDamage, unsigned int theDamageFlags)
         }
     }
 
-    // @pvz-online: 僵尸强化「护心」（MOD_BUILD 45）：单次伤害封顶（层 1=200、层 2=150、
-    // 层 3=100、层 4 起保底 50）。放在一切乘性加成（精准/伤口加深）之后、分配进护盾/
-    // 头盔/本体之前——单次伤害事件真正打到的量不可能超上限，灰烬族（爆炸直伤走的
-    // TakeDamage 通路）不再一发秒杀；层数 0 短路零改动。
-    if (mApp->IsRunMode())
+    // @pvz-online: 僵尸强化「护心」（MOD_BUILD 45 落地，47 改版=用户令）：改「仅对第一次
+    // 实际生效的伤害封顶」——mHeartguardUsed 未消耗且本帧原伤超封顶值，才把伤害压到上限
+    // 并消耗（原伤没超就不算挨挡、不消耗；多段小伤不打这块盾）。挡完这只僵尸回归普通，
+    // 灰烬第二发、常态伤害照常结算。层 1=200、层 2=150、层 3=100、层 4 起保底 50。放在
+    // 一切乘性加成之后、分配进护盾/头盔/本体之前。
+    if (mApp->IsRunMode() && !mHeartguardUsed)
     {
         int aSingleHitCap = mApp->GetRunState()->ZombieBuffSingleHitCap();
         if (aSingleHitCap > 0 && theDamage > aSingleHitCap)
         {
             theDamage = aSingleHitCap;
+            mHeartguardUsed = true;
         }
     }
 
@@ -9441,11 +9445,12 @@ void Zombie::ApplyBurn(int theDirectDamage)
     if (mDead || mZombiePhase == ZombiePhase::PHASE_ZOMBIE_BURNED)
         return;
 
-    // @pvz-online: 僵尸强化「护心」（MOD_BUILD 45）：投过护心的僵尸不吃灰烬秒杀——燃烧
-    // 改按单次伤害走 TakeDamage（里面的封顶即护心值）。血厚的（≥1800/boss）原路径本就
-    // 过 TakeDamage，与下一分支同一调用、行为不变；薄血原走"直接烧死"的现在只掉封顶血。
-    // 层数 0（=不封顶）时本块短路，行为与现状逐位一致。
-    if (mApp->IsRunMode() && mApp->GetRunState()->ZombieBuffSingleHitCap() > 0)
+    // @pvz-online: 僵尸强化「护心」（MOD_BUILD 45 落地，47 改版）：投过护心且尚未消耗的
+    // 僵尸不吃灰烬秒杀——燃烧按单次伤害走 TakeDamage（里面的封顶即护心值，压到上限的
+    // 同时把盾消耗掉）；从下一发起这只僵尸就是普通血肉，再烧直接烧死。厚血（≥1800/boss）
+    // 原路径本就过 TakeDamage，首次燃烧与下一分支同一调用、行为一致；层数 0（=不封顶）
+    // 时本块短路，行为与现状逐位一致。
+    if (mApp->IsRunMode() && !mHeartguardUsed && mApp->GetRunState()->ZombieBuffSingleHitCap() > 0)
     {
         int aBlastBase = theDirectDamage > 0 ? theDirectDamage : 1800;
         TakeDamage((int)(aBlastBase * mApp->RunBuffMul(RUN_BUFF_BLAST) + 0.5f), 18U);

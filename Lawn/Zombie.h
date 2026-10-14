@@ -140,6 +140,11 @@ public:
     // ZombieInitialize 按 RunState 层数一次性置位、全程只读；接线走 CanBeChilled/CanBeFrozen
     // 双谓词收口 + 六处绕开谓词的直写点单点守卫。
     bool                            mControlImmune;
+    // @pvz-online: 僵尸强化「护心」改版（MOD_BUILD 47，2026-10-14 用户令）：从「常驻单次
+    // 封顶」改为「只挡第一次实际生效的伤害」——TakeDamage 里封顶真正发生（原伤 > 封顶值）
+    // 才置位消耗，之后这只僵尸回归无护心。逃怪跑过板、被魅惑再咬、复用时都不重置
+    //（一次性见底）；新僵尸（含伴舞、巨人再生前的那只）各自独立消耗。
+    bool                            mHeartguardUsed;
     bool                            mMindControlled;                            //+0xB8
     bool                            mBlowingAway;                               //+0xB9
     bool                            mHasHead;                                   //+0xBA

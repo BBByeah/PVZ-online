@@ -846,6 +846,32 @@ void NewOptionsDialog::DrawRunInfo(Sexy::Graphics* g)
     }
     aY += 8;
 
+    // 【僵尸强化】：全局段同款两列流；一条没投就不占版面（僵尸 buff 是高级选项开关，
+    // 大多数局整条线为 0，常驻"（无）"徒增噪音——与全局段「恒显示」有意不同）。
+    // 名字随语言档（GetZombieBuffDisplayName），层数 = mZombieBuffStacks。
+    int aZombieStacksTotal = 0;
+    for (int i = 0; i < RunState::RUN_ZOMBIE_BUFF_COUNT; i++) aZombieStacksTotal += aRun->ZombieBuffCount(i);
+    if (aZombieStacksTotal > 0)
+    {
+        NewOptionsDrawCjk(g, aFont, aColX[0], aY, ModText::Tr("【僵尸强化】", "[Zombie Boosts]"), Sexy::Color(224, 150, 150));
+        aY += aLineHeight;
+        int aZombieShown = 0;
+        for (int i = 0; i < RunState::RUN_ZOMBIE_BUFF_COUNT; i++)
+        {
+            int aStacks = aRun->ZombieBuffCount(i);
+            if (aStacks <= 0) continue;
+            if (aZombieShown % 2 == 0 && aY > aBottom) break;   // 超页让位给单株段（它自己会翻页）
+            char aSuffix[16];
+            snprintf(aSuffix, sizeof(aSuffix), "×%d", aStacks);
+            NewOptionsDrawCjkFit(g, aFont, aColX[aZombieShown % 2], aY, aColW,
+                GetZombieBuffDisplayName(i), aSuffix, anEntryColor);
+            if (aZombieShown % 2 == 1) aY += aLineHeight;
+            aZombieShown++;
+        }
+        if (aZombieShown % 2 == 1) aY += aLineHeight;
+        aY += 8;
+    }
+
     // 【单株强化】：植物名 + 词条名×层数，整幅宽单列——「植物名+词条名+×N」英文档最长
     // 约 310px（玉米加农炮 Rapid Reload×3），两列 182px 根本装不下：截图实证会互相
     // 压字、右列冲出面板右缘被对话框边缘裁断。单列 372px 全放得下，一格一行也更易读。

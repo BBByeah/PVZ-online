@@ -63,7 +63,7 @@ public:
 	{
 		ZOMBIE_BUFF_SWIFT = 0,		// 迅捷：移速 +30%/层
 		ZOMBIE_BUFF_IRON = 1,		// 铁壁：生命 ×1.5/层
-		ZOMBIE_BUFF_HEARTGUARD = 2,	// 护心：单次伤害封顶 200−50×(层−1)、底 50（灰烬不再秒杀）
+		ZOMBIE_BUFF_HEARTGUARD = 2,	// 护心（47 改版）：首次大额伤害封顶 200−50×(层−1)、底 50；只挡一次
 		ZOMBIE_BUFF_RAVENOUS = 3,	// 狂食：每口啃咬 ×2/层
 		ZOMBIE_BUFF_REGEN = 4,		// 再生：每秒回 0.5% 上限血/层
 		ZOMBIE_BUFF_STEADFAST = 5,	// 免控：免疫减速/冰冻/黄油/击退/换道/魅惑（≥1 层即全免）

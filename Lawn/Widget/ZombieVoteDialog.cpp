@@ -50,7 +50,7 @@ ZombieVoteDialog::ZombieVoteDialog(LawnApp* theApp) : LawnDialog(
 	aTargetColumn += 12;
 	if (aTargetColumn > 220) aTargetColumn = 220;
 
-	// 「弃权」：三条都不想要时本场景明确不加的出路（不参与"全队没表态"的种子兜底）。
+	// 「弃权」：对列出的三条都不表态的出路（47 改版：全队弃权=随机发 1 条，不裸奔）。
 	mAbstainButton = new CjkStoneButton(ZombieVoteDialog_Abstain, this);
 	mAbstainButton->SetLabel(ModText::Tr("弃权", "Abstain"));
 	mAbstainButton->mHasAlpha = true;

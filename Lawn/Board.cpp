@@ -949,6 +949,34 @@ void Board::PickZombieWaves()
 			ZombieType aZombieType = PickZombieType(aZombiePoints, aWave, &aZombiePicker);
 			PutZombieInWave(aZombieType, aWave, &aZombiePicker);
 		}
+
+		// @pvz-online: 每波构成落日志（47，取证惯例——「出怪不对」类报障直接对 log.txt
+		// 对数，不再靠猜 RNG）。只闯关局记；伴舞不入波表，日志里见不到（落地才翻）。
+		if (mApp->IsRunMode())
+		{
+			char aWaveLog[512];
+			int aLeft = aZombiePoints > 0 ? aZombiePoints : 0;
+			int aLen = snprintf(aWaveLog, sizeof(aWaveLog), "[wave] lvl=%d wave=%d/%d pts_left=%d picks=%d:",
+				mLevel, aWave + 1, mNumWaves, aLeft, aZombiePicker.mZombieCount);
+			for (int aZombieType = 0; aZombieType < ZombieType::NUM_ZOMBIE_TYPES && aLen > 0 && aLen < (int)sizeof(aWaveLog) - 1; aZombieType++)
+			{
+				int aCnt = aZombiePicker.mZombieTypeCount[aZombieType];
+				if (aCnt <= 0) continue;
+				const ZombieDefinition& aLogDef = GetZombieDefinition((ZombieType)aZombieType);
+				char aZName[48];
+				int aNameLen = 0;
+				while (aLogDef.mZombieName[aNameLen] != _S('\0') && aNameLen < (int)sizeof(aZName) - 1)
+				{
+					aZName[aNameLen] = (char)aLogDef.mZombieName[aNameLen];
+					aNameLen++;
+				}
+				aZName[aNameLen] = '\0';
+				int aWritten = snprintf(aWaveLog + aLen, sizeof(aWaveLog) - aLen, " %s x%d", aZName, aCnt);
+				if (aWritten < 0) break;
+				aLen += aWritten;
+			}
+			TodLog("%s", aWaveLog);
+		}
 	}
 }
 
@@ -2853,6 +2881,15 @@ ZombieType Board::PickZombieType(int theZombiePoints, int theWaveIndex, ZombiePi
 			}
 			if ((aZombieType == ZombieType::ZOMBIE_GARGANTUAR || aZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR) &&
 				theZombiePicker->mZombieTypeCount[(int)ZombieType::ZOMBIE_GARGANTUAR] + theZombiePicker->mZombieTypeCount[(int)ZombieType::ZOMBIE_REDEYE_GARGANTUAR] >= RunState::RUN_GARGANTUAR_CAP)
+			{
+				continue;
+			}
+			// @pvz-online: 舞王每波至多 1 只（47，2026-10-14 实机报障「一进来满屏舞王卡死」）：
+			// 舞王 value=5 落在强怪池，权重平铺 1000 后与其他强怪同权——快速第 4 关（舞王
+			// 首关）点数富余时一波连抽五六只，每只落地又翻 1+4 伴舞 + 追光特效，人数直接
+			// 爆表掉帧。伴舞不走抽取通道、不占 cap，与巨人同闸写法、跨波不限。
+			if (aZombieType == ZombieType::ZOMBIE_DANCER &&
+				theZombiePicker->mZombieTypeCount[(int)ZombieType::ZOMBIE_DANCER] >= 1)
 			{
 				continue;
 			}
@@ -9737,7 +9774,7 @@ void Board::KeyChar(SexyChar theChar)
 	// 就强开一张——只给验收看框和结算，不参与正式逻辑。注意合成按键到不了 KeyChar
 	//（§5.95 教训：PostMessage 的 WM_KEYDOWN/WM_CHAR 都进不了焦点路由），钩子只对
 	// 真人按键有效，自动化冒烟别依赖它。
-	if (theChar == _S('v') && mApp->mRunState != nullptr)
+	if ((theChar == _S('v') || theChar == _S('V')) && mApp->mRunState != nullptr)
 	{
 		if (!mApp->TryOpenZombieVote())
 		{
@@ -9753,7 +9790,10 @@ void Board::KeyChar(SexyChar theChar)
 	//（$100/$1,000/$10,000，§5.95）要真钱包；主菜单 'u'（+50000 连带全解锁+删冒险档）
 	// 之外给个局内一口价的口，不碰其他进度。三选一屏开着时键盘焦点在弹窗上、这钩子
 	// 收不到——先加钱再进屏（顺序见 §5.97）。
-	if (theChar == _S('M') && mApp->mPlayerInfo != nullptr)
+	// 47 修（2026-10-14 实机报障「按 M 无反应」）：log.txt 实锤到达的是小写 'm'
+	//（键盘无 Shift），钩子只认大写才落空——大小写都收。门禁加 mRunState：钩子只在
+	// 闯关局有效，禅境花园的 'm'（天降金盏花）原功能不让路。
+	if (mApp->mRunState != nullptr && (theChar == _S('m') || theChar == _S('M')) && mApp->mPlayerInfo != nullptr)
 	{
 		mApp->mPlayerInfo->AddCoins(10000);
 		TodTraceAndLog("[board] acceptance hook: +10000 coins (wallet %d)", mApp->mPlayerInfo->mCoins);

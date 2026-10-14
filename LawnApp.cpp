@@ -2655,7 +2655,10 @@ void LawnApp::ZombieVoteResolve()
 	}
 	else if (mZombieVoteAbstains > 0)
 	{
-		// 一张有效票都没有、但有明确弃权：这一场景不加（明确表态不参与随机兜底）。
+		// @pvz-online: 47 改版（2026-10-14 用户令）：全弃权也随机拿 1 条候选——弃权是
+		//「不选哪条」的表态，不是「整关裸奔」的表态；僵尸增强不拿白不拿。只在房主/单机端
+		// 结算，随机不分叉。固定 1 条（不按 aWant）：全队明确弃权仍强塞满档太越权。
+		aPicked[aPickedCount++] = mZombieVoteCandidates[Rand(RunState::RUN_ZOMBIE_VOTE_CHOICES)];
 	}
 	else
 	{
@@ -3040,6 +3043,12 @@ float LawnApp::RunPlantBuff2Mul(SeedType thePlant) const
 		aMul = 1.0f + aDef.mPerStackMul * (float)aStacks;
 	}
 	return aMul < 0.1f ? 0.1f : aMul;
+}
+
+// @pvz-online: explicit entry lookup keeps multiple buffs on one plant independent.
+int LawnApp::RunExtraBuffCount(RunPlantBuff2Id theBuff) const
+{
+	return mRunState ? mRunState->GetBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + theBuff) : 0;
 }
 
 int LawnApp::RunPlantBuff2Count(SeedType thePlant) const

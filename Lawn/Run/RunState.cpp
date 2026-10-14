@@ -829,7 +829,7 @@ struct ZombieBuffText
 static const ZombieBuffText kZombieBuffTexts[RunState::RUN_ZOMBIE_BUFF_COUNT] = {
 	{ "Swift", "迅捷", "僵尸移动速度 +30%/层（至多 ×4）", "Zombie walk speed +30% per stack (up to x4)" },
 	{ "Iron", "铁壁", "僵尸生命值 ×1.5/层（至多 ×100）", "Zombie health x1.5 per stack (up to x100)" },
-	{ "Heartguard", "护心", "单次伤害封顶 200，每层 -50（最低 50）", "Single-hit damage capped at 200, -50 per stack (min 50)" },
+	{ "Heartguard", "护心", "首次受到的大额伤害封顶 200，每层 -50（最低 50）；只挡一次", "First big hit capped at 200, -50 per stack (min 50); blocks once" },
 	{ "Ravenous", "狂食", "每口啃咬伤害 ×2/层（至多 ×32）", "Bite damage x2 per stack (up to x32)" },
 	{ "Regen", "再生", "每秒回复 0.5% 最大生命/层（至多 25%）", "Regen 0.5% max HP per second per stack (up to 25%)" },
 	{ "Steadfast", "免控", "免疫减速、冰冻、黄油、击退、换道与魅惑", "Immune to slow, freeze, butter, knockback, lane change and charm" },

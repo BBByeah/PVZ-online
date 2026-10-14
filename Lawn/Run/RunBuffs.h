@@ -89,7 +89,7 @@ enum RunPlantUpgradeId
 	RUN_UPGRADE_REPEATER,		// 双发：每次射击多发 2 颗（无上限；2026-10-04 批 18 由射击间隔族整条换掉）
 	RUN_UPGRADE_PUFFSHROOM,		// 小喷菇：每次多发 2 颗/层（无上限；2026-10-04 由「射程变为无限」改，射程挂点已还原）
 	RUN_UPGRADE_SUNSHROOM,		// 阳光菇：亮顶——产阳光间隔 ×0.75/层 叠乘（至多 2 层；2026-10-09 经济批由概率多产改速度轴）
-	RUN_UPGRADE_FUMESHROOM,		// 大喷菇：攻击间隔 ×0.5（只可选 1 层；2026-10-04 批 18 由射程族整条换掉，2026-10-09 权重批 ×0.25→×0.5）
+	RUN_UPGRADE_FUMESHROOM,		// 大喷菇：持续喷射，每秒5次伤害，不受攻速影响，1层3星。
 	RUN_UPGRADE_GRAVEBUSTER,	// 墓碑吞噬者：吞掉墓碑额外产 25 阳光（每层，至多 2 层；经济批 2026-10-09 删条不进池，表行保留供存量档）
 	RUN_UPGRADE_HYPNOSHROOM,	// 魅惑菇：被魅惑僵尸咬到的僵尸也变友军（只可选 1 层）
 	RUN_UPGRADE_SCAREDYSHROOM,	// 胆小菇：敌人贴近时不再缩头（只可选 1 层）

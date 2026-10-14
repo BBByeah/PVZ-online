@@ -1180,6 +1180,10 @@ void Plant::StarFruitFire()
 //0x45F8A0
 void Plant::UpdateShooter()
 {
+    // @pvz-online: continuous fumes owns its fixed clock; normal launch/haste must not add shots.
+    if (mSeedType == SeedType::SEED_FUMESHROOM && mApp->RunPlantUpgradeCount(mSeedType) > 0)
+        return;
+
     float aSpeed = PlantShootSpeed(mApp, mSeedType, this);
 
     mLaunchCounter--;
@@ -3791,6 +3795,39 @@ void Plant::AnimatePumpkin()
 //0x464820
 void Plant::UpdateShooting()
 {
+    // @pvz-online: 100 simulation ticks/sec gives exactly five hits, independent of all attack speed.
+    if (mSeedType == SeedType::SEED_FUMESHROOM && mApp->RunPlantUpgradeCount(mSeedType) > 0)
+    {
+        if (NotOnGround())
+            return;
+        if (mLaunchCounter != -1)
+        {
+            mLaunchCounter = -1; // Cancel a pending normal shot when this buff is acquired.
+            mShootingCounter = 20;
+        }
+        Reanimation* aBody = mApp->ReanimationTryToGet(mBodyReanimID);
+        if (aBody)
+        {
+            int aStart, aCount;
+            aBody->GetFramesForLayer("anim_shooting", aStart, aCount);
+            // Restore the loop after waking; never restart it for each damage pulse.
+            if (aBody->mFrameStart != aStart || aBody->mLoopType != ReanimLoopType::REANIM_LOOP)
+                PlayBodyReanim("anim_shooting", ReanimLoopType::REANIM_LOOP, 0, 35.0f);
+            aBody->mAnimRate = 35.0f;
+        }
+        if (--mShootingCounter <= 0)
+        {
+            mShootingCounter = 20;
+            Fire(nullptr, mRow, PlantWeapon::WEAPON_PRIMARY);
+            if (aBody)
+            {
+                int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PARTICLE, mRow, 0);
+                AddAttachedParticle(mX + 85, mY + 31, aRenderPosition, ParticleEffect::PARTICLE_FUMECLOUD);
+            }
+        }
+        return;
+    }
+
     if (NotOnGround() || mShootingCounter == 0)
         return;
 
@@ -6178,7 +6215,7 @@ Rect Plant::GetPlantAttackRect(PlantWeapon thePlantWeapon)
     case SeedType::SEED_TORCHWOOD:      aRect = Rect(mX + 50,       mY,             30,                 mHeight);               break;
     case SeedType::SEED_PUFFSHROOM:
     case SeedType::SEED_SEASHROOM:      aRect = Rect(mX + 60,       mY,             230,                mHeight);               break;
-    // @pvz-online: 批 18 大喷菇行改为「Fume Rush 攻击间隔 ×0.25」——射程恢复原版 340（原射程挂点删除）。
+    // @pvz-online: continuous fumes keeps the original 340px range; only its firing clock changes.
     case SeedType::SEED_FUMESHROOM:     aRect = Rect(mX + 60,       mY,             340,                mHeight);               break;
     // @pvz-online: 闯关「Gloom」（忧郁菇，批 14）：光环范围每层 +1 格——240×240（3 格）
     // 逐层 +160px、中心不动（n 层 = 3+2n 格宽）；纵向行差在 DoRowAreaDamage 同步外扩。

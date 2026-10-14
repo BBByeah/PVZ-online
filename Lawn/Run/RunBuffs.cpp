@@ -254,7 +254,8 @@ static const RunPlantUpgradeDef gRunPlantUpgradeDefs[RUN_PLANT_UPGRADE_COUNT] =
 	{ SeedType::SEED_REPEATER,     "Pea Barrage", "弹幕",  "每次射击多发 2 颗\n（每层）",       "Fires 2 extra peas per shot\n(per stack)",           0.00f, 0, false, RUN_UPGRADE_KIND_SHOTCOUNT, 2 },
 	{ SeedType::SEED_PUFFSHROOM,   "Spore Volley", "孢子弹幕", "每次多发 2 颗\n（每层）",           "Fires 2 extra spores per shot\n(per stack)",       0.00f, 0, false, RUN_UPGRADE_KIND_SHOTCOUNT, 2 },
 	{ SeedType::SEED_SUNSHROOM,    "Bright Cap", "亮顶",   "产阳光间隔逐层 ×0.75",              "Sun production interval ×0.75/stack",                -0.25f, 2, true, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_FUMESHROOM,   "Fume Rush", "疾雾",    "攻击间隔 ×0.5\n（每层）",           "Attack interval ×0.5\n(per stack)",                 -0.50f, 0, true, RUN_UPGRADE_KIND_RHYTHM, 3 },
+	// @pvz-online: keep the existing ID, but replace stackable haste with a single fixed-rate effect.
+	{ SeedType::SEED_FUMESHROOM, "Continuous Fumes", "疾雾", "持续喷射，每秒5次伤害\n不受攻速影响", "Continuous spray: 5 hits/sec\nUnaffected by attack speed", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
 	{ SeedType::SEED_GRAVEBUSTER,  "Quick Dig", "掘金",    "吞掉墓碑额外产 25 阳光\n（每层）",  "Grave eaten yields +25 sun\n(per stack)",            0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 1 },
 	{ SeedType::SEED_HYPNOSHROOM,  "Devotion", "倒戈",     "被魅惑僵尸咬到的僵尸也变友军\n（魅惑菇冷却 ×6）", "Zombies bitten by a hypnotized zombie turn friendly\n(Hypno-shroom cooldown ×6)", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
 	{ SeedType::SEED_SCAREDYSHROOM, "Bravery", "无畏",     "敌人贴近时不再缩头",                "No longer hides when zombies get close",             0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },

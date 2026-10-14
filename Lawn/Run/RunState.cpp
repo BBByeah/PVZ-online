@@ -55,7 +55,7 @@
 //     v13 及更老的档读不到，按"没强过、没投过"续。载荷长度从 v14 起 +18 字节。
 
 static const unsigned int RUN_CHECKPOINT_MAGIC = 0x314E5552;	// 'RUN1'
-static const unsigned short RUN_CHECKPOINT_VERSION = 14;
+static const unsigned short RUN_CHECKPOINT_VERSION = 15;
 
 static std::vector<unsigned char>& AppendU16(std::vector<unsigned char>& theData, unsigned int theValue)
 {
@@ -155,6 +155,8 @@ void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theR
 	memset(mZombieBuffStacks, 0, sizeof(mZombieBuffStacks));
 	mZombieVotedLevel = RUN_ZOMBIE_VOTED_NONE;
 	mLevelIndex = 0;
+	mRerollVouchers = 0;
+	mRerollAwardedLevel = -1;
 	mPool.clear();
 	if (theRunMode == RUN_MODE_ENDLESS)
 	{
@@ -271,21 +273,20 @@ bool RunState::CanOfferPlantPick() const
 // 静默无效（卷心菜型死挂点）。口径：这两对里任一条已持有（>0 层）→ 另一条从候选整体
 // 剔除、本局不再出现（双向；对侧双持的存量旧档两条都被拦，不再往上叠）。双向判 = 这条
 // 所属株若在「对侧表」有互斥条且其已持有，返回 true。清单见 docs/06 §8.6.1。
-static bool RunChoiceBlockedByCounterpart(const RunState* theRun, SeedType thePlant, bool theSecondTable)
+// @pvz-online: exclusions compare actual IDs; a new same-plant buff must not inherit unrelated conflicts.
+static bool RunChoiceBlockedByCounterpart(const RunState* theRun, int theId)
 {
-	if (thePlant == SeedType::SEED_SNOWPEA)
-	{
-		return theSecondTable
-			? theRun->GetBuffCount(RUN_BUFF_COUNT + RUN_UPGRADE_SNOWPEA) > 0
-			: theRun->GetBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + RUN_BUFF2_FROSTPIERCE) > 0;
-	}
-	if (thePlant == SeedType::SEED_KERNELPULT)
-	{
-		return theSecondTable
-			? theRun->GetBuffCount(RUN_BUFF_COUNT + RUN_UPGRADE_KERNELPULT) > 0
-			: theRun->GetBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + RUN_BUFF2_BUTTERFEAST) > 0;
-	}
-	return false;
+    const int base = RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT;
+    if (theId == RUN_BUFF_COUNT + RUN_UPGRADE_SNOWPEA)
+        return theRun->GetBuffCount(base + RUN_BUFF2_FROSTPIERCE) > 0;
+    if (theId == base + RUN_BUFF2_FROSTPIERCE)
+        return theRun->GetBuffCount(RUN_BUFF_COUNT + RUN_UPGRADE_SNOWPEA) > 0;
+    if (theId == RUN_BUFF_COUNT + RUN_UPGRADE_KERNELPULT)
+        return theRun->GetBuffCount(base + RUN_BUFF2_BUTTERFEAST) > 0 ||
+            theRun->GetBuffCount(base + RUN_BUFF2_BUTTER_SPLASH) > 0;
+    if (theId == base + RUN_BUFF2_BUTTERFEAST || theId == base + RUN_BUFF2_BUTTER_SPLASH)
+        return theRun->GetBuffCount(RUN_BUFF_COUNT + RUN_UPGRADE_KERNELPULT) > 0;
+    return false;
 }
 
 // 抽一屏的三条候选。种子挂上"这一屏是第几次抽"（mPickCounter），所以同一局里
@@ -417,7 +418,7 @@ void RunState::RollChoices(bool theReroll)
 			if (!HasPlant(GetRunPlantUpgradeDef(i).mPlant)) continue;
 			int aCap = GetRunChoiceMaxStacks(aId);
 			if (aCap > 0 && GetBuffCount(aId) >= aCap) continue;
-			if (RunChoiceBlockedByCounterpart(this, GetRunPlantUpgradeDef(i).mPlant, false)) continue;
+			if (RunChoiceBlockedByCounterpart(this, aId)) continue;
 			aCandidates[aCount] = aId;
 			aWeights[aCount] = GetRunChoiceWeight(aId);
 			aTotalW += aWeights[aCount];
@@ -432,7 +433,7 @@ void RunState::RollChoices(bool theReroll)
 			if (!HasPlant(GetRunPlantBuff2Def(i).mPlant)) continue;
 			int aCap = GetRunChoiceMaxStacks(aId);
 			if (aCap > 0 && GetBuffCount(aId) >= aCap) continue;
-			if (RunChoiceBlockedByCounterpart(this, GetRunPlantBuff2Def(i).mPlant, true)) continue;
+			if (RunChoiceBlockedByCounterpart(this, aId)) continue;
 			aCandidates[aCount] = aId;
 			aWeights[aCount] = GetRunChoiceWeight(aId);
 			aTotalW += aWeights[aCount];
@@ -1049,6 +1050,8 @@ bool RunState::Save(int theProfileId) const
 		AppendU16(aData, (unsigned int)mZombieBuffStacks[i]);
 	}
 	AppendU16(aData, (unsigned int)mZombieVotedLevel);
+	AppendU16(aData, (unsigned int)mRerollVouchers);
+	AppendI32(aData, mRerollAwardedLevel);
 
 	MkDir(GetAppDataFolder() + "userdata");
 	if (!gSexyAppBase->WriteBytesToFile(GetCheckpointName(theProfileId), aData.data(), (unsigned long)aData.size()))
@@ -1087,7 +1090,7 @@ bool RunState::Load(int theProfileId)
 	// v13 才有关底 boss 开关；v14 才有僵尸强化字段（位包 bit7..11 与尾追加 8×u16+u16）。
 	int aMode = RUN_MODE_FULL;
 	int aDiff = RUN_DIFF_STD;
-	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 13 && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
+	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 14 && aVersion != 13 && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
 	{
 		TodLog("[run] checkpoint magic/version mismatch, ignored");
 		return false;
@@ -1154,7 +1157,7 @@ bool RunState::Load(int theProfileId)
 	}
 
 	unsigned int aBuffCount = 0;
-	if (!aReader.ReadU16(aBuffCount) || aBuffCount > 64)
+	if (!aReader.ReadU16(aBuffCount) || aBuffCount > RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + RUN_PLANT_BUFF2_COUNT)
 	{
 		return false;
 	}
@@ -1197,6 +1200,13 @@ bool RunState::Load(int theProfileId)
 		{
 			aStack.mId = (unsigned short)(aStack.mId + 1);
 		}
+		// @pvz-online: old mine entries become the replacement choices; cap1 prevents misleading legacy stacks.
+		if (aStack.mId >= RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + RUN_PLANT_BUFF2_COUNT || aStack.mCount == 0)
+			return false;
+		if (aStack.mId == RUN_BUFF_COUNT + RUN_UPGRADE_POTATOMINE ||
+			aStack.mId == RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + RUN_BUFF2_MINEREGROW)
+			aStack.mCount = 1;
+		for (const BuffStack& aPrevious : aBuffs) if (aPrevious.mId == aStack.mId) return false;
 		aBuffs.push_back(aStack);
 	}
 
@@ -1267,6 +1277,12 @@ bool RunState::Load(int theProfileId)
 		}
 	}
 
+	unsigned int aVouchers = 0;
+	int aAwardedLevel = -1;
+	if (aVersion >= 15 && (!aReader.ReadU16(aVouchers) || aVouchers > 2 ||
+		!aReader.ReadI32(aAwardedLevel) || aAwardedLevel < -1 || aAwardedLevel > aLevelIndex)) return false;
+	mRerollVouchers = (int)aVouchers;
+	mRerollAwardedLevel = aAwardedLevel;
 	mRunSeed = aRunSeed;
 	mMode = aMode;
 	mDiff = aDiff;

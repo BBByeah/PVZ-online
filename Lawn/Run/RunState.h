@@ -135,6 +135,9 @@ public:
 	// 本屏已经花金币重摇过几次——当前价 = 底价 × 10^本数（见 GetPaidRerollCost）。纯内存、
 	// 不落检查点；新的一屏（RollChoices 非重抽路径）清零。
 	int							mPaidRerollCount;
+	// @pvz-online: run-local vouchers persist across checkpoints; clear credit is awarded once per index.
+	int mRerollVouchers;
+	int mRerollAwardedLevel;
 	// @pvz-online: 候选去重批的记账（2026-10-10 用户定案「同屏排除+一屏冷却」，一屏/一批
 	// 生灭、纯内存不落检查点）。mPickSeenBuffs = 本屏露过脸的全部增益 id（含「重摇」
 	// 刷掉的那批，最多 3+3，抽的当下就记）；mPickCooldownBuffs = 上一屏露过脸又没拿的

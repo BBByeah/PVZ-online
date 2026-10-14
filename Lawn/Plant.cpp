@@ -187,7 +187,10 @@ void Plant::PlantInitialize(int theGridX, int theGridY, SeedType theSeedType, Se
     mSquashSmashesLeft = -1;
     mSquashFromX = 0.0f;
     mSquashFromY = 0.0f;
-    mMineregrowsLeft = 0;	// @pvz-online: 补雷（第二 buff 批 7）——非闯关/非种下路径恒 0
+    mMineregrowsLeft = 0;	// @pvz-online: legacy field retained; recursive mine network no longer uses a regrowth budget.
+    mRunDispatchCursor = 0;
+    mRunAliveTicks = 0;
+    mRunGarlicCooldown = 0;
     mChainBitesLeft = 0;	// @pvz-online: 连锁吞（第二 buff 批 8）——非闯关/非种下路径恒 0
     mParticleID = ParticleSystemID::PARTICLESYSTEMID_NULL;
     mBodyReanimID = ReanimationID::REANIMATIONID_NULL;
@@ -418,9 +421,8 @@ void Plant::PlantInitialize(int theGridX, int theGridY, SeedType theSeedType, Se
         if (IsInPlay())
         {
             aBodyReanim->AssignRenderGroupToTrack("anim_glow", RENDER_GROUP_HIDDEN);
-            mStateCountdown = 1500;
-            // @pvz-online: 第二 buff「补雷」（docs/06 §8.6 #4）：剩余重埋次数 = 词条层数。
-            mMineregrowsLeft = mApp->RunPlantBuff2Count(SeedType::SEED_POTATOMINE);
+            // @pvz-online: quick arming applies to every generation, without the removed seismic stun.
+            mStateCountdown = mApp->RunPlantUpgradeCount(SeedType::SEED_POTATOMINE) > 0 ? 375 : 1500;
         }
         else
         {
@@ -484,6 +486,7 @@ void Plant::PlantInitialize(int theGridX, int theGridY, SeedType theSeedType, Se
         break;
     }
     case SeedType::SEED_CHOMPER:
+        if (mApp->RunExtraBuffCount(RUN_BUFF2_DIGEST_HEAL) > 0) mPlantHealth = 3000;
         mState = PlantState::STATE_READY;
         break;
     case SeedType::SEED_PLANTERN:
@@ -583,6 +586,9 @@ void Plant::PlantInitialize(int theGridX, int theGridY, SeedType theSeedType, Se
         else if (theSeedType == SeedType::SEED_GLOOMSHROOM) mPlantHealth = 500;
         else if (theSeedType == SeedType::SEED_GARLIC) mPlantHealth = 20;
     }
+    // @pvz-online: steel shell halves the final HP after existing health multipliers.
+    if (theSeedType == SeedType::SEED_PUMPKINSHELL && mApp->RunExtraBuffCount(RUN_BUFF2_STEEL_PUMPKIN) > 0)
+        mPlantHealth = std::max(1, mPlantHealth / 2);
     mPlantMaxHealth = mPlantHealth;
 
     if (mSeedType != SeedType::SEED_FLOWERPOT && IsOnBoard())
@@ -870,6 +876,9 @@ TodParticleSystem* Plant::AddAttachedParticle(int thePosX, int thePosY, int theR
 bool Plant::FindTargetAndFire(int theRow, PlantWeapon thePlantWeapon)
 {
     Zombie* aZombie = FindTargetZombie(theRow, thePlantWeapon);
+    if (!aZombie && mSeedType == SeedType::SEED_SPLITPEA && thePlantWeapon == PlantWeapon::WEAPON_SECONDARY &&
+        mApp->RunExtraBuffCount(RUN_BUFF2_FORWARD_BACK) > 0)
+        aZombie = FindTargetZombie(theRow, PlantWeapon::WEAPON_PRIMARY);
     // @pvz-online: 忧郁菇（用户 2026-10-09 令）：无论有没有敌人都一直攻击——光环不设目标门，
     // 空场也照常走 anim_shooting 四连喷（UpdateShooting → Fire → DoRowAreaDamage，
     // 没怪时白喷、无副作用）。
@@ -2308,6 +2317,9 @@ void Plant::UpdateChomper()
     {
         if (mStateCountdown == 0)
         {
+            // @pvz-online: heal only at completed digestion, not on each chained bite.
+            if (mApp->RunExtraBuffCount(RUN_BUFF2_DIGEST_HEAL) > 0)
+                mPlantHealth += std::min(mPlantMaxHealth - mPlantHealth, (int)((long long)mPlantMaxHealth * 30 / 100));
             PlayBodyReanim("anim_swallow", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 12.0f);
             mState = PlantState::STATE_CHOMPER_SWALLOWING;
         }
@@ -3427,6 +3439,12 @@ void Plant::Update()
 
     if (doUpdate)
     {
+        // @pvz-online: gameplay time only; menus and pauses cannot grow the reroll fund.
+        if (IsOnBoard() && mApp->mGameScene == GameScenes::SCENE_PLAYING && !mDead)
+        {
+            if (mRunAliveTicks < 6000) ++mRunAliveTicks;
+            if (mRunGarlicCooldown > 0) --mRunGarlicCooldown;
+        }
         UpdateAbilities();
         Animate();
 
@@ -5005,7 +5023,9 @@ void Plant::DoSpecial()
         KillAllPlantsNearDoom();
 
         mApp->AddTodParticle(aPosX, aPosY, (int)RenderLayer::RENDER_LAYER_TOP, ParticleEffect::PARTICLE_DOOM);
-        mBoard->AddACrater(mPlantCol, mRow)->mGridItemCounter = 18000;
+        // @pvz-online: clean blast keeps normal plant/base destruction, but leaves no blocking crater.
+        if (mApp->RunExtraBuffCount(RUN_BUFF2_NO_CRATER) == 0)
+            mBoard->AddACrater(mPlantCol, mRow)->mGridItemCounter = 18000;
         mBoard->ShakeBoard(3, -4);
 
         Die();
@@ -5062,52 +5082,38 @@ void Plant::DoSpecial()
         aPosY = mY + mHeight / 2;
 
         mApp->PlaySample(SOUND_POTATO_MINE);
-        // @pvz-online: 单株「震雷」（2026-10-09 数值对齐整条重做，docs/06 §8.2.3/§8.2.4）：
-        // 「宽装药」半径 +50%/层 摘除（解半径同句簇——樱桃/冰西瓜/毁灭菇照旧），换
-        // 「爆炸眩晕半径内僵尸 2 秒/层」（cap2）——1800 直伤杀不动的幸存者（巨人族）被震懵；
-        // 眩晕走 ApplyButter（帧参数化，400 帧 = 原黄油默认值不变），原半径乘数挂点随之删除。
-        int aRadius = 60;
-        int aSeismicStacks = mApp->RunPlantUpgradeCount(SeedType::SEED_POTATOMINE);
-        if (mBoard->KillAllZombiesInRadius(mRow, aPosX, aPosY, aRadius, 0, false, aDamageRangeFlags) >= 1)
-            ReportAchievement::GiveAchievement(mApp, Spudow, true); // @Patoke: add achievement
-
-        if (aSeismicStacks > 0)
-        {
-            // 半径判定照 KillAllZombiesInRadius 的口径（同行、Boss 视作同行、圆-矩形相交）
-            Zombie* aZombie = nullptr;
-            while (mBoard->IterateZombies(aZombie))
-            {
-                if (!aZombie->EffectedByDamage(aDamageRangeFlags))
-                    continue;
-                int aRowDist = aZombie->mRow - mRow;
-                if (aZombie->mZombieType == ZombieType::ZOMBIE_BOSS)
-                    aRowDist = 0;
-                if (aRowDist != 0)
-                    continue;
-                Rect aZombieRect = aZombie->GetZombieRect();
-                if (GetCircleRectOverlap(aPosX, aPosY, aRadius, aZombieRect))
-                    aZombie->ApplyButter(200 * aSeismicStacks);		// 2 秒/层（100 帧/秒口径）
-            }
-        }
+        // @pvz-online: seismic stun is removed; descendants keep ordinary mine damage.
+        if (mBoard->KillAllZombiesInRadius(mRow, aPosX, aPosY, 60, 0, false, aDamageRangeFlags) >= 1)
+            ReportAchievement::GiveAchievement(mApp, Spudow, true);
 
         int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PARTICLE, mRow, 0);
         mApp->AddTodParticle(aPosX + 20.0f, aPosY, aRenderPosition, ParticleEffect::PARTICLE_POTATO_MINE);
         mBoard->ShakeBoard(3, -4);
 
-        // @pvz-online: 第二 buff「补雷」（docs/06 §8.6 #4）：还有剩余重埋次数时不消失——
-        // 摘掉红灯附件、转回埋土态，3 秒（300 帧）后走原版升起身流程（土粒 + anim_rise），
-        // 重埋不耗阳光不刷卡。每层可多补 1 次：初代带层数、每炸一次 -1，耗尽照常 Die。
-        if (mMineregrowsLeft > 0)
-        {
-            mMineregrowsLeft--;
-            mApp->RemoveReanimation(mLightReanimID);
-            mLightReanimID = ReanimationID::REANIMATIONID_NULL;
-            mState = PlantState::STATE_NOTREADY;
-            mStateCountdown = 300;
-            break;
-        }
-
+        // @pvz-online: free the parent square before choosing unique legal child positions.
+        int aMineCol = mPlantCol, aMineRow = mRow;
+        bool aSpreadMines = mApp->RunPlantBuff2Count(SeedType::SEED_POTATOMINE) > 0;
         Die();
+        if (aSpreadMines)
+        {
+            int aCols[9], aRows[9], aCount = 0;
+            for (int r = aMineRow - 1; r <= aMineRow + 1; ++r)
+                for (int c = aMineCol - 1; c <= aMineCol + 1; ++c)
+                    if (c >= 0 && c < MAX_GRID_SIZE_X && mBoard->RowCanHaveZombies(r) &&
+                        mBoard->CanPlantAt(c, r, SeedType::SEED_POTATOMINE) == PlantingReason::PLANTING_OK)
+                    {
+                        aCols[aCount] = c;
+                        aRows[aCount++] = r;
+                    }
+            for (int i = 0, n = std::min(3, aCount); i < n && mBoard->mPlants.mSize < mBoard->mPlants.mMaxSize; ++i)
+            {
+                int aPick = Rand(aCount);
+                mBoard->AddPlant(aCols[aPick], aRows[aPick], SeedType::SEED_POTATOMINE, SeedType::SEED_NONE);
+                --aCount;
+                aCols[aPick] = aCols[aCount];
+                aRows[aPick] = aRows[aCount];
+            }
+        }
         break;
     }
     case SeedType::SEED_INSTANT_COFFEE:
@@ -5225,6 +5231,24 @@ void Plant::CobCannonFire(int theTargetX, int theTargetY)
 //0x466E00
 void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon)
 {
+    // @pvz-online: route existing volleys, rather than manufacturing extra shots.
+    if (mSeedType == SeedType::SEED_THREEPEATER && mApp->RunExtraBuffCount(RUN_BUFF2_DISPATCH) > 0 &&
+        !FindTargetZombie(theRow, PlantWeapon::WEAPON_PRIMARY))
+    {
+        int aActiveRows[3], aCount = 0;
+        for (int r = mRow - 1; r <= mRow + 1; ++r)
+            if (mBoard->RowCanHaveZombies(r) && FindTargetZombie(r, PlantWeapon::WEAPON_PRIMARY))
+                aActiveRows[aCount++] = r;
+        if (aCount > 0)
+        {
+            theRow = aActiveRows[mRunDispatchCursor % aCount];
+            mRunDispatchCursor = (mRunDispatchCursor + 1) % aCount;
+        }
+    }
+    bool aBackFiresForward = mSeedType == SeedType::SEED_SPLITPEA &&
+        thePlantWeapon == PlantWeapon::WEAPON_SECONDARY && mApp->RunExtraBuffCount(RUN_BUFF2_FORWARD_BACK) > 0 &&
+        !FindTargetZombie(mRow, PlantWeapon::WEAPON_SECONDARY);
+
     if (mSeedType == SeedType::SEED_FUMESHROOM)
     {
         DoRowAreaDamage(20, 2U);
@@ -5372,7 +5396,7 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
 
         if (thePlantWeapon == PlantWeapon::WEAPON_SECONDARY)
         {
-            aOriginX = mX + aOffsetX - 64;
+            aOriginX = mX + aOffsetX + (aBackFiresForward ? 24 : -64);
         }
         else
         {
@@ -5435,6 +5459,8 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
 
     Projectile* aProjectile = mBoard->AddProjectile(aOriginX, aOriginY, mRenderOrder - 1, theRow, aProjectileType);
     aProjectile->mDamageRangeFlags = GetDamageRangeFlags(thePlantWeapon);
+    aProjectile->mRunIceSource = mSeedType == SeedType::SEED_SNOWPEA;
+    aProjectile->mRunCactusSource = mSeedType == SeedType::SEED_CACTUS;
 
     // @pvz-online: 单株升级「Prickly」（仙人掌，表行 SEED_CACTUS）：有该条就给尖刺预置
     // 无限穿透标记 -1（2026-10-09 晚实机反馈：由 +1 只/层、cap 2 改为无限穿透、cap 1）——
@@ -5490,6 +5516,7 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
             }
             Projectile* aSideProjectile = mBoard->AddProjectile(aOriginX, aOriginY, mRenderOrder - 1, aSideRow, aProjectileType);
             aSideProjectile->mDamageRangeFlags = aProjectile->mDamageRangeFlags;
+            aSideProjectile->mRunCactusSource = true;
             aSideProjectile->mPricklyHitsLeft = aProjectile->mPricklyHitsLeft;
             aSideProjectile->mMotionType = ProjectileMotion::MOTION_THREEPEATER;
             aSideProjectile->mVelY = (aSideRow < mRow) ? -3.0f : 3.0f;
@@ -5517,6 +5544,8 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
     {
         Projectile* aExtraProjectile = mBoard->AddProjectile(aOriginX + 21 * (i + 1), aOriginY, mRenderOrder - 1, theRow, aProjectileType);
         aExtraProjectile->mDamageRangeFlags = aProjectile->mDamageRangeFlags;
+        aExtraProjectile->mRunIceSource = aProjectile->mRunIceSource;
+        aExtraProjectile->mRunCactusSource = aProjectile->mRunCactusSource;
         aExtraProjectile->mPricklyHitsLeft = aProjectile->mPricklyHitsLeft;	// 穿透族：多发复制的子弹同标记（第二 buff 批 1）
         // @pvz-online: 三线多发补斜向（2026-10-10）：三线斜向三件套挂在 Fire 尾部（下段
         // SEED_THREEPEATER 分支），多发弹生成时还没挂——旧版相邻行多发弹是 MOTION_STRAIGHT
@@ -5526,7 +5555,7 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
         {
             aExtraProjectile->mMotionType = ProjectileMotion::MOTION_THREEPEATER;
             aExtraProjectile->mVelY = (theRow < mRow) ? -3.0f : 3.0f;
-            aExtraProjectile->mShadowY += (theRow < mRow) ? 80.0f : -80.0f;
+            aExtraProjectile->mShadowY += (float)(mBoard->GridToPixelY(mPlantCol, mRow) - mBoard->GridToPixelY(mPlantCol, theRow));
         }
     }
 
@@ -5596,13 +5625,13 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
         {
             aProjectile->mMotionType = ProjectileMotion::MOTION_THREEPEATER;
             aProjectile->mVelY = -3.0f;
-            aProjectile->mShadowY += 80.0f;
+            aProjectile->mShadowY += (float)(mBoard->GridToPixelY(mPlantCol, mRow) - mBoard->GridToPixelY(mPlantCol, theRow));
         }
         else if (theRow > mRow)
         {
             aProjectile->mMotionType = ProjectileMotion::MOTION_THREEPEATER;
             aProjectile->mVelY = 3.0f;
-            aProjectile->mShadowY -= 80.0f;
+            aProjectile->mShadowY += (float)(mBoard->GridToPixelY(mPlantCol, mRow) - mBoard->GridToPixelY(mPlantCol, theRow));
         }
     }
     else if (mSeedType == SeedType::SEED_PUFFSHROOM || mSeedType == SeedType::SEED_SEASHROOM)
@@ -5611,16 +5640,16 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
     }
     else if (mSeedType == SeedType::SEED_SPLITPEA && thePlantWeapon == PlantWeapon::WEAPON_SECONDARY)
     {
-        aProjectile->mMotionType = ProjectileMotion::MOTION_BACKWARDS;
+        aProjectile->mMotionType = (aBackFiresForward ? ProjectileMotion::MOTION_STRAIGHT : ProjectileMotion::MOTION_BACKWARDS);
 
         // @pvz-online: 单株升级「Backspike」（分裂豌豆，表行 SEED_SPLITPEA）：背向豌豆每次
         // +1 颗/层（计数型、至多 2 层）——镜像正面多发循环的写法，多出的弹向左后错开、
         // 同样走 MOTION_BACKWARDS。正面的多发循环只认 SHOTCOUNT 标签，与本条互不影响。
         for (int i = 0, aExtra = mApp->RunPlantUpgradeCount(SeedType::SEED_SPLITPEA); i < aExtra; i++)
         {
-            Projectile* aExtraProjectile = mBoard->AddProjectile(aOriginX - 21 * (i + 1), aOriginY, mRenderOrder - 1, theRow, aProjectileType);
+            Projectile* aExtraProjectile = mBoard->AddProjectile(aOriginX + (aBackFiresForward ? 21 : -21) * (i + 1), aOriginY, mRenderOrder - 1, theRow, aProjectileType);
             aExtraProjectile->mDamageRangeFlags = aProjectile->mDamageRangeFlags;
-            aExtraProjectile->mMotionType = ProjectileMotion::MOTION_BACKWARDS;
+            aExtraProjectile->mMotionType = (aBackFiresForward ? ProjectileMotion::MOTION_STRAIGHT : ProjectileMotion::MOTION_BACKWARDS);
         }
     }
     else if (mSeedType == SeedType::SEED_LEFTPEATER)

@@ -3,7 +3,7 @@
 #
 # 用途：造一份任意状态的检查点（高关号 / 指定 buff / 僵尸强化层数 / 阶梯档 …），
 #       放到 userdata 下，游戏主菜单点「继续」直接落到目标状态——不用人肉打上去。
-#       字节格式 = Lawn/Run/RunState.cpp RunState::Save 的 v14 布局复刻（小端，
+#       字节格式 = Lawn/Run/RunState.cpp RunState::Save 的 v15 布局复刻（小端，
 #       AppendU16/AppendI32 见 RunState.cpp:60-72）；--dump 可回读任意 run%d.dat 对账。
 #
 # 用法：
@@ -14,7 +14,8 @@
 #   --level N         关序号（0 起，Load 按 LevelCountForMode 封口）
 #   --seed N          局种子                       --scene 0..4  无尽锁定场景
 #   --pool 0,1,...    卡池（SeedType id；默认 0,1 = 豌豆+向日葵 = StartNew 起始两株）
-#   --buffs id:count,...   本局 buff 叠层（id 上限 95 = 全局 9 + 单株 48 + 第二表 39）
+#   --vouchers 0..2 --awardedlevel N   重摇券及已结算关序号（默认0/-1）
+#   --buffs id:count,...   本局 buff 叠层（id 上限 108 = 全局9 + 单株48 + 扩展表52）
 #   --ladder 0..4     场景难度阶梯档               --zombiebuff 0..2  僵尸 buff 每场景档
 #   --stacks id:count,...  僵尸强化 8 条池的层数（0..7，各 0..255）
 #   --votedlevel N    上一票投在第几关（默认 0xFFFF = 没投过）
@@ -36,7 +37,7 @@ my %OPT = (
 	mode => 0, diff => 1, level => 0, seed => 20261014, scene => 0, boss => 0,
 	ladder => 0, zombiebuff => 0, votedlevel => 0xFFFF,
 	scale => 1, tempo => 1, zombotany => 0, buffmult => 0,
-	pool => "0,1", buffs => "", stacks => "",
+	pool => "0,1", buffs => "", stacks => "", vouchers => 0, awardedlevel => -1,
 );
 my ($dump, $out);
 for (my $i = 0; $i < @ARGV; $i++) {
@@ -49,7 +50,7 @@ for (my $i = 0; $i < @ARGV; $i++) {
 	else { die "不认识的参数：$ARGV[$i]"; }
 }
 
-sub LEVEL_COUNT_FOR { return ( 60000, 25, 10, 5 )[ $_[0] ] }    # 0 完整 1 普通 2 快速 3 无尽
+sub LEVEL_COUNT_FOR { return ( 25, 10, 5, 60000 )[ $_[0] ] }    # 0 完整 1 普通 2 快速 3 无尽
 
 # ── Load 的同款边界校验（RunState.cpp:1062 起）────────────────────────────
 $OPT{mode}  >= 0 && $OPT{mode}  <= 3 or die "mode 越界（0..3）";
@@ -79,11 +80,11 @@ for my $s (split /,/, $OPT{pool}) {
 	push @pool, $s + 0;
 }
 @pool <= 48 or die "pool 超 48 株";
-my @buffs  = parse_pairs($OPT{buffs},  95, 255);
-@buffs <= 64 or die "buff 条目超 64";
+my @buffs  = parse_pairs($OPT{buffs}, 108, 255);
+@buffs <= 109 or die "buff 条目超 109";
 my @stacks = parse_pairs($OPT{stacks}, 7, 255);
 
-# ── --dump：按 v14 布局回读打印 ──────────────────────────────────────────
+# ── --dump：按 v15 布局回读打印 ──────────────────────────────────────────
 if (defined $dump) {
 	open my $fh, '<:raw', $dump or die "打不开 $dump: $!";
 	local $/; my $d = <$fh>; close $fh;
@@ -110,6 +111,7 @@ if (defined $dump) {
 	} else {
 		print "（v13 及更老档：到此为止，没有 v14 尾部字段 zombieStacks/zombieVotedLevel）\n";
 	}
+	if ($ver >= 15) { printf "vouchers=%d awardedLevel=%d\n", u16, unpack('l<', rd(4)) }
 	printf "（ consumed=%d bytes / file=%d bytes ）\n", $o, length $d;
 	exit 0;
 }
@@ -127,7 +129,7 @@ my $bits = ($OPT{scale} & 3) | (($OPT{tempo} & 3) << 2) | (($OPT{zombotany} & 1)
 
 my $data = '';
 $data .= pack('V', 0x314E5552);                                  # magic 'RUN1'
-$data .= pack('v', 14);                                          # version
+$data .= pack('v', 15);                                          # version
 $data .= pack('v', ($OPT{mode} & 0xFF) | (($OPT{diff} & 0xFF) << 8));
 $data .= pack('V', $OPT{seed});
 $data .= pack('V', $OPT{level});
@@ -141,6 +143,9 @@ $data .= pack('v', $OPT{boss} ? 1 : 0);
 my %stackmap = map { $_->[0] => $_->[1] } @stacks;
 $data .= pack('v', $stackmap{$_} // 0) for 0 .. 7;               # 8 条层数
 $data .= pack('v', $OPT{votedlevel});
+$OPT{vouchers} >= 0 && $OPT{vouchers} <= 2 or die "vouchers 越界（0..2）";
+$OPT{awardedlevel} >= -1 && $OPT{awardedlevel} <= $OPT{level} or die "awardedlevel 越界";
+$data .= pack('vV', $OPT{vouchers}, $OPT{awardedlevel} & 0xFFFFFFFF);
 
 open my $fh, '>:raw', $out or die "写不了 $out: $!";
 print $fh $data; close $fh;

@@ -109,10 +109,13 @@ RunPickDialog::RunPickDialog(LawnApp* theApp, RunState* theRun) : LawnDialog(
 	// 不变暗、只是按不动）；重开这一屏时按当时的记账重算（价跟着阶梯计数走，见 RunState::PaidReroll）。
 	int aRefreshCost = theRun->GetPaidRerollCost();
 	char aRefreshUtf8[64];
-	snprintf(aRefreshUtf8, sizeof(aRefreshUtf8), ModText::Tr("重摇 -%s", "Reroll -%s"),
-		LawnApp::GetMoneyString(aRefreshCost).c_str());
+	if (theRun->mRerollVouchers > 0)
+		snprintf(aRefreshUtf8, sizeof(aRefreshUtf8), ModText::Tr("用券重摇 (%d)", "Use voucher (%d)"), theRun->mRerollVouchers);
+	else
+		snprintf(aRefreshUtf8, sizeof(aRefreshUtf8), ModText::Tr("重摇 -%s", "Reroll -%s"),
+			LawnApp::GetMoneyString(aRefreshCost).c_str());
 	mRefreshButton = MakeButton(RunPickDialog_Refresh, this, aRefreshUtf8);
-	if (theApp->mPlayerInfo == nullptr || theApp->mPlayerInfo->mCoins < aRefreshCost)
+	if (theRun->mRerollVouchers <= 0 && (theApp->mPlayerInfo == nullptr || theApp->mPlayerInfo->mCoins < aRefreshCost))
 		mRefreshButton->mDisabled = true;
 
 	mTallBottom = true;

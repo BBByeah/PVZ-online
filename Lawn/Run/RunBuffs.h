@@ -83,7 +83,7 @@ enum RunPlantUpgradeId
 	RUN_UPGRADE_SUNFLOWER,		// 向日葵：丰收——种下立即产 1 次阳光 + 每轮 50% 概率多产 1 阳光（只可选 1 层；2026-10-09 经济批重做）
 	RUN_UPGRADE_CHERRYBOMB,		// 樱桃炸弹：爆炸半径 +50%/层（2026-10-05 批八由 +25% 上调）
 	RUN_UPGRADE_WALLNUT,		// 坚果墙：巨人砸击时像地刺王一样耐砸（每次 -200 血；只可选 1 层；2026-10-04 批七由血量族整条换掉）
-	RUN_UPGRADE_POTATOMINE,		// 土豆雷：震雷——爆炸眩晕半径内僵尸 2 秒/层（至多 2 层；2026-10-09 权重批由半径族整条换掉）
+	RUN_UPGRADE_POTATOMINE,		// 土豆雷：速熟——出土准备25%、最低2秒（cap1；48替换震雷，旧ID保留）
 	RUN_UPGRADE_SNOWPEA,		// 寒冰射手：发射冰西瓜（只可选 1 层；2026-10-04 批 18 由减速时长族整条换掉）
 	RUN_UPGRADE_CHOMPER,		// 大嘴花：咀嚼时间减半（只可选 1 层）
 	RUN_UPGRADE_REPEATER,		// 双发：每次射击多发 2 颗（无上限；2026-10-04 批 18 由射击间隔族整条换掉）
@@ -219,7 +219,7 @@ enum RunPlantBuff2Id
 	RUN_BUFF2_FIRSTLIGHT,	// #1 向日葵：初阳——种下立即产 1 次阳光（cap1，2★；⚠与老条「丰收」同轴，暂不进池待定案）
 	RUN_BUFF2_SCORCHED,		// #2 樱桃炸弹：焦土——被炸者每秒 300 伤燃烧 3 秒，火随人（cap2，2★）
 	RUN_BUFF2_THORNS,		// #3 坚果墙：荆棘之壁——啃食者每秒受 40 伤（cap2，2★）
-	RUN_BUFF2_MINEREGROW,	// #4 土豆雷：自动补雷——引爆后 3 秒原位重埋，每层多补 1 次（cap2，2★）
+	RUN_BUFF2_MINEREGROW,	// #4 旧ID保留：雷区扩散，爆炸后3x3随机埋3雷，子雷继续繁殖（cap1，3★）
 	RUN_BUFF2_FROSTPIERCE,	// #5 寒冰射手：寒冰贯通——雪豆无限穿透（cap1，2★；与老条「冰西瓜化」同株互斥，2026-10-10 起跨屏「持有即排除」）
 	RUN_BUFF2_CHAINBITE,	// #6 大嘴花：连锁吞——吞完范围内仍有僵尸立即再咬，每层多连锁 1 次（cap2，2★）
 	RUN_BUFF2_SUPPRESS,		// #7 双发射手：火力压制——攻击间隔 ×0.7/层（cap2，2★；走通用 RHYTHM 挂点）
@@ -254,6 +254,20 @@ enum RunPlantBuff2Id
 	RUN_BUFF2_DEEPFREEZE,	// #44 冰西瓜：冰封——+20%/层 概率冻结命中者 2 秒（cap3，3★）
 	RUN_BUFF2_GOLDTOUCH,	// #45 吸金磁：金石——+25%/层 概率银币升金币（cap3，1★；钱用途待定）
 	RUN_BUFF2_TWINCOB,		// #47 玉米加农炮：双联装——每轮多发 1 枚（cap1，1★）
+	// @pvz-online: append-only IDs preserve existing checkpoints and legacy hooks.
+	RUN_BUFF2_DISPATCH,
+	RUN_BUFF2_FORWARD_BACK,
+	RUN_BUFF2_ICE_CRYSTAL,
+	RUN_BUFF2_DIGEST_HEAL,
+	RUN_BUFF2_GIANT_COUNTER,
+	RUN_BUFF2_STEEL_PUMPKIN,
+	RUN_BUFF2_GARLIC_CLOUD,
+	RUN_BUFF2_BUTTER_SPLASH,
+	RUN_BUFF2_LANE_LIGHT,
+	RUN_BUFF2_NO_CRATER,
+	RUN_BUFF2_WALLNUT_AID,
+	RUN_BUFF2_CACTUS_SLOW,
+	RUN_BUFF2_REROLL_FUND,
 	RUN_PLANT_BUFF2_COUNT
 };
 

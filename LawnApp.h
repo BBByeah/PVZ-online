@@ -421,6 +421,8 @@ public:
 	// 没这株 / 没拿到 / 不在闯关 = 中性值；层数上限同样按表截读。
 	float							RunPlantBuff2Mul(SeedType thePlant) const;
 	int								RunPlantBuff2Count(SeedType thePlant) const;
+	int RunExtraBuffCount(RunPlantBuff2Id theBuff) const;
+	void AwardRunRerollVoucher();
 	float							RunPlantBuff2MulKind(SeedType thePlant, RunPlantUpgradeKind theKind) const;
 	int								RunPlantBuff2CountKind(SeedType thePlant, RunPlantUpgradeKind theKind) const;
 	// @pvz-online: 闯关咖啡豆种植冷却系数（2026-10-03 用户定案：7.5 秒 → 12 秒），乘在

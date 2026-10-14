@@ -67,6 +67,9 @@ void Projectile::ProjectileInitialize(int theX, int theY, int theRenderOrder, in
 	//（无条），Fire 里只有仙人掌的弹会预置 -1（无限）或有限计数。
 	mPricklyHitsLeft = 0;
 	mPricklyHitCount = 0;
+	mRunIceSource = false;
+	mRunCactusSource = false;
+	mRunCrystalDamage = 0;
 	mOnHighGround = mBoard->mGridSquareType[aGridX][theRow] == GridSquareType::GRIDSQUARE_HIGH_GROUND;
 	if (mBoard->StageHasRoof())
 	{
@@ -880,6 +883,23 @@ void Projectile::DoImpact(Zombie* theZombie)
 {
 	PlayImpactSound(theZombie);
 
+	// @pvz-online: split only original Snow Pea shots; piercing collision dedup prevents repeats.
+	if (mRunIceSource && mApp->RunExtraBuffCount(RUN_BUFF2_ICE_CRYSTAL) > 0 &&
+		(theZombie || mProjectileType == ProjectileType::PROJECTILE_WINTERMELON))
+	{
+		int aCol = mBoard->PixelToGridXKeepOnBoard(mPosX, mPosY);
+		for (int r = mRow - 1; r <= mRow + 1; r += 2)
+		{
+			if (!mBoard->RowCanHaveZombies(r)) continue;
+			int y = mBoard->GridToPixelY(aCol, r) + 25;
+			Projectile* aCrystal = mBoard->AddProjectile((int)mPosX, y, mRenderOrder, r, ProjectileType::PROJECTILE_SNOWPEA);
+			aCrystal->mDamageRangeFlags = 13;
+			aCrystal->mRunCrystalDamage = std::max(1, GetProjectileDef().mDamage / 2);
+		}
+	}
+	if (theZombie && mRunCactusSource && mApp->RunExtraBuffCount(RUN_BUFF2_CACTUS_SLOW) > 0 && theZombie->CanBeChilled())
+		theZombie->mRunBarbedCounter = 300;
+
 	// @pvz-online: 第二 buff「冰封」（冰西瓜 #44，docs/06 §8.6）：冰西瓜弹命中主目标时
 	// +20%/层 概率完全冻住 2 秒（mIceTrapCounter=200，照 HitIceTrap 直赋先例；CanBeFrozen
 	// 挡下的不硬塞）。只认冰西瓜弹（雪豆弹也带 DAMAGE_FREEZE 但不走这条）；溅射目标不 roll
@@ -908,7 +928,7 @@ void Projectile::DoImpact(Zombie* theZombie)
 	{
 		unsigned int aDamageFlags = GetDamageFlags(theZombie);
 		// @pvz-online: 闯关 buff「火力」：单体命中伤害按倍率放大（溅射那条同上，在 DoSplashDamage 里）。
-		int aDamage = (int)(GetProjectileDef().mDamage * mApp->RunBuffMul(RUN_BUFF_FIREPOWER) + 0.5f);
+		int aDamage = (int)((mRunCrystalDamage > 0 ? mRunCrystalDamage : GetProjectileDef().mDamage) * mApp->RunBuffMul(RUN_BUFF_FIREPOWER) + 0.5f);
 		// @pvz-online: 单株升级「Kindling」（火炬树桩）：火弹打抗火僵尸（投石车/冰车等
 		// IsSplashDamage 为假）走这条单发路径，同样乘（helper 注释）。
 		aDamage = KindlingFireballDamage(mApp, mProjectileType, aDamage);
@@ -991,6 +1011,33 @@ void Projectile::DoImpact(Zombie* theZombie)
 			// cap2）：黄油时长 400 + 100×层 帧（+1 秒/层；命中率的 +25%/层 在投手发射端起骰，
 			// 见 Plant::FindTargetAndFire 的 KERNELPULT 块）。未持条时 +0，与原版默认一致。
 			theZombie->ApplyButter(400 + 100 * mApp->RunPlantBuff2Count(SeedType::SEED_KERNELPULT));
+			// @pvz-online: extra butter is a status event, never another projectile or recursive splash.
+			if (mApp->RunExtraBuffCount(RUN_BUFF2_BUTTER_SPLASH) > 0)
+			{
+				Zombie* aTargets[3] = {};
+				float aDistances[3] = { 1e9f, 1e9f, 1e9f };
+				Rect aMainRect = theZombie->GetZombieRect();
+				float aCenter = aMainRect.mX + aMainRect.mWidth / 2.0f;
+				Zombie* aOther = nullptr;
+				while (mBoard->IterateZombies(aOther))
+				{
+					if (aOther == theZombie || !aOther->mHasHead || aOther->IsFlying() || aOther->IsTangleKelpTarget() ||
+						aOther->IsBobsledTeamWithSled() || !aOther->CanBeFrozen() || !aOther->EffectedByDamage(mDamageRangeFlags)) continue;
+					Rect aRect = aOther->GetZombieRect();
+					float dx = fabsf(aRect.mX + aRect.mWidth / 2.0f - aCenter);
+					if (abs(aOther->mRow - theZombie->mRow) > 1 || dx > 80.0f) continue;
+					float d = dx + 80.0f * abs(aOther->mRow - theZombie->mRow);
+					for (int i = 0; i < 3; ++i) if (d < aDistances[i])
+					{
+						for (int j = 2; j > i; --j) { aTargets[j] = aTargets[j - 1]; aDistances[j] = aDistances[j - 1]; }
+						aTargets[i] = aOther; aDistances[i] = d; break;
+					}
+				}
+				// @pvz-online: a short splash must not shorten a longer direct butter stun already in progress.
+				for (int i = 0; i < 3; ++i)
+					if (aTargets[i] && aTargets[i]->mButteredCounter < 200) aTargets[i]->ApplyButter(200);
+			}
+
 		}
 	}
 
@@ -1052,7 +1099,7 @@ void Projectile::DoImpact(Zombie* theZombie)
 		int aRollX = (int)(mPosX + 80.0f);
 		int aRollY = (int)(mPosY + mPosZ) + mHeight / 2;
 		int aRollFlags = mDamageRangeFlags;
-		int aRollDamage = (int)(GetProjectileDef().mDamage * mApp->RunBuffMul(RUN_BUFF_FIREPOWER) + 0.5f);
+		int aRollDamage = (int)((mRunCrystalDamage > 0 ? mRunCrystalDamage : GetProjectileDef().mDamage) * mApp->RunBuffMul(RUN_BUFF_FIREPOWER) + 0.5f);
 		mBoard->KillAllZombiesInRadius(mRow, aRollX, aRollY, 50, 0, false, aRollFlags, aRollDamage);
 		mApp->AddTodParticle(aRollX + 30.0f, mPosY + mPosZ - mVelY - mVelZ + 30.0f, mRenderOrder + 1, ParticleEffect::PARTICLE_MELONSPLASH);
 	}

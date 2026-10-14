@@ -248,7 +248,7 @@ static const RunPlantUpgradeDef gRunPlantUpgradeDefs[RUN_PLANT_UPGRADE_COUNT] =
 	{ SeedType::SEED_SUNFLOWER,    "Harvest", "丰收",      "种下立即产 1 次阳光\n每轮 50% 概率多产 1 阳光", "Yields sun once when planted\n50% chance of 1 extra sun per cycle", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_CHERRYBOMB,   "Wide Blast", "巨爆",   "樱桃炸弹爆炸范围 +50%\n（每层）",   "Cherry Bomb blast radius +50%\n(per stack)",        0.50f, 0, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_WALLNUT,      "Thick Shell", "耐砸",  "巨人砸击时像地刺王一样耐砸\n（每次 -200 血）", "Survives Gargantuar smashes like a Spikerock\n(-200 HP per smash)", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_POTATOMINE,   "Seismic Mine", "震雷", "爆炸眩晕半径内僵尸 2 秒\n（每层）", "Blast stuns zombies in radius 2 sec\n(per stack)",   0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_POTATOMINE, "Quick Arm", "速熟", "出土时间变为25%，最低2秒", "Arming time becomes 25%, minimum 2 sec", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_SNOWPEA,      "Blizzard", "冰西瓜化",     "发射冰西瓜",                        "Fires winter melons",                                0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
 	{ SeedType::SEED_CHOMPER,      "Ravenous", "狼吞",     "咀嚼时间减半",                      "Chew time halved",                                   -0.50f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_REPEATER,     "Pea Barrage", "弹幕",  "每次射击多发 2 颗\n（每层）",       "Fires 2 extra peas per shot\n(per stack)",           0.00f, 0, false, RUN_UPGRADE_KIND_SHOTCOUNT, 2 },
@@ -322,7 +322,7 @@ static const RunPlantUpgradeDef gRunPlantBuff2Defs[RUN_PLANT_BUFF2_COUNT] =
 	{ SeedType::SEED_SUNFLOWER,     "First Light", "初阳",   "种下立即产 1 次阳光",                  "Yields sun once when planted",                        0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_CHERRYBOMB,    "Scorched Earth", "焦土","被炸中的僵尸持续燃烧\n每秒 300 伤害，共 3 秒（每层）", "Hit zombies keep burning\n300 damage/sec for 3 sec (per stack)", 0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_WALLNUT,       "Thorn Wall", "荆棘之壁",    "啃食者每秒受 40 伤害\n（每层）",        "Biters take 40 damage/sec\n(per stack)",              0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_POTATOMINE,    "Mine Regrow", "自动补雷",   "引爆后 3 秒原位重新埋雷\n每层可多补 1 次", "Re-buries itself 3 sec after blast\n+1 regrow per stack", 0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_POTATOMINE, "Mine Network", "雷区扩散", "爆炸后3x3空格随机埋3雷，子雷继续繁殖", "Blast plants 3 mines in nearby empty tiles; descendants reproduce", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
 	{ SeedType::SEED_SNOWPEA,       "Frost Pierce", "寒冰贯通",  "雪豆无限穿透",                        "Frost peas pierce all zombies",                       0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_CHOMPER,       "Chain Bite", "连锁吞",    "吞完后范围内仍有僵尸立即再咬\n（每层多连锁 1 次）", "Bites again if zombies remain\n+1 chain per stack",   0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_REPEATER,      "Suppress Fire", "火力压制", "攻击间隔 ×0.7\n（每层）",              "Attack interval ×0.7\n(per stack)",                   -0.30f, 2, true, RUN_UPGRADE_KIND_RHYTHM, 2 },
@@ -357,6 +357,20 @@ static const RunPlantUpgradeDef gRunPlantBuff2Defs[RUN_PLANT_BUFF2_COUNT] =
 	{ SeedType::SEED_WINTERMELON,   "Deep Freeze", "冰封",   "+20% 概率冻结命中者 2 秒\n（每层）",    "+20% chance to freeze on hit\nfor 2 sec (per stack)", 0.00f, 3, false, RUN_UPGRADE_KIND_EFFECT, 3 },
 	{ SeedType::SEED_GOLD_MAGNET,   "Gold Touch", "金石",    "+25% 概率银币升金币\n（每层）",         "+25% chance silver becomes gold\n(per stack)",        0.00f, 3, false, RUN_UPGRADE_KIND_EFFECT, 1 },
 	{ SeedType::SEED_COBCANNON,     "Twin Cob", "双联装",      "每轮多发 1 枚",                        "Fires 1 extra cob per volley",                        0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	// @pvz-online: new choices use explicit IDs, never the legacy per-plant lookup.
+	{ SeedType::SEED_THREEPEATER, "Fire Dispatch", "火力调度", "空道火力转给有敌人的道，总弹数不变", "Redirect idle lanes to occupied lanes; same total shots", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
+	{ SeedType::SEED_SPLITPEA, "Forward Reserve", "双向调兵", "身后无敌时后嘴向前射击", "Rear mouth fires forward when no enemy is behind", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_SNOWPEA, "Ice Crystals", "冰晶分裂", "命中向上下行各发冰晶，50%基础伤害并减速", "Hits send a chilling crystal to each adjacent lane at 50% base damage", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
+	{ SeedType::SEED_CHOMPER, "Digest Renewal", "消化反哺", "基础生命3000，消化完成回复30%最大生命", "Base health 3000; finishing digestion heals 30% max HP", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_SPIKEROCK, "Giant Counter", "巨人克星", "普通巨人砸击先受到1000反击伤害", "Ordinary Gargantuar smashes take 1000 counter damage first", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_PUMPKINSHELL, "Steel Shell", "钢壳南瓜", "生命减半，普通巨人每次砸击扣200生命", "Half max HP; ordinary Gargantuar smashes deal 200 HP", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_GARLIC, "Garlic Cloud", "蒜气扩散", "被啃使前方2格本行至多3只换道，间隔5秒", "Bites redirect up to 3 enemies within 2 tiles ahead; 5 sec cooldown", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_KERNELPULT, "Butter Splash", "黄油飞溅", "黄油命中使周围1格至多3个额外目标定身2秒", "Butter stuns up to 3 extra enemies within 1 tile for 2 sec", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
+	{ SeedType::SEED_PLANTERN, "Battlefield Light", "战线照明", "本行敌人受到所有伤害+25%，同类不叠加", "Enemies in this lane take 25% more damage; does not stack", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_DOOMSHROOM, "Clean Blast", "无痕爆破", "爆炸不留坑，立即恢复种植条件", "Explosion leaves no crater; planting conditions recover immediately", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_WALLNUT, "Wall-nut Repair", "包扎术", "可在受伤坚果上重种，正常消耗并恢复满血", "Replant an injured Wall-nut at normal cost to restore full health", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_CACTUS, "Barbed Slow", "倒钩缓行", "尖刺命中减速20%持续3秒，与其他减速取较强值", "Spikes slow movement 20% for 3 sec; strongest slow applies", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_MARIGOLD, "Reroll Fund", "重摇基金", "存活60秒过关获1张重摇券，每关1张，最多持有2张", "Survive 60 sec to earn 1 reroll voucher on clear; hold up to 2", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 };
 
 const RunPlantUpgradeDef& GetRunPlantBuff2Def(int theIndex)
@@ -367,7 +381,7 @@ const RunPlantUpgradeDef& GetRunPlantBuff2Def(int theIndex)
 
 int RunPlantBuff2IndexFor(SeedType thePlant)
 {
-	for (int i = 0; i < RUN_PLANT_BUFF2_COUNT; i++)
+	for (int i = 0; i < RUN_BUFF2_DISPATCH; i++)
 	{
 		if (gRunPlantBuff2Defs[i].mPlant == thePlant) return i;
 	}
@@ -379,6 +393,7 @@ int RunPlantBuff2IndexFor(SeedType thePlant)
 // 待用户定案前永不进池（docs/06 §8.6 ⚠）。
 bool RunPlantBuff2InPool(int theIndex)
 {
+	if (theIndex >= RUN_BUFF2_DISPATCH && theIndex < RUN_PLANT_BUFF2_COUNT) return true;
 	switch (theIndex)
 	{
 	case RUN_BUFF2_PIERCE:		// 批 1 穿透族：豌豆/寒冰/三线直射弹无限穿透（挂点 Plant::Fire）

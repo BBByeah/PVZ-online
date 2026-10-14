@@ -60,6 +60,10 @@ public:
     // 替代旧版「命中后把弹推到命中者右缘 +30px」（会跳过贴身/重叠僵尸）。计数只增、取模入槽。
     ZombieID                mPricklyHitIds[16];
     int                     mPricklyHitCount;
+    // @pvz-online: source identity separates Snow Pea crystals from ordinary Winter Melon shots.
+    bool                    mRunIceSource;
+    bool                    mRunCactusSource;
+    int                     mRunCrystalDamage;
 
 public:
     Projectile();

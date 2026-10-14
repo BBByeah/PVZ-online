@@ -116,9 +116,21 @@ static int DrawRarityStars(Graphics* g, ModText::Font* theFont, int theRarity, i
 #define ALMANAC_PAGER_HIT_W 20
 
 // 这株是否可翻页（两表都有行）——绘制、命中、手型光标三处共用
+// @pvz-online: enumerate every available entry instead of assuming two buffs per plant.
+static std::vector<int> AlmanacRunEntries(SeedType theSeed)
+{
+    std::vector<int> aEntries;
+    int aFirst = RunPlantUpgradeIndexFor(theSeed);
+    if (aFirst >= 0 && RunPlantUpgradeInPool(theSeed)) aEntries.push_back(RUN_BUFF_COUNT + aFirst);
+    for (int i = 0; i < RUN_PLANT_BUFF2_COUNT; ++i)
+        if (GetRunPlantBuff2Def(i).mPlant == theSeed && RunPlantBuff2InPool(i))
+            aEntries.push_back(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + i);
+    return aEntries;
+}
+
 static bool AlmanacPagerActive(SeedType theSeed)
 {
-	return RunPlantUpgradeIndexFor(theSeed) >= 0 && RunPlantBuff2IndexFor(theSeed) >= 0;
+    return AlmanacRunEntries(theSeed).size() > 1;
 }
 
 // 页码文本「n/2」的量宽（"1/2" 与 "2/2" 等宽：同为 3 个 ASCII）
@@ -137,13 +149,13 @@ static Rect AlmanacPagerArrowRect(ModText::Font* theFont, bool theRight)
 	return Rect(aX, ALMANAC_PAGER_Y - 4, ALMANAC_PAGER_HIT_W, ModText::LineHeight(theFont) + 8);
 }
 
-static void DrawAlmanacPager(Graphics* g, int thePage)
+static void DrawAlmanacPager(Graphics* g, int thePage, int theCount)
 {
 	ModText::Font* aFont = ModText::GetFont(AlmanacCjkPointSize(), true);
 	int aTextW = AlmanacPagerTextW(aFont);
 	int aGroupX = ALMANAC_ENTRY_X + ALMANAC_ENTRY_W - (ALMANAC_PAGER_HIT_W * 2 + aTextW + 4);
 
-	std::wstring aPageStr = std::to_wstring(thePage + 1) + L"/2";
+	std::wstring aPageStr = std::to_wstring(thePage + 1) + L"/" + std::to_wstring(theCount);
 	ModText::DrawTextWide(g, aFont, aGroupX + ALMANAC_PAGER_HIT_W + 2, ALMANAC_PAGER_Y,
 		aPageStr, Color(160, 75, 15), g->mClipRect);
 
@@ -590,25 +602,14 @@ void AlmanacDialog::DrawPlants(Graphics* g)
 	// （名字 + 中文说明，与局内三选一屏同源）。模仿者没有单株条目 → 没有附录。
 	// 第二 buff 批 9（2026-10-09）：一株可能两表都有行——名字行右端出「◀ 1/2 ▶」
 	// 翻页组（几何见 AlmanacPagerArrowRect），块内只画当前页；单条的株与旧版一字不差。
-	int aRunEntryIndex = RunPlantUpgradeIndexFor(mSelectedSeed);
-	int aRunEntry2Index = RunPlantBuff2IndexFor(mSelectedSeed);
-	// 魅惑批 2026-10-11：附录只列「当前可获取」的老表条目——池外（花盆/睡莲/墓碑的
-	// 删条行）不显示，避免列出已无效果的词条；这些株的附录会只剩二表页或整块消失。
-	if (aRunEntryIndex >= 0 && !RunPlantUpgradeInPool(mSelectedSeed))
-		aRunEntryIndex = -1;
-	if (aRunEntryIndex >= 0 || aRunEntry2Index >= 0)
+	std::vector<int> aRunEntries = AlmanacRunEntries(mSelectedSeed);
+	if (!aRunEntries.empty())
 	{
 		int aDescHeight = TodDrawStringWrappedHelper(g, TodStringTranslate(aDescriptionName), Rect(485, 309, 258, 230), Sexy::FONT_BRIANNETOD12, Color(40, 50, 90), DS_ALIGN_LEFT, false);
-		bool aTwoPages = aRunEntryIndex >= 0 && aRunEntry2Index >= 0;
-		int aPage = (aRunEntryIndex < 0) ? 1 : ((aTwoPages && mRunEntryPage == 1) ? 1 : 0);
-		if (aTwoPages) DrawAlmanacPager(g, aPage);
-		int aEntryId = aPage == 1
-			? (RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + aRunEntry2Index)
-			: (RUN_BUFF_COUNT + aRunEntryIndex);
-		int aEntryRarity = aPage == 1
-			? GetRunPlantBuff2Def(aRunEntry2Index).mRarity
-			: GetRunPlantUpgradeDef(aRunEntryIndex).mRarity;
-		DrawAlmanacRunEntry(g, aEntryId, aEntryRarity, 309 + aDescHeight);
+		int aPage = std::max(0, std::min(mRunEntryPage, (int)aRunEntries.size() - 1));
+		if (aRunEntries.size() > 1) DrawAlmanacPager(g, aPage, (int)aRunEntries.size());
+		int aEntryId = aRunEntries[aPage];
+		DrawAlmanacRunEntry(g, aEntryId, GetRunChoiceRarity(aEntryId), 309 + aDescHeight);
 	}
 
 	if (mSelectedSeed != SeedType::SEED_IMITATER)
@@ -910,7 +911,8 @@ void AlmanacDialog::MouseDown(int x, int y, int theClickCount)
 		{
 			int aPage = mRunEntryPage + (aRight ? 1 : -1);
 			if (aPage < 0) aPage = 0;
-			if (aPage > 1) aPage = 1;
+			int aLastPage = (int)AlmanacRunEntries(mSelectedSeed).size() - 1;
+			if (aPage > aLastPage) aPage = aLastPage;
 			mRunEntryPage = aPage;
 			mApp->PlaySample(Sexy::SOUND_GRAVEBUTTON);
 			return;

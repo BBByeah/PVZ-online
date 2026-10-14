@@ -1564,6 +1564,7 @@ void LawnApp::UpdateOnlineEnd()
 			if (IsRunMode())
 			{
 				TodLog("[net] every lawn is clear - the run moves on");
+				AwardRunRerollVoucher();
 				mRunState->AdvanceLevel();
 				if (mRunState->IsComplete())
 				{
@@ -2212,6 +2213,22 @@ void LawnApp::AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode,
 // "关序号 +1"，还有剩余关卡就接着进下一关；整局打完就删检查点、亮通关奖杯屏（批十；
 // 屏上的"回主菜单"再回菜单）——这一局已经结束了，下次点冒险该开的是新的一局，
 // 而不是再问一遍"续不续"。
+// @pvz-online: settle before clearing the board and before advancing the run; failed attempts never award.
+void LawnApp::AwardRunRerollVoucher()
+{
+    if (!mRunState || !mBoard || mRunState->mRerollAwardedLevel == mRunState->mLevelIndex) return;
+    mRunState->mRerollAwardedLevel = mRunState->mLevelIndex;
+    if (RunExtraBuffCount(RUN_BUFF2_REROLL_FUND) == 0) return;
+    Plant* aPlant = nullptr;
+    while (mBoard->IteratePlants(aPlant))
+        if (aPlant->mSeedType == SeedType::SEED_MARIGOLD && !aPlant->NotOnGround() && aPlant->mRunAliveTicks >= 6000)
+        {
+            mRunState->mRerollVouchers = std::min(2, mRunState->mRerollVouchers + 1);
+            TodLog("[run] reroll fund: awarded for level %d, vouchers=%d", mRunState->mLevelIndex, mRunState->mRerollVouchers);
+            break;
+        }
+}
+
 void LawnApp::UpdateRunEnd()
 {
 	// @pvz-online: 无尽局原地续关（无尽续草坪批，MOD_BUILD 37）：过关不清草坪——棋盘留着
@@ -2221,6 +2238,7 @@ void LawnApp::UpdateRunEnd()
 	if (mRunState->IsEndless())
 	{
 		if (mRunIntroHeld || mRunState->HasPendingPick()) return;
+		AwardRunRerollVoucher();
 		mRunState->AdvanceLevel();
 		mBoardResult = BoardResult::BOARDRESULT_NONE;
 		mGameScene = GameScenes::SCENE_LEVEL_INTRO;
@@ -2232,6 +2250,7 @@ void LawnApp::UpdateRunEnd()
 		return;
 	}
 
+	AwardRunRerollVoucher();
 	KillBoard();
 	mRunState->AdvanceLevel();
 
@@ -2483,7 +2502,31 @@ void LawnApp::RunPickChosen(int theIndex)
 	}
 	else
 	{
+		int aId = theIndex >= 0 && theIndex < RunState::RUN_CHOICES ? aRun->mBuffChoices[theIndex] : -1;
+		int aBefore = aRun->GetBuffCount(aId);
 		aRun->TakeBuffChoice(theIndex);
+		if (mBoard && aBefore == 0 && aRun->GetBuffCount(aId) > 0)
+		{
+			const int aBase = RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT;
+			Plant* aPlant = nullptr;
+			while (mBoard->IteratePlants(aPlant))
+			{
+				int aNewMax = aPlant->mPlantMaxHealth;
+				if (aId == aBase + RUN_BUFF2_DIGEST_HEAL && aPlant->mSeedType == SeedType::SEED_CHOMPER)
+					aNewMax = (int)std::min((long long)INT_MAX, (long long)aPlant->mPlantMaxHealth * 10);
+				else if (aId == aBase + RUN_BUFF2_STEEL_PUMPKIN && aPlant->mSeedType == SeedType::SEED_PUMPKINSHELL)
+					aNewMax = std::max(1, aPlant->mPlantMaxHealth / 2);
+				if (aNewMax != aPlant->mPlantMaxHealth)
+				{
+					aPlant->mPlantHealth = (int)((long long)std::max(0, aPlant->mPlantHealth) * aNewMax / std::max(1, aPlant->mPlantMaxHealth));
+					aPlant->mPlantMaxHealth = aNewMax;
+				}
+				if (aId == RUN_BUFF_COUNT + RUN_UPGRADE_POTATOMINE && aPlant->mSeedType == SeedType::SEED_POTATOMINE &&
+					aPlant->mState == PlantState::STATE_NOTREADY)
+					aPlant->mStateCountdown = std::min(aPlant->mStateCountdown, 375);
+			}
+		}
+
 	}
 }
 
@@ -2836,12 +2879,18 @@ void LawnApp::UpdateZombieVote()
 void LawnApp::RunPickPaidReroll()
 {
 	if (mRunState == nullptr || mPlayerInfo == nullptr) return;
+	if (!mRunState->HasPendingPick() || !mRunState->mChoicesRolled) return;
 	int aCost = mRunState->GetPaidRerollCost();
-	if (mPlayerInfo->mCoins < aCost) return;
-
-	mPlayerInfo->AddCoins(-aCost);
+	if (mRunState->mRerollVouchers > 0) --mRunState->mRerollVouchers;
+	else
+	{
+		if (mPlayerInfo->mCoins < aCost) return;
+		mPlayerInfo->AddCoins(-aCost);
+	}
 	KillDialog(Dialogs::DIALOG_RUN_PICK);
 	mRunState->PaidReroll();
+	// @pvz-online: spending a voucher must survive quitting, just as spending coins does.
+	mRunState->Save(mPlayerInfo->mId);
 }
 
 // R4：输一关就记账——失败次数进检查点（首版只存不用）。紧跟着写盘是刻意的：
@@ -3048,6 +3097,7 @@ float LawnApp::RunPlantBuff2Mul(SeedType thePlant) const
 // @pvz-online: explicit entry lookup keeps multiple buffs on one plant independent.
 int LawnApp::RunExtraBuffCount(RunPlantBuff2Id theBuff) const
 {
+	if (theBuff < RUN_BUFF2_DISPATCH || theBuff >= RUN_PLANT_BUFF2_COUNT) return 0;
 	return mRunState ? mRunState->GetBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + theBuff) : 0;
 }
 

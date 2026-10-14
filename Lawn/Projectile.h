@@ -63,6 +63,8 @@ public:
     // @pvz-online: source identity separates Snow Pea crystals from ordinary Winter Melon shots.
     bool                    mRunIceSource;
     bool                    mRunCactusSource;
+    // @pvz-online: Puff-shroom shares this projectile type; only Scaredy-shroom earns percent damage.
+    bool                    mRunScaredySource;
     int                     mRunCrystalDamage;
 
 public:
@@ -75,6 +77,7 @@ public:
     void                    DrawShadow(Graphics* g);
     void                    Die();
     void                    DoImpact(Zombie* theZombie);
+    int                     GetRunFixedDamageBonus(Zombie* theZombie);
     bool                    WasZombiePricklyHit(Zombie* theZombie);
     void                    RecordPricklyHit(Zombie* theZombie);
     void                    UpdateMotion();

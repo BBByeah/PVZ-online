@@ -8660,7 +8660,7 @@ void Zombie::TakeBodyDamage(int theDamage, unsigned int theDamageFlags)
 }
 
 //0x5317C0
-void Zombie::TakeDamage(int theDamage, unsigned int theDamageFlags)
+void Zombie::TakeDamage(int theDamage, unsigned int theDamageFlags, int theFixedBonus)
 {
     if (mZombiePhase == ZombiePhase::PHASE_JACK_IN_THE_BOX_POPPING || IsDeadOrDying())
         return;
@@ -8704,6 +8704,10 @@ void Zombie::TakeDamage(int theDamage, unsigned int theDamageFlags)
                 }
         }
     }
+
+    // @pvz-online: percent bonus bypasses amplification, but shares one hit with armor and Heartguard.
+    if (theFixedBonus > 0)
+        theDamage = (int)std::min((long long)INT_MAX, (long long)theDamage + theFixedBonus);
 
     // @pvz-online: 僵尸强化「护心」（MOD_BUILD 45 落地，47 改版=用户令）：改「仅对第一次
     // 实际生效的伤害封顶」——mHeartguardUsed 未消耗且本帧原伤超封顶值，才把伤害压到上限

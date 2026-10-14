@@ -213,7 +213,7 @@ public:
 //  void                            DrawZombieWithParts(Graphics* g, const ZombieDrawPosition& theDrawPos);
     void                            DrawZombiePart(Graphics* g, Image* theImage, int theFrame, int theRow, const ZombieDrawPosition& theDrawPos);
     void                            DrawBungeeCord(Graphics* g, int theOffsetX);
-    void                            TakeDamage(int theDamage, unsigned int theDamageFlags);
+    void                            TakeDamage(int theDamage, unsigned int theDamageFlags, int theFixedBonus = 0);
     /*inline*/ void                 SetRow(int theRow);
     float                           GetPosYBasedOnRow(int theRow);
     void                            ApplyChill(bool theIsIceTrap);

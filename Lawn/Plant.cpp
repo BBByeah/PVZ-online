@@ -5498,6 +5498,7 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
     aProjectile->mDamageRangeFlags = GetDamageRangeFlags(thePlantWeapon);
     aProjectile->mRunIceSource = mSeedType == SeedType::SEED_SNOWPEA;
     aProjectile->mRunCactusSource = mSeedType == SeedType::SEED_CACTUS;
+    aProjectile->mRunScaredySource = mSeedType == SeedType::SEED_SCAREDYSHROOM;
 
     // @pvz-online: 单株升级「Prickly」（仙人掌，表行 SEED_CACTUS）：有该条就给尖刺预置
     // 无限穿透标记 -1（2026-10-09 晚实机反馈：由 +1 只/层、cap 2 改为无限穿透、cap 1）——

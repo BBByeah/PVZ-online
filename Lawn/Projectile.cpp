@@ -69,6 +69,7 @@ void Projectile::ProjectileInitialize(int theX, int theY, int theRenderOrder, in
 	mPricklyHitCount = 0;
 	mRunIceSource = false;
 	mRunCactusSource = false;
+	mRunScaredySource = false;
 	mRunCrystalDamage = 0;
 	mOnHighGround = mBoard->mGridSquareType[aGridX][theRow] == GridSquareType::GRIDSQUARE_HIGH_GROUND;
 	if (mBoard->StageHasRoof())
@@ -855,6 +856,15 @@ void Projectile::PlayImpactSound(Zombie* theZombie)
 	}
 }
 
+// @pvz-online: use pre-impact body HP, not armor, and cap before any damage multipliers.
+int Projectile::GetRunFixedDamageBonus(Zombie* theZombie)
+{
+    if (!mRunScaredySource || !theZombie || theZombie->IsDeadOrDying() ||
+        mApp->RunExtraBuffCount(RUN_BUFF2_HEART_SPORE) == 0)
+        return 0;
+    return std::min(800, std::max(0, theZombie->mBodyHealth) / 20);
+}
+
 //0x46E000
 // @pvz-online: 穿透去重环（2026-10-10，见 Projectile.h 字段注释）：环容量 16——弹穿越单只
 // 僵尸矩形约 25 帧、每帧至多命中 1 只，16 发内不可能绕回到同一只。池化 ID 失效（僵尸死亡
@@ -940,7 +950,7 @@ void Projectile::DoImpact(Zombie* theZombie)
 		{
 			aDamage = (int)(aDamage * mApp->RunPlantBuff2Mul(SeedType::SEED_CABBAGEPULT) + 0.5f);
 		}
-		theZombie->TakeDamage(aDamage, aDamageFlags);
+		theZombie->TakeDamage(aDamage, aDamageFlags, GetRunFixedDamageBonus(theZombie));
 	}
 
 	float aLastPosX = mPosX - mVelX;

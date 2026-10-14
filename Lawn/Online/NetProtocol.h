@@ -187,8 +187,8 @@ const uint16_t	PROTOCOL_VERSION	= 1;
 //        游戏帧、中继零改动）。检查点同版升 v14。
 //        47（2026-10-14 实机反馈五修批）：护心改首伤一次性 + 弃权改随机兜底——投票数据
 //        消费口径变了，混搭两端会各算各的，必须同版本。
-// @pvz-online: build 49 changes fume damage timing; both players need matching mechanics.
-const uint16_t	MOD_BUILD			= 49;
+// @pvz-online: build 50 adds percent-damage choice 109; all teammates need matching mechanics.
+const uint16_t	MOD_BUILD			= 50;
 
 const uint16_t	DEFAULT_PORT		= 27777;
 

@@ -372,6 +372,8 @@ static const RunPlantUpgradeDef gRunPlantBuff2Defs[RUN_PLANT_BUFF2_COUNT] =
 	{ SeedType::SEED_WALLNUT, "Wall-nut Repair", "包扎术", "可在受伤坚果上重种，正常消耗并恢复满血", "Replant an injured Wall-nut at normal cost to restore full health", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
 	{ SeedType::SEED_CACTUS, "Barbed Slow", "倒钩缓行", "尖刺命中减速20%持续3秒，与其他减速取较强值", "Spikes slow movement 20% for 3 sec; strongest slow applies", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
 	{ SeedType::SEED_MARIGOLD, "Reroll Fund", "重摇基金", "存活60秒过关获1张重摇券，每关1张，最多持有2张", "Survive 60 sec to earn 1 reroll voucher on clear; hold up to 2", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	// @pvz-online: append the new choice so existing checkpoint IDs stay stable.
+	{ SeedType::SEED_SCAREDYSHROOM, "Heart-Eroding Spores", "蚀心孢子", "命中额外造成当前本体生命5%伤害\n额外伤害最高800，对Boss生效", "Hits add 5% of current body HP\nBonus capped at 800; works on bosses", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 };
 
 const RunPlantUpgradeDef& GetRunPlantBuff2Def(int theIndex)

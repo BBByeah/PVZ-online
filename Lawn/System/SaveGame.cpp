@@ -17,8 +17,8 @@
 
 static const char* FILE_COMPILE_TIME_STRING = "Feb 16 200923:03:38";
 static const unsigned int SAVE_FILE_MAGIC_NUMBER = 0xFEEDDEAD;
-// @pvz-online: instance buff state changes raw Plant/Projectile/Zombie layout; reject old native snapshots.
-static const unsigned int SAVE_FILE_VERSION = 3U;
+// @pvz-online: new projectile source state cannot safely read old raw snapshot padding.
+static const unsigned int SAVE_FILE_VERSION = 4U;
 static unsigned int SAVE_FILE_DATE = crc32(0, (Bytef*)FILE_COMPILE_TIME_STRING, strlen(FILE_COMPILE_TIME_STRING));  //[0x6AA7EC]
 
 //0x4813D0

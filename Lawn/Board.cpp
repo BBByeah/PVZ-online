@@ -9732,6 +9732,35 @@ void Board::KeyChar(SexyChar theChar)
 
 	TodTraceAndLog("Board cheat key '%c'", theChar);
 
+	// 验收跳板 A（2026-10-14 用户拍板 A+B，docs/03 §5.97）：'v' 开一张僵尸强化票。先走
+	// 真入口 TryOpenZombieVote（关卡/档位条件全在），条件没到（比如这一关的票已经在开）
+	// 就强开一张——只给验收看框和结算，不参与正式逻辑。注意合成按键到不了 KeyChar
+	//（§5.95 教训：PostMessage 的 WM_KEYDOWN/WM_CHAR 都进不了焦点路由），钩子只对
+	// 真人按键有效，自动化冒烟别依赖它。
+	if (theChar == _S('v') && mApp->mRunState != nullptr)
+	{
+		if (!mApp->TryOpenZombieVote())
+		{
+			unsigned char aCand[RunState::RUN_ZOMBIE_VOTE_CHOICES];
+			int aLevel = mApp->mRunState->GetPlayingLevelIndex();
+			mApp->mRunState->RollZombieVoteChoices(aLevel, aCand);
+			mApp->ZombieVoteOpenLocal(aLevel, aCand);
+		}
+		return;
+	}
+
+	// 验收跳板 A：'M' 钱包 +10000 币（AddCoins 自带 99999 封顶）——重摇阶梯验收
+	//（$100/$1,000/$10,000，§5.95）要真钱包；主菜单 'u'（+50000 连带全解锁+删冒险档）
+	// 之外给个局内一口价的口，不碰其他进度。三选一屏开着时键盘焦点在弹窗上、这钩子
+	// 收不到——先加钱再进屏（顺序见 §5.97）。
+	if (theChar == _S('M') && mApp->mPlayerInfo != nullptr)
+	{
+		mApp->mPlayerInfo->AddCoins(10000);
+		TodTraceAndLog("[board] acceptance hook: +10000 coins (wallet %d)", mApp->mPlayerInfo->mCoins);
+		ShowCoinBank();
+		return;
+	}
+
 	if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN)
 	{
 		if (theChar == _S('m'))

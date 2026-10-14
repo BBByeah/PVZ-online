@@ -230,7 +230,10 @@ enum MessageType : uint16_t
 	MSG_QUICK_CHAT		= 16,	// 双向：局内快捷聊天，只传编号（1-8 短语、9-16 植物表情，查表在 QuickChat.h）
 	MSG_BOARD_WATCH		= 17,	// 双向：观战点播/保活/收播（op 见 WatchOp；dst = 被看席位）
 	MSG_BOARD_SNAPSHOT	= 18,	// 被看方→观看者：战场定格快照（一行实体一款、分片发，见 MsgBoardSnapshot）
-	MSG_SEND_SUN		= 19	// 双向：发阳光给队友（单 100 档、税 10、5s 冷却；载荷见 MsgSendSun）
+	MSG_SEND_SUN		= 19,	// 双向：发阳光给队友（单 100 档、税 10、5s 冷却；载荷见 MsgSendSun）
+	MSG_ZOMBIE_VOTE_OPEN	= 20,	// H→C：本场景僵尸强化开票（房主抽 4 个候选；载荷见 MsgZombieVoteOpen）
+	MSG_ZOMBIE_VOTE		= 21,	// C→H：我对本场景强化的投票（0..3 = 候选下标、4 = 弃权）
+	MSG_ZOMBIE_VOTE_RESULT	= 22	// H→C：计票结果（只驱动 UI；层数权威在随后的 START_LEVEL 快照）
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -558,6 +561,42 @@ struct MsgSendSun
 	uint8_t			mSrcSeat;
 	uint8_t			mDstSeat;
 	uint16_t		mAmount;
+};
+
+// ZOMBIE_VOTE_OPEN（MOD_BUILD 45）：{ srcSeat, dstSeat, u8 sceneIndex, u8 candidates[4] }
+// 进新场景要给僵尸加强化时，房主抽 4 个不同候选广播开票，各端弹投票框。candidates 是
+// RunState::ZOMBIE_BUFF_* 的 4 个 id，顺序即候选卡顺序（投票传下标）。sceneIndex 是把
+// 场景号也带上：投完票之前换场景（重打/退关）时，旧票在计票端按号丢弃、不会串到新场景。
+struct MsgZombieVoteOpen
+{
+	uint8_t			mSrcSeat;
+	uint8_t			mDstSeat;
+	uint8_t			mSceneIndex;
+	uint8_t			mCandidates[4];
+};
+
+// ZOMBIE_VOTE：{ srcSeat, dstSeat, u8 sceneIndex, u8 choice }
+// 我的投票：choice 0..3 = 候选下标，4 = 明确弃权（本场景不给僵尸加条、不参与兜底随机）。
+// 每席最多一票，房主先到先记、重复投只认第一条；超时未投由房主按弃权收口（客户端不发包）。
+struct MsgZombieVote
+{
+	uint8_t			mSrcSeat;
+	uint8_t			mDstSeat;
+	uint8_t			mSceneIndex;
+	uint8_t			mChoice;
+};
+
+// ZOMBIE_VOTE_RESULT：{ srcSeat, dstSeat, u8 sceneIndex, u8 count, u8 ids[2] }
+// 计票结果广播：count 0..2 = 本场景加哪几条（0 = 全队弃权、本条只当一条公示）。
+// 只驱动 UI（结果横幅/本场景公示）——**层数的权威是随后 START_LEVEL 里的 mZombieStacks
+// 快照**，乱序/丢包都不会让两端层数岔开（重连也由快照自愈）。
+struct MsgZombieVoteResult
+{
+	uint8_t			mSrcSeat;
+	uint8_t			mDstSeat;
+	uint8_t			mSceneIndex;
+	uint8_t			mCount;
+	uint8_t			mIds[2];
 };
 
 // LEVEL_EXIT：{ srcSeat, dstSeat, u8 reason }
@@ -1006,6 +1045,68 @@ inline bool DecodeSendSun(const uint8_t* theData, int theSize, MsgSendSun& theMs
 	theMsg.mSrcSeat = aReader.U8();
 	theMsg.mDstSeat = aReader.U8();
 	theMsg.mAmount = aReader.U16();
+	return !aReader.Overflowed();
+}
+
+inline int EncodeZombieVoteOpen(uint8_t* theBuffer, int theCapacity, const MsgZombieVoteOpen& theMsg)
+{
+	Writer aWriter(theBuffer, theCapacity);
+	aWriter.U8(theMsg.mSrcSeat);
+	aWriter.U8(theMsg.mDstSeat);
+	aWriter.U8(theMsg.mSceneIndex);
+	for (int i = 0; i < 4; i++) aWriter.U8(theMsg.mCandidates[i]);
+	return aWriter.Overflowed() ? -1 : aWriter.Size();
+}
+
+inline bool DecodeZombieVoteOpen(const uint8_t* theData, int theSize, MsgZombieVoteOpen& theMsg)
+{
+	Reader aReader(theData, theSize);
+	theMsg.mSrcSeat = aReader.U8();
+	theMsg.mDstSeat = aReader.U8();
+	theMsg.mSceneIndex = aReader.U8();
+	for (int i = 0; i < 4; i++) theMsg.mCandidates[i] = aReader.U8();
+	return !aReader.Overflowed();
+}
+
+inline int EncodeZombieVote(uint8_t* theBuffer, int theCapacity, const MsgZombieVote& theMsg)
+{
+	Writer aWriter(theBuffer, theCapacity);
+	aWriter.U8(theMsg.mSrcSeat);
+	aWriter.U8(theMsg.mDstSeat);
+	aWriter.U8(theMsg.mSceneIndex);
+	aWriter.U8(theMsg.mChoice);
+	return aWriter.Overflowed() ? -1 : aWriter.Size();
+}
+
+inline bool DecodeZombieVote(const uint8_t* theData, int theSize, MsgZombieVote& theMsg)
+{
+	Reader aReader(theData, theSize);
+	theMsg.mSrcSeat = aReader.U8();
+	theMsg.mDstSeat = aReader.U8();
+	theMsg.mSceneIndex = aReader.U8();
+	theMsg.mChoice = aReader.U8();
+	return !aReader.Overflowed();
+}
+
+inline int EncodeZombieVoteResult(uint8_t* theBuffer, int theCapacity, const MsgZombieVoteResult& theMsg)
+{
+	Writer aWriter(theBuffer, theCapacity);
+	aWriter.U8(theMsg.mSrcSeat);
+	aWriter.U8(theMsg.mDstSeat);
+	aWriter.U8(theMsg.mSceneIndex);
+	aWriter.U8(theMsg.mCount);
+	for (int i = 0; i < 2; i++) aWriter.U8(theMsg.mIds[i]);
+	return aWriter.Overflowed() ? -1 : aWriter.Size();
+}
+
+inline bool DecodeZombieVoteResult(const uint8_t* theData, int theSize, MsgZombieVoteResult& theMsg)
+{
+	Reader aReader(theData, theSize);
+	theMsg.mSrcSeat = aReader.U8();
+	theMsg.mDstSeat = aReader.U8();
+	theMsg.mSceneIndex = aReader.U8();
+	theMsg.mCount = aReader.U8();
+	for (int i = 0; i < 2; i++) theMsg.mIds[i] = aReader.U8();
 	return !aReader.Overflowed();
 }
 

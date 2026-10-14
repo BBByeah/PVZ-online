@@ -23,6 +23,9 @@ const int	SWAP_REQUEST_PAYLOAD_SIZE = 2;	// src, dst
 const int	SWAP_REPLY_PAYLOAD_SIZE = 3;	// src, dst, u8 accepted
 const int	ESCAPED_ZOMBIE_PAYLOAD_SIZE = 22;	// src, dst, u8 row, u16 type, u8 flags, i32 ×4 血量
 const int	SEND_SUN_PAYLOAD_SIZE	= 4;	// src, dst, u16 amount（发阳光到账额，MOD_BUILD 38）
+const int	ZOMBIE_VOTE_OPEN_PAYLOAD_SIZE = 7;	// src, dst, u8 sceneIndex, u8 candidates[4]（僵尸强化开票，MOD_BUILD 45）
+const int	ZOMBIE_VOTE_PAYLOAD_SIZE = 4;	// src, dst, u8 sceneIndex, u8 choice（0..3=候选下标、4=弃权）
+const int	ZOMBIE_VOTE_RESULT_PAYLOAD_SIZE = 6;	// src, dst, u8 sceneIndex, u8 count, u8 ids[2]
 const int	HEARTBEAT_PAYLOAD_SIZE	= 6;	// src, dst, u32 tick
 const int	BYE_PAYLOAD_SIZE		= 3;	// src, dst, u8 reason
 const int	LEVEL_EXIT_PAYLOAD_SIZE	= 3;	// src, dst, u8 reason
@@ -1087,6 +1090,9 @@ void NetSession::DiscardLevelPackets()
 	mPendingEscapedZombies.clear();
 	mPendingQuickChats.clear();
 	mPendingSunGifts.clear();
+	mPendingZombieVoteOpens.clear();
+	mPendingZombieVotes.clear();
+	mPendingZombieVoteResults.clear();
 	// 观战也是"这一局"的事：先跟还在看我场地的观众逐个道别（他们那边立刻收场、不用等
 	// 6 秒超时兜底），再清观众表；我自己的观看状态整段作废——半份快照和上一关的定格
 	// 都不跨局（下一关按住 V 重新点播即可）。
@@ -1211,6 +1217,98 @@ bool NetSession::TakePendingSunGift(NetProto::MsgSendSun& theMsg)
 
 	theMsg = mPendingSunGifts.front();
 	mPendingSunGifts.erase(mPendingSunGifts.begin());
+	return true;
+}
+
+bool NetSession::SendZombieVoteOpen(uint8_t theSceneIndex, const uint8_t* theCandidates4)
+{
+	// @pvz-online: 僵尸强化投票（MOD_BUILD 45）——房主抽完 4 个候选后广播开票。
+	if (mRole != Role::HOST || !IsConnected()) return false;
+
+	NetProto::MsgZombieVoteOpen aMsg;
+	aMsg.mSrcSeat = mLocalSeat;
+	aMsg.mDstSeat = NetProto::SEAT_UNSET;		// 由 Dispatch 扇出到所有上座席位
+	aMsg.mSceneIndex = theSceneIndex;
+	for (int i = 0; i < 4; i++) aMsg.mCandidates[i] = theCandidates4[i];
+
+	uint8_t aPayload[NetProto::MAX_PAYLOAD];
+	int aSize = NetProto::EncodeZombieVoteOpen(aPayload, (int)sizeof(aPayload), aMsg);
+	if (aSize <= 0) return false;
+
+	TodLog("[net] opening zombie buff vote for scene %u: %u %u %u %u",
+		(unsigned)theSceneIndex, (unsigned)theCandidates4[0], (unsigned)theCandidates4[1],
+		(unsigned)theCandidates4[2], (unsigned)theCandidates4[3]);
+	return Dispatch(NetProto::MSG_ZOMBIE_VOTE_OPEN, aPayload, aSize);
+}
+
+bool NetSession::TakePendingZombieVoteOpen(NetProto::MsgZombieVoteOpen& theMsg)
+{
+	if (mPendingZombieVoteOpens.empty()) return false;
+
+	theMsg = mPendingZombieVoteOpens.front();
+	mPendingZombieVoteOpens.erase(mPendingZombieVoteOpens.begin());
+	return true;
+}
+
+bool NetSession::SendZombieVote(uint8_t theSceneIndex, uint8_t theChoice)
+{
+	// 单张选票只归房主收：中继下定向发到主机那一席（扇出会把票播给别的客户端）。
+	if (mRole != Role::CLIENT || !IsConnected()) return false;
+	if (theChoice > 4) return false;
+
+	NetProto::MsgZombieVote aMsg;
+	aMsg.mSrcSeat = mLocalSeat;
+	aMsg.mDstSeat = NetProto::SEAT_UNSET;
+	aMsg.mSceneIndex = theSceneIndex;
+	aMsg.mChoice = theChoice;
+
+	uint8_t aPayload[NetProto::MAX_PAYLOAD];
+	int aSize = NetProto::EncodeZombieVote(aPayload, (int)sizeof(aPayload), aMsg);
+	if (aSize <= 0) return false;
+
+	TodLog("[net] zombie buff vote for scene %u: choice %u",
+		(unsigned)theSceneIndex, (unsigned)theChoice);
+	return Dispatch(NetProto::MSG_ZOMBIE_VOTE, aPayload, aSize,
+		(mTransport == Transport::RELAY) ? mHostSeat : NetProto::SEAT_UNSET);
+}
+
+bool NetSession::TakePendingZombieVote(NetProto::MsgZombieVote& theMsg)
+{
+	if (mPendingZombieVotes.empty()) return false;
+
+	theMsg = mPendingZombieVotes.front();
+	mPendingZombieVotes.erase(mPendingZombieVotes.begin());
+	return true;
+}
+
+bool NetSession::SendZombieVoteResult(uint8_t theSceneIndex, uint8_t theCount, const uint8_t* theIds2)
+{
+	// 计票结果只驱动 UI（层数以随后的 START_LEVEL 快照为准），房主广播。
+	if (mRole != Role::HOST || !IsConnected()) return false;
+
+	NetProto::MsgZombieVoteResult aMsg;
+	aMsg.mSrcSeat = mLocalSeat;
+	aMsg.mDstSeat = NetProto::SEAT_UNSET;
+	aMsg.mSceneIndex = theSceneIndex;
+	aMsg.mCount = theCount;
+	for (int i = 0; i < 2; i++) aMsg.mIds[i] = theIds2[i];
+
+	uint8_t aPayload[NetProto::MAX_PAYLOAD];
+	int aSize = NetProto::EncodeZombieVoteResult(aPayload, (int)sizeof(aPayload), aMsg);
+	if (aSize <= 0) return false;
+
+	TodLog("[net] zombie buff vote result for scene %u: count %u ids %u %u",
+		(unsigned)theSceneIndex, (unsigned)theCount,
+		(unsigned)theIds2[0], (unsigned)theIds2[1]);
+	return Dispatch(NetProto::MSG_ZOMBIE_VOTE_RESULT, aPayload, aSize);
+}
+
+bool NetSession::TakePendingZombieVoteResult(NetProto::MsgZombieVoteResult& theMsg)
+{
+	if (mPendingZombieVoteResults.empty()) return false;
+
+	theMsg = mPendingZombieVoteResults.front();
+	mPendingZombieVoteResults.erase(mPendingZombieVoteResults.begin());
 	return true;
 }
 
@@ -1824,6 +1922,69 @@ void NetSession::HandlePacket(const NetLink::Packet& thePacket)
 			mPendingSunGifts.push_back(aMsg);
 			TodLog("[net] sun gift from seat %u: +%u",
 				(unsigned)aMsg.mSrcSeat, (unsigned)aMsg.mAmount);
+		}
+		break;
+
+	case NetProto::MSG_ZOMBIE_VOTE_OPEN:
+		{
+			if (mRole != Role::CLIENT) return;		// 开票只从主机来
+
+			NetProto::MsgZombieVoteOpen aMsg;
+			if (aPayloadSize != ZOMBIE_VOTE_OPEN_PAYLOAD_SIZE || !NetProto::DecodeZombieVoteOpen(aPayload, aPayloadSize, aMsg))
+			{
+				SetDead(NetText("对方发来的数据包有问题。", "A player sent a malformed packet.").c_str());
+				return;
+			}
+
+			// 投票要动 UI（弹框），收包链只排队；LawnApp 每帧取走。
+			mPendingZombieVoteOpens.push_back(aMsg);
+			TodLog("[net] the host opened a zombie buff vote for scene %u", (unsigned)aMsg.mSceneIndex);
+		}
+		break;
+
+	case NetProto::MSG_ZOMBIE_VOTE:
+		{
+			if (mRole != Role::HOST) return;		// 只有主机在计票
+
+			NetProto::MsgZombieVote aMsg;
+			if (aPayloadSize != ZOMBIE_VOTE_PAYLOAD_SIZE || !NetProto::DecodeZombieVote(aPayload, aPayloadSize, aMsg))
+			{
+				SetDead(NetText("对方发来的数据包有问题。", "A player sent a malformed packet.").c_str());
+				return;
+			}
+			// 席位号照 START_ACK 先例校验：越界 / 本机 / 空位丢掉这一条，不至于断线。
+			if (aMsg.mSrcSeat < 1 || aMsg.mSrcSeat > NetProto::MAX_PLAYERS
+				|| aMsg.mSrcSeat == mLocalSeat || !IsSeatOccupied(aMsg.mSrcSeat))
+			{
+				TodLog("[net] threw away a ZOMBIE_VOTE with a bogus seat (%u)", (unsigned)aMsg.mSrcSeat);
+				break;
+			}
+			if (aMsg.mChoice > 4)		// 0..3=候选下标、4=弃权，别的值没有意义
+			{
+				TodLog("[net] threw away a ZOMBIE_VOTE with a bogus choice (%u)", (unsigned)aMsg.mChoice);
+				break;
+			}
+
+			mPendingZombieVotes.push_back(aMsg);
+			TodLog("[net] zombie buff vote from seat %u for scene %u: choice %u",
+				(unsigned)aMsg.mSrcSeat, (unsigned)aMsg.mSceneIndex, (unsigned)aMsg.mChoice);
+		}
+		break;
+
+	case NetProto::MSG_ZOMBIE_VOTE_RESULT:
+		{
+			if (mRole != Role::CLIENT) return;		// 结果只从主机来
+
+			NetProto::MsgZombieVoteResult aMsg;
+			if (aPayloadSize != ZOMBIE_VOTE_RESULT_PAYLOAD_SIZE || !NetProto::DecodeZombieVoteResult(aPayload, aPayloadSize, aMsg))
+			{
+				SetDead(NetText("对方发来的数据包有问题。", "A player sent a malformed packet.").c_str());
+				return;
+			}
+
+			mPendingZombieVoteResults.push_back(aMsg);
+			TodLog("[net] zombie buff vote result for scene %u: count %u",
+				(unsigned)aMsg.mSceneIndex, (unsigned)aMsg.mCount);
 		}
 		break;
 

@@ -19,6 +19,9 @@ function Invoke-BuildTool([string]$Executable, [string[]]$Arguments) {
     & $Executable @Arguments
     if ($LASTEXITCODE -ne 0) { throw "Build tool failed ($LASTEXITCODE): $Executable" }
 }
+if ($Stage -in @('Native','Apk','All')) {
+    & "$projectDir\tools\sync\generate-port-version.ps1" -Check
+}
 if ($Stage -in @('Dependencies','All')) {
     New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
     # Fixed local ports avoid a Git registry fetch on unreliable connections.

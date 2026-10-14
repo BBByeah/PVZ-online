@@ -1419,10 +1419,16 @@ void LawnApp::CheckForGameEnd()
 		return;
 	if (mRunState)
 	{
+		if (mRunState->HasPendingPick()) return;
 		mBoardResult = BoardResult::BOARDRESULT_WON;
 		PvzpLogLn("[run] cleared index={} engine={}", mRunState->mLevelIndex, mBoard->mLevel);
 		mRunState->AdvanceLevel();
-		KillBoard();
+		if (!mRunState->IsEndless()) KillBoard();
+		else
+		{
+			mGameScene = GameScenes::SCENE_LEVEL_INTRO;
+			mBoard->mBoardFadeOutCounter = -1;
+		}
 		if (mRunState->IsComplete())
 		{
 			RunState::DeleteCheckpoint(mPlayerInfo->mId);

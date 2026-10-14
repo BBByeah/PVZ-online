@@ -2,6 +2,7 @@
 #include "../../LawnApp.h"
 #include "../../Resources.h"
 #include "../Run/RunState.h"
+#include "../Run/PortVersion.h"
 #include "../Run/RunBuffs.h"
 #include "../Run/RunPortSupport.h"
 #include "../ModText.h"
@@ -28,11 +29,15 @@ RunFlowScreen::RunFlowScreen(LawnApp* app, bool modePage) : mApp(app), mModePage
     };
     if (mModePage)
     {
-        addButton(10, ModText::Tr("完整：25 关", "Full: 25 levels"), 60, 180, 210, 70);
-        addButton(11, ModText::Tr("普通：10 关", "Normal: 10 levels"), 295, 180, 210, 70);
-        addButton(12, ModText::Tr("快速：5 关", "Quick: 5 levels"), 530, 180, 210, 70);
-        mBuffMultButton = addButton(14, ModText::Format("增益倍选：×{}", "Buff picks: x{}", RunState::BuffMultValueFor(mBuffMult)), 240, 270, 320, 50);
-        addButton(13, ModText::Tr("继续闯关", "Continue run"), 240, 345, 320, 65)->SetDisabled(!RunState::HasCheckpoint(app->mPlayerInfo->mId));
+        addButton(10, ModText::Tr("完整：25 关", "Full: 25 levels"), 30, 170, 170, 58);
+        addButton(11, ModText::Tr("普通：10 关", "Normal: 10 levels"), 220, 170, 170, 58);
+        addButton(12, ModText::Tr("快速：5 关", "Quick: 5 levels"), 410, 170, 170, 58);
+        addButton(15, ModText::Tr("无尽", "Endless"), 600, 170, 170, 58);
+        for (int i = 0; i < 6; ++i)
+            mOptionButtons[i] = addButton(20 + i, "", 35 + (i % 3) * 250, 255 + (i / 3) * 68, 230, 52);
+        RefreshOptionLabels();
+        mBuffMultButton = addButton(14, ModText::Format("增益倍选：×{}", "Buff picks: x{}", RunState::BuffMultValueFor(mBuffMult)), 95, 403, 280, 60);
+        addButton(13, ModText::Tr("继续闯关", "Continue run"), 425, 403, 280, 60)->SetDisabled(!RunState::HasCheckpoint(app->mPlayerInfo->mId));
     }
     else
     {
@@ -55,6 +60,21 @@ RunFlowScreen::RunFlowScreen(LawnApp* app, bool modePage) : mApp(app), mModePage
 
 RunFlowScreen::~RunFlowScreen() { RemoveAllWidgets(true); }
 
+void RunFlowScreen::RefreshOptionLabels()
+{
+    const char* difficulties[] = { ModText::Tr("轻松", "Easy"), ModText::Tr("标准", "Standard"), ModText::Tr("高压", "High") };
+    const char* scales[] = { ModText::Tr("少量", "Half"), ModText::Tr("标准", "Standard"), ModText::Tr("多量", "Double"), ModText::Tr("海量", "Quadruple") };
+    const char* tempos[] = { ModText::Tr("快", "Fast"), ModText::Tr("标准", "Standard"), ModText::Tr("慢", "Slow") };
+    const char* scenes[] = { ModText::Tr("白天", "Day"), ModText::Tr("夜晚", "Night"), ModText::Tr("泳池", "Pool"), ModText::Tr("迷雾", "Fog"), ModText::Tr("屋顶", "Roof") };
+    mOptionButtons[0]->mLabel = ModText::Format("难度：{}", "Difficulty: {}", difficulties[mDifficulty]);
+    mOptionButtons[1]->mLabel = ModText::Format("规模：{}", "Scale: {}", scales[mScale]);
+    mOptionButtons[2]->mLabel = ModText::Format("节奏：{}", "Tempo: {}", tempos[mTempo]);
+    mOptionButtons[3]->mLabel = ModText::Format("植物僵尸：{}", "Zombotany: {}", mZombotany ? ModText::Tr("开", "On") : ModText::Tr("关", "Off"));
+    mOptionButtons[4]->mLabel = ModText::Format("关底首领：{}", "Final boss: {}", mBossFlag ? ModText::Tr("开", "On") : ModText::Tr("关", "Off"));
+    mOptionButtons[5]->mLabel = ModText::Format("无尽场景：{}", "Endless scene: {}", scenes[mEndlessScene]);
+    MarkDirty();
+}
+
 void RunFlowScreen::Draw(Sexy::Graphics* g)
 {
     g->SetColor(Sexy::Color(23, 57, 38));
@@ -66,12 +86,18 @@ void RunFlowScreen::Draw(Sexy::Graphics* g)
     g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 28));
     if (mModePage)
     {
+        g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 20));
+        g->DrawString(ModText::Format("PC 规则 Build {}", "PC rules Build {}", PVZ_ANDROID_PC_MOD_BUILD), 550, 80);
+        g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 28));
         g->DrawString(ModText::Tr("通过五个场景，逐步收集植物和增益。", "Build your collection as you progress through five scenes."), 60, 135);
+        g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 20));
+        g->DrawString(ModText::Tr("无尽模式锁定所选场景，不生成关底首领。", "Endless stays in the selected scene and has no final boss."), 70, 492);
     }
     else
     {
         const RunState& run = *mApp->mRunState;
-        g->DrawString(ModText::Format("第 {} / {} 关   植物：{}", "Level {} / {}   Plants: {}", run.mLevelIndex + 1, run.GetLevelCount(), run.mPool.size()), 70, 135);
+        g->DrawString(run.IsEndless() ? ModText::Format("无尽第 {} 关   植物：{}", "Endless level {}   Plants: {}", run.mLevelIndex + 1, run.mPool.size()) :
+            ModText::Format("第 {} / {} 关   植物：{}", "Level {} / {}   Plants: {}", run.mLevelIndex + 1, run.GetLevelCount(), run.mPool.size()), 70, 135);
         g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 22));
         g->DrawString(ModText::Format("金币 {}   增益倍选 ×{}", "Coins {}   Buff picks x{}", mApp->mPlayerInfo->mCoins, RunState::BuffMultValueFor(run.mBuffMult)), 70, 170);
         if (!run.IsPlantPick())
@@ -100,6 +126,17 @@ void RunFlowScreen::ButtonDepress(int id)
     if (id == 9) { mApp->ShowGameSelector(); return; }
     if (mModePage)
     {
+        if (id >= 20 && id <= 25)
+        {
+            if (id == 20) mDifficulty = (mDifficulty + 1) % 3;
+            if (id == 21) mScale = (mScale + 1) % 4;
+            if (id == 22) mTempo = (mTempo + 1) % 3;
+            if (id == 23) mZombotany ^= 1;
+            if (id == 24) mBossFlag ^= 1;
+            if (id == 25) mEndlessScene = (mEndlessScene + 1) % 5;
+            RefreshOptionLabels();
+            return;
+        }
         if (id == 14)
         {
             mBuffMult = (mBuffMult + 1) % 3;
@@ -108,7 +145,9 @@ void RunFlowScreen::ButtonDepress(int id)
             return;
         }
         if (id == 13) mApp->ResumeRun();
-        else if (id >= 10 && id <= 12) mApp->StartRun(id - 10, mBuffMult);
+        else if ((id >= 10 && id <= 12) || id == 15)
+            mApp->StartRun(id == 15 ? RunState::RUN_MODE_ENDLESS : id - 10, mBuffMult,
+                mDifficulty, mScale, mTempo, mZombotany, mEndlessScene, mBossFlag);
         return;
     }
     RunState& run = *mApp->mRunState;

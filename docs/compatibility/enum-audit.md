@@ -1,6 +1,6 @@
 # 植物/僵尸编号兼容审查
 
-固定输入：Windows 7a756a2（docs/reference/windows），Portable 141c1476（src/ConstEnums.h）。以下表由 tools/audit/enum-audit.ps1 解析显式整数与隐式递增得到；遇到其他表达式会失败，不猜值。
+固定参考：Windows 7a756a2（docs/reference/windows，SeedType/ZombieType 与本轮固定 Build 44 一致）；比较对象为当前 Android src/ConstEnums.h，Portable 底座为 141c1476。以下表由 tools/audit/enum-audit.ps1 解析显式整数与隐式递增得到；遇到其他表达式会失败，不猜值。
 
 ## SeedType
 
@@ -122,23 +122,23 @@
 | ZOMBIE_SQUASH_HEAD | 30 | 30 | 一致 |
 | ZOMBIE_TALLNUT_HEAD | 31 | 31 | 一致 |
 | ZOMBIE_REDEYE_GARGANTUAR | 32 | 32 | 一致 |
-| ZOMBIE_ZOMBATAR | 33 | — | Portable 尚缺 |
-| ZOMBIE_PAIL_DOOR | 34 | — | Portable 尚缺 |
-| ZOMBIE_CONE_NEWSPAPER | 35 | — | Portable 尚缺 |
-| ZOMBIE_PAIL_NEWSPAPER | 36 | — | Portable 尚缺 |
-| ZOMBIE_PEA_HEAD_DOOR | 37 | — | Portable 尚缺 |
-| ZOMBIE_WALLNUT_HEAD_DOOR | 38 | — | Portable 尚缺 |
-| ZOMBIE_JALAPENO_HEAD_DOOR | 39 | — | Portable 尚缺 |
-| ZOMBIE_GATLING_HEAD_DOOR | 40 | — | Portable 尚缺 |
-| ZOMBIE_SQUASH_HEAD_DOOR | 41 | — | Portable 尚缺 |
-| NUM_ZOMBIE_TYPES | 42 | 33 | 不同 |
-| ZOMBIE_CACHED_POLEVAULTER_WITH_POLE | 43 | 34 | 不同 |
-| NUM_CACHED_ZOMBIE_TYPES | 44 | 35 | 不同 |
+| ZOMBIE_ZOMBATAR | 33 | 33 | 一致 |
+| ZOMBIE_PAIL_DOOR | 34 | 34 | 一致 |
+| ZOMBIE_CONE_NEWSPAPER | 35 | 35 | 一致 |
+| ZOMBIE_PAIL_NEWSPAPER | 36 | 36 | 一致 |
+| ZOMBIE_PEA_HEAD_DOOR | 37 | 37 | 一致 |
+| ZOMBIE_WALLNUT_HEAD_DOOR | 38 | 38 | 一致 |
+| ZOMBIE_JALAPENO_HEAD_DOOR | 39 | 39 | 一致 |
+| ZOMBIE_GATLING_HEAD_DOOR | 40 | 40 | 一致 |
+| ZOMBIE_SQUASH_HEAD_DOOR | 41 | 41 | 一致 |
+| NUM_ZOMBIE_TYPES | 42 | 42 | 一致 |
+| ZOMBIE_CACHED_POLEVAULTER_WITH_POLE | 43 | 43 | 一致 |
+| NUM_CACHED_ZOMBIE_TYPES | 44 | 44 | 一致 |
 
 ## 迁移结论
 
 - 两套 SeedType 的名称和编号全部一致，可以直接复用卡池/检查点编号。
-- 共同僵尸编号 0–33 一致；PC 新增 34–41 八种防具变体。Portable 的 NUM_ZOMBIE_TYPES 与缓存专用编号和 PC 不同，不能直接把这些计数/缓存值当线传实体类型。
-- NetProtocol 的 EscapedZombie.mZombieType 使用 U16 小端编解码（参考头 487/928/943 行）；解码器只读数值，类型支持必须由会话/战斗接收路径验证。
-- 新增僵尸需要同时迁入 Zombie 定义、初始化/防具行为、名称与缓存边界；只加枚举不能宣称类型已支持。在迁入之前不编译/启用包含这些类型的 RunZombieRoster。
-- 本轮先迁入 RunState 和 RunBuffs 数据。它们依赖共同植物编号，不需要为了编译先修改僵尸枚举。
+- Android 已保留 33 自定义头像编号并迁入 34–41 八种防具变体；NUM_ZOMBIE_TYPES=42、缓存专用编号=43、NUM_CACHED_ZOMBIE_TYPES=44，与固定 PC 一致。缓存专用编号仍不是线上可投放实体类型。
+- NetProtocol 的 EscapedZombie.mZombieType 使用 U16 小端编解码；解码器只读数值，接收路径仍需验证支持范围，拒绝枚举计数值与缓存专用类型。
+- 八种变体已接入定义、初始化/防具、报纸狂暴、植物头动作、死亡/脱帽及缓存边界，完整固定 PC RunZombieRoster 已编译启用。运行只检查代表类型，没有逐只实测全部组合。
+- 编号一致与底层会话已编译，不表示 Android 已完成游戏侧联机接入；下一轮还需开局、选卡就绪、漏怪、团队结算与实际双端检查。

@@ -50,8 +50,13 @@ file(GLOB SOURCES CONFIGURE_DEPENDS
 	src/Lawn/Widget/*.cpp
 	src/Lawn/System/*.cpp
 )
-# @pvz-online: include the portable run model explicitly; armored zombie behavior is a later batch.
+# @pvz-online: fixed PC run model and cross-platform session transport.
 list(APPEND SOURCES src/Lawn/Run/RunState.cpp src/Lawn/Run/RunBuffs.cpp src/Lawn/Run/RunFlow.cpp src/Lawn/Run/RunZombieRoster.cpp)
+if(WIN32)
+	list(APPEND SOURCES src/Lawn/Online/NetSession.cpp src/Lawn/Online/NetLinkWin32.cpp)
+elseif(ANDROID OR (UNIX AND NOT EMSCRIPTEN))
+	list(APPEND SOURCES src/Lawn/Online/NetSession.cpp src/Lawn/Online/NetLinkPosix.cpp)
+endif()
 
 option(LOW_MEMORY "Enable low memory mode" OFF)
 if(NINTENDO_SWITCH)

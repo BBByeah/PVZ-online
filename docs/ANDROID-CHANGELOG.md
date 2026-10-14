@@ -1,5 +1,18 @@
 # Android 开发更新记录
 
+## 2026-10-14 · 防具变体、高级单机选项与同步更新准备
+
+- 迁入 PC 八种防具变体及完整出怪名单，定义、报纸帽动画、防具/攻击/死亡、缓存边界与固定 PC 一起适配。
+- 加入高级难度/规模/节奏、植物僵尸、无尽场景和关底首领规则；无尽过关保留草坪与阳光。旧 v4 波表布局不变，新容量与状态用可选扩展块。
+- MuMu 代表类型、中文入口、无尽 48 株选卡及旧档读写通过，五个用户文件已恢复且哈希一致。首领和无尽跨关未完整实测。
+- 网络传输/会话底层已编译，游戏侧联机仍未接通。新增固定来源 JSON、候选差异审计、版本生成与 Native/Apk 构建一致性检查；已列出 Build 45 候选，当前仍固定 Build 44。
+- 最终 APK 与真实验收范围见 [VARIANTS-OPTIONS-STATUS.md](VARIANTS-OPTIONS-STATUS.md)，持续更新见 [PC-SYNC-WORKFLOW.md](PC-SYNC-WORKFLOW.md)。
+
+### English
+
+Eight PC armored zombie variants, their definitions/animations/cache bounds and the full pinned roster are ported. Advanced solo options, fixed-scene endless runs with lawn retention, and final-boss rules are integrated. Optional v4 chunks preserve the original wave-table layout. Representative MuMu checks and old-save read/write checks passed; the five original user files were restored with matching hashes. Transport and session code compile, but game-side multiplayer remains pending. A pinned source manifest, read-only PC update audit, generated version header and build checks prepare ongoing synchronization. Build 45 is audited as a candidate; the delivered rules remain Build 44.
+
+
 ## 2026-10-14 · 完整 buff、倍选与金币重摇
 
 - 固定 PC 61c37d6 / Build 44，全量迁入 96 条目录的实际消费者；92 条可抽取、3 条存量、1 条沿 PC 停用，常规植物池开放 48 株。

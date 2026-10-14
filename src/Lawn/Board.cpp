@@ -80,6 +80,7 @@ bool gShownMoreSunTutorial = false;
 
 Board::Board(LawnApp* theApp)
 {
+	for (auto& wave : mZombiesInWave) std::fill(std::begin(wave), std::end(wave), ZombieType::ZOMBIE_INVALID);
 	mApp = theApp;
 	mApp->mBoard = this;
 
@@ -589,7 +590,9 @@ void Board::PutInMissingZombies(int theWaveNumber, ZombiePicker* theZombiePicker
 
 void Board::PickZombieWaves()
 {
-	// Set the total number of waves
+	// ====================================================================================================
+	// ▲ 设定关卡总波数
+	// ====================================================================================================
 	if (mApp->IsAdventureMode())
 	{
 		if (mApp->IsWhackAZombieLevel())
@@ -598,8 +601,10 @@ void Board::PickZombieWaves()
 		}
 		else
 		{
-			mNumWaves = gZombieWaves[std::clamp(mLevel - 1, 0, NUM_LEVELS - 1)];
-			if (!mApp->mRunState && !mApp->IsFirstTimeAdventureMode() && !mApp->IsMiniBossLevel())
+			mNumWaves = gZombieWaves[std::clamp(mLevel - 1, 0, 49)];
+			// @pvz-online: 闯关不吃"+10"这一勺：波数固定是波表的原始值，
+			// 谁玩、在哪个档案上玩都一样。难度靠关卡号、场景阶梯和怪的种类涨。
+			if (!mApp->IsFirstTimeAdventureMode() && !mApp->IsMiniBossLevel() && !mApp->IsRunMode())
 			{
 				mNumWaves = mNumWaves < 10 ? 20 : mNumWaves + 10;
 			}
@@ -627,11 +632,17 @@ void Board::PickZombieWaves()
 			mNumWaves = 40;
 	}
 
+	// ====================================================================================================
+	// ▲ 一些准备工作
+	// ====================================================================================================
 	ZombiePicker aZombiePicker;
 	ZombiePickerInit(&aZombiePicker);
 	ZombieType aIntroZombieType = GetIntroducedZombieType();
 	PVZP_ASSERT(mNumWaves <= MAX_ZOMBIE_WAVES);
 
+	// ====================================================================================================
+	// ▲ 遍历每一波并填充每波的出怪列表
+	// ====================================================================================================
 	for (int aWave = 0; aWave < mNumWaves; aWave++)
 	{
 		ZombiePickerInitForWave(&aZombiePicker);
@@ -642,6 +653,7 @@ void Board::PickZombieWaves()
 
 		if (mApp->IsBungeeBlitzLevel() && aIsFlagWave)
 		{
+			// 蹦极闪电战关卡的每大波固定刷出 5 只蹦极僵尸
 			for (int _i = 0; _i < 5; _i++)
 				PutZombieInWave(ZombieType::ZOMBIE_BUNGEE, aWave, &aZombiePicker);
 
@@ -649,7 +661,11 @@ void Board::PickZombieWaves()
 				continue;
 		}
 
+		// ------------------------------------------------------------------------------------------------
+		// △ 计算该波的僵尸总点数
+		// ------------------------------------------------------------------------------------------------
 		int& aZombiePoints = aZombiePicker.mZombiePoints;
+		// 根据关卡计算本波的基础僵尸点数
 		if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_LAST_STAND)
 		{
 			aZombiePoints = (mChallenge->mSurvivalStage * GetNumWavesPerSurvivalStage() + aWave + 10) * 2 / 5 + 1;
@@ -658,8 +674,12 @@ void Board::PickZombieWaves()
 		{
 			aZombiePoints = (mChallenge->mSurvivalStage * GetNumWavesPerSurvivalStage() + aWave) * 2 / 5 + 1;
 		}
-		else if (mApp->mRunState)
+		else if (mApp->IsRunMode())
 		{
+			// 闯关（M4-a）：固定走"通关后"的出怪曲线。绝不挂在 HasFinishedAdventure 上——
+			// 两个玩家的档案进度不同会让同一关的波表都不一样（R5 遗留的确定性漏洞）。
+			// 2026-10-03（用户定案"丰富僵尸种类、不要减少僵尸数量"）：起步 +2 点/波——
+			// 权重平铺后强怪占比上升，这点增幅把总只数抬回并略超原量，前期也能买得起多样怪。
 			aZombiePoints = aWave * 2 / 5 + 3;
 		}
 		else if (mApp->IsAdventureMode() && mApp->HasFinishedAdventure() && mLevel != 5)
@@ -671,9 +691,44 @@ void Board::PickZombieWaves()
 			aZombiePoints = aWave / 3 + 1;
 		}
 
-		if (mApp->mRunState)
-			aZombiePoints = aZombiePoints * mApp->mRunState->GetDifficultyPermille() / 1000;
+		// 闯关的难度阶梯（M4-a）：数量随场景档同乘 ×1.5/场景（血量在 ZombieInitialize 里缩放）。
+		// 乘在旗帜波 ×2.5 之前：旗帜波的总点数也一起吃这个系数。整数乘除，两端逐位一致。
+		if (mApp->IsRunMode())
+		{
+			aZombiePoints = aZombiePoints * mApp->GetRunState()->GetDifficultyPermille() / 1000;
+		}
 
+		// @pvz-online: 席位顺位刷怪乘数（2026-10-03 用户二次定案：改回 2 的幂，取代当日的线性 4:3:2:1）：
+		// 末席（最后上座的席位）原量 ×2（2026-10-04 批七由 ×1 抬升）；往前每升一位翻一倍：
+		// 四人 8:4:2:2、三人 4:2:2、二人 2:2（末两席同为 ×2）；五六人续 16、32，顶到 32 封顶
+		// （用户定）。顺位按"上座席位"排（第 r 位权重 2^(n-r)、末位保底 ×2）；
+		// 各客户端只为自己的棋盘缩放，不涉协议。乘在旗帜波 ×2.5 之前。
+		// 同一倍率也放大每波数量封顶（下面 aWaveZombieCap）：1 号位 32 倍时 20 → 640 只。
+		// 2026-10-06：公式抽到 LawnApp::OnlineSeatMultiplier（顺位开局阳光同用）。
+		int aSeatMult = 1;
+
+		// @pvz-online: 出怪难度档（2026-10-03 用户定案）：房主开局前选的全局旋钮，
+		// 直接乘在顺位乘数上——轻松 ×0.5 / 高压 ×2.0，乘后向下取整、保底 1 倍
+		// （末位 2×0.5 保底 1；顺位形状 32:16:8:4:2:2 在高压下翻倍变 64:32:16:8:4:4）。
+		// 只在闯关局生效；非闯关局这两个值恒为标准档，乘出来还是原值。
+		// MOD_BUILD 37 起这段不再躲在 if (aSeatMult > 1) 里：单机（×1）的无尽局也要吃
+		// 难度/规模档（无尽选项页对单机就摆这一行）。普通单机局档位恒为标准（×1 恒等）、
+		// 行为逐位不变。
+		if (mApp->IsRunMode() && mApp->GetRunState() != nullptr)
+		{
+			aSeatMult = aSeatMult * RunState::DiffPermilleFor(mApp->GetRunState()->mDiff) / 1000;
+			if (aSeatMult < 1) aSeatMult = 1;
+
+			// @pvz-online: 高级选项·规模档（批 C，MOD_BUILD 35）：难度档之后再乘一档
+			// 出怪规模（少 ×0.5 / 多 ×2 / 海量 ×4），乘后向下取整、保底 1——与难度档
+			// 同一条纪律（每波数量封顶在下面 aWaveZombieCap 随同一倍率放大后钳硬顶）。
+			aSeatMult = aSeatMult * RunState::ScalePermilleFor(mApp->GetRunState()->mScale) / 1000;
+			if (aSeatMult < 1) aSeatMult = 1;
+		}
+
+		aZombiePoints *= aSeatMult;
+
+		// 旗帜波的特殊调整
 		if (aIsFlagWave)
 		{
 			int aPlainZombiesNum = std::min(aZombiePoints, 8);
@@ -689,7 +744,7 @@ void Board::PickZombieWaves()
 			}
 		}
 
-		// Certain levels multiply the zombie points
+		// 部分关卡的多倍出怪
 		if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_COLUMN)
 		{
 			aZombiePoints *= 6;
@@ -711,9 +766,15 @@ void Board::PickZombieWaves()
 			aZombiePoints *= 2;
 		}
 
-		// Newly introduced zombies have fixed spawns in specific waves
+		// ------------------------------------------------------------------------------------------------
+		// △ 向出怪列表中加入固定刷出的僵尸
+		// ------------------------------------------------------------------------------------------------
+		// 部分新出现的僵尸会在特定波固定刷出
+		// @pvz-online: 闯关里"初次登场固定刷一只"也要过名单（M4-a）：原版按 startingLevel==mLevel
+		// 找登场怪，闯关抽的是中后段关号，会撞上原版意义上的登场怪（如 L40 的雪人）——
+		// 名单里没有它就不许塞。
 		if (aIntroZombieType != ZombieType::ZOMBIE_INVALID && aIntroZombieType != ZombieType::ZOMBIE_DUCKY_TUBE &&
-			(!mApp->mRunState || CanZombieSpawnOnLevel(aIntroZombieType, mLevel)))
+			(!mApp->IsRunMode() || CanZombieSpawnOnLevel(aIntroZombieType, mLevel)))
 		{
 			bool aSpawnIntro = false;
 			if ((aIntroZombieType == ZombieType::ZOMBIE_DIGGER || aIntroZombieType == ZombieType::ZOMBIE_BALLOON))
@@ -741,18 +802,22 @@ void Board::PickZombieWaves()
 			}
 		}
 
-		// Level 5-10 adds a Gargantuar to the final wave
+		// 5-10 关卡的最后一波加入一只伽刚特尔
 		if (mLevel == 50 && aIsFinalWave)
 		{
 			PutZombieInWave(ZombieType::ZOMBIE_GARGANTUAR, aWave, &aZombiePicker);
 		}
-		// The final wave of an adventure level includes every zombie type of the level
-		if (!mApp->mRunState && mApp->IsAdventureMode() && aIsFinalWave)
+		// 冒险模式关卡的最后一波会出现本关卡可能出现的所有僵尸
+		// @pvz-online: 闯关不调它（M4-a 用户定案"关掉"）：名单里的怪本来就全程按权重出，
+		// "末波挨个露面"反而把没抽到的高价怪硬塞进最后一波，破坏"点数多出强怪"的节奏。
+		if (mApp->IsAdventureMode() && aIsFinalWave && !mApp->IsRunMode())
 		{
 			PutInMissingZombies(aWave, &aZombiePicker);
 		}
+		// 柱子关卡的特殊出怪
 		if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_COLUMN)
 		{
+			// 每大波的第 5 小波，固定出现 10 只扶梯僵尸
 			if (aWave % 10 == 5)
 			{
 				for (int _i = 0; _i < 10; _i++)
@@ -761,6 +826,7 @@ void Board::PickZombieWaves()
 				}
 			}
 
+			// 每大波的第 8 小波，固定出现 10 只玩偶匣僵尸
 			if (aWave % 10 == 8)
 			{
 				for (int _i = 0; _i < 10; _i++)
@@ -769,6 +835,7 @@ void Board::PickZombieWaves()
 				}
 			}
 
+			// 第 19/29 小波，固定出现 3/5 只伽刚特尔
 			if (aWave == 19)
 			{
 				for (int _i = 0; _i < 3; _i++)
@@ -785,9 +852,20 @@ void Board::PickZombieWaves()
 			}
 		}
 
-		// Spend the remaining zombie points on random zombies
-		const int cap = mApp->mRunState ? std::min(RunState::RUN_WAVE_ZOMBIE_CAP, MAX_ZOMBIES_IN_WAVE - 1) : MAX_ZOMBIES_IN_WAVE;
-		while (aZombiePoints > 0 && aZombiePicker.mZombieCount < cap)
+		// ------------------------------------------------------------------------------------------------
+		// △ 剩余的僵尸点数用于向列表中补充随机僵尸
+		// ------------------------------------------------------------------------------------------------
+		// @pvz-online: 闯关"数量封顶"（M4-a 定案）：点数不封顶，但一波最多 RUN_WAVE_ZOMBIE_CAP 只；
+		// 预算花不完的零头直接作废——富余的点数靠 PickZombieType 的强僵尸优先花在质量上。
+		// 联机再按席位顺位乘数同倍放大（2026-10-03 幂次口径：六人局 1 号位 32 倍 → 闯关上限
+		// 20×32 = 640 只、高压再 ×2.0 → 1280 只（仍小于数组上限）；非闯关 50×32 = 1600 = 数组上限，正好兜住）；
+		// 非闯关基准 = 原版 50，数组上限 MAX_ZOMBIES_IN_WAVE 按基准×32 留量。
+		int aWaveZombieCap = (mApp->IsRunMode() ? RunState::RUN_WAVE_ZOMBIE_CAP : WAVE_ZOMBIE_CAP_BASE) * aSeatMult;
+		// @pvz-online: 高级选项·规模档（批 C）把顺位乘数顶到 ×128（×32 顺位 × ×4 规模）：
+		// 非闯关 50×128 = 6400 会撞 MAX_ZOMBIES_IN_WAVE 的数组上限并触发断言——钳回硬顶
+		// 减一。原基准 50×32 本来就正好贴着上限，这里只是把"贴着"变成"钳着"。
+		if (aWaveZombieCap > MAX_ZOMBIES_IN_WAVE - 1) aWaveZombieCap = MAX_ZOMBIES_IN_WAVE - 1;
+		while (aZombiePoints > 0 && aZombiePicker.mZombieCount < aWaveZombieCap)
 		{
 			ZombieType aZombieType = PickZombieType(aZombiePoints, aWave, &aZombiePicker);
 			PutZombieInWave(aZombieType, aWave, &aZombiePicker);
@@ -1351,6 +1429,7 @@ void Board::GetZenButtonRect(GameObjectType theObjectType, Rect& theRect)
 
 void Board::InitLevel()
 {
+	mRunBossZombieID = ZombieID::ZOMBIEID_NULL;
 	mMainCounter = 0;
 	mBoardUpdateCounter = 0;
 	mEnableGraveStones = false;
@@ -2383,8 +2462,50 @@ Projectile* Board::AddProjectile(int theX, int theY, int theRenderOrder, int the
 
 bool Board::CanZombieSpawnOnLevel(ZombieType theZombieType, int theLevel)
 {
-	if (gLawnApp->mRunState)
-		return RunZombieAllowedOnLevel(theZombieType, RunLevelIndexForEngineLevel(theLevel));
+	// @pvz-online: 闯关的准入只看名单（RunZombieRoster，按关序号逐格加码，含屋顶剔除）：
+	// 不看原版 startingLevel / allowedLevels 表，雪人也不放——名单之外一律免谈。
+	// 行/场硬约束（水路只收会水的、雪橇要有冰道、0 行禁巨人）在名单之外照旧自动生效。
+	if (gLawnApp->IsRunMode())
+	{
+		// @pvz-online: 植物僵尸开关（2026-10-09，MOD_BUILD 35 高级选项）：随 RunState 走，
+		// 房主设、全员对齐（AlignRunToHost 无条件覆盖）——各客户端建场时在这里读到同值。
+		RunState* aRunState = gLawnApp->GetRunState();
+		bool aZombotany = aRunState != nullptr && aRunState->mZombotany != 0;
+		// @pvz-online: 无尽名单快速解锁（2026-10-10 用户定案"快点解锁"）。无尽锁死一个场景、
+		// 原型按 关序号%5 轮转，若按引擎关号查名单，永远只有本场景 5 格。改查"虚拟关号"：
+		// 先吃满本场景 5 格，此后每 2 关多解锁一格，到雾场景末格封顶（索引 19，2026-10-12 起；
+		// 后续场景的巨人/水怪/投石车等按序渗入）。推导只用 RunState 同步字段
+		//（mEndlessScene/mLevelIndex），六席各端逐位一致、无随机。波表与种子仍按原型关
+		//（GetLevel 不动），名单只管"允许谁"。
+		if (aRunState != nullptr && aRunState->IsEndless())
+		{
+			int aVirtualIndex = aRunState->mEndlessScene * RunState::RUN_LEVELS_PER_SCENE
+				+ (RunState::RUN_LEVELS_PER_SCENE - 1) + aRunState->mLevelIndex / 2;
+			// @pvz-online: 封顶 = 屋顶前最后一格（雾 sub5，索引 19；2026-10-12 用户拍板）。
+			// 格 20-24 是屋顶场景的剔除名单（无潜水/海豚/冰车/雪橇），无尽单行道穿过它会让
+			// 非屋顶卡"越打越丢怪"（雾卡第 3 关起丢 4 种、泳池第 13 关起、夜 23/昼 33）。
+			// 封在 19：五卡只增不减；屋顶卡实际种类逐位不变——那 4 种本来就由下面的场景闸
+			// 拦下（格 19 经闸 = 现屋顶名单 21 种）。
+			const int aEndlessRosterCap = RunState::RUN_LEVEL_COUNT - RunState::RUN_LEVELS_PER_SCENE - 1;
+			if (aVirtualIndex > aEndlessRosterCap) aVirtualIndex = aEndlessRosterCap;
+			// 场景不相容类型拦在闸外（名单 v2 的"有意剔除"口径照旧）：
+			// 水生三样只在有水场景（泳池/雾）放行——无水草坪没有行可落；
+			// 冰车/雪橇屋顶不放（RUN_ZOMBIE_ROOF 同口径，2026-10-03 名单 v2 定案）——
+			// 2026-10-12 起这行也是屋顶卡唯一的剔除机制（虚拟格封顶 19，不再经过屋顶名单）。
+			if (theZombieType == ZombieType::ZOMBIE_DUCKY_TUBE || theZombieType == ZombieType::ZOMBIE_SNORKEL
+				|| theZombieType == ZombieType::ZOMBIE_DOLPHIN_RIDER)
+			{
+				if (aRunState->mEndlessScene != 2 && aRunState->mEndlessScene != 3) return false;
+			}
+			else if (theZombieType == ZombieType::ZOMBIE_ZAMBONI || theZombieType == ZombieType::ZOMBIE_BOBSLED)
+			{
+				if (aRunState->mEndlessScene == 4) return false;
+			}
+			return RunZombieAllowedOnLevel(theZombieType, aVirtualIndex, aZombotany);
+		}
+		return RunZombieAllowedOnLevel(theZombieType, RunLevelIndexForEngineLevel(theLevel), aZombotany);
+	}
+
 	const ZombieDefinition& aZombieDef = GetZombieDefinition(theZombieType);
 	if (theZombieType == ZombieType::ZOMBIE_YETI)
 	{
@@ -2397,7 +2518,7 @@ bool Board::CanZombieSpawnOnLevel(ZombieType theZombieType, int theLevel)
 	}
 
 	PVZP_ASSERT(gZombieAllowedLevels[theZombieType].mZombieType == theZombieType);
-	return gZombieAllowedLevels[theZombieType].mAllowedOnLevel[std::clamp(theLevel - 1, 0, NUM_LEVELS - 1)];
+	return gZombieAllowedLevels[theZombieType].mAllowedOnLevel[std::clamp(theLevel - 1, 0, 49)];
 }
 
 ZombieType Board::GetIntroducedZombieType()
@@ -2446,6 +2567,15 @@ ZombieType Board::PickGraveRisingZombieType()
 	return (ZombieType)PvzpPickFromWeightedArray(aZombieWeightArray, aCount);
 }
 
+static int RunZombieValue(ZombieType theZombieType)
+{
+	if (theZombieType == ZombieType::ZOMBIE_GARGANTUAR || theZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR)
+	{
+		return RunState::RUN_GARGANTUAR_VALUE;
+	}
+	return GetZombieDefinition(theZombieType).mZombieValue;
+}
+
 ZombieType Board::PickZombieType(int theZombiePoints, int theWaveIndex, ZombiePicker* theZombiePicker)
 {
 	int aPickCount = 0;
@@ -2457,9 +2587,11 @@ ZombieType Board::PickZombieType(int theZombiePoints, int theWaveIndex, ZombiePi
 
 		const ZombieDefinition& aZombieDef = GetZombieDefinition((ZombieType)aZombieType);
 
-		// Exclude zombie types that fail the spawn restrictions or exceed the remaining points
+		// ================================================================================================
+		// ▲ 将不符合出怪限制或超出剩余点数的僵尸类型排除
+		// ================================================================================================
 		GameMode aGameMode = mApp->mGameMode;
-		// In endless mode bungee zombies only appear in flag waves
+		// 蹦极僵尸在无尽模式中仅在旗帜波出现
 		if (aZombieType == ZombieType::ZOMBIE_BUNGEE && mApp->IsSurvivalEndless(aGameMode))
 		{
 			if (!IsFlagWave(theWaveIndex))
@@ -2467,18 +2599,27 @@ ZombieType Board::PickZombieType(int theZombiePoints, int theWaveIndex, ZombiePi
 				continue;
 			}
 		}
-		else if (mApp->mRunState)
+		// @pvz-online: 闯关的出类闸（M4-a，用户定案"再激进一档"）：不走"最早出现波数"，
+		// 只看点数买不买得起——"这一关有没有它"已在名单（CanZombieSpawnOnLevel）答过。
+		// 巨人系价值压到 4（RunZombieValue），另吃每波合计上限：不设闸的话点数富余的波
+		// 会一路连抽巨人，一波能到五六只。
+		else if (mApp->IsRunMode())
 		{
-			const bool giant = aZombieType == ZOMBIE_GARGANTUAR || aZombieType == ZOMBIE_REDEYE_GARGANTUAR;
-			const int value = giant ? RunState::RUN_GARGANTUAR_VALUE : aZombieDef.mZombieValue;
-			if (theZombiePoints < value) continue;
-			if (giant && theZombiePicker->mZombieTypeCount[ZOMBIE_GARGANTUAR] +
-				theZombiePicker->mZombieTypeCount[ZOMBIE_REDEYE_GARGANTUAR] >= RunState::RUN_GARGANTUAR_CAP) continue;
+			if (theZombiePoints < RunZombieValue((ZombieType)aZombieType))
+			{
+				continue;
+			}
+			if ((aZombieType == ZombieType::ZOMBIE_GARGANTUAR || aZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR) &&
+				theZombiePicker->mZombieTypeCount[(int)ZombieType::ZOMBIE_GARGANTUAR] + theZombiePicker->mZombieTypeCount[(int)ZombieType::ZOMBIE_REDEYE_GARGANTUAR] >= RunState::RUN_GARGANTUAR_CAP)
+			{
+				continue;
+			}
 		}
+		// 僵尸最早出现的波数的限制（出怪限制）
 		else if (aGameMode != GameMode::GAMEMODE_CHALLENGE_POGO_PARTY && aGameMode != GameMode::GAMEMODE_CHALLENGE_BOBSLED_BONANZA && aGameMode != GameMode::GAMEMODE_CHALLENGE_AIR_RAID)
 		{
 			int aFirstAllowedWave = aZombieDef.mFirstAllowedWave;
-			// Endless mode gradually moves the first allowed wave earlier
+			// 无尽模式中，僵尸最早可出现的波数逐渐前移
 			if (mApp->IsSurvivalEndless(aGameMode))
 			{
 				int aFlags = GetSurvivalFlagsCompleted();
@@ -2491,12 +2632,14 @@ ZombieType Board::PickZombieType(int theZombiePoints, int theWaveIndex, ZombiePi
 			}
 		}
 
-		// Survival mode recomputes pick weights from the completed flag count
+		// ================================================================================================
+		// ▲ 生存模式中，根据当前旗帜数等重新计算僵尸的权重
+		// ================================================================================================
 		int aPickWeight = aZombieDef.mPickWeight;
 		if (mApp->IsSurvivalMode())
 		{
 			int aFlags = GetSurvivalFlagsCompleted();
-			// Per-wave spawn cap for Gargantuar and Zomboni
+			// 伽刚特尔和雪橇车僵尸的每波出怪上限
 			if (aZombieType == ZombieType::ZOMBIE_GARGANTUAR || aZombieType == ZombieType::ZOMBIE_ZAMBONI)
 			{
 				if (theZombiePicker->mZombieTypeCount[aZombieType] >= PvzpAnimateCurve(10, 50, aFlags, 2, 50, PvzpCurves::CURVE_LINEAR))
@@ -2504,7 +2647,7 @@ ZombieType Board::PickZombieType(int theZombiePoints, int theWaveIndex, ZombiePi
 					continue;
 				}
 			}
-			// Redeye caps: per flag wave, and total across non-flag waves
+			// 红眼的旗帜波出怪上限和非旗帜波出怪总和上限
 			else if (aZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR)
 			{
 				if (IsFlagWave(theWaveIndex))
@@ -2523,7 +2666,7 @@ ZombieType Board::PickZombieType(int theZombiePoints, int theWaveIndex, ZombiePi
 					aPickWeight = 1000;
 				}
 			}
-			// Weight decay for normal and conehead zombies
+			// 普通僵尸和路障僵尸的权重衰减
 			else if (aZombieType == ZombieType::ZOMBIE_NORMAL)
 			{
 				aPickWeight = PvzpAnimateCurve(10, 50, aFlags, aPickWeight, aPickWeight / 10, PvzpCurves::CURVE_LINEAR);
@@ -2533,23 +2676,40 @@ ZombieType Board::PickZombieType(int theZombiePoints, int theWaveIndex, ZombiePi
 				aPickWeight = PvzpAnimateCurve(10, 50, aFlags, aPickWeight, aPickWeight / 4, PvzpCurves::CURVE_LINEAR);
 			}
 		}
-		if (mApp->mRunState) aPickWeight = RunZombieWeight((ZombieType)aZombieType);
+		// @pvz-online: 闯关的权重走平铺表（RunZombieRoster.cpp，2026-10-03 用户定案"丰富僵尸种类"）：
+		// 原版权重里普僵/路障各 4000，抽出来半个战场就这两样；平铺后红眼与普通巨人同档
+		// 也自动成立（旧的特判一并撤掉）。
+		else if (mApp->IsRunMode())
+		{
+			aPickWeight = RunZombieWeight((ZombieType)aZombieType);
+		}
 		aZombieWeightArray[aPickCount].mItem = aZombieType;
 		aZombieWeightArray[aPickCount].mWeight = aPickWeight;
 		aPickCount++;
 	}
 
-	if (mApp->mRunState && theZombiePoints >= RunState::RUN_HEAVY_POINTS)
+	// @pvz-online: 闯关"点数多就出强僵尸"（M4-a 定案）：单波剩余点数 >= RUN_HEAVY_POINTS 时，
+	// 把价值不足 RUN_HEAVY_VALUE 的普通僵尸权重清零，只从强僵尸里抽——多出来的点数变成
+	// 更强的个体而不是人海。名单里没有强僵尸（或强僵尸全抽不起）时保持原样，绝不空抽。
+	if (mApp->IsRunMode() && theZombiePoints >= RunState::RUN_HEAVY_POINTS)
 	{
-		int heavyWeight = 0;
-		for (int i = 0; i < aPickCount; ++i)
+		int aHeavyWeight = 0;
+		for (int i = 0; i < aPickCount; i++)
+		{
 			if (GetZombieDefinition((ZombieType)aZombieWeightArray[i].mItem).mZombieValue >= RunState::RUN_HEAVY_VALUE)
-				heavyWeight += aZombieWeightArray[i].mWeight;
-		if (heavyWeight > 0)
-			for (int i = 0; i < aPickCount; ++i)
+				aHeavyWeight += aZombieWeightArray[i].mWeight;
+		}
+		if (aHeavyWeight > 0)
+		{
+			for (int i = 0; i < aPickCount; i++)
+			{
 				if (GetZombieDefinition((ZombieType)aZombieWeightArray[i].mItem).mZombieValue < RunState::RUN_HEAVY_VALUE)
 					aZombieWeightArray[i].mWeight = 0;
+			}
+		}
 	}
+
+	// 加权随机地取得一种可能的僵尸类型并返回
 	return (ZombieType)PvzpPickFromWeightedArray(aZombieWeightArray, aPickCount);
 }
 
@@ -5203,6 +5363,7 @@ void Board::SpawnZombieWave()
 	if (IsFlagWave(mCurrentWave))
 	{
 		mFlagRaiseCounter = FLAG_RAISE_TIME;
+		SpawnRunBoss();
 	}
 	mCurrentWave++;
 	mTotalSpawnedWaves++;
@@ -5604,7 +5765,7 @@ void Board::UpdateZombieSpawning()
 		if (IsFlagWave(mCurrentWave))
 		{
 			ClearAdviceImmediately();
-			DisplayAdviceAgain("[ADVICE_HUGE_WAVE]", MessageStyle::MESSAGE_STYLE_HUGE_WAVE, AdviceType::ADVICE_HUGE_WAVE);
+			DisplayAdviceAgain(("[ADVICE_HUGE_WAVE]"), MessageStyle::MESSAGE_STYLE_HUGE_WAVE, AdviceType::ADVICE_HUGE_WAVE);
 			mHugeWaveCountDown = 750;
 			return;
 		}
@@ -5620,7 +5781,7 @@ void Board::UpdateZombieSpawning()
 			mZombieHealthToNextWave = 0;
 			mZombieCountDown = ZOMBIE_COUNTDOWN_BEFORE_REPICK + 1;
 		}
-		else if (IsFlagWave(mCurrentWave) && !(mApp->IsWallnutBowlingLevel() || mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_LAST_STAND))
+		else if (IsFlagWave(mCurrentWave) && (mApp->IsWallnutBowlingLevel() || mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_LAST_STAND))
 		{
 			mZombieHealthToNextWave = 0;
 			mZombieCountDown = ZOMBIE_COUNTDOWN_BEFORE_FLAG;
@@ -5635,6 +5796,14 @@ void Board::UpdateZombieSpawning()
 			else
 			{
 				mZombieCountDown = ZOMBIE_COUNTDOWN + Rand(ZOMBIE_COUNTDOWN_RANGE);
+				// @pvz-online: 高级选项·节奏档（批 C，MOD_BUILD 35）：乘在默认波间隔上
+				// （快 ×0.6 / 慢 ×1.6），下限 400 帧——别让快档把波距压没了。只在闯关局
+				// 生效；抢跑/旗前的特殊倒计时（上面各分支）不参与缩放，闯关局走不到。
+				if (mApp->IsRunMode() && mApp->GetRunState() != nullptr)
+				{
+					mZombieCountDown = mZombieCountDown * RunState::TempoPermilleFor(mApp->GetRunState()->mTempo) / 1000;
+					if (mZombieCountDown < 400) mZombieCountDown = 400;
+				}
 			}
 		}
 		mZombieCountDownStart = mZombieCountDown;
@@ -9770,5 +9939,84 @@ int Board::NumberZombiesInWave(int theWaveIndex)
 
 bool Board::IsZombieTypeSpawnedOnly(ZombieType theZombieType)
 {
-	return (theZombieType == ZombieType::ZOMBIE_BACKUP_DANCER || theZombieType == ZombieType::ZOMBIE_BOBSLED || theZombieType == ZombieType::ZOMBIE_IMP);
+	// @pvz-online: 桶钢门/路障报纸/桶报纸/铁门植物头五种只走闯关名单投放——生存模式的随机给怪池不能抽到它们。
+	return (theZombieType == ZombieType::ZOMBIE_BACKUP_DANCER || theZombieType == ZombieType::ZOMBIE_BOBSLED || theZombieType == ZombieType::ZOMBIE_IMP || theZombieType == ZombieType::ZOMBIE_PAIL_DOOR || theZombieType == ZombieType::ZOMBIE_CONE_NEWSPAPER || theZombieType == ZombieType::ZOMBIE_PAIL_NEWSPAPER ||
+		theZombieType == ZombieType::ZOMBIE_PEA_HEAD_DOOR || theZombieType == ZombieType::ZOMBIE_WALLNUT_HEAD_DOOR || theZombieType == ZombieType::ZOMBIE_JALAPENO_HEAD_DOOR || theZombieType == ZombieType::ZOMBIE_GATLING_HEAD_DOOR || theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD_DOOR);
+}
+
+void Board::SpawnRunBoss()
+{
+	RunState* aRun = mApp->GetRunState();
+	if (aRun == nullptr || aRun->mBossFlag == 0) return;
+	if (aRun->mMode == RunState::RUN_MODE_ENDLESS) return;		// 无尽档没有关底
+	if (aRun->GetPlayingLevelIndex() + 1 < aRun->GetLevelCount()) return;	// 只在最后一关
+	if (mRunBossZombieID != ZombieID::ZOMBIEID_NULL) return;	// 一关一只（旗波钩子每旗都会来问）
+	// 仅一号位：联机恒出在 1 号位玩家的棋盘（2026-10-12 用户令由「房主棋盘」改为
+	// 「一号位棋盘」——换位后房主可能不在 1 号位，boss 固定跟席位 1 走，不跟房主；
+	// 单机恒有）。1 号位空席（人离房释放了）时本关不刷。
+
+	int aRows[MAX_GRID_SIZE_Y];
+	int aRowCount = 0;
+	for (int i = 0; i < MAX_GRID_SIZE_Y; i++)
+	{
+		if (RowCanHaveZombies(i) && mPlantRow[i] != PlantRowType::PLANTROW_POOL)
+		{
+			aRows[aRowCount++] = i;
+		}
+	}
+	if (aRowCount == 0) return;
+
+	// 两只 boss 随机出一只（用户 2026-10-11 定案）：红眼巨人=砸击破耐砸，橄榄球=极速啃食。
+	ZombieType aBossType = Rand(2) == 0
+		? ZombieType::ZOMBIE_REDEYE_GARGANTUAR
+		: ZombieType::ZOMBIE_FOOTBALL;
+	Zombie* aBoss = AddZombieInRow(aBossType, aRows[Rand(aRowCount)], mCurrentWave);
+	if (aBoss == nullptr) return;
+
+	aBoss->mScaleZombie = 2.0f;
+	int aMult = 1 * 3;
+	aBoss->mBodyHealth = aBoss->mBodyHealth * aMult;
+	aBoss->mBodyMaxHealth = aBoss->mBodyHealth;
+	if (aBossType == ZombieType::ZOMBIE_FOOTBALL)
+	{
+		aBoss->mHelmHealth = aBoss->mHelmHealth * aMult;
+		aBoss->mHelmMaxHealth = aBoss->mHelmHealth;
+	}
+	aBoss->UpdateAnimSpeed();
+	mRunBossZombieID = ZombieGetID(aBoss);
+}
+
+bool Board::IsRunBossZombie(Zombie* theZombie)
+{
+	return theZombie != nullptr && mRunBossZombieID != ZombieID::ZOMBIEID_NULL
+		&& mRunBossZombieID == ZombieGetID(theZombie);
+}
+
+void Board::InitEndlessRunStage()
+{
+	RunState* aRun = mApp->GetRunState();
+	if (aRun == nullptr) return;
+
+	// 关序号 / 种子的覆盖值跟着新一关换：选卡候选、墓碑这类"关级随机"读的就是它
+	// （建新场时这一步在 EnterRunLevel，这条路上没人替它做）。
+	mApp->mAppRandSeed = aRun->GetLevelSeed();
+	mLevel = aRun->GetLevel();
+
+	RefreshSeedPacketFromCursor();
+	mLevelComplete = false;
+	// 联机局的草坪在等待期一直开着：棋盘上可能留着队友漏过来、还没走完的怪。
+	// 新一关各就各位，这些上一关的尾巴不能接着走——它们会啃新关的植物，
+	// 摸到房子那一边还会把推车误碰掉。单机局的怪在过关时已经清完，这儿是空转。
+	RemoveAllZombies();
+	InitZombieWaves();
+	mBoardFadeOutCounter = -1;	// 单机过关的白幕倒计时在这一刻才真正落定
+
+	if (StageHasFog())
+	{
+		mFogBlownCountDown = FOG_BLOW_RETURN_TIME;
+	}
+	for (int i = 0; i < MAX_GRID_SIZE_Y; i++)
+	{
+		mWaveRowGotLawnMowered[i] = -100;
+	}
 }

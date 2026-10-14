@@ -1,6 +1,6 @@
 # PvZ Online Android（移植中）
 
-此 `android-port` 分支是 PvZ Online 的 Android 移植工程，当前已在 MuMu Android 15 运行，包含单机闯关、中英文资源切换、现有僵尸出怪规则、标准场景难度、48 种常规植物、完整 PC buff 消费者、增益倍选、金币重摇和失败重打。规则来源固定为 PC Build 44；合作联机、新增僵尸及高级难度仍在迁移中。完整 buff 的代码覆盖、代表检查和存档兼容见 [迁移结果](docs/BUFF-PORT-STATUS.md)。当前交付及有限验收见 [进度](PORTING-STATUS.md) 与 [后续批次](docs/NEXT-BATCH.md)。
+此 `android-port` 分支是 PvZ Online 的 Android 移植工程，当前已在 MuMu Android 15 运行，包含单机闯关、中英文资源切换、现有僵尸出怪规则、标准场景难度、48 种常规植物、完整 PC buff 消费者、增益倍选、金币重摇和失败重打。规则来源固定为 PC Build 44；八种防具变体、高级单机选项、无尽场景及关底首领规则已接入；代表检查和未验范围见 [本轮结果](docs/VARIANTS-OPTIONS-STATUS.md)。游戏侧联机、原版风格 mod UI 与手机专项仍在推进。PC 持续更新流程见 [同步准备](docs/PC-SYNC-WORKFLOW.md)。完整 buff 的代码覆盖、代表检查和存档兼容见 [迁移结果](docs/BUFF-PORT-STATUS.md)。当前交付及有限验收见 [进度](PORTING-STATUS.md) 与 [后续批次](docs/NEXT-BATCH.md)。
 
 - 两人协作与同伴任务：[docs/COLLABORATION.md](docs/COLLABORATION.md)
 - 开发入口：[DEVELOPMENT.md](DEVELOPMENT.md)

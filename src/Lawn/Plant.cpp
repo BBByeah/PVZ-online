@@ -2205,7 +2205,7 @@ void Plant::UpdateChomper()
                 //（MOD_BUILD 39 批，2026-10-11 用户定案「吞食免疫」；连锁吞 buff
                 // 重播的也是这条 BITTING 路径，一并继承）。
                 if (aZombie->mZombieType == ZombieType::ZOMBIE_GARGANTUAR || aZombie->mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR ||
-                    aZombie->mZombieType == ZombieType::ZOMBIE_BOSS)
+                    aZombie->mZombieType == ZombieType::ZOMBIE_BOSS || mBoard->IsRunBossZombie(aZombie))
                 {
                     doBite = true;
                 }
@@ -2539,7 +2539,8 @@ void Plant::UpdateMagnetShroom()
             //「不能吸」）——橄榄球 boss 的头盔吸不走；普通橄榄球/铁桶/纱门照吸（下面
             // 的装备名单不动）。本扫描是 MagnetShroomAttactItem 的唯一入口，挡在这里
             // 即覆盖吸取与「卸甲飞掷」buff 两段。
-
+            if (mBoard->IsRunBossZombie(aZombie))
+                continue;
 
             if (aZombieRect.mX > BOARD_WIDTH || aDiffY > 2 || aDiffY < -2)
                 continue;
@@ -4798,7 +4799,7 @@ void Plant::BlowAwayFliers()
             //「免疫狂风」）——推离是位移控制，两个 boss 都不吃；减速 5 秒（下面 aSlowFrames
             // 段）照常受 CanBeChilled 管：橄榄球 boss 吃减速、巨人 boss 不吃。
             if (aGaleForceStacks > 0 && !aZombie->mIsEating && !aZombie->mBlowingAway
-                )
+                && !mBoard->IsRunBossZombie(aZombie))
             {
                 aZombie->mPosX += 80.0f * aGaleForceStacks;
             }

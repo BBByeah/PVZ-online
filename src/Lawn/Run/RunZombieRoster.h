@@ -3,7 +3,7 @@
 
 #include "../../ConstEnums.h"
 
-// Android currently filters PC types 34-41 and does not expose the Zombotany option.
+// Android supports the fixed PC variant IDs; use the same roster and weights.
 
 // @pvz-online: 闯关的僵尸种类梯度（M4-a 定"更激进档"，2026-10-03 按实机反馈再提速一档——
 // "希望丰富僵尸种类，让眼花缭乱的僵尸都出现"）。

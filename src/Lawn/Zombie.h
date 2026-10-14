@@ -158,6 +158,7 @@ public:
 	bool                            mIsFireBall;
 	ReanimationID                   mMoweredReanimID;
 	ReanimationID                   mZombatarHeadReanimID;
+	ReanimationID                   mPaperHelmReanimID = ReanimationID::REANIMATIONID_NULL;
 	int32_t                         mLastPortalX;
 	int32_t mFetidSlowCounter = 0;
 	int32_t mScorchedCounter = 0;
@@ -261,6 +262,7 @@ public:
 	int                             TakeHelmDamage(int theDamage, unsigned int theDamageFlags);
 	void                            TakeBodyDamage(int theDamage, unsigned int theDamageFlags);
 	void                            AttachShield();
+	void                            AttachPaperHelmReanim();
 	void                            DetachShield();
 	void                            UpdateReanim();
 	void                            GetTrackPosition(const char* theTrackName, float& thePosX, float& thePosY);

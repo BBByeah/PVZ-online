@@ -9,6 +9,7 @@
 #include "../../PvzpLib/PvzpDebug.h"
 #include "../Widget/LawnDialog.h"
 #include "../Board.h"
+#include "../Cutscene.h"
 #include "widget/WidgetManager.h"
 #include "misc/MTRand.h"
 #include <algorithm>
@@ -33,14 +34,13 @@ void LawnApp::ShowRunMenu()
     mWidgetManager->SetFocus(mRunFlowScreen.get());
 }
 
-void LawnApp::StartRun(int mode, int buffMult)
+void LawnApp::StartRun(int mode, int buffMult, int difficulty, int scale, int tempo, int zombotany, int endlessScene, int bossFlag)
 {
     KillRunFlowScreen();
     KillBoard();
     KillGameSelector();
     mRunState = std::make_unique<RunState>();
-    mRunState->StartNew(Sexy::Rand(), mode, RunState::RUN_DIFF_STD);
-    mRunState->mBuffMult = buffMult;
+    mRunState->StartNew(Sexy::Rand(), mode, difficulty, scale, tempo, zombotany, endlessScene, bossFlag, buffMult);
     mRunState->BeginStartPicks();
     ShowRunPicks();
 }
@@ -49,11 +49,11 @@ void LawnApp::ResumeRun()
 {
     auto run = std::make_unique<RunState>();
     bool compatible = run->Load(mPlayerInfo->mId);
-    // Only finite, standard runs are exposed by this APK; imported option flags need real consumers.
-    if (run->mMode < RunState::RUN_MODE_FULL || run->mMode > RunState::RUN_MODE_QUICK || run->IsComplete() ||
-        run->mDiff != RunState::RUN_DIFF_STD || run->mScale != RunState::RUN_SCALE_STD ||
-        run->mTempo != RunState::RUN_TEMPO_STD || run->mZombotany || run->mBossFlag) compatible = false;
-    // @pvz-online: a later port may have more effects; don't silently resume them without consumers.
+    if (run->mMode < RunState::RUN_MODE_FULL || run->mMode > RunState::RUN_MODE_ENDLESS || run->IsComplete() ||
+        run->mDiff < RunState::RUN_DIFF_EASY || run->mDiff > RunState::RUN_DIFF_HIGH ||
+        run->mScale < RunState::RUN_SCALE_HALF || run->mScale > RunState::RUN_SCALE_QUAD ||
+        run->mTempo < RunState::RUN_TEMPO_FAST || run->mTempo > RunState::RUN_TEMPO_SLOW) compatible = false;
+    // Validate stored catalogue IDs before starting the board.
     for (const auto& buff : run->mBuffs) if (!RunChoiceImplemented(buff.mId)) compatible = false;
     for (const auto seed : run->mPool) if (!RunPlantImplemented(seed)) compatible = false;
     if (!compatible)
@@ -88,6 +88,17 @@ void LawnApp::StartRunLevel()
     KillGameSelector();
     mGameMode = GAMEMODE_ADVENTURE;
     mAppRandSeed = mRunState->GetLevelSeed();
+    if (mRunState->IsEndless() && mBoard && mBoardResult != BOARDRESULT_LOST &&
+        (mBoard->mLevelComplete || mBoard->mLevelAwardSpawned))
+    {
+        mBoardResult = BOARDRESULT_NONE;
+        mGameScene = SCENE_LEVEL_INTRO;
+        mBoard->mPaused = false;
+        mBoard->InitEndlessRunStage();
+        ShowSeedChooserScreen();
+        mBoard->mCutScene->StartLevelIntro();
+        return;
+    }
     NewGame();
 }
 

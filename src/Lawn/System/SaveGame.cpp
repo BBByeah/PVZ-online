@@ -91,7 +91,10 @@ enum SaveChunkTypeV4
 	SAVE4_CHUNK_CHALLENGE = 19,
 	SAVE4_CHUNK_MUSIC = 20,
 	// Optional extension: unchanged base chunks let existing Android v4 saves keep loading.
-	SAVE4_CHUNK_RUN_EFFECTS = 100
+	SAVE4_CHUNK_RUN_EFFECTS = 100,
+	SAVE4_CHUNK_ZOMBIE_VARIANTS = 101,
+	SAVE4_CHUNK_RUN_BOSS = 102,
+	SAVE4_CHUNK_EXPANDED_WAVES = 103
 };
 
 static constexpr const uint32_t SAVE4_CHUNK_VERSION = 1U;
@@ -1620,7 +1623,10 @@ static constexpr BoardBaseFieldEntry gBoardBaseFields[] = {
 	{ BOARD_FIELD_ICE_TIMER, [](PortableSaveContext& c, Board* theBoard){ SyncInt32Array(c, &theBoard->mIceTimer[0], MAX_GRID_SIZE_Y); } },
 	{ BOARD_FIELD_ICE_PARTICLE_ID, [](PortableSaveContext& c, Board* theBoard){ SyncEnumU32Array(c, &theBoard->mIceParticleID[0], MAX_GRID_SIZE_Y); } },
 	{ BOARD_FIELD_ROW_PICKING_ARRAY, [](PortableSaveContext& c, Board* theBoard){ SyncPvzpSmoothArrayList(c, &theBoard->mRowPickingArray[0], MAX_GRID_SIZE_Y); } },
-	{ BOARD_FIELD_ZOMBIES_IN_WAVE, [](PortableSaveContext& c, Board* theBoard){ SyncEnum32Array(c, &theBoard->mZombiesInWave[0][0], MAX_ZOMBIE_WAVES * MAX_ZOMBIES_IN_WAVE); } },
+	// Keep the original v4 field's 100 x 50 layout despite the expanded runtime stride.
+	{ BOARD_FIELD_ZOMBIES_IN_WAVE, [](PortableSaveContext& c, Board* theBoard){
+		for (auto& wave : theBoard->mZombiesInWave) SyncEnum32Array(c, wave, 50);
+	} },
 	{ BOARD_FIELD_ZOMBIE_ALLOWED, [](PortableSaveContext& c, Board* theBoard){ SyncBoolArray(c, &theBoard->mZombieAllowed[0], 100); } },
 	{ BOARD_FIELD_SUN_COUNTDOWN, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mSunCountDown); } },
 	{ BOARD_FIELD_NUM_SUNS_FALLEN, [](PortableSaveContext& c, Board* theBoard){ c.SyncInt32(theBoard->mNumSunsFallen); } },
@@ -2012,6 +2018,24 @@ static void SyncRunEffectsPortable(PortableSaveContext& context, Board* board)
 	});
 }
 
+static void SyncZombieVariantsPortable(PortableSaveContext& context, Board* board)
+{
+	SyncRunEffectArray(context, board->mZombies, [](PortableSaveContext& c, Zombie& z) {
+		SyncEnum32(c, z.mPaperHelmReanimID);
+	});
+}
+
+static void SyncRunBossPortable(PortableSaveContext& context, Board* board)
+{
+	SyncEnum32(context, board->mRunBossZombieID);
+}
+
+static void SyncExpandedWavesPortable(PortableSaveContext& context, Board* board)
+{
+	for (auto& wave : board->mZombiesInWave)
+		SyncEnum32Array(context, wave + 50, MAX_ZOMBIES_IN_WAVE - 50);
+}
+
 typedef void (*ChunkSyncFn)(PortableSaveContext&, Board*);
 
 static ChunkSyncFn GetChunkSyncFn(uint32_t theChunkType)
@@ -2020,6 +2044,12 @@ static ChunkSyncFn GetChunkSyncFn(uint32_t theChunkType)
 	{
 	case SAVE4_CHUNK_RUN_EFFECTS:
 		return SyncRunEffectsPortable;
+	case SAVE4_CHUNK_ZOMBIE_VARIANTS:
+		return SyncZombieVariantsPortable;
+	case SAVE4_CHUNK_RUN_BOSS:
+		return SyncRunBossPortable;
+	case SAVE4_CHUNK_EXPANDED_WAVES:
+		return SyncExpandedWavesPortable;
 	case SAVE4_CHUNK_BOARD_BASE:
 		return SyncBoardBasePortable;
 	case SAVE4_CHUNK_ZOMBIES:
@@ -2868,6 +2898,9 @@ bool LawnSaveGame(Board* theBoard, const std::string& theFilePath)
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_CHALLENGE, theBoard)) return false;
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_MUSIC, theBoard)) return false;
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_RUN_EFFECTS, theBoard)) return false;
+	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_ZOMBIE_VARIANTS, theBoard)) return false;
+	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_RUN_BOSS, theBoard)) return false;
+	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_EXPANDED_WAVES, theBoard)) return false;
 
 	SaveFileHeaderV4 aHeader{};
 	memcpy(aHeader.mMagic, SAVE_FILE_MAGIC_V4, sizeof(aHeader.mMagic));

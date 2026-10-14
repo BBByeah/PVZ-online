@@ -41,7 +41,8 @@ using namespace Sexy;
 
 constexpr const int MAX_GRID_SIZE_X = 9;
 constexpr const int MAX_GRID_SIZE_Y = 6;
-constexpr const int MAX_ZOMBIES_IN_WAVE = 50;
+constexpr const int WAVE_ZOMBIE_CAP_BASE = 50;
+constexpr const int MAX_ZOMBIES_IN_WAVE = WAVE_ZOMBIE_CAP_BASE * 32;
 constexpr const int MAX_ZOMBIE_WAVES = 100;
 constexpr const int MAX_GRAVE_STONES = MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y;
 constexpr const int MAX_POOL_GRID_SIZE = 10;
@@ -127,6 +128,10 @@ struct BungeeDropGrid
 class Board : public Widget, public ButtonListener
 {
 public:
+	ZombieID mRunBossZombieID = ZombieID::ZOMBIEID_NULL;
+	void SpawnRunBoss();
+	void InitEndlessRunStage();
+	bool IsRunBossZombie(Zombie* zombie);
     bool IteratePlants(Plant*& p) { return mPlants.DataArrayIterate(p); }
     bool IterateZombies(Zombie*& p) { return mZombies.DataArrayIterate(p); }
     bool IterateProjectiles(Projectile*& p) { return mProjectiles.DataArrayIterate(p); }

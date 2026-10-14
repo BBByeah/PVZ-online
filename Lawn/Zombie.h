@@ -133,6 +133,11 @@ public:
     //（HitIceTrap 唯一调用者 = Plant::IceZombies）；自然解冻时消费并触发全场减速，
     // 深冻（冰西瓜 mIceTrapCounter 直赋）与死亡清冻结都不触发。
     bool                            mIceShroomTrap;
+    // @pvz-online: 僵尸强化「免控」（MOD_BUILD 45，2026-10-14 用户令）：本局僵尸强化投到
+    //「免控」时整只僵尸免疫一切控制类效果（减速/冰冻/黄油定身/狂风击退/大蒜换道/魅惑催眠）。
+    // ZombieInitialize 按 RunState 层数一次性置位、全程只读；接线走 CanBeChilled/CanBeFrozen
+    // 双谓词收口 + 六处绕开谓词的直写点单点守卫。
+    bool                            mControlImmune;
     bool                            mMindControlled;                            //+0xB8
     bool                            mBlowingAway;                               //+0xB9
     bool                            mHasHead;                                   //+0xBA

@@ -147,6 +147,9 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
     mScorchedCounter = 0;
     mFrostArmorCounter = 0;
     mIceShroomTrap = false;
+    // @pvz-online: 僵尸强化「免控」（MOD_BUILD 45）默认值——真正的置位在函数尾部按
+    // RunState 层数算；这里先落 false 兜住中部提前 return 的路（无目标的跳跳僵尸）。
+    mControlImmune = false;
     mMindControlled = false;
     mBlowingAway = false;
     mHasHead = true;
@@ -988,6 +991,26 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
         }
     }
 
+    // @pvz-online: 僵尸强化「铁壁」（MOD_BUILD 45）：本局投过的层数把四段血量再乘
+    // 1.5^层（逐层截尾、封顶 ×100）。与上面的阶梯同位置同姿势——乘当前值、紧接着被
+    // 下面的 Max 收走、接力怪只覆写当前血不双重缩放。层数 0 时千分比恰为 1000、零改动。
+    if (mApp->IsRunMode() && IsOnBoard())
+    {
+        int aIronPermille = mApp->GetRunState()->ZombieBuffHealthPermille();
+        if (aIronPermille != 1000)
+        {
+            mBodyHealth = mBodyHealth * aIronPermille / 1000;
+            mHelmHealth = mHelmHealth * aIronPermille / 1000;
+            mShieldHealth = mShieldHealth * aIronPermille / 1000;
+            mFlyingHealth = mFlyingHealth * aIronPermille / 1000;
+        }
+    }
+
+    // @pvz-online: 僵尸强化「免控」（见 Zombie.h mControlImmune）：投过 ≥1 层就整只免控，
+    // 初始化时一次性置位；菜单预览/过场僵尸（IsOnBoard false）不吃强化。
+    mControlImmune = mApp->IsRunMode() && IsOnBoard()
+        && mApp->GetRunState()->ZombieBuffCount(RunState::ZOMBIE_BUFF_STEADFAST) > 0;
+
     mHelmMaxHealth = mHelmHealth;
     mBodyMaxHealth = mBodyHealth;
     mShieldMaxHealth = mShieldHealth;
@@ -1351,6 +1374,18 @@ void Zombie::PickRandomSpeed()
         else
         {
             mAnimTicksPerFrame = 15;
+        }
+    }
+
+    // @pvz-online: 僵尸强化「迅捷」（MOD_BUILD 45）：移速 +30%/层（封顶 ×4）。乘在每条
+    // 分支刚定好的基值之后、UpdateAnimSpeed 之前——走步动画率按 mVelX 现算会自动跟随；
+    // 本体分支的 mAnimTicksPerFrame 分档保持原档不动。层数 0 时千分比恰为 1000、零改动。
+    if (mApp->IsRunMode() && IsOnBoard())
+    {
+        int aSwiftPermille = mApp->GetRunState()->ZombieBuffSpeedPermille();
+        if (aSwiftPermille != 1000)
+        {
+            mVelX = mVelX * aSwiftPermille / 1000.0f;
         }
     }
 
@@ -4857,7 +4892,9 @@ void Zombie::UpdatePlaying()
                     Zombie* aFrostZombie = nullptr;
                     while (mBoard->IterateZombies(aFrostZombie))
                     {
-                        if (!aFrostZombie->mDead && aFrostZombie->mFrostArmorCounter < 2000)
+                        // @pvz-online: 免控（MOD_BUILD 45）单点守卫：霜甲解冻全场软减速
+                        // 这里直写 mFrostArmorCounter、零谓词——跳过免疫者。
+                        if (!aFrostZombie->mDead && !aFrostZombie->mControlImmune && aFrostZombie->mFrostArmorCounter < 2000)
                         {
                             aFrostZombie->mFrostArmorCounter = 2000;
                             aFrostZombie->UpdateAnimSpeed();
@@ -4909,6 +4946,23 @@ void Zombie::UpdatePlaying()
             }
         }
     }
+
+    // @pvz-online: 僵尸强化「再生」（MOD_BUILD 45）：每 100 帧（1 秒）回上限本体的
+    // 0.5%/层（封顶 25%/s）。只回本体——护盾/头盔不回流；回量按 mBodyMaxHealth 现算
+    //（铁壁/阶梯抬过的上限同步受益）。mZombieAge 每帧在 Zombie::Update 自增，
+    // 与焦土同款 %100 节奏；层数 0 时千分比为 0、零改动。
+    if (mApp->IsRunMode() && mZombieAge > 0 && mZombieAge % 100 == 0 && !IsDeadOrDying())
+    {
+        int aRegenPermille = mApp->GetRunState()->ZombieBuffRegenPermillePerSec();
+        if (aRegenPermille > 0 && mBodyHealth > 0 && mBodyHealth < mBodyMaxHealth)
+        {
+            int aHeal = mBodyMaxHealth * aRegenPermille / 1000;
+            if (aHeal < 1) aHeal = 1;
+            mBodyHealth += aHeal;
+            if (mBodyHealth > mBodyMaxHealth) mBodyHealth = mBodyMaxHealth;
+        }
+    }
+
     if (mButteredCounter > 0)
     {
         mButteredCounter--;
@@ -5076,6 +5130,8 @@ void Zombie::SwitchLanes()
 {
     if (mBoard->IsRunBossZombie(this))  // @pvz-online: 关底巨型 boss 免疫大蒜换道（MOD_BUILD 38）
         return;
+    if (mControlImmune)  // @pvz-online: 僵尸强化「免控」（MOD_BUILD 45）单点守卫：大蒜换道免疫
+        return;
     bool aCanGoUp = true;
     bool aCanGoDown = true;
     bool aIsPool = mBoard->mPlantRow[mRow] == PlantRowType::PLANTROW_POOL;
@@ -5141,7 +5197,10 @@ void Zombie::AnimateChewSound()
             // mVelX+mAnimTicksPerFrame）随转化一条龙走，对 boss 一并跳过——否则
             // StartMindControlled 对 boss 早退后副作用仍执行，橄榄球 boss 会被
             // 永久 4 倍爬行减速（巨人 boss 同理，一并修）。
-            if (!mBoard->IsRunBossZombie(this))
+            // @pvz-online: 僵尸强化「免控」（MOD_BUILD 45）：免疫者同款——蘑菇照常被吃掉、
+            // 不被魅惑，副作用（粒子/奖励/爬行减速）整段跳过（StartMindControlled 里
+            // 另有早退，这里挡的是同一块的收尾副作用）。
+            if (!mBoard->IsRunBossZombie(this) && !mControlImmune)
             {
                 StartMindControlled();
                 mApp->AddTodParticle(mPosX + 60.0f, mPosY + 40.0f, mRenderOrder + 1, ParticleEffect::PARTICLE_MIND_CONTROL);
@@ -6746,6 +6805,17 @@ bool Zombie::CanTargetPlant(Plant* thePlant, ZombieAttackType theAttackType)
 
     if (theAttackType == ZombieAttackType::ATTACKTYPE_CHEW)
     {
+        // @pvz-online: 僵尸强化「无视阻挡」（MOD_BUILD 45）：投过的僵尸不停步啃植物、直接
+        // 走过去——本分支是"停下开啃"的唯一判据（FindPlantTarget 为空 = 继续走，走位/动画
+        // 别的分支不用动）。两根巨人按型号豁免：它们的砸击也走 CHEW 索敌（SquishAllInSquare），
+        // 照旧停下砸；搭梯走 ATTACKTYPE_LADDER 是另一分支，不受影响。层数 0 零改动。
+        if (mApp->IsRunMode()
+            && mZombieType != ZombieType::ZOMBIE_GARGANTUAR && mZombieType != ZombieType::ZOMBIE_REDEYE_GARGANTUAR
+            && mApp->GetRunState()->ZombieBuffCount(RunState::ZOMBIE_BUFF_GHOSTWALK) > 0)
+        {
+            return false;
+        }
+
         Plant* aTopPlant = mBoard->GetTopPlantAt(thePlant->mPlantCol, thePlant->mRow, PlantPriority::TOPPLANT_EATING_ORDER);
         if (aTopPlant != thePlant && aTopPlant && CanTargetPlant(aTopPlant, theAttackType))
         {
@@ -6839,6 +6909,17 @@ void Zombie::SquishAllInSquare(int theX, int theY, ZombieAttackType theAttackTyp
             {
                 mBoard->mPlantsEaten++;
                 aPlant->Squish();
+
+                // @pvz-online: 僵尸强化「墓碑者」（MOD_BUILD 45）：巨人砸碎的植物原位留一座
+                // 墓碑。只认两根巨人——橄榄球 boss/冰车等也走本函数但不是"砸"；格上已有
+                // 墓碑/弹坑/梯子或非草皮由 CanAddGraveStoneAt 挡下（砸花盆格同样按草皮算）。
+                if ((mZombieType == ZombieType::ZOMBIE_GARGANTUAR || mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR)
+                    && mApp->IsRunMode()
+                    && mApp->GetRunState()->ZombieBuffCount(RunState::ZOMBIE_BUFF_GRAVEKEEPER) > 0
+                    && mBoard->CanAddGraveStoneAt(aPlant->mPlantCol, aPlant->mRow))
+                {
+                    mBoard->AddAGraveStone(aPlant->mPlantCol, aPlant->mRow);
+                }
             }
         }
     }
@@ -7316,7 +7397,9 @@ void Zombie::CheckForPool()
 
     if (!mInPool && aIsPoolSquare)
     {
-        if (mBoard->mIceTrapCounter > 0)
+        // @pvz-online: 免控（MOD_BUILD 45）单点守卫：水下冰道分支在 ApplyChill 之前直赋
+        // mIceTrapCounter，绕开谓词——免疫者不入冰、正常下水（走 else 的入水动画）。
+        if (mBoard->mIceTrapCounter > 0 && !mControlImmune)
         {
             mIceTrapCounter = mBoard->mIceTrapCounter;
             ApplyChill(true);
@@ -7365,6 +7448,8 @@ void Zombie::CheckForHighGround()
 void Zombie::StartMindControlled()
 {
     if (mBoard->IsRunBossZombie(this))  // @pvz-online: 关底巨型 boss 免疫魅惑（MOD_BUILD 38）
+        return;
+    if (mControlImmune)  // @pvz-online: 僵尸强化「免控」（MOD_BUILD 45）单点守卫：魅惑催眠免疫
         return;
     mApp->PlaySample(SOUND_MINDCONTROLLED);
 
@@ -7504,6 +7589,17 @@ void Zombie::EatPlant(Plant* thePlant)
     if (mZombieType == ZombieType::ZOMBIE_FOOTBALL && mBoard->IsRunBossZombie(this))
     {
         aBiteDamage = 200;
+    }
+
+    // @pvz-online: 僵尸强化「狂食」（MOD_BUILD 45）：每口啃咬 ×2/层（封顶 ×32）。乘在
+    // 橄榄球 boss「极速啃食」的 200 之后——两轴叠乘；层数 0 时千分比恰为 1000、零改动。
+    if (mApp->IsRunMode())
+    {
+        int aBitePermille = mApp->GetRunState()->ZombieBuffBitePermille();
+        if (aBitePermille != 1000)
+        {
+            aBiteDamage = aBiteDamage * aBitePermille / 1000;
+        }
     }
 
     thePlant->mPlantHealth -= aBiteDamage;
@@ -8526,6 +8622,19 @@ void Zombie::TakeDamage(int theDamage, unsigned int theDamageFlags)
         }
     }
 
+    // @pvz-online: 僵尸强化「护心」（MOD_BUILD 45）：单次伤害封顶（层 1=200、层 2=150、
+    // 层 3=100、层 4 起保底 50）。放在一切乘性加成（精准/伤口加深）之后、分配进护盾/
+    // 头盔/本体之前——单次伤害事件真正打到的量不可能超上限，灰烬族（爆炸直伤走的
+    // TakeDamage 通路）不再一发秒杀；层数 0 短路零改动。
+    if (mApp->IsRunMode())
+    {
+        int aSingleHitCap = mApp->GetRunState()->ZombieBuffSingleHitCap();
+        if (aSingleHitCap > 0 && theDamage > aSingleHitCap)
+        {
+            theDamage = aSingleHitCap;
+        }
+    }
+
     int aDamageRemaining = theDamage;
 
     if (IsFlying())
@@ -8588,6 +8697,14 @@ Zombie::~Zombie()
 //0x531990
 bool Zombie::CanBeChilled()
 {
+    // @pvz-online: 僵尸强化「免控」（MOD_BUILD 45）：投过的僵尸免疫一切控制类效果——
+    // 减速/冰冻/黄油定身/狂风击退/大蒜换道/魅惑催眠全免。本谓词与 CanBeFrozen 是两个
+    // 现成收口点（chill 类都从这里走：冰豌豆/冰西瓜/三叶草减速/地刺/冰道）；另有六处
+    // 绕开谓词的直写点各自单点守卫（CheckForPool/霜甲解冻/腐臭之息/SwitchLanes/
+    // StartMindControlled/狂风位移）。
+    if (mControlImmune)
+        return false;
+
     // @pvz-online: 关底 boss 免疫减速/冰冻（MOD_BUILD 38；MOD_BUILD 39 批改口径，
     // 2026-10-11 用户定案「橄榄球 boss 只受减速影响」）——红眼巨人 boss 全断；
     // 橄榄球 boss 放行减速（chill 生效），冰冻/黄油/定身由 CanBeFrozen 顶栏挡下。
@@ -8621,6 +8738,12 @@ bool Zombie::CanBeChilled()
 //0x531A10
 bool Zombie::CanBeFrozen()
 {
+    // @pvz-online: 僵尸强化「免控」（MOD_BUILD 45）：同 CanBeChilled 的免疫早退——
+    // 冰冻/黄油定身/冰西瓜深冻都从本谓词收口（ApplyButter 的门就是它；CanBeChilled
+    // 里也有同一守卫，两处都写是防未来新增调用点只查其一）。
+    if (mControlImmune)
+        return false;
+
     // @pvz-online: 关底 boss 一律不可冰冻/黄油/定身（MOD_BUILD 38；MOD_BUILD 39 批把
     // 橄榄球 boss 也纳入——它可被减速但冻不住）。寒冰菇打它 = 只挂减速：HitIceTrap 先
     // ApplyChill 再走本判定早退，正好合「只受减速」口径。
@@ -9317,6 +9440,17 @@ void Zombie::ApplyBurn(int theDirectDamage)
 {
     if (mDead || mZombiePhase == ZombiePhase::PHASE_ZOMBIE_BURNED)
         return;
+
+    // @pvz-online: 僵尸强化「护心」（MOD_BUILD 45）：投过护心的僵尸不吃灰烬秒杀——燃烧
+    // 改按单次伤害走 TakeDamage（里面的封顶即护心值）。血厚的（≥1800/boss）原路径本就
+    // 过 TakeDamage，与下一分支同一调用、行为不变；薄血原走"直接烧死"的现在只掉封顶血。
+    // 层数 0（=不封顶）时本块短路，行为与现状逐位一致。
+    if (mApp->IsRunMode() && mApp->GetRunState()->ZombieBuffSingleHitCap() > 0)
+    {
+        int aBlastBase = theDirectDamage > 0 ? theDirectDamage : 1800;
+        TakeDamage((int)(aBlastBase * mApp->RunBuffMul(RUN_BUFF_BLAST) + 0.5f), 18U);
+        return;
+    }
 
     if (mBodyHealth >= 1800 || mZombieType == ZombieType::ZOMBIE_BOSS)
     {

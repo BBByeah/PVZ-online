@@ -29,11 +29,12 @@ else() # linux
     set(libpng_binary "libpng.a")
 endif()
 
-set(libjpeg_dir "${CMAKE_BINARY_DIR}/libjpeg")
+# @pvz-online: vendored sources are archives, not necessarily Git checkouts; clean builds must remain offline.
+set(libjpeg_dir "${CMAKE_BINARY_DIR}/vendor-build/libjpeg")
 ExternalProject_Add(libjpeg-src
-    GIT_REPOSITORY      "${THIRD_PARTY_DIR}/libjpeg-turbo" # github.com/libjpeg-turbo/libjpeg-turbo.git
-    GIT_TAG             3.0.1
-    SOURCE_DIR          "${libjpeg_dir}"
+    DOWNLOAD_COMMAND    ""
+    UPDATE_COMMAND      ""
+    SOURCE_DIR          "${THIRD_PARTY_DIR}/libjpeg-turbo"
     BINARY_DIR          "${libjpeg_dir}"
     CMAKE_ARGS          "-DCMAKE_TOOLCHAIN_FILE:FILEPATH=${CMAKE_TOOLCHAIN_FILE}"
                         "-DCMAKE_INSTALL_PREFIX=${libjpeg_dir}/install" # unused, have to specify
@@ -44,12 +45,14 @@ ExternalProject_Add(libjpeg-src
                         ${libjpeg_extra_args}
                         "-Wno-dev"
 
+    BUILD_COMMAND       ${CMAKE_COMMAND} --build "${libjpeg_dir}" --target jpeg-static
+
     INSTALL_COMMAND     ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include/jpeg/;
-    COMMAND             ${CMAKE_COMMAND} -E copy ${libjpeg_dir}/jpeglib.h
-                                                 ${libjpeg_dir}/jerror.h
+    COMMAND             ${CMAKE_COMMAND} -E copy ${THIRD_PARTY_DIR}/libjpeg-turbo/jpeglib.h
+                                                 ${THIRD_PARTY_DIR}/libjpeg-turbo/jerror.h
                                                  ${libjpeg_dir}/jconfig.h
-                                                 ${libjpeg_dir}/jmorecfg.h
-                                                 ${libjpeg_dir}/jpegint.h
+                                                 ${THIRD_PARTY_DIR}/libjpeg-turbo/jmorecfg.h
+                                                 ${THIRD_PARTY_DIR}/libjpeg-turbo/jpegint.h
                                             ${CMAKE_BINARY_DIR}/include/jpeg/
     BUILD_BYPRODUCTS    "${libjpeg_dir}/${libjpeg_binary}"
                         "${CMAKE_BINARY_DIR}/include/jpeg/jpeglib.h"
@@ -65,11 +68,11 @@ ExternalProject_Add(libjpeg-src
 # zlib external project
 ################################################################################
 
-set(zlib_dir "${CMAKE_BINARY_DIR}/zlib")
+set(zlib_dir "${CMAKE_BINARY_DIR}/vendor-build/zlib")
 ExternalProject_Add(zlib-src
-    GIT_REPOSITORY          "${THIRD_PARTY_DIR}/zlib" # github.com/madler/zlib.git
-    GIT_TAG                 v1.3
-    SOURCE_DIR              "${zlib_dir}"
+    DOWNLOAD_COMMAND        ""
+    UPDATE_COMMAND          ""
+    SOURCE_DIR              "${THIRD_PARTY_DIR}/zlib"
     CMAKE_ARGS              "-DCMAKE_TOOLCHAIN_FILE:FILEPATH=${CMAKE_TOOLCHAIN_FILE}"
                             "-DCMAKE_INSTALL_PREFIX=${zlib_dir}"
                             "-DCMAKE_C_FLAGS=${universal_cflags}"
@@ -78,7 +81,7 @@ ExternalProject_Add(zlib-src
                             "--build" "${zlib_dir}"
                             "--target" "zlibstatic"
     INSTALL_COMMAND         ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include/zlib/;
-    COMMAND                 ${CMAKE_COMMAND} -E copy ${zlib_dir}/zlib.h
+    COMMAND                 ${CMAKE_COMMAND} -E copy ${THIRD_PARTY_DIR}/zlib/zlib.h
                                                      ${zlib_dir}/zconf.h
                                                 ${CMAKE_BINARY_DIR}/include/zlib/
 
@@ -97,12 +100,12 @@ ExternalProject_Add(zlib-src
 # libpng external project
 ################################################################################
 
-set(libpng_dir "${CMAKE_BINARY_DIR}/libpng")
+set(libpng_dir "${CMAKE_BINARY_DIR}/vendor-build/libpng")
 ExternalProject_Add(libpng-src
-    GIT_REPOSITORY          "${THIRD_PARTY_DIR}/libpng" # github.com/glennrp/libpng.git
-    GIT_TAG                 v1.6.40
+    DOWNLOAD_COMMAND        ""
+    UPDATE_COMMAND          ""
     DEPENDS                 zlib-src
-    SOURCE_DIR              "${libpng_dir}"
+    SOURCE_DIR              "${THIRD_PARTY_DIR}/libpng"
     CMAKE_ARGS              "-DCMAKE_TOOLCHAIN_FILE:FILEPATH=${CMAKE_TOOLCHAIN_FILE}"
                             "-DCMAKE_INSTALL_PREFIX=${libpng_dir}"
                             "-DCMAKE_C_FLAGS=${universal_cflags}"
@@ -113,13 +116,15 @@ ExternalProject_Add(libpng-src
                             "-DPNG_EXECUTABLES=OFF"
                             "-DPNG_TESTS=OFF"
                             "-DPNG_BUILD_ZLIB=${zlib_dir}"
-                            "-DZLIB_INCLUDE_DIRS=${zlib_dir}"
+                            "-DZLIB_INCLUDE_DIRS=${CMAKE_BINARY_DIR}/include/zlib"
                             "-DZLIB_LIBRARIES=${zlib_dir}/${zlib_binary}"
                             "-Wno-dev"
 
+    BUILD_COMMAND           ${CMAKE_COMMAND} --build "${libpng_dir}" --target png_static
+
     INSTALL_COMMAND         ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/include/png/
-    COMMAND                 ${CMAKE_COMMAND} -E copy ${libpng_dir}/png.h
-                                                     ${libpng_dir}/pngconf.h
+    COMMAND                 ${CMAKE_COMMAND} -E copy ${THIRD_PARTY_DIR}/libpng/png.h
+                                                     ${THIRD_PARTY_DIR}/libpng/pngconf.h
                                                      ${libpng_dir}/pnglibconf.h
                                                      ${CMAKE_BINARY_DIR}/include/png/                                            
     BINARY_DIR              ${libpng_dir}

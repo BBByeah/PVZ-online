@@ -177,7 +177,15 @@ const uint16_t	PROTOCOL_VERSION	= 1;
 //        三选一金币重摇。全部走本机层——花园/商店是 UI 入口与本地存档钱包的消费，
 //        重摇扣的 mCoins 与抽的候选都在各端本地；不动帧格式、检查点格式，也不动
 //        任何联机行为。混搭实际无碍，抬版只为标记玩家包代次（版本提示照旧只提示不拒连）。
-const uint16_t	MOD_BUILD			= 44;
+// 44 → 45：场景难度阶梯五档 + 僵尸强化（2026-10-14 用户定案）：①房主高级选项新增
+//        「场景难度阶梯」×1/×1.2/×1.33/×1.5/×2——乘在僵尸血量与出怪点数上，同种子两端
+//        各算的波表与血量公式变了，混搭时同一关两边对不上；②新增「僵尸 buff」机制
+//        （进新场景全队投票给僵尸叠强化，层数永久累积）。START_LEVEL 闯关变体尾部再带
+//        三个字段——runLadder 字节、runZombieBuff 字节、mZombieStacks 8 字节（载荷
+//        26→36）：阶梯档与 8 条强化层数都对不齐会让两边怪强度岔开，混搭必须两边同版本。
+//        旧长度（26 字节）的 START_LEVEL 被新端按串包拒掉。投票走后续三个新 MSG（20/21/22，
+//        游戏帧、中继零改动）。检查点同版升 v14。
+const uint16_t	MOD_BUILD			= 45;
 
 const uint16_t	DEFAULT_PORT		= 27777;
 
@@ -222,7 +230,10 @@ enum MessageType : uint16_t
 	MSG_QUICK_CHAT		= 16,	// 双向：局内快捷聊天，只传编号（1-8 短语、9-16 植物表情，查表在 QuickChat.h）
 	MSG_BOARD_WATCH		= 17,	// 双向：观战点播/保活/收播（op 见 WatchOp；dst = 被看席位）
 	MSG_BOARD_SNAPSHOT	= 18,	// 被看方→观看者：战场定格快照（一行实体一款、分片发，见 MsgBoardSnapshot）
-	MSG_SEND_SUN		= 19	// 双向：发阳光给队友（单 100 档、税 10、5s 冷却；载荷见 MsgSendSun）
+	MSG_SEND_SUN		= 19,	// 双向：发阳光给队友（单 100 档、税 10、5s 冷却；载荷见 MsgSendSun）
+	MSG_ZOMBIE_VOTE_OPEN	= 20,	// H→C：本场景僵尸强化开票（房主抽 3 个候选；载荷见 MsgZombieVoteOpen）
+	MSG_ZOMBIE_VOTE		= 21,	// C→H：我对本场景强化的投票（0..2 = 候选下标、3 = 弃权）
+	MSG_ZOMBIE_VOTE_RESULT	= 22	// H→C：计票结果（只驱动 UI；层数权威在随后的 START_LEVEL 快照）
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -418,8 +429,16 @@ struct MsgHelloAck
 // 其余档恒 0）——队友按同一场景建局，对不上同样重建。
 // runBuffMult（MOD_BUILD 43）= 房主「高级选项」里的增益倍选档（RunState::RUN_BUFFMULT_*，
 // 0/1/2 = ×1/×2/×3）：只乘"发放的 buff 三选一屏数"，队友按同一档发屏；非法值队友按 ×1。
+// runLadder（MOD_BUILD 45）= 房主「高级选项」里的场景难度阶梯档（RunState::RUN_LADDER_*，
+// 0=×1.33 现状 sentinel / 1=×1 / 2=×1.2 / 3=×1.5 / 4=×2）：乘在僵尸血量与出怪点数上，
+// 队友按同一档建局；非法值队友按现状档。无尽档不叠阶梯（该字节在无尽局恒 0）。
+// mRunZombieBuff（MOD_BUILD 45）= 僵尸 buff 档 0/1/2（每进一个新场景给僵尸叠几条）；
+// mZombieStacks[8]（MOD_BUILD 45）= 8 条强化的当前层数快照（下标 = RunState 池子枚举，
+// 0..255）——权威值在主机，队友一律按这条快照覆盖自己的层数（投票结果只驱动 UI，
+// 层数不信投票帧、只信本快照，防乱序）；重连补发（mLastStartLevel）自动带上。
 // 单关局 isRun=0：runSeed/runLevelIndex/runMode 全是 0，runDiff 记标准档（1，单关局
-// 不参与难度缩放），高级选项三格记 标准/标准/关，场景记 0，其余语义一字不变。
+// 不参与难度缩放），高级选项三格记 标准/标准/关，场景记 0，阶梯记现状 0、僵尸 buff
+// 记关 0、8 层数记 0，其余语义一字不变。
 struct MsgStartLevel
 {
 	uint8_t			mSrcSeat;
@@ -438,6 +457,9 @@ struct MsgStartLevel
 	uint8_t			mRunEndlessScene;
 	uint8_t			mRunBossFlag;
 	uint8_t			mRunBuffMult;
+	uint8_t			mRunLadder;
+	uint8_t			mRunZombieBuff;
+	uint8_t			mZombieStacks[8];
 };
 
 // LEVEL_DONE：{ srcSeat, dstSeat, u8 done }（1 = 我这块草坪清完了，0 = 又不清净了）
@@ -539,6 +561,43 @@ struct MsgSendSun
 	uint8_t			mSrcSeat;
 	uint8_t			mDstSeat;
 	uint16_t		mAmount;
+};
+
+// ZOMBIE_VOTE_OPEN（MOD_BUILD 45）：{ srcSeat, dstSeat, u8 sceneIndex, u8 candidates[3] }
+// 进新场景要给僵尸加强化时，房主抽 3 个不同候选（三选一口径）广播开票，各端弹投票框。
+// candidates 是 RunState::ZOMBIE_BUFF_* 的 3 个 id，顺序即候选卡顺序（投票传下标）。
+// sceneIndex 是把场景号也带上：投完票之前换场景（重打/退关）时，旧票在计票端按号丢弃、
+// 不会串到新场景。
+struct MsgZombieVoteOpen
+{
+	uint8_t			mSrcSeat;
+	uint8_t			mDstSeat;
+	uint8_t			mSceneIndex;
+	uint8_t			mCandidates[3];
+};
+
+// ZOMBIE_VOTE：{ srcSeat, dstSeat, u8 sceneIndex, u8 choice }
+// 我的投票：choice 0..2 = 候选下标，3 = 明确弃权（本场景不给僵尸加条、不参与兜底随机）。
+// 每席最多一票，房主先到先记、重复投只认第一条；超时未投由房主按弃权收口（客户端不发包）。
+struct MsgZombieVote
+{
+	uint8_t			mSrcSeat;
+	uint8_t			mDstSeat;
+	uint8_t			mSceneIndex;
+	uint8_t			mChoice;
+};
+
+// ZOMBIE_VOTE_RESULT：{ srcSeat, dstSeat, u8 sceneIndex, u8 count, u8 ids[2] }
+// 计票结果广播：count 0..2 = 本场景加哪几条（0 = 全队弃权、本条只当一条公示）。
+// 只驱动 UI（结果横幅/本场景公示）——**层数的权威是随后 START_LEVEL 里的 mZombieStacks
+// 快照**，乱序/丢包都不会让两端层数岔开（重连也由快照自愈）。
+struct MsgZombieVoteResult
+{
+	uint8_t			mSrcSeat;
+	uint8_t			mDstSeat;
+	uint8_t			mSceneIndex;
+	uint8_t			mCount;
+	uint8_t			mIds[2];
 };
 
 // LEVEL_EXIT：{ srcSeat, dstSeat, u8 reason }
@@ -805,6 +864,9 @@ inline int EncodeStartLevel(uint8_t* theBuffer, int theCapacity, const MsgStartL
 	aWriter.U8(theMsg.mRunEndlessScene);
 	aWriter.U8(theMsg.mRunBossFlag);
 	aWriter.U8(theMsg.mRunBuffMult);
+	aWriter.U8(theMsg.mRunLadder);
+	aWriter.U8(theMsg.mRunZombieBuff);
+	for (int i = 0; i < 8; i++) aWriter.U8(theMsg.mZombieStacks[i]);
 	return aWriter.Overflowed() ? -1 : aWriter.Size();
 }
 
@@ -827,6 +889,9 @@ inline bool DecodeStartLevel(const uint8_t* theData, int theSize, MsgStartLevel&
 	theMsg.mRunEndlessScene = aReader.U8();
 	theMsg.mRunBossFlag = aReader.U8();
 	theMsg.mRunBuffMult = aReader.U8();
+	theMsg.mRunLadder = aReader.U8();
+	theMsg.mRunZombieBuff = aReader.U8();
+	for (int i = 0; i < 8; i++) theMsg.mZombieStacks[i] = aReader.U8();
 	return !aReader.Overflowed();
 }
 
@@ -981,6 +1046,68 @@ inline bool DecodeSendSun(const uint8_t* theData, int theSize, MsgSendSun& theMs
 	theMsg.mSrcSeat = aReader.U8();
 	theMsg.mDstSeat = aReader.U8();
 	theMsg.mAmount = aReader.U16();
+	return !aReader.Overflowed();
+}
+
+inline int EncodeZombieVoteOpen(uint8_t* theBuffer, int theCapacity, const MsgZombieVoteOpen& theMsg)
+{
+	Writer aWriter(theBuffer, theCapacity);
+	aWriter.U8(theMsg.mSrcSeat);
+	aWriter.U8(theMsg.mDstSeat);
+	aWriter.U8(theMsg.mSceneIndex);
+	for (int i = 0; i < 3; i++) aWriter.U8(theMsg.mCandidates[i]);
+	return aWriter.Overflowed() ? -1 : aWriter.Size();
+}
+
+inline bool DecodeZombieVoteOpen(const uint8_t* theData, int theSize, MsgZombieVoteOpen& theMsg)
+{
+	Reader aReader(theData, theSize);
+	theMsg.mSrcSeat = aReader.U8();
+	theMsg.mDstSeat = aReader.U8();
+	theMsg.mSceneIndex = aReader.U8();
+	for (int i = 0; i < 3; i++) theMsg.mCandidates[i] = aReader.U8();
+	return !aReader.Overflowed();
+}
+
+inline int EncodeZombieVote(uint8_t* theBuffer, int theCapacity, const MsgZombieVote& theMsg)
+{
+	Writer aWriter(theBuffer, theCapacity);
+	aWriter.U8(theMsg.mSrcSeat);
+	aWriter.U8(theMsg.mDstSeat);
+	aWriter.U8(theMsg.mSceneIndex);
+	aWriter.U8(theMsg.mChoice);
+	return aWriter.Overflowed() ? -1 : aWriter.Size();
+}
+
+inline bool DecodeZombieVote(const uint8_t* theData, int theSize, MsgZombieVote& theMsg)
+{
+	Reader aReader(theData, theSize);
+	theMsg.mSrcSeat = aReader.U8();
+	theMsg.mDstSeat = aReader.U8();
+	theMsg.mSceneIndex = aReader.U8();
+	theMsg.mChoice = aReader.U8();
+	return !aReader.Overflowed();
+}
+
+inline int EncodeZombieVoteResult(uint8_t* theBuffer, int theCapacity, const MsgZombieVoteResult& theMsg)
+{
+	Writer aWriter(theBuffer, theCapacity);
+	aWriter.U8(theMsg.mSrcSeat);
+	aWriter.U8(theMsg.mDstSeat);
+	aWriter.U8(theMsg.mSceneIndex);
+	aWriter.U8(theMsg.mCount);
+	for (int i = 0; i < 2; i++) aWriter.U8(theMsg.mIds[i]);
+	return aWriter.Overflowed() ? -1 : aWriter.Size();
+}
+
+inline bool DecodeZombieVoteResult(const uint8_t* theData, int theSize, MsgZombieVoteResult& theMsg)
+{
+	Reader aReader(theData, theSize);
+	theMsg.mSrcSeat = aReader.U8();
+	theMsg.mDstSeat = aReader.U8();
+	theMsg.mSceneIndex = aReader.U8();
+	theMsg.mCount = aReader.U8();
+	for (int i = 0; i < 2; i++) theMsg.mIds[i] = aReader.U8();
 	return !aReader.Overflowed();
 }
 

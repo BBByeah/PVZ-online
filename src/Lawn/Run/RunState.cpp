@@ -15,6 +15,7 @@
 //   u16 卡池数 + 每株 u16 SeedType
 //   u16 buff 数 + 每条 (u16 id, u16 层数)
 //   u16 推车记账（v5） + u16 高级选项位包（v10） + u16 无尽场景档（v12）
+// v14: adds ladder/buff mode bits and eight u16 zombie stacks + last voted level.
 // 版本不符 / 越界一律当"没有检查点"——宁可从头开新局，也不带着半截数据进场。
 // v2：一局从 5 关扩到 25 关，failCounts 数组跟着变长——v1 的档一律按"没有"处理。
 // v3：加时长档（M4-b 三档时长）——旧版的保留位恒 0，恰好就是"完整版"，所以 v2 的档
@@ -48,7 +49,7 @@
 //     其余档读平，场景按 0 续。关数校验按 LevelCountForMode(3)=60000 封口（软上限）。
 
 static const unsigned int RUN_CHECKPOINT_MAGIC = 0x314E5552;	// 'RUN1'
-static const unsigned short RUN_CHECKPOINT_VERSION = 13;
+static const unsigned short RUN_CHECKPOINT_VERSION = 14;
 
 static std::vector<unsigned char>& AppendU16(std::vector<unsigned char>& theData, unsigned int theValue)
 {
@@ -124,7 +125,7 @@ static void FillPoolWithAllPlants(std::vector<SeedType>& thePool)
 	}
 }
 
-void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag, int theBuffMult)
+void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag, int theBuffMult, int theLadder, int theZombieBuff)
 {
 	mRunSeed = theRunSeed;
 	mMode = theRunMode;
@@ -140,6 +141,13 @@ void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theR
 	// 增益倍选（2026-10-13）：非法档不在这儿夹——消费全走 BuffMultValueFor（与 mScale/mTempo
 	// 同口径：档位合法性归各自的 *For 函数）。
 	mBuffMult = theBuffMult;
+	// 场景难度阶梯（2026-10-14）：同上，合法性归 LadderPermilleFor。无尽档照记（不吃，但
+	// 两端对齐/存档往返必须保真——线传了多少就原样带多少）。
+	mLadder = theLadder;
+	// 僵尸 buff（2026-10-14）：本局层数表清零（叠层只在一局内累积），投票记账归哨兵。
+	mZombieBuffMode = theZombieBuff;
+	memset(mZombieBuffStacks, 0, sizeof(mZombieBuffStacks));
+	mZombieVotedLevel = RUN_ZOMBIE_VOTED_NONE;
 	mLevelIndex = 0;
 	mPool.clear();
 	if (theRunMode == RUN_MODE_ENDLESS)
@@ -160,7 +168,6 @@ void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theR
 	mPendingPlantPicks = 0;
 	mPendingBuffPicks = 0;
 	mChoicesRolled = false;
-	mPickReRolled = false;
 	mPaidRerollCount = 0;		// 重摇阶梯价：新局从头起算（实际每屏还会在 RollChoices 清零）
 	mPickSeenBuffCount = 0;		// 候选去重批：新局无露脸/冷却
 	mPickCooldownBuffCount = 0;
@@ -187,7 +194,6 @@ void RunState::BeginStartPicks()
 {
 	// 新一批屏从"还没抽"开始（抽干作废过之后又会发新屏，别被上一轮的抽好标志挡住重抽）。
 	mChoicesRolled = false;
-	mPickReRolled = false;
 	// 候选去重批：冷却集只在一批屏内滚动（上一屏 → 下一屏），换批即清。
 	mPickSeenBuffCount = 0;
 	mPickCooldownBuffCount = 0;
@@ -202,7 +208,6 @@ void RunState::BeginLevelEndPicks()
 {
 	// 新一批屏从"还没抽"开始（同 BeginStartPicks；也覆盖补发追赶 AdvanceCatchUp 的路径）。
 	mChoicesRolled = false;
-	mPickReRolled = false;
 	// 候选去重批：冷却集只在一批屏内滚动（上一屏 → 下一屏），换批即清（同 BeginStartPicks）。
 	mPickSeenBuffCount = 0;
 	mPickCooldownBuffCount = 0;
@@ -279,12 +284,10 @@ static bool RunChoiceBlockedByCounterpart(const RunState* theRun, SeedType thePl
 // 还是同一组三条——重开不会变成"刷候选"；换进程/换机器才换盐。
 void RunState::RollChoices(bool theReroll)
 {
-	// 这一屏的候选从这一刻就算抽好了（LawnApp::UpdateRunPick 的"还没抽才抽"守卫看它）；
-	// 每抽一次刷新机会回满——「换一批」自己会把它用掉（见 RerollChoices）。
+	// 这一屏的候选从这一刻就算抽好了（LawnApp::UpdateRunPick 的"还没抽才抽"守卫看它）。
 	mChoicesRolled = true;
-	mPickReRolled = false;
 	// 「重摇」阶梯价按屏起算（花园批同日用户令，拍板"每屏重置"）：非重抽 = 这是一屏新的
-	// 候选，价格回底价；重抽（免费/付费）都在同一屏里，计数照旧累着。
+	// 候选，价格回底价；重抽都在同一屏里，计数照旧累着。
 	if (!theReroll) mPaidRerollCount = 0;
 
 	unsigned int aSeed = (unsigned int)mRunSeed
@@ -308,13 +311,23 @@ void RunState::RollChoices(bool theReroll)
 		}
 
 		SeedType aCandidates[NUM_SEEDS_IN_CHOOSER];
+		int aWeights[NUM_SEEDS_IN_CHOOSER];				// 同下标抽取权重
 		int aCount = 0;
+		int aTotalW = 0;
 		for (int i = 0; i < NUM_SEEDS_IN_CHOOSER; i++)
 		{
-			if (i != (int)SeedType::SEED_IMITATER && !aOwned[i]) aCandidates[aCount++] = (SeedType)i;
+			if (i != (int)SeedType::SEED_IMITATER && !aOwned[i])
+			{
+				aCandidates[aCount] = (SeedType)i;
+				// 花盆/荷叶出率 ×5（2026-10-14 用户令）：权重 5 对其余 1——同一池里这两株的
+				// 抽中概率是普通候选的五倍（三格整体按权重无放回抽，见下）。
+				aWeights[aCount] = (i == (int)SeedType::SEED_FLOWERPOT || i == (int)SeedType::SEED_LILYPAD) ? 5 : 1;
+				aTotalW += aWeights[aCount];
+				aCount++;
+			}
 		}
 
-		// 候选去重批（2026-10-10）：「换一批」把本屏刚摆的三株从候选摘掉——池子够时重抽
+		// 候选去重批（2026-10-10）：「重摇」把本屏刚摆的三株从候选摘掉——池子够时重抽
 		// 必出全新三株；保底口径与增益屏一致（摘到只剩 min(池子, 3) 条为止，别让屏变秃）。
 		// 植物屏没有跨屏冷却：植物一次性入池，没"刷掉的株反复来"这回事。
 		if (theReroll)
@@ -328,7 +341,9 @@ void RunState::RollChoices(bool theReroll)
 				{
 					if (aCandidates[j] == aOld)
 					{
+						aTotalW -= aWeights[j];
 						aCandidates[j] = aCandidates[aCount - 1];
+						aWeights[j] = aWeights[aCount - 1];
 						aCount--;
 						break;
 					}
@@ -336,6 +351,7 @@ void RunState::RollChoices(bool theReroll)
 			}
 		}
 
+		// 加权无放回抽三格（与增益屏同一套算法）：
 		for (int i = 0; i < RUN_CHOICES; i++)
 		{
 			if (aCount <= 0)
@@ -343,14 +359,22 @@ void RunState::RollChoices(bool theReroll)
 				mPlantChoices[i] = SeedType::SEED_NONE;
 				continue;
 			}
-			int aPick = (int)aRNG.Next((unsigned long)aCount);
+			int aPickW = (int)aRNG.Next((unsigned long)aTotalW);
+			int aPick = 0;
+			for (int j = 0; j < aCount; j++)
+			{
+				aPickW -= aWeights[j];
+				if (aPickW < 0) { aPick = j; break; }
+			}
 			mPlantChoices[i] = aCandidates[aPick];
+			aTotalW -= aWeights[aPick];
 			aCandidates[aPick] = aCandidates[--aCount];		// 抽走的换到队尾，保证三条互不重复
+			aWeights[aPick] = aWeights[aCount];
 		}
 	}
 	else
 	{
-		// 候选去重批：本屏"露过脸"记账从零起（theReroll 时不清——「换一批」之后，
+		// 候选去重批：本屏"露过脸"记账从零起（theReroll 时不清——「重摇」之后，
 		// 被刷掉的那批也算本屏露过脸，一并计入下一个冷却集）。
 		if (!theReroll) mPickSeenBuffCount = 0;
 		// 增益：全局 9 条 + 单株升级 + 第二 buff（docs/06 §8.5，同株第二条词条）混池抽
@@ -405,7 +429,7 @@ void RunState::RollChoices(bool theReroll)
 			aCount++;
 		}
 
-		// 候选去重批（2026-10-10，用户令「刷掉的 buff 别反复出现」）：「换一批」要刷掉的本屏
+		// 候选去重批（2026-10-10，用户令「刷掉的 buff 别反复出现」）：「重摇」要刷掉的本屏
 		// 现三条（theReroll）+ 上一屏露过脸没拿的（mPickCooldownBuffs，含上一屏被刷掉的那批）
 		// 从候选里摘掉；先摘现三条再摘冷却，摘到只剩 min(池子, 3) 条为止——池子小时自动放宽，
 		// 宁可又见到重复条目，也不让三选一屏变秃（哨兵格）。
@@ -491,7 +515,7 @@ void RunState::RollChoices(bool theReroll)
 			}
 		}
 
-		// 候选去重批的记账：本屏露过脸的全部（抽的当下就记，含「换一批」两批；去重合并
+		// 候选去重批的记账：本屏露过脸的全部（抽的当下就记，含「重摇」历次刷掉的几批；去重合并
 		// 防溢）。消费时由 NoteBuffScreenConsumed 减去拿走的，生成下一屏冷却集。
 		for (int i = 0; i < RUN_CHOICES; i++)
 		{
@@ -507,20 +531,6 @@ void RunState::RollChoices(bool theReroll)
 			}
 		}
 	}
-}
-
-// @pvz-online: 「换一批」（2026-10-08 玩家反馈定案；2026-10-10 去重批补排除）：
-// 把这一屏的三条候选重抽一遍。走的就是 RollChoices(true)——mPickCounter 再推一步之外，
-// 本屏现三条（增益屏连同上一屏没拿的冷却集）在抽之前被整体摘出候选，所以池子够时重抽
-// 的三条必然跟刚作废的那组全不同；池子不够时按"保底 3 条"自动放宽。（旧注释声称"必然≠"，
-// 但旧实现只换种子、重抽跟作废组可能重合——去重批把它变成真的。）每屏限一次：用过的屏
-// （mPickReRolled）再点不动（屏上的按钮在重开时同时置为不可点）；下一屏 RollChoices 会把机会回满。
-void RunState::RerollChoices()
-{
-	if (mPickReRolled) return;
-	RollChoices(true);
-	mPickReRolled = true;
-	PvzpLogLn("[run] the choices were refreshed (pick counter {})", mPickCounter);
 }
 
 void RunState::TakePlantChoice(int theIndex)
@@ -753,14 +763,13 @@ static int EndlessDifficultyPermille(int theLevelIndex)
 // 无尽档：min(1.1^(n-1), (1+ln n)²) 全量乘数（见 EndlessDifficultyPermille），不再叠场景基准。
 int RunState::GetDifficultyPermille() const
 {
-	static const int aPermille[RUN_SCENE_COUNT] = { 1000, 1330, 1768, 2352, 3129 };
 	if (mMode == RUN_MODE_ENDLESS)
 	{
 		int aLevel = GetPlayingLevelIndex();
 		if (aLevel < 0) aLevel = 0;
 		return EndlessDifficultyPermille(aLevel);
 	}
-	return aPermille[GetSceneIndex()];
+	return LadderPermilleFor(mLadder, GetSceneIndex());
 }
 
 // 无尽档的关卡映射：锁定场景内的 5 个原型循环——关序号 % 5 取行（场景锁死，不再随序号换景）。
@@ -847,12 +856,22 @@ bool RunState::Save(int theProfileId) const
 	}
 
 	AppendU16(aData, mMowerUsedRows);	// v5：末位推车记账（bit = 行号）
-	AppendU16(aData, (unsigned int)((mScale & 3) | ((mTempo & 3) << 2) | ((mZombotany & 1) << 4) | ((mBuffMult & 3) << 5)));	// v10：高级选项位包
+	// v10：高级选项位包（bit5..6 = 增益倍选，2026-10-13 启用——老版本读 0 = ×1，安全降级，
+	// 不抬版本；消费端 BuffMultValueFor 钳非法档）。v14 启用 bit7..9 = 场景难度阶梯档
+	// （老档读 0 = 现状标准档）、bit10..11 = 僵尸 buff 档（老档读 0 = 不开）；bit12..15 仍空闲。
+	AppendU16(aData, (unsigned int)((mScale & 3) | ((mTempo & 3) << 2) | ((mZombotany & 1) << 4) | ((mBuffMult & 3) << 5)
+		| ((mLadder & 7) << 7) | ((mZombieBuffMode & 3) << 10)));
 	// v11（第二 buff 批 0）：buff 列表格式不变（BuffStack 通用 id+count），但 mBuffs 里
 	// 从此可能出现第二表 id（57..95）。老版本读到会当老单株解出错误条目，故抬版本号让
 	// 老构建直接拒档；v10 及更老档没有这类 id，读平即可，不需要迁移链。
 	AppendU16(aData, (unsigned int)mEndlessScene);	// v12：无尽档锁定的场景（非无尽档恒 0）
 	AppendU16(aData, (unsigned int)(mBossFlag ? 1 : 0));	// v13：关底巨型 boss 开关（无尽档恒 0）
+	// v14：僵尸强化——8 条层数（u16×8，值域 0..255）与"上一票投在第几关"（0xFFFF = 没投过）。
+	for (int i = 0; i < RUN_ZOMBIE_BUFF_COUNT; i++)
+	{
+		AppendU16(aData, (unsigned int)mZombieBuffStacks[i]);
+	}
+	AppendU16(aData, (unsigned int)mZombieVotedLevel);
 
 	MkDir(GetAppDataFolder() + "userdata");
 	if (!gSexyAppBase->WriteBytesToFile(GetCheckpointName(theProfileId), aData.data(), (unsigned long)aData.size()))
@@ -888,9 +907,10 @@ bool RunState::Load(int theProfileId)
 	// buff 循环与迁移链照旧（迁移条件全是 aVersion < N，对新 id 不触发）。
 	// v12 起才有无尽档与场景字段：v11 及更老档读到 mode==ENDLESS 一律拒档（伪造/错位）；
 	// 非无尽档的场景恒 0。
+	// v13 才有关底 boss 开关；v14 才有僵尸强化字段（位包 bit7..11 与尾追加 8×u16+u16）。
 	int aMode = RUN_MODE_FULL;
 	int aDiff = RUN_DIFF_STD;
-	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
+	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 13 && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
 	{
 		PvzpLogLn("[run] checkpoint magic/version mismatch, ignored");
 		return false;
@@ -1010,7 +1030,8 @@ bool RunState::Load(int theProfileId)
 		return false;
 	}
 
-	// v10 才有高级选项位包；v9 及更老的档读不到，按 标准/标准/关 续。位掩码天然合法。
+	// v10 才有高级选项位包；v9 及更老的档读不到，按 标准/标准/关 续。位掩码天然合法
+	//（bit7..11 = 阶梯档/僵尸 buff 档，v14 启用；老档恒 0 = 现状/不开）。
 	unsigned int aOptions = 0;
 	if (aVersion >= 10 && !aReader.ReadU16(aOptions))
 	{
@@ -1046,6 +1067,29 @@ bool RunState::Load(int theProfileId)
 	}
 	if (aMode == RUN_MODE_ENDLESS) aBossFlag = 0;
 
+	// v14 才有僵尸强化字段：8 条层数（u16×8，正常不过 255——读到更大的当伪造/错位，
+	// 钳到 255，饱和口径与运行时一致）+ "上一票投在第几关"（0xFFFF = 没投过）。
+	// v13 及更老的档读不到，按"没强过、没投过"续。
+	unsigned char aZombieStacks[RUN_ZOMBIE_BUFF_COUNT] = { 0 };
+	unsigned int aZombieVotedLevel = RUN_ZOMBIE_VOTED_NONE;
+	if (aVersion >= 14)
+	{
+		for (int i = 0; i < RUN_ZOMBIE_BUFF_COUNT; i++)
+		{
+			unsigned int aStack = 0;
+			if (!aReader.ReadU16(aStack))
+			{
+				return false;
+			}
+			if (aStack > 255) aStack = 255;
+			aZombieStacks[i] = (unsigned char)aStack;
+		}
+		if (!aReader.ReadU16(aZombieVotedLevel))
+		{
+			return false;
+		}
+	}
+
 	mRunSeed = aRunSeed;
 	mMode = aMode;
 	mDiff = aDiff;
@@ -1053,8 +1097,17 @@ bool RunState::Load(int theProfileId)
 	mScale = (int)(aOptions & 3);
 	mTempo = (int)((aOptions >> 2) & 3);
 	mZombotany = (int)((aOptions >> 4) & 1);
-    mBuffMult = (int)((aOptions >> 5) & 3);
-    mPaidRerollCount = 0;
+	// 增益倍选（2026-10-13，位包 bit5..6）：v13 及更老的档该两位恒 0 = ×1；读到非法档（3）
+	// 也不拒档——BuffMultValueFor 消费时按 ×1 处理（与其他档同一套纪律）。
+	mBuffMult = (int)((aOptions >> 5) & 3);
+	// 场景难度阶梯（2026-10-14，位包 bit7..9）：v13 及更老的档恒 0 = 现状标准档（不静默
+	// 变难度）；读到非法档（5..7）也不拒档——LadderPermilleFor 消费时按 STD 处理。
+	mLadder = (int)((aOptions >> 7) & 7);
+	// 僵尸 buff 档（2026-10-14，位包 bit10..11）：v13 及更老的档恒 0 = 不开；非法档（3）
+	// 消费端 GetZombieBuffPerScene 按 0 处理。
+	mZombieBuffMode = (int)((aOptions >> 10) & 3);
+	memcpy(mZombieBuffStacks, aZombieStacks, sizeof(mZombieBuffStacks));
+	mZombieVotedLevel = (unsigned short)aZombieVotedLevel;
 	mBossFlag = (aBossFlag != 0) ? 1 : 0;
 	mLevelIndex = aLevelIndex;
 	memcpy(mFailCounts, aFailCounts, sizeof(mFailCounts));
@@ -1071,13 +1124,13 @@ bool RunState::Load(int theProfileId)
 	// 候选去重批的内存记账同样不进检查点，读档清零（与 StartNew 同口径）。
 	mPickSeenBuffCount = 0;
 	mPickCooldownBuffCount = 0;
+	mPaidRerollCount = 0;
 	return true;
 }
 
 void RunState::PaidReroll()
 {
 	RollChoices(true);
-	mPickReRolled = true;
 	mPaidRerollCount++;
 	PvzpLogLn("[run] the choices were rerolled for coins: #{} this screen, next price {} (pick counter {})", mPaidRerollCount, GetPaidRerollCost(), mPickCounter);
 }
@@ -1095,4 +1148,62 @@ int RunState::BuffMultValueFor(int theBuffMult)
 	static const int aMult[] = { 1, 2, 3 };
 	if (theBuffMult < RUN_BUFFMULT_X1 || theBuffMult > RUN_BUFFMULT_X3) return aMult[RUN_BUFFMULT_X1];
 	return aMult[theBuffMult];
+}
+
+int RunState::LadderPermilleFor(int theLadder, int theScene)
+{
+	static const int aTables[5][RUN_SCENE_COUNT] = {
+		{ 1000, 1330, 1768, 2352, 3129 },	// RUN_LADDER_STD（×1.33^场景 = 现状）
+		{ 1000, 1000, 1000, 1000, 1000 },	// RUN_LADDER_X1
+		{ 1000, 1200, 1440, 1728, 2073 },	// RUN_LADDER_X12
+		{ 1000, 1500, 2250, 3375, 5062 },	// RUN_LADDER_X15
+		{ 1000, 2000, 4000, 8000, 16000 },	// RUN_LADDER_X2
+	};
+	if (theLadder < RUN_LADDER_STD || theLadder > RUN_LADDER_X2) theLadder = RUN_LADDER_STD;
+	if (theScene < 0 || theScene >= RUN_SCENE_COUNT) theScene = 0;
+	return aTables[theLadder][theScene];
+}
+
+int RunState::ZombieBuffSpeedPermille() const
+{
+	int aPermille = 1000 + 300 * ZombieBuffCount(ZOMBIE_BUFF_SWIFT);
+	return (aPermille > 4000) ? 4000 : aPermille;	// 封顶 ×4（层 10 起）
+}
+
+int RunState::ZombieBuffHealthPermille() const
+{
+	int aPermille = 1000;
+	int aLayers = ZombieBuffCount(ZOMBIE_BUFF_IRON);
+	for (int i = 0; i < aLayers && aPermille < 100000; i++)
+	{
+		aPermille = aPermille * 1500 / 1000;		// ×1.5/层，逐层截尾
+		if (aPermille > 100000) aPermille = 100000;	// 封顶 ×100（层 12 起）
+	}
+	return aPermille;
+}
+
+int RunState::ZombieBuffSingleHitCap() const
+{
+	int aLayers = ZombieBuffCount(ZOMBIE_BUFF_HEARTGUARD);
+	if (aLayers <= 0) return 0;					// 0 = 不封顶
+	int aCap = 250 - 50 * aLayers;				// 层1=200、层2=150、层3=100
+	return (aCap > 50) ? aCap : 50;				// 底 50（层 4 起）
+}
+
+int RunState::ZombieBuffBitePermille() const
+{
+	int aPermille = 1000;
+	int aLayers = ZombieBuffCount(ZOMBIE_BUFF_RAVENOUS);
+	for (int i = 0; i < aLayers && aPermille < 32000; i++)
+	{
+		aPermille *= 2;							// ×2/层
+		if (aPermille > 32000) aPermille = 32000;	// 封顶 ×32（层 5 起）
+	}
+	return aPermille;
+}
+
+int RunState::ZombieBuffRegenPermillePerSec() const
+{
+	int aPermille = 5 * ZombieBuffCount(ZOMBIE_BUFF_REGEN);	// 0.5%/层 = 5‰
+	return (aPermille > 250) ? 250 : aPermille;				// 封顶 25%/s（层 50 起）
 }

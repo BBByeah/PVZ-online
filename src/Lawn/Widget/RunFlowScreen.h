@@ -10,7 +10,8 @@ class RunFlowScreen : public Sexy::Widget, public Sexy::ButtonListener
     bool mModePage;
     int mBuffMult = 0;
     Sexy::ButtonWidget* mBuffMultButton = nullptr;
-    int mDifficulty = 1, mScale = 1, mTempo = 1, mZombotany = 0, mEndlessScene = 0, mBossFlag = 0;
+    Sexy::ButtonWidget* mLadderButton = nullptr;
+    int mDifficulty = 1, mScale = 1, mTempo = 1, mZombotany = 0, mEndlessScene = 0, mBossFlag = 0, mLadder = 0;
     Sexy::ButtonWidget* mOptionButtons[6]{};
     void RefreshOptionLabels();
 public:

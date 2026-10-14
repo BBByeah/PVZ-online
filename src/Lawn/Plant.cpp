@@ -938,7 +938,10 @@ void Plant::DoRowAreaDamage(int theDamage, unsigned int theDamageFlags)
                 // @pvz-online: 第二 buff「腐臭之息」（大喷菇 #10，docs/06 §8.6）：命中软减速
                 // 3 秒（mFetidSlowCounter=300，幅度 20%/层在 ApplyAnimRate 乘）。只认大喷菇
                 // 本体（忧郁菇是另一株、词条不共享）；软减速刷到 300 封顶、不缩短已有窗口。
-                if (mSeedType == SeedType::SEED_FUMESHROOM && mApp->RunPlantBuff2Count(SeedType::SEED_FUMESHROOM) > 0)
+                // 僵尸强化「免控」（MOD_BUILD 45）单点守卫：这里直写 mFetidSlowCounter、
+                // 零谓词——跳过免疫者。
+                if (mSeedType == SeedType::SEED_FUMESHROOM && mApp->RunPlantBuff2Count(SeedType::SEED_FUMESHROOM) > 0
+                    && !aZombie->mControlImmune)
                 {
                     if (aZombie->mFetidSlowCounter < 300)
                     {
@@ -4798,8 +4801,10 @@ void Plant::BlowAwayFliers()
             // @pvz-online: 关底 boss 免疫狂风推离（MOD_BUILD 39 批，2026-10-11 用户定案
             //「免疫狂风」）——推离是位移控制，两个 boss 都不吃；减速 5 秒（下面 aSlowFrames
             // 段）照常受 CanBeChilled 管：橄榄球 boss 吃减速、巨人 boss 不吃。
+            // 僵尸强化「免控」（MOD_BUILD 45）：免疫者同款——推离（全库唯一击退源）与
+            // 减速都不吃（减速走 CanBeChilled 谓词已兜住，这里补位移）。
             if (aGaleForceStacks > 0 && !aZombie->mIsEating && !aZombie->mBlowingAway
-                && !mBoard->IsRunBossZombie(aZombie))
+                && !mBoard->IsRunBossZombie(aZombie) && !aZombie->mControlImmune)
             {
                 aZombie->mPosX += 80.0f * aGaleForceStacks;
             }

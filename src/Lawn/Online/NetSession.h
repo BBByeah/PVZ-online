@@ -206,6 +206,9 @@ public:
 	// theRunBossFlag（MOD_BUILD 38）= 闯关关底巨型 boss 开关（仅第一席生效）；默认 0。
 	// theRunBuffMult（MOD_BUILD 43）= 增益倍选档（RunState::RUN_BUFFMULT_*，0/1/2 = ×1/×2/×3）；
 	// 默认 0（单关局与非闯关路径不传）。
+	// theRunLadder（MOD_BUILD 45）= 场景难度阶梯档（RunState::RUN_LADDER_*，0 = 现状 ×1.33）；
+	// theRunZombieBuff（MOD_BUILD 45）= 僵尸 buff 档 0/1/2；theZombieStacks（MOD_BUILD 45）
+	// = 8 条强化层数快照（nullptr = 全 0，单关局与非闯关路径不传）。
 	// theTargetSeat 默认 SEAT_UNSET = 发给所有队友；中途拉一个人进关必须点名单发——
 	// 扇出会把已经在打的人重新点名一遍（那会重建棋盘）。
 	bool			SendStartLevel(uint8_t theGameMode, uint32_t theLevel, int32_t theLevelSeed,
@@ -214,7 +217,8 @@ public:
 						uint8_t theRunDiff = 1, uint8_t theRunScale = 1,
 						uint8_t theRunTempo = 1, uint8_t theRunZombotany = 0,
 						uint8_t theRunEndlessScene = 0, uint8_t theRunBossFlag = 0,
-						uint8_t theRunBuffMult = 0);
+						uint8_t theRunBuffMult = 0, uint8_t theRunLadder = 0,
+						uint8_t theRunZombieBuff = 0, const uint8_t* theZombieStacks = nullptr);
 
 	// 客户端侧：取出主机发来的开局命令（同时清掉）。没有就返回 false。
 	// 单槽而不是队列：开局命令只有"最新那条"有意义，堆着旧的开局命令没有用处。
@@ -350,6 +354,16 @@ public:
 
 	// 收到的阳光（先进先出）。没有就返回 false。
 	bool			TakePendingSunGift(NetProto::MsgSendSun& theMsg);
+
+	// @pvz-online: 僵尸强化投票（MOD_BUILD 45）——房主开票广播 3 个候选；客户端投票
+	// （choice 0..2=候选下标、3=弃权）定向回房主；房主计票后广播结果（只驱动 UI，
+	// 层数以随后的 START_LEVEL 快照为准）。取队列全按先进先出，没有就返回 false。
+	bool			SendZombieVoteOpen(uint8_t theSceneIndex, const uint8_t* theCandidates3);
+	bool			TakePendingZombieVoteOpen(NetProto::MsgZombieVoteOpen& theMsg);
+	bool			SendZombieVote(uint8_t theSceneIndex, uint8_t theChoice);
+	bool			TakePendingZombieVote(NetProto::MsgZombieVote& theMsg);
+	bool			SendZombieVoteResult(uint8_t theSceneIndex, uint8_t theCount, const uint8_t* theIds2);
+	bool			TakePendingZombieVoteResult(NetProto::MsgZombieVoteResult& theMsg);
 
 	// 双向：发一条局内快捷聊天（编号查 QuickChat.h：1-8 短语、9-16 植物表情）。
 	// 沿用 Dispatch 默认扇出——所有其他上座席位各收一份，天然按最多六人泛化。
@@ -542,6 +556,10 @@ private:
 	std::vector<NetProto::MsgQuickChat>	mPendingQuickChats;
 	// @pvz-online: 收到的发阳光（MOD_BUILD 38）。跨层不碰棋盘，理由同漏怪队列。
 	std::vector<NetProto::MsgSendSun>	mPendingSunGifts;
+	// @pvz-online: 僵尸强化投票三条（MOD_BUILD 45）。跨层不弹框，理由同漏怪队列。
+	std::vector<NetProto::MsgZombieVoteOpen>	mPendingZombieVoteOpens;
+	std::vector<NetProto::MsgZombieVote>		mPendingZombieVotes;
+	std::vector<NetProto::MsgZombieVoteResult>	mPendingZombieVoteResults;
 	// ---- 观战（队友场地查看）----
 	// 观看端：我在看谁（SEAT_UNSET = 没在看）、两个计时、分片装配缓冲。
 	uint8_t				mWatchTargetSeat;

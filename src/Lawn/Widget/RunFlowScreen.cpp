@@ -36,8 +36,10 @@ RunFlowScreen::RunFlowScreen(LawnApp* app, bool modePage) : mApp(app), mModePage
         for (int i = 0; i < 6; ++i)
             mOptionButtons[i] = addButton(20 + i, "", 35 + (i % 3) * 250, 255 + (i / 3) * 68, 230, 52);
         RefreshOptionLabels();
-        mBuffMultButton = addButton(14, ModText::Format("增益倍选：×{}", "Buff picks: x{}", RunState::BuffMultValueFor(mBuffMult)), 95, 403, 280, 60);
-        addButton(13, ModText::Tr("继续闯关", "Continue run"), 425, 403, 280, 60)->SetDisabled(!RunState::HasCheckpoint(app->mPlayerInfo->mId));
+        const char* ladders[] = { "1.33", "1", "1.2", "1.5", "2" };
+        mLadderButton = addButton(26, ModText::Format("场景阶梯：×{}", "Scene ladder: x{}", ladders[mLadder]), 35, 391, 230, 52);
+        mBuffMultButton = addButton(14, ModText::Format("增益倍选：×{}", "Buff picks: x{}", RunState::BuffMultValueFor(mBuffMult)), 285, 391, 230, 52);
+        addButton(13, ModText::Tr("继续闯关", "Continue run"), 535, 391, 230, 52)->SetDisabled(!RunState::HasCheckpoint(app->mPlayerInfo->mId));
     }
     else
     {
@@ -51,8 +53,8 @@ RunFlowScreen::RunFlowScreen(LawnApp* app, bool modePage) : mApp(app), mModePage
             addButton(i, label ? label : "Plant", 48 + i * 240, 205, 224, 95)->SetDisabled(!valid);
         }
         const int cost = run.GetPaidRerollCost();
-        addButton(4, run.mPickReRolled ? ModText::Format("重摇 -{}", "Reroll -{}", cost) : ModText::Tr("换一批", "Refresh choices"), 90, 450, 250, 60)
-            ->SetDisabled(run.mPickReRolled && app->mPlayerInfo->mCoins < cost);
+        addButton(4, ModText::Format("重摇 -{}", "Reroll -{}", cost), 90, 450, 250, 60)
+            ->SetDisabled(app->mPlayerInfo->mCoins < cost);
         addButton(5, ModText::Tr("跳过", "Skip"), 460, 450, 250, 60);
     }
     addButton(9, ModText::Tr("返回主菜单", "Back to menu"), 290, 525, 220, 50);
@@ -91,7 +93,8 @@ void RunFlowScreen::Draw(Sexy::Graphics* g)
         g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 28));
         g->DrawString(ModText::Tr("通过五个场景，逐步收集植物和增益。", "Build your collection as you progress through five scenes."), 60, 135);
         g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 20));
-        g->DrawString(ModText::Tr("无尽模式锁定所选场景，不生成关底首领。", "Endless stays in the selected scene and has no final boss."), 70, 492);
+        g->DrawString(ModText::Tr("无尽锁定场景；场景阶梯仅影响有限关卡。", "Endless locks its scene; scene ladder applies to finite runs."), 70, 475);
+        g->DrawString(ModText::Tr("僵尸强化投票将在联机阶段开放。", "Zombie buff voting will open with multiplayer."), 70, 501);
     }
     else
     {
@@ -137,6 +140,14 @@ void RunFlowScreen::ButtonDepress(int id)
             RefreshOptionLabels();
             return;
         }
+        if (id == 26)
+        {
+            mLadder = (mLadder + 1) % 5;
+            const char* ladders[] = { "1.33", "1", "1.2", "1.5", "2" };
+            mLadderButton->mLabel = ModText::Format("场景阶梯：×{}", "Scene ladder: x{}", ladders[mLadder]);
+            MarkDirty();
+            return;
+        }
         if (id == 14)
         {
             mBuffMult = (mBuffMult + 1) % 3;
@@ -147,11 +158,11 @@ void RunFlowScreen::ButtonDepress(int id)
         if (id == 13) mApp->ResumeRun();
         else if ((id >= 10 && id <= 12) || id == 15)
             mApp->StartRun(id == 15 ? RunState::RUN_MODE_ENDLESS : id - 10, mBuffMult,
-                mDifficulty, mScale, mTempo, mZombotany, mEndlessScene, mBossFlag);
+                mDifficulty, mScale, mTempo, mZombotany, mEndlessScene, mBossFlag, mLadder);
         return;
     }
     RunState& run = *mApp->mRunState;
-    if (id == 4) { if (run.mPickReRolled) mApp->RunPickPaidReroll(); else run.RerollChoices(); }
+    if (id == 4) mApp->RunPickPaidReroll();
     else if (id == 5) run.SkipPendingPick();
     else if (id >= 0 && id < RunState::RUN_CHOICES)
     {

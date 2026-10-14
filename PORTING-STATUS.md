@@ -4,7 +4,7 @@
 
 - Portable 上游：wszqkzqk/PvZ-Portable，提交 `141c1476dd462ac3526f796e303177616f4de6bc`。
 - 固定源码包 SHA256：`A3966F829E4F05FE7A1D67EBC7ECD575F84EF9DCD8E9A8418E171E7A0DD12AA4`。
-- Windows 初期来源：`7a756a2db2ef88b10a08ec4d5c34900818a4995c`；完整 buff 来源更新为固定提交 `61c37d625ccb3cb7cecaed2422798e8ec5746cbf`（MOD_BUILD 44）。不读取 Windows 未提交修改。
+- Windows 初期来源：`7a756a2db2ef88b10a08ec4d5c34900818a4995c`；完整 buff 来源更新为固定提交 `61c37d625ccb3cb7cecaed2422798e8ec5746cbf`（MOD_BUILD 44），现同步至 `0e08297fb047cda41b735d7be092a2bdf499ca90`（Build 45）。不读取 Windows 未提交修改。
 - 此工程来自固定提交压缩包，没有上游 Git 历史；本地初始化提交 `ac3e1e5` 是开发基线，不能误称为上游提交。共享仓库为 `https://github.com/Not-a-Different-Name/PVZ-online-android`，整合分支 `android-port`，保留基线和拖放修复历史。
 
 ## 工具链（2026-10-13）
@@ -18,6 +18,10 @@
 - vcpkg ports：上游锁定提交 `e8709ee8703328fe121eab33cda73a406a7626b7`，本地压缩包展开；Git registry fetch 遇到连接重置，改用此固定版本的本地 ports。
 
 ## 当前状态
+
+Build 45 已提交依赖同步完成：五档阶梯、八条僵尸强化消费者、花盆/荷叶权重、首次付费重摇、v14 与协议快照。当前 APK 为 `pvz-online-build45-arm64.apk`，28,069,036 字节，已安装 MuMu；相关检查通过，五个原存档已恢复且哈希一致。僵尸游戏投票与双端联网尚未接通。详见 [同步结果](docs/BUILD45-SYNC-STATUS.md) 与 [批次 D 计划](docs/BATCH-D-PLAN.md)。
+
+### 批次 C 交付记录（历史）
 
 ### 2026-10-14 · 防具变体、高级单机选项与同步准备
 

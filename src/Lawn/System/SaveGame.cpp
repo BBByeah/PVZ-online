@@ -94,7 +94,8 @@ enum SaveChunkTypeV4
 	SAVE4_CHUNK_RUN_EFFECTS = 100,
 	SAVE4_CHUNK_ZOMBIE_VARIANTS = 101,
 	SAVE4_CHUNK_RUN_BOSS = 102,
-	SAVE4_CHUNK_EXPANDED_WAVES = 103
+	SAVE4_CHUNK_EXPANDED_WAVES = 103,
+	SAVE4_CHUNK_ZOMBIE_CONTROL = 104
 };
 
 static constexpr const uint32_t SAVE4_CHUNK_VERSION = 1U;
@@ -2030,6 +2031,13 @@ static void SyncRunBossPortable(PortableSaveContext& context, Board* board)
 	SyncEnum32(context, board->mRunBossZombieID);
 }
 
+static void SyncZombieControlPortable(PortableSaveContext& context, Board* board)
+{
+	SyncRunEffectArray(context, board->mZombies, [](PortableSaveContext& c, Zombie& z) {
+		c.SyncBool(z.mControlImmune);
+	});
+}
+
 static void SyncExpandedWavesPortable(PortableSaveContext& context, Board* board)
 {
 	for (auto& wave : board->mZombiesInWave)
@@ -2048,6 +2056,8 @@ static ChunkSyncFn GetChunkSyncFn(uint32_t theChunkType)
 		return SyncZombieVariantsPortable;
 	case SAVE4_CHUNK_RUN_BOSS:
 		return SyncRunBossPortable;
+	case SAVE4_CHUNK_ZOMBIE_CONTROL:
+		return SyncZombieControlPortable;
 	case SAVE4_CHUNK_EXPANDED_WAVES:
 		return SyncExpandedWavesPortable;
 	case SAVE4_CHUNK_BOARD_BASE:
@@ -2901,6 +2911,7 @@ bool LawnSaveGame(Board* theBoard, const std::string& theFilePath)
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_ZOMBIE_VARIANTS, theBoard)) return false;
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_RUN_BOSS, theBoard)) return false;
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_EXPANDED_WAVES, theBoard)) return false;
+	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_ZOMBIE_CONTROL, theBoard)) return false;
 
 	SaveFileHeaderV4 aHeader{};
 	memcpy(aHeader.mMagic, SAVE_FILE_MAGIC_V4, sizeof(aHeader.mMagic));

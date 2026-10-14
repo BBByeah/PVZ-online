@@ -80,7 +80,7 @@ public:
 	std::unique_ptr<RunState> mRunState;
 	std::unique_ptr<RunFlowScreen> mRunFlowScreen;
 	void ShowRunMenu();
-	void StartRun(int mode, int buffMult = 0, int difficulty = 1, int scale = 1, int tempo = 1, int zombotany = 0, int endlessScene = 0, int bossFlag = 0);
+	void StartRun(int mode, int buffMult = 0, int difficulty = 1, int scale = 1, int tempo = 1, int zombotany = 0, int endlessScene = 0, int bossFlag = 0, int ladder = 0, int zombieBuff = 0);
 	void RunPickPaidReroll();
 	void ResumeRun();
 	void ShowRunPicks();

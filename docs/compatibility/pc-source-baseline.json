@@ -1,12 +1,34 @@
 {
   "schemaVersion": 1,
   "pcRepository": "https://github.com/Not-a-Different-Name/PVZ-online",
-  "pcCommit": "61c37d625ccb3cb7cecaed2422798e8ec5746cbf",
-  "pcModBuild": 44,
+  "pcCommit": "0e08297fb047cda41b735d7be092a2bdf499ca90",
+  "pcModBuild": 45,
   "pcProtocolVersion": 1,
   "portableCommit": "141c1476dd462ac3526f796e303177616f4de6bc",
   "onlineGameReady": false,
-  "implemented": ["run-buffs", "plant-dependencies", "zombie-variants", "solo-advanced-options", "solo-endless-lawn", "solo-final-boss"],
-  "compiledOnly": ["network-transport", "network-session"],
-  "next": ["network-game-hooks", "lobby-ui", "pc-android-runtime-check", "mobile-ui-and-lifecycle"]
+  "implemented": [
+    "run-buffs",
+    "plant-dependencies",
+    "zombie-variants",
+    "solo-advanced-options",
+    "solo-endless-lawn",
+    "solo-final-boss",
+    "scene-ladder",
+    "zombie-buff-consumers",
+    "checkpoint-v14",
+    "paid-reroll-build45",
+    "plant-pick-weights-build45"
+  ],
+  "compiledOnly": [
+    "network-transport",
+    "network-session",
+    "zombie-vote-protocol"
+  ],
+  "next": [
+    "zombie-vote-game-flow",
+    "network-game-hooks",
+    "lobby-ui",
+    "pc-android-runtime-check",
+    "mobile-ui-and-lifecycle"
+  ]
 }

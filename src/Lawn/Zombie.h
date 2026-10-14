@@ -164,6 +164,7 @@ public:
 	int32_t mScorchedCounter = 0;
 	int32_t mFrostArmorCounter = 0;
 	bool mIceShroomTrap = false;
+	bool mControlImmune = false; // PC Build 45; also persisted in optional v4 chunk 104.
 
 public:
 	Zombie();

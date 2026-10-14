@@ -34,13 +34,13 @@ void LawnApp::ShowRunMenu()
     mWidgetManager->SetFocus(mRunFlowScreen.get());
 }
 
-void LawnApp::StartRun(int mode, int buffMult, int difficulty, int scale, int tempo, int zombotany, int endlessScene, int bossFlag)
+void LawnApp::StartRun(int mode, int buffMult, int difficulty, int scale, int tempo, int zombotany, int endlessScene, int bossFlag, int ladder, int zombieBuff)
 {
     KillRunFlowScreen();
     KillBoard();
     KillGameSelector();
     mRunState = std::make_unique<RunState>();
-    mRunState->StartNew(Sexy::Rand(), mode, difficulty, scale, tempo, zombotany, endlessScene, bossFlag, buffMult);
+    mRunState->StartNew(Sexy::Rand(), mode, difficulty, scale, tempo, zombotany, endlessScene, bossFlag, buffMult, ladder, zombieBuff);
     mRunState->BeginStartPicks();
     ShowRunPicks();
 }
@@ -125,7 +125,7 @@ void LawnApp::NoteRunFailure()
 
 void LawnApp::RunPickPaidReroll()
 {
-    if (!mRunState || !mPlayerInfo || !mRunState->mPickReRolled) return;
+    if (!mRunState || !mPlayerInfo) return;
     const int cost = mRunState->GetPaidRerollCost();
     if (mPlayerInfo->mCoins < cost) return;
     mPlayerInfo->AddCoins(-cost);

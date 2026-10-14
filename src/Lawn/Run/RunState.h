@@ -25,13 +25,6 @@
 class RunState
 {
 public:
-    enum { RUN_BUFFMULT_X1 = 0, RUN_BUFFMULT_X2 = 1, RUN_BUFFMULT_X3 = 2 };
-    static const int RUN_PAID_REROLL_COST = 100;
-    int mBuffMult = 0;
-    int mPaidRerollCount = 0;
-    void PaidReroll();
-    int GetPaidRerollCost() const;
-    static int BuffMultValueFor(int theBuffMult);
 	// @pvz-online: 时长档（M4-b）。完整版一局 25 关；普通版抽每场景第 1/5 关（10 关，=原快速表）、
 	// 快速版抽第 5 关（5 关）——短一局用更密的奖励屏补内容量（倍乘见 BeginLevelEndPicks）。
 	// 无尽档（2026-10-10 用户定案）：多人无尽的第四档——锁一个场景、在该场景 5 个原型里无限
@@ -51,6 +44,34 @@ public:
 	// 进检查点（v10）；单机局同样可选。
 	enum	{ RUN_SCALE_HALF = 0, RUN_SCALE_STD = 1, RUN_SCALE_DOUBLE = 2, RUN_SCALE_QUAD = 3 };
 	enum	{ RUN_TEMPO_FAST = 0, RUN_TEMPO_STD = 1, RUN_TEMPO_SLOW = 2 };
+	// @pvz-online: 增益倍选（2026-10-13 用户令「每次选 buff 1 2 3 倍」）：房主在高级选项里
+	// 选的倍数——每屏照旧三选一拿 1 条，但发放的三选一屏数 ×1/×2/×3（拿到的总数翻倍，
+	// 代价是连点更多屏）。0-based 索引，倍率值走 BuffMultValueFor（非法按 1 倍）。
+	enum	{ RUN_BUFFMULT_X1 = 0, RUN_BUFFMULT_X2 = 1, RUN_BUFFMULT_X3 = 2 };
+	// @pvz-online: 场景难度阶梯五档（2026-10-14 用户令「阶梯应当可调，做 1 1.2 1.33 1.5 2
+	// 五档，放在高级选项」）：乘在血量与出怪点数上的逐场景阶梯因子。RUN_LADDER_STD = 0 是
+	// 现状 ×1.33 档、也是 sentinel——老档/老协议读 0 恰好是现状，不静默变难度。五张固定
+	// 千分比表见 LadderPermilleFor；**无尽档不吃阶梯**（上批定案的无尽专属曲线保持独立，
+	// 高级选项在无尽档也不摆「场景难度」行）。
+	enum	{ RUN_LADDER_STD = 0, RUN_LADDER_X1 = 1, RUN_LADDER_X12 = 2, RUN_LADDER_X15 = 3, RUN_LADDER_X2 = 4 };
+	// @pvz-online: 僵尸强化（2026-10-14 用户令「到下一场景选给僵尸 0/1/2 个 buff；作用在
+	// 无尽则五关一选」）：独立于植物词条表的第二条强化线——每进一个新场景全队投票叠层，
+	// 层数累积、无总上限（255 封顶防溢出，各效果数值饱和）。池子 8 条固定 id（即
+	// mZombieBuffStacks 下标，随投票/协议/存档逐位一致）；每场景发几条 = mZombieBuffMode
+	// （高级选项「僵尸 buff」0/1/2，0 = 不开）。
+	enum
+	{
+		ZOMBIE_BUFF_SWIFT = 0,		// 迅捷：移速 +30%/层
+		ZOMBIE_BUFF_IRON = 1,		// 铁壁：生命 ×1.5/层
+		ZOMBIE_BUFF_HEARTGUARD = 2,	// 护心：单次伤害封顶 200−50×(层−1)、底 50（灰烬不再秒杀）
+		ZOMBIE_BUFF_RAVENOUS = 3,	// 狂食：每口啃咬 ×2/层
+		ZOMBIE_BUFF_REGEN = 4,		// 再生：每秒回 0.5% 上限血/层
+		ZOMBIE_BUFF_STEADFAST = 5,	// 免控：免疫减速/冰冻/黄油/击退/换道/魅惑（≥1 层即全免）
+		ZOMBIE_BUFF_GRAVEKEEPER = 6,	// 墓碑者：巨人砸碎植物→原地生成墓碑
+		ZOMBIE_BUFF_GHOSTWALK = 7,	// 无视阻挡：普通僵尸直接走过植物不停下啃咬
+	};
+	static const int	RUN_ZOMBIE_BUFF_COUNT	= 8;	// 池子大小（= 上面枚举条目数）
+	static const int	RUN_ZOMBIE_VOTED_NONE	= 0xFFFF;	// mZombieVotedLevel 的"没投过"哨兵
 
 	static const int	RUN_LEVEL_COUNT		= 25;	// 完整版总关数 = 5 场景 × 5 关（数组/静态表的尺寸上限）
 	static const int	RUN_SCENE_COUNT		= 5;	// 白天 → 夜 → 泳池 → 迷雾 → 屋顶
@@ -65,6 +86,14 @@ public:
 	// 格子填它——不是合法 id（全局 9 + 单株 48 + 第二 buff 39 都够不到），选择函数与
 	// 屏上按钮一律忽略。
 	static const unsigned short RUN_BUFF_CHOICE_NONE = 0xFFFF;
+	// @pvz-online: 三选一「重摇」底价（花园批 2026-10-13 用户拍板的三选一金币出路；同日
+	// 用户令改阶梯价；2026-10-14 用户令「第一次也要花金币」取消免费「换一批」——本常量
+	// 也是第一次的价）：同一屏里每摇一次 ×10
+	// （100 → 1000 → 10000…公式不设上限，实际被钱包上限 99999 自然封死在第三步之后），
+	// 进新的三选一屏即回到底价重新起算（见 GetPaidRerollCost）。
+	// 扣存档钱包 mCoins，与商店同源；对齐金僵尸掉落的 100。纯本地下注，不进协议——联机
+	// 双端各花各的钱、各摇各的屏。
+	static const int	RUN_PAID_REROLL_COST	= 100;
 
 	// @pvz-online: 出怪编排旋钮（M4-a，用户定案）：点数不封顶、数量封顶；点数多就出强僵尸。
 	// 用在 Board::PickZombieWaves / Board::PickZombieType 的闯关分支，调平衡只动这组数。
@@ -93,17 +122,20 @@ public:
 	unsigned int				mPickCounter;			// 抽过几次：同一局里每屏的候选都不一样
 	unsigned int				mPickSalt;				// 本机随机盐：StartNew/Load 时各生成一次，进程内不变——
 														// 同一局里重开同关还是同一组三条（防刷），换进程/换机器就不同
-	// @pvz-online: 「换一批」的记账（2026-10-08 玩家反馈）。和上面一样纯内存态、不落检查点：
-	// mChoicesRolled = 当前这一屏的三条候选已经抽好（打掉/放弃后复位，下一屏才会重抽——
-	// 也让「换一批」重开的那一屏不会被再抽一次）；mPickReRolled = 这一屏的刷新机会用掉没有。
+	// @pvz-online: 候选抽好没抽好的记账（2026-10-08 玩家反馈）。和上面一样纯内存态、
+	// 不落检查点：mChoicesRolled = 当前这一屏的三条候选已经抽好（打掉/放弃后复位，
+	// 下一屏才会重抽——也让重摇重开的那一屏不会被再抽一次）。
 	bool						mChoicesRolled;
-	bool						mPickReRolled;
+	// @pvz-online: 「重摇」阶梯价的记账（花园批 2026-10-13；2026-10-14 起第一次也花金币）：
+	// 本屏已经花金币重摇过几次——当前价 = 底价 × 10^本数（见 GetPaidRerollCost）。纯内存、
+	// 不落检查点；新的一屏（RollChoices 非重抽路径）清零。
+	int							mPaidRerollCount;
 	// @pvz-online: 候选去重批的记账（2026-10-10 用户定案「同屏排除+一屏冷却」，一屏/一批
-	// 生灭、纯内存不落检查点）。mPickSeenBuffs = 本屏露过脸的全部增益 id（含「换一批」
+	// 生灭、纯内存不落检查点）。mPickSeenBuffs = 本屏露过脸的全部增益 id（含「重摇」
 	// 刷掉的那批，最多 3+3，抽的当下就记）；mPickCooldownBuffs = 上一屏露过脸又没拿的
 	// （= 本屏记账减去拿走的那条）——下一屏抽候选时整体摘掉，屏池不够时按"保底 3 条"
 	// 自动放宽（见 RollChoices）；拿走的不进冷却，跨屏叠层照旧。植物屏只做同屏排除
-	// （「换一批」必出全新三株），没有跨屏冷却。
+	// （「重摇」必出全新三株），没有跨屏冷却。
 	unsigned short				mPickSeenBuffs[RUN_CHOICES * 2];
 	int							mPickSeenBuffCount;
 	unsigned short				mPickCooldownBuffs[RUN_CHOICES * 2];
@@ -135,6 +167,23 @@ public:
 	// 关底刷巨型 boss（仅第一席；无尽档没有关底、恒不刷）。房间级设置，随 START_LEVEL 广播、
 	// 随检查点 v13 持久；联机各端无条件按房主的值对齐（不参与重建判等）。
 	int							mBossFlag;
+	// @pvz-online: 增益倍选（2026-10-13 用户令）：1/2/3 倍的索引（RUN_BUFFMULT_*）。房间级
+	// 设置，随 START_LEVEL 广播（MOD_BUILD 43）、随检查点 v10 位包 bit5..6 持久（老档读 0
+	// = ×1，安全降级；不抬检查点版本）；联机各端无条件按房主的值对齐（不参与重建判等）。
+	// 消费见 BeginStartPicks / BeginLevelEndPicks（只乘 buff 屏数）与 BuffMultValueFor。
+	int							mBuffMult;
+	// @pvz-online: 场景难度阶梯档（2026-10-14 用户令）：RUN_LADDER_*，五张固定千分比表见
+	// LadderPermilleFor。房间级设置，随 START_LEVEL 广播、随检查点位包 bit7..9 持久（v14
+	// 前的老档读 0 = 现状标准档，安全降级、不抬版本）；联机各端无条件按房主的值对齐。
+	int							mLadder;
+	// @pvz-online: 僵尸强化的两个字段（2026-10-14 用户令）：mZombieBuffMode = 高级选项
+	// 「僵尸 buff」档 0/1/2（每进一个新场景投票叠几条，0 = 不开）；mZombieBuffStacks[8] =
+	// 池子 8 条的当前层数（投中 +1、255 封顶，累积不重置）。房间级，随 START_LEVEL 广播
+	// （层数快照随 mLastStartLevel 自愈重连）、随检查点 v14 持久；mZombieVotedLevel =
+	// 上一张票投在第几关（RUN_ZOMBIE_VOTED_NONE = 没投过；重试同一关不重开票）。
+	int							mZombieBuffMode;
+	unsigned char				mZombieBuffStacks[RUN_ZOMBIE_BUFF_COUNT];
+	unsigned short				mZombieVotedLevel;
 	// @pvz-online: 补发追赶的目标关序号（R5）。队友没有检查点 / 检查点落后于主机时，
 	// 不是"跳到主机的关"，而是从这一局的起点一屏一屏地把欠下的三选一补齐——
 	// 补做的屏与真打过的一模一样（候选由 runSeed + 关序号推导）。开着的时候
@@ -147,9 +196,13 @@ public:
 	// 全新一局：卡池回到两株、失败计数清零、从第 1 关开打。
 	// 无尽档（theRunMode == RUN_MODE_ENDLESS）：theEndlessScene 锁场景（0..4，越界钳 0）；
 	// 卡池直接给满全部 48 株常规植物（2026-10-11 用户令「开局全植物」——模仿者照旧不给）。
+	// theBuffMult（2026-10-13）：增益倍选索引（RUN_BUFFMULT_*，非法按 ×1——消费端钳）。
+	// theLadder（2026-10-14）：场景难度阶梯档（RUN_LADDER_*，非法按现状档）。
+	// theZombieBuff（2026-10-14）：僵尸 buff 档 0/1/2（每场景投票叠几条；层数表跟随本局清零）。
 	void				StartNew(int theRunSeed, int theRunMode = RUN_MODE_FULL, int theRunDiff = RUN_DIFF_STD,
 							int theRunScale = RUN_SCALE_STD, int theRunTempo = RUN_TEMPO_STD, int theZombotany = 0,
-							int theEndlessScene = 0, int theBossFlag = 0, int theBuffMult = 0);
+							int theEndlessScene = 0, int theBossFlag = 0, int theBuffMult = 0,
+							int theLadder = RUN_LADDER_STD, int theZombieBuff = 0);
 
 	// 时长档的关数口径：每场景关数（5/2/1）与总关数（25/10/5）。模式非法按完整版。
 	// 无尽档的 LevelCountForMode = RUN_ENDLESS_LEVEL_COUNT（软上限）；LevelsPerScene 对
@@ -166,6 +219,40 @@ public:
 	// 档位非法按标准 1000——与 DiffPermilleFor 同一套纪律，消费点不用再操心合法性。
 	static int			ScalePermilleFor(int theRunScale);
 	static int			TempoPermilleFor(int theRunTempo);
+
+	// 增益倍选的倍率值（1/2/3）。档位非法按 1——与上面同一套纪律，消费点不用再操心合法性。
+	static int			BuffMultValueFor(int theBuffMult);
+
+	// 场景难度阶梯五档的千分比表（2026-10-14 用户令）：五档 × 五场景固定字面量、截尾
+	// （两端逐位一致，不用运行时浮点）。STD 档表 = 2026-10-05 定案的现状表一字不差。
+	// 档位/场景非法按 STD/场景 0——与上面同一套纪律，消费点不用再操心合法性。
+	static int			LadderPermilleFor(int theLadder, int theScene);
+
+	// @pvz-online: 僵尸强化的三个取数口（2026-10-14 用户令）。每场景发放档 0/1/2 非法按 0
+	// （= 不开）；层数与叠层口（投票投中 +1、255 封顶）。全部走"消费端钳"纪律：消费点
+	// 拿到的是已经钳好的值。
+	int					GetZombieBuffPerScene() const
+	{
+		return (mZombieBuffMode >= 0 && mZombieBuffMode <= 2) ? mZombieBuffMode : 0;
+	}
+	int					ZombieBuffCount(int theId) const
+	{
+		if (theId < 0 || theId >= RUN_ZOMBIE_BUFF_COUNT) return 0;
+		return (int)mZombieBuffStacks[theId];
+	}
+	void				AddZombieBuffStack(int theId)
+	{
+		if (theId < 0 || theId >= RUN_ZOMBIE_BUFF_COUNT) return;
+		if (mZombieBuffStacks[theId] < 255) mZombieBuffStacks[theId]++;
+	}
+	// 各条效果的消费端换算（整数千分比/点值，饱和封顶；层 0 = 无效果——护心/再生返回 0
+	// 即"不生效"）。免控/墓碑者/无视阻挡是 ≥1 判定，直接走 ZombieBuffCount。
+	// 数值出处与调整史见 docs/07。
+	int					ZombieBuffSpeedPermille() const;		// 迅捷：1000+300×层，封顶 4000（×4）
+	int					ZombieBuffHealthPermille() const;		// 铁壁：1.5^层 千分比（逐层截尾），封顶 100000（×100）
+	int					ZombieBuffSingleHitCap() const;			// 护心：max(50, 250−50×层)；0 = 不封顶
+	int					ZombieBuffBitePermille() const;			// 狂食：2^层 千分比，封顶 32000（×32）
+	int					ZombieBuffRegenPermillePerSec() const;	// 再生：5×层（每秒回血的千分比），封顶 250
 
 	// 该选植物 / 该选 buff 了（一局开始时先挑四株 + 两个增益——进第 1 关前手里就有 6 株；
 	// 快速版开局加厚成六株 + 四个增益，批十 2026-10-05；无尽档开局只发四个增益，2026-10-11
@@ -184,16 +271,21 @@ public:
 	bool				IsPlantPick() const { return mPendingPlantPicks > 0; }
 	// 抽当前这一屏的三条候选，摆在 mPlantChoices / mBuffChoices 里等玩家点。
 	// 增益屏无保底（2026-10-09 权重批撤「第 1 格保底全局」，全局密度由 §8.7 权重体系保证）。
-	// theReroll = true（「换一批」）时：本屏现三条先从候选整体摘掉——池子够时重抽必出全新
+	// theReroll = true（「重摇」）时：本屏现三条先从候选整体摘掉——池子够时重抽必出全新
 	// 三条；增益屏另摘上一屏没拿的（mPickCooldownBuffs，含上一屏被刷掉的那批）；两者都在
 	// "池子不够"时按保底 min(池子, 3) 条自动放宽（宁可还有重复，不让三选一屏变秃）。
 	void				RollChoices(bool theReroll = false);
-	// @pvz-online: 当前屏的候选抽没抽（LawnApp::UpdateRunPick 靠它别把「换一批」重开的屏再抽一遍）。
+	// @pvz-online: 当前屏的候选抽没抽（LawnApp::UpdateRunPick 靠它别把「重摇」重开的屏再抽一遍）。
 	bool				ChoicesRolled() const { return mChoicesRolled; }
-	// @pvz-online: 「换一批」（2026-10-08 玩家反馈定案；2026-10-10 去重批补排除）：
-	// 这一屏重抽一次，玩家每屏多一次刷新机会——重抽先摘掉本屏现三条（增益屏连同上一屏
-	// 冷却集），池子够时必出全新三条；每屏限一次，用过的屏再点也没效果（屏上的按钮同时置为不可点）。
-	void				RerollChoices();
+	// @pvz-online: 「重摇」（花园批 2026-10-13；2026-10-14 用户令起取消免费「换一批」——
+	// 第一次也花金币）：花金币把这屏的候选重抽一批——同一条 RollChoices(true) 重抽链
+	// （摘本屏现三条），扣币在 LawnApp::RunPickPaidReroll 那边，这里只管重抽；顺便把本屏
+	// 的重摇计数 +1（阶梯价，见下）。
+	void				PaidReroll();
+	// @pvz-online: 这一屏当前的重摇价（花园批同日用户令：「每次*10，从100开始 100 1000 10000
+	// 这样，不设上限」+ 拍板每屏重置）= 底价 × 10^本屏已花币重摇次数。LawnApp 扣费与
+	// RunPickDialog 标价/置灰共用这一个出口，保证三处永远同价。
+	int					GetPaidRerollCost() const;
 	// 玩家点了第 theIndex 张卡：植物进卡池、buff 叠一层，各欠的数减一。
 	void				TakePlantChoice(int theIndex);
 	void				TakeBuffChoice(int theIndex);
@@ -201,7 +293,7 @@ public:
 	// 照减（先植物后增益，与 IsPlantPick 的先后一致），卡池 / buff 表原样不动。
 	void				SkipPendingPick();
 	// @pvz-online: 去重批的回执（2026-10-10）：这一屏增益消费掉了——把本屏露过脸的全部
-	// （含「换一批」刷掉的那批）减去拿走的那条，记成下一屏的冷却集。放弃传哨兵 = 整批进冷却；
+	// （含「重摇」刷掉的那批）减去拿走的那条，记成下一屏的冷却集。放弃传哨兵 = 整批进冷却；
 	// 拿走的那条不进冷却（下一屏还能再来叠层）。
 	void				NoteBuffScreenConsumed(unsigned short theTakenId);
 	// 这一局拿到某个 buff 的层数（R3 的数值层按它算加成）。
@@ -256,9 +348,11 @@ public:
 	static int			LevelForModeIndex(int theRunMode, int theIndex);
 
 	// @pvz-online: 难度阶梯（M4-a）取用口。正在打的那一关的序号，口径与 GetLevel /
-	// GetLevelSeed 一致（追赶期间 = 目标关）；场景档 0..4；难度 = 千分比表
-	// {1000,1330,1768,2352,3129}——每过一个场景血量与数量同乘 ×1.33（2026-10-05 由 ×1.5 回调）。
-	// 无尽档：min(1.1^(n-1), (1+ln n)²) 全量乘数（2026-10-12 用户定案，见 EndlessDifficultyPermille）。
+	// GetLevelSeed 一致（追赶期间 = 目标关）；场景档 0..4；难度 = mLadder 档的千分比表
+	// （五档可调，2026-10-14 用户令，表见 LadderPermilleFor）——现档每过一个场景血量与
+	// 数量同乘 ×1.33，其余四档 ×1/×1.2/×1.5/×2。
+	// 无尽档：min(1.1^(n-1), (1+ln n)²) 全量乘数（2026-10-12 用户定案，见 EndlessDifficultyPermille；
+	// 不吃阶梯档）。
 	// 全整数运算，联机两端逐位一致（见 GetDifficultyPermille 实现处的说明）。
 	int					GetPlayingLevelIndex() const;
 	int					GetSceneIndex() const;

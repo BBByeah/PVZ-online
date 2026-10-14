@@ -1,5 +1,16 @@
 # Android 开发更新记录
 
+## 2026-10-14 · Build 45 规则与存档同步
+
+- 固定 PC `0e08297`，迁入五档场景阶梯、八条僵尸强化消费者、花盆/荷叶抽取权重和首次付费重摇。
+- 闯关检查点升至 v14，旧 v13 默认行为保留；Portable v4 可选块 104 保存免控字段。
+- 同步 36 字节开局快照及三候选/弃权投票消息。固定 PC 尚无开票/计票游戏调用，Android 暂不开放投票与联机入口。
+- 有限 MuMu、ARM64 状态/消息和旧档检查通过；五个用户文件恢复且 SHA256 一致。交付及未验范围见 [BUILD45-SYNC-STATUS.md](BUILD45-SYNC-STATUS.md)。
+
+### English
+
+Pinned Build 45 scene ladders, zombie-buff consumers, weighted plant picks, paid-first rerolls and v14 saves are ported. Optional v4 chunk 104 preserves immunity. START_LEVEL snapshots and three-choice vote messages compile; game voting and multiplayer remain pending. Limited checks passed and original user files were restored. See the linked status for coverage and APK hash.
+
 ## 2026-10-14 · 防具变体、高级单机选项与同步更新准备
 
 - 迁入 PC 八种防具变体及完整出怪名单，定义、报纸帽动画、防具/攻击/死亡、缓存边界与固定 PC 一起适配。

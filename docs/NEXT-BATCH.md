@@ -4,6 +4,8 @@
 
 ## 当前后续顺序
 
+用户新增的最近一项为种子栏快捷键：1–9 选前九张、0 选第十张、Q 铲子；先按 [快捷键计划](KEYBOARD-CONTROLS-PLAN.md) 实施，处理协作面板数字优先级与 PC 血量/调试键冲突。当前仅完成方案，不代表 APK 或 PC 已有这些绑定。以下联机和 UI 任务继续保留。
+
 批次 C 已迁入防具变体、高级单机选项、无尽及关底首领规则；批次 D 已接入房间和游戏侧联机。真实 Android 与固定 PC 原生会话程序双向检查通过，完整 PC 游戏客户端验收仍待完成；范围见 [联机结果](NETWORK-GAME-STATUS.md)。
 
 1. Build 45 的已提交规则、实体、v14 检查点及投票协议依赖已迁入并交付；结果见 [Build 45 同步](BUILD45-SYNC-STATUS.md)。Build 46 已补齐并迁入游戏侧投票与协作入口，见 [手机协作结果](MOBILE-COOP-STATUS.md)。当前执行分解见 [批次 D 计划](BATCH-D-PLAN.md)，持续更新流程见 [PC-SYNC-WORKFLOW.md](PC-SYNC-WORKFLOW.md)。

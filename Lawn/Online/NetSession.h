@@ -358,11 +358,11 @@ public:
 	// @pvz-online: 僵尸强化投票（MOD_BUILD 45）——房主开票广播 3 个候选；客户端投票
 	// （choice 0..2=候选下标、3=弃权）定向回房主；房主计票后广播结果（只驱动 UI，
 	// 层数以随后的 START_LEVEL 快照为准）。取队列全按先进先出，没有就返回 false。
-	bool			SendZombieVoteOpen(uint8_t theSceneIndex, const uint8_t* theCandidates3);
+	bool			SendZombieVoteOpen(uint16_t theSceneIndex, const uint8_t* theCandidates3);
 	bool			TakePendingZombieVoteOpen(NetProto::MsgZombieVoteOpen& theMsg);
-	bool			SendZombieVote(uint8_t theSceneIndex, uint8_t theChoice);
+	bool			SendZombieVote(uint16_t theSceneIndex, uint8_t theChoice);
 	bool			TakePendingZombieVote(NetProto::MsgZombieVote& theMsg);
-	bool			SendZombieVoteResult(uint8_t theSceneIndex, uint8_t theCount, const uint8_t* theIds2);
+	bool			SendZombieVoteResult(uint16_t theSceneIndex, uint8_t theCount, const uint8_t* theIds2);
 	bool			TakePendingZombieVoteResult(NetProto::MsgZombieVoteResult& theMsg);
 
 	// 双向：发一条局内快捷聊天（编号查 QuickChat.h：1-8 短语、9-16 植物表情）。

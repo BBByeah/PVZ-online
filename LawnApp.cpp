@@ -2513,6 +2513,8 @@ void LawnApp::RunPickSkipped()
 // 结果横幅的文字（房主按结算结果拼、客户端按 RESULT 拼——同一口径同一条文案）。
 static std::string ZombieVoteBannerText(int theCount, const unsigned char* theIds)
 {
+	// @pvz-online: keep this UI consumer bounded even if an internal caller bypasses wire validation.
+	if (theCount > 2) theCount = 2;
 	std::string aText = ModText::Tr("本场景僵尸强化：", "Zombie boosts: ");
 	if (theCount <= 0)
 	{
@@ -2554,7 +2556,7 @@ bool LawnApp::TryOpenZombieVote()
 	// 不再要求"算法逐位一致"）；单机跳过协议直接弹框。
 	if (IsOnlineGame() && mOnlineSession->GetRole() == NetSession::Role::HOST)
 	{
-		mOnlineSession->SendZombieVoteOpen((uint8_t)aLevel, aCandidates);
+		mOnlineSession->SendZombieVoteOpen((uint16_t)aLevel, aCandidates);
 	}
 	ZombieVoteOpenLocal(aLevel, aCandidates);
 	return true;
@@ -2660,7 +2662,7 @@ void LawnApp::ZombieVoteResolve()
 	{
 		uint8_t aIds[2] = { 0, 0 };
 		for (int i = 0; i < aPickedCount && i < 2; i++) aIds[i] = aPicked[i];
-		mOnlineSession->SendZombieVoteResult((uint8_t)mZombieVoteLevel, (uint8_t)aPickedCount, aIds);
+		mOnlineSession->SendZombieVoteResult((uint16_t)mZombieVoteLevel, (uint8_t)aPickedCount, aIds);
 	}
 
 	// 结果横幅：结算发生在"上一关刚完、下一关还没开打"的空档，当场推会被随后的换场盖掉——
@@ -2706,7 +2708,7 @@ void LawnApp::ZombieVoteChosen(int theChoice)
 
 	if (IsOnlineClient())
 	{
-		mOnlineSession->SendZombieVote((uint8_t)mZombieVoteLevel, (uint8_t)theChoice);
+		mOnlineSession->SendZombieVote((uint16_t)mZombieVoteLevel, (uint8_t)theChoice);
 	}
 	else
 	{

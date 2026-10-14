@@ -766,13 +766,16 @@ bool WidgetManager::KeyText(std::string_view theText)
 	return true;
 }
 
-bool WidgetManager::KeyDown(KeyCode key)
+bool WidgetManager::KeyDown(KeyCode key, bool isRepeat)
 {
+	const bool previousRepeat = mIsKeyRepeat;
+	mIsKeyRepeat = isRepeat || ((key >= 0 && key < 0xFF) && mKeyDown[key]);
 	if ((key >= 0) && (key < 0xFF))
 		mKeyDown[key] = true;
 
 	if (mFocusWidget != nullptr)
 		mFocusWidget->KeyDown(key);
+	mIsKeyRepeat = previousRepeat;
 
 	return true;
 }

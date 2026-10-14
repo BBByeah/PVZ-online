@@ -8,6 +8,7 @@
 - 移植计划：[docs/ANDROID-PORT-PLAN.md](docs/ANDROID-PORT-PLAN.md)
 - 下一批任务：[docs/NEXT-BATCH.md](docs/NEXT-BATCH.md)
 - 种子栏与铲子快捷键计划：[docs/KEYBOARD-CONTROLS-PLAN.md](docs/KEYBOARD-CONTROLS-PLAN.md)
+- Android 快捷键已实现：1–9/0 植物卡，Q 铲子；[交付与验证](docs/KEYBOARD-CONTROLS-STATUS.md)
 - 中英文资源与语言选项：[docs/LOCALIZATION.md](docs/LOCALIZATION.md)
 
 源码固定来源、许可和原版资源要求见上述记录与下方上游说明。PR 目标为 `android-port`，不要把整个分支合入 Windows 的 `pvz-online` 分支。

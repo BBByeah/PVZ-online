@@ -252,6 +252,30 @@ static KeyCode SDLKeyToKeyCode(SDL_Keycode theSDLKey)
 	}
 }
 
+// SDL retains KP key symbols with NumLock off; keep those keys as navigation.
+static KeyCode SDLKeyboardKeyCode(const SDL_KeyboardEvent& event)
+{
+	if (!(event.keysym.mod & KMOD_NUM))
+	{
+		switch (event.keysym.sym)
+		{
+		case SDLK_KP_0: return KEYCODE_INSERT;
+		case SDLK_KP_1: return KEYCODE_END;
+		case SDLK_KP_2: return KEYCODE_DOWN;
+		case SDLK_KP_3: return KEYCODE_NEXT;
+		case SDLK_KP_4: return KEYCODE_LEFT;
+		case SDLK_KP_5: return KEYCODE_CLEAR;
+		case SDLK_KP_6: return KEYCODE_RIGHT;
+		case SDLK_KP_7: return KEYCODE_HOME;
+		case SDLK_KP_8: return KEYCODE_UP;
+		case SDLK_KP_9: return KEYCODE_PRIOR;
+		case SDLK_KP_PERIOD: return KEYCODE_DELETE;
+		default: break;
+		}
+	}
+	return SDLKeyToKeyCode(event.keysym.sym);
+}
+
 // Synthesize a minimal ASCII char stream from keydown so legacy KeyChar hotkeys still work.
 static bool SDLSynthesizeAsciiCharFromKeyDown(const SDL_KeyboardEvent& theEvent, char& theChar)
 {
@@ -284,6 +308,9 @@ static bool SDLSynthesizeAsciiCharFromKeyDown(const SDL_KeyboardEvent& theEvent,
 	}
 
 	if (aHasCtrl || aTextInputActive)
+		return false;
+	if (!(aMods & KMOD_NUM) &&
+		((aSym >= SDLK_KP_1 && aSym <= SDLK_KP_0) || aSym == SDLK_KP_PERIOD))
 		return false;
 
 	switch (aSym)
@@ -469,7 +496,7 @@ static void RecordDemoEvent(SexyAppBase* theApp, const SDL_Event& theEvent)
 			theApp->WriteDemoTimingBlock();
 			theApp->mDemoBuffer.WriteNumBits(0, 1);
 			theApp->mDemoBuffer.WriteNumBits(DEMO_KEY_DOWN, 5);
-			theApp->mDemoBuffer.WriteNumBits(static_cast<int>(SDLKeyToKeyCode(theEvent.key.keysym.sym)), 8);
+			theApp->mDemoBuffer.WriteNumBits(static_cast<int>(SDLKeyboardKeyCode(theEvent.key)), 8);
 
 			char aChar = 0;
 			if (SDLSynthesizeAsciiCharFromKeyDown(theEvent.key, aChar))
@@ -487,7 +514,7 @@ static void RecordDemoEvent(SexyAppBase* theApp, const SDL_Event& theEvent)
 			theApp->WriteDemoTimingBlock();
 			theApp->mDemoBuffer.WriteNumBits(0, 1);
 			theApp->mDemoBuffer.WriteNumBits(DEMO_KEY_UP, 5);
-			theApp->mDemoBuffer.WriteNumBits(static_cast<int>(SDLKeyToKeyCode(theEvent.key.keysym.sym)), 8);
+			theApp->mDemoBuffer.WriteNumBits(static_cast<int>(SDLKeyboardKeyCode(theEvent.key)), 8);
 			break;
 
 		case SDL_TEXTINPUT:
@@ -766,7 +793,7 @@ bool SexyAppBase::ProcessDeferredMessages(bool singleMessage)
 					break;
 				}
 
-				mWidgetManager->KeyDown(SDLKeyToKeyCode(event.key.keysym.sym));
+				mWidgetManager->KeyDown(SDLKeyboardKeyCode(event.key), event.key.repeat != 0);
 
 				char aSynthesizedChar = 0;
 				if (SDLSynthesizeAsciiCharFromKeyDown(event.key, aSynthesizedChar))
@@ -777,7 +804,7 @@ bool SexyAppBase::ProcessDeferredMessages(bool singleMessage)
 
 			case SDL_KEYUP:
 				mLastUserInputTick = mLastTimerTime;
-				mWidgetManager->KeyUp(SDLKeyToKeyCode(event.key.keysym.sym));
+				mWidgetManager->KeyUp(SDLKeyboardKeyCode(event.key));
 				break;
 
 			case SDL_TEXTINPUT:

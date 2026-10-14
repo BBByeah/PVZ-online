@@ -92,6 +92,7 @@ public:
 	int						mDownButtons;
 	int						mActualDownButtons;
 	bool					mKeyDown[0xFF];
+	bool                    mIsKeyRepeat = false; // Valid during KeyDown dispatch, including focus changes.
 	int						mLastDownButtonId;
 
 	int						mWidgetFlags;
@@ -142,7 +143,7 @@ public:
 	void					MouseWheel(int theDelta);
 	bool					KeyChar(char theChar);
 	bool					KeyText(std::string_view theText);
-	bool					KeyDown(KeyCode key);
+	bool					KeyDown(KeyCode key, bool isRepeat = false);
 	bool					KeyUp(KeyCode key);
 
 	bool					IsLeftButtonDown();

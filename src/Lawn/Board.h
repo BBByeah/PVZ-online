@@ -180,6 +180,12 @@ public:
 	std::unique_ptr<GameButton>			mMenuButton;
 	std::unique_ptr<GameButton>			mStoreButton;
 	bool							mIgnoreMouseUp;
+	// Transient input preference, before the legacy saved Board tail.
+#ifdef __ANDROID__
+	bool                            mKeyboardControlsUsed = false;
+#else
+	bool                            mKeyboardControlsUsed = true;
+#endif
 #ifdef __ANDROID__
 	// @pvz-online: distinguish an actual seed drag from tap-to-select on the phone.
 	bool                            mTouchSeedDrag;
@@ -331,6 +337,9 @@ public:
 	void							KeyChar(char theChar) override;
 	void							KeyUp(KeyCode) override {}
 	void							KeyDown(KeyCode theKey) override;
+	bool                            HasPlantKeyboardControls();
+	bool                            HandlePlantKeyboardKey(KeyCode theKey);
+	void                            DrawKeyboardHint(Graphics* g, int slot, int x, int y);
 	void							Update() override;
 	void							UpdateLayers();
 	void							Draw(Graphics* g) override;

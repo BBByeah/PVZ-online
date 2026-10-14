@@ -19,7 +19,7 @@
 
 ## 当前状态
 
-当前同步至固定 PC Build 46 / `8bfc67ea9c85be37cac0a182c3416f3add2c1640`：血量计算、首领接力、16 位投票流程与重摇币面口径已迁入；手机战斗新增消息、表情、送阳光三个入口，已有房间/开局/选卡屏障保留。源码 UI 非原版风格清单已记录，整体美术替换尚未执行。最新 APK 为 `pvz-online-mobile-coop-arm64.apk`，28,165,020 字节，已安装 MuMu，v2 签名与 16 KB 对齐通过。协作与受控投票代表检查见 [本轮结果](docs/MOBILE-COOP-STATUS.md)，后续界面替换见 [UI 盘点](docs/UI-STYLE-AUDIT.md)。完整 PC 战斗/跨关仍待验收，onlineGameReady=false。
+当前同步至固定 PC Build 46 / `8bfc67ea9c85be37cac0a182c3416f3add2c1640`：血量计算、首领接力、16 位投票流程与重摇币面口径已迁入；手机战斗新增消息、表情、送阳光三个入口，已有房间/开局/选卡屏障保留。源码 UI 非原版风格清单已记录，整体美术替换尚未执行。最新 APK 为 `pvz-online-keyboard-arm64.apk`，28,167,140 字节，已安装 MuMu，v2 签名与 16 KB 对齐通过；新增 1–9/0 选植物与 Q 铲子，交付和有限验收见 [快捷键结果](docs/KEYBOARD-CONTROLS-STATUS.md)。协作与受控投票代表检查见 [协作结果](docs/MOBILE-COOP-STATUS.md)，后续界面替换见 [UI 盘点](docs/UI-STYLE-AUDIT.md)。PC 快捷键尚未同步；完整 PC 战斗/跨关仍待验收，onlineGameReady=false。
 
 ### 批次 C 交付记录（历史）
 

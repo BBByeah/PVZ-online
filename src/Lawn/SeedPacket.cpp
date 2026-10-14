@@ -682,6 +682,7 @@ void SeedPacket::Draw(Graphics* g)
 
 		DrawSeedPacket(g, mOffsetX, 0.0f, mPacketType, mImitaterType, aPercentDark, aGrayness, aDrawCost, true);
 	}
+	mBoard->DrawKeyboardHint(g, mIndex, mOffsetX + 4, 13);
 }
 
 bool SeedPacket::CanPickUp()

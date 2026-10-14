@@ -30,8 +30,23 @@ if ($Stage -in @('Dependencies','All')) {
 if ($Stage -in @('Native','All')) {
     $sdlPrefix = "$projectDir\sdl2-android"
     $ndkToolchain = "$env:ANDROID_NDK_HOME\build\cmake\android.toolchain.cmake"
+    # SDL 2.32.10 leaves Android NumLock unmapped; battle keypad controls need it.
+    # Keep the dependency adjustment reproducible without vendoring SDL sources.
+    $sdlKeyboardPath = "$projectDir\sdl2-src\src\video\android\SDL_androidkeyboard.c"
+    $sdlKeyboardText = [IO.File]::ReadAllText($sdlKeyboardPath)
+    $sdlNumLockMissing = 'SDL_SCANCODE_UNKNOWN,          /* AKEYCODE_NUM_LOCK */'
+    $sdlNumLockMapped = 'SDL_SCANCODE_NUMLOCKCLEAR,     /* AKEYCODE_NUM_LOCK */'
+    $sdlKeyboardChanged = $sdlKeyboardText.Contains($sdlNumLockMissing)
+    if ($sdlKeyboardChanged) {
+        [IO.File]::WriteAllText($sdlKeyboardPath, $sdlKeyboardText.Replace($sdlNumLockMissing, $sdlNumLockMapped), [Text.UTF8Encoding]::new($false))
+    } elseif (!$sdlKeyboardText.Contains($sdlNumLockMapped)) {
+        throw 'Unexpected SDL Android NumLock mapping; inspect this dependency before building.'
+    }
     # Reuse the fixed SDL dependency when only gameplay code changed.
-    if (!(Test-Path "$sdlPrefix\lib\libSDL2.so")) {
+    $sdlLibraryPath = "$sdlPrefix\lib\libSDL2.so"
+    $sdlKeyboardNewer = (Test-Path $sdlLibraryPath) -and
+        ((Get-Item $sdlKeyboardPath).LastWriteTimeUtc -gt (Get-Item $sdlLibraryPath).LastWriteTimeUtc)
+    if ($sdlKeyboardChanged -or $sdlKeyboardNewer -or !(Test-Path $sdlLibraryPath)) {
         Invoke-BuildTool $cmakeExe @('-S',"$projectDir\sdl2-src",'-B',"$projectDir\build-sdl2",'-G','Ninja',"-DCMAKE_MAKE_PROGRAM=$ninjaExe","-DCMAKE_TOOLCHAIN_FILE=$ndkToolchain",'-DANDROID_ABI=arm64-v8a','-DANDROID_PLATFORM=android-24','-DSDL_SHARED=ON','-DSDL_STATIC=OFF','-DSDL_TEST=OFF',"-DCMAKE_INSTALL_PREFIX=$sdlPrefix",'-DCMAKE_BUILD_TYPE=Release')
         Invoke-BuildTool $cmakeExe @('--build',"$projectDir\build-sdl2",'--parallel','8')
         Invoke-BuildTool $cmakeExe @('--install',"$projectDir\build-sdl2")

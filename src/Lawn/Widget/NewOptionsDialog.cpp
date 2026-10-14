@@ -220,6 +220,13 @@ void NewOptionsDialog::Draw(Sexy::Graphics* g)
 	PvzpDrawString(g, mApp->GetString("OPTIONS_FULL_SCREEN", "Full Screen"), aCheckboxLabelsX, 229 + aFullScreenOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 	if (aFontScale != 1.0f)
 		g->SetScale(1.0f, 1.0f, 0.0f, 0.0f);
+    if (!mFromGameSelector && mApp->mBoard && mApp->mBoard->mKeyboardControlsUsed &&
+        mApp->mBoard->HasPlantKeyboardControls())
+    {
+        PvzpDrawString(g, ModText::Tr("1-9/0 选植物   Q 铲子   Esc 取消", "1-9/0 Plants   Q Shovel   Esc Cancel"),
+            mWidth / 2, 106, ModText::FontFor(FONT_DWARVENTODCRAFT18, 16),
+            aTextColor, DrawStringJustification::DS_ALIGN_CENTER);
+    }
 }
 
 void NewOptionsDialog::SliderVal(int theId, double theVal)

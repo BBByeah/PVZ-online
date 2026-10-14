@@ -7354,6 +7354,7 @@ void Board::DrawShovel(Graphics* g)
 				g->DrawImage(Sexy::IMAGE_SHOVEL, aShovelRect.mX - 7, aShovelRect.mY - 3);
 				g->SetColorizeImages(false);
 			}
+			DrawKeyboardHint(g, -1, aShovelRect.mX + 5, aShovelRect.mY + 14);
 		}
 	}
 
@@ -8112,7 +8113,13 @@ void Board::DoTypingCheck(KeyCode theKey)
 
 void Board::KeyDown(KeyCode theKey)
 {
+    // Cooperation gets first choice of normalized digits.
+    if (theKey >= KEYCODE_NUMPAD0 && theKey <= KEYCODE_NUMPAD9)
+        theKey = static_cast<KeyCode>('0' + theKey - KEYCODE_NUMPAD0);
+    if (((theKey >= '0' && theKey <= '9') || theKey == 'Q') && mWidgetManager->mIsKeyRepeat)
+        return; // A held panel choice must not become a plant after the panel closes.
     if (HandleQuickChatKey(theKey) || HandleSunGiftKey(theKey)) return;
+    if (HandlePlantKeyboardKey(theKey)) return;
 	DoTypingCheck(theKey);
 
 	if (mApp->mGameScene == GameScenes::SCENE_LEVEL_INTRO &&
@@ -8157,6 +8164,9 @@ static void PvzpCrash()
 
 void Board::KeyChar(char theChar)
 {
+    // SDL sends KeyChar after KeyDown too; reserve battle inputs even with debug enabled.
+    if (HasPlantKeyboardControls() &&
+        ((theChar >= '0' && theChar <= '9') || theChar == 'q' || theChar == 'Q')) return;
 	if (!mApp->mDebugKeysEnabled)
 		return;
 

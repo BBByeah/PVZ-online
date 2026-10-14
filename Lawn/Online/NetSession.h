@@ -355,10 +355,10 @@ public:
 	// 收到的阳光（先进先出）。没有就返回 false。
 	bool			TakePendingSunGift(NetProto::MsgSendSun& theMsg);
 
-	// @pvz-online: 僵尸强化投票（MOD_BUILD 45）——房主开票广播 4 个候选；客户端投票
-	// （choice 0..3=候选下标、4=弃权）定向回房主；房主计票后广播结果（只驱动 UI，
+	// @pvz-online: 僵尸强化投票（MOD_BUILD 45）——房主开票广播 3 个候选；客户端投票
+	// （choice 0..2=候选下标、3=弃权）定向回房主；房主计票后广播结果（只驱动 UI，
 	// 层数以随后的 START_LEVEL 快照为准）。取队列全按先进先出，没有就返回 false。
-	bool			SendZombieVoteOpen(uint8_t theSceneIndex, const uint8_t* theCandidates4);
+	bool			SendZombieVoteOpen(uint8_t theSceneIndex, const uint8_t* theCandidates3);
 	bool			TakePendingZombieVoteOpen(NetProto::MsgZombieVoteOpen& theMsg);
 	bool			SendZombieVote(uint8_t theSceneIndex, uint8_t theChoice);
 	bool			TakePendingZombieVote(NetProto::MsgZombieVote& theMsg);

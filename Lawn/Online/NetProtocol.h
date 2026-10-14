@@ -231,8 +231,8 @@ enum MessageType : uint16_t
 	MSG_BOARD_WATCH		= 17,	// 双向：观战点播/保活/收播（op 见 WatchOp；dst = 被看席位）
 	MSG_BOARD_SNAPSHOT	= 18,	// 被看方→观看者：战场定格快照（一行实体一款、分片发，见 MsgBoardSnapshot）
 	MSG_SEND_SUN		= 19,	// 双向：发阳光给队友（单 100 档、税 10、5s 冷却；载荷见 MsgSendSun）
-	MSG_ZOMBIE_VOTE_OPEN	= 20,	// H→C：本场景僵尸强化开票（房主抽 4 个候选；载荷见 MsgZombieVoteOpen）
-	MSG_ZOMBIE_VOTE		= 21,	// C→H：我对本场景强化的投票（0..3 = 候选下标、4 = 弃权）
+	MSG_ZOMBIE_VOTE_OPEN	= 20,	// H→C：本场景僵尸强化开票（房主抽 3 个候选；载荷见 MsgZombieVoteOpen）
+	MSG_ZOMBIE_VOTE		= 21,	// C→H：我对本场景强化的投票（0..2 = 候选下标、3 = 弃权）
 	MSG_ZOMBIE_VOTE_RESULT	= 22	// H→C：计票结果（只驱动 UI；层数权威在随后的 START_LEVEL 快照）
 };
 
@@ -563,20 +563,21 @@ struct MsgSendSun
 	uint16_t		mAmount;
 };
 
-// ZOMBIE_VOTE_OPEN（MOD_BUILD 45）：{ srcSeat, dstSeat, u8 sceneIndex, u8 candidates[4] }
-// 进新场景要给僵尸加强化时，房主抽 4 个不同候选广播开票，各端弹投票框。candidates 是
-// RunState::ZOMBIE_BUFF_* 的 4 个 id，顺序即候选卡顺序（投票传下标）。sceneIndex 是把
-// 场景号也带上：投完票之前换场景（重打/退关）时，旧票在计票端按号丢弃、不会串到新场景。
+// ZOMBIE_VOTE_OPEN（MOD_BUILD 45）：{ srcSeat, dstSeat, u8 sceneIndex, u8 candidates[3] }
+// 进新场景要给僵尸加强化时，房主抽 3 个不同候选（三选一口径）广播开票，各端弹投票框。
+// candidates 是 RunState::ZOMBIE_BUFF_* 的 3 个 id，顺序即候选卡顺序（投票传下标）。
+// sceneIndex 是把场景号也带上：投完票之前换场景（重打/退关）时，旧票在计票端按号丢弃、
+// 不会串到新场景。
 struct MsgZombieVoteOpen
 {
 	uint8_t			mSrcSeat;
 	uint8_t			mDstSeat;
 	uint8_t			mSceneIndex;
-	uint8_t			mCandidates[4];
+	uint8_t			mCandidates[3];
 };
 
 // ZOMBIE_VOTE：{ srcSeat, dstSeat, u8 sceneIndex, u8 choice }
-// 我的投票：choice 0..3 = 候选下标，4 = 明确弃权（本场景不给僵尸加条、不参与兜底随机）。
+// 我的投票：choice 0..2 = 候选下标，3 = 明确弃权（本场景不给僵尸加条、不参与兜底随机）。
 // 每席最多一票，房主先到先记、重复投只认第一条；超时未投由房主按弃权收口（客户端不发包）。
 struct MsgZombieVote
 {
@@ -1054,7 +1055,7 @@ inline int EncodeZombieVoteOpen(uint8_t* theBuffer, int theCapacity, const MsgZo
 	aWriter.U8(theMsg.mSrcSeat);
 	aWriter.U8(theMsg.mDstSeat);
 	aWriter.U8(theMsg.mSceneIndex);
-	for (int i = 0; i < 4; i++) aWriter.U8(theMsg.mCandidates[i]);
+	for (int i = 0; i < 3; i++) aWriter.U8(theMsg.mCandidates[i]);
 	return aWriter.Overflowed() ? -1 : aWriter.Size();
 }
 
@@ -1064,7 +1065,7 @@ inline bool DecodeZombieVoteOpen(const uint8_t* theData, int theSize, MsgZombieV
 	theMsg.mSrcSeat = aReader.U8();
 	theMsg.mDstSeat = aReader.U8();
 	theMsg.mSceneIndex = aReader.U8();
-	for (int i = 0; i < 4; i++) theMsg.mCandidates[i] = aReader.U8();
+	for (int i = 0; i < 3; i++) theMsg.mCandidates[i] = aReader.U8();
 	return !aReader.Overflowed();
 }
 

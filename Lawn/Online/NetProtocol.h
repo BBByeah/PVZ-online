@@ -177,7 +177,15 @@ const uint16_t	PROTOCOL_VERSION	= 1;
 //        三选一金币重摇。全部走本机层——花园/商店是 UI 入口与本地存档钱包的消费，
 //        重摇扣的 mCoins 与抽的候选都在各端本地；不动帧格式、检查点格式，也不动
 //        任何联机行为。混搭实际无碍，抬版只为标记玩家包代次（版本提示照旧只提示不拒连）。
-const uint16_t	MOD_BUILD			= 44;
+// 44 → 45：场景难度阶梯五档 + 僵尸强化（2026-10-14 用户定案）：①房主高级选项新增
+//        「场景难度阶梯」×1/×1.2/×1.33/×1.5/×2——乘在僵尸血量与出怪点数上，同种子两端
+//        各算的波表与血量公式变了，混搭时同一关两边对不上；②新增「僵尸 buff」机制
+//        （进新场景全队投票给僵尸叠强化，层数永久累积）。START_LEVEL 闯关变体尾部再带
+//        三个字段——runLadder 字节、runZombieBuff 字节、mZombieStacks 8 字节（载荷
+//        26→36）：阶梯档与 8 条强化层数都对不齐会让两边怪强度岔开，混搭必须两边同版本。
+//        旧长度（26 字节）的 START_LEVEL 被新端按串包拒掉。投票走后续三个新 MSG（20/21/22，
+//        游戏帧、中继零改动）。检查点同版升 v14。
+const uint16_t	MOD_BUILD			= 45;
 
 const uint16_t	DEFAULT_PORT		= 27777;
 
@@ -418,8 +426,16 @@ struct MsgHelloAck
 // 其余档恒 0）——队友按同一场景建局，对不上同样重建。
 // runBuffMult（MOD_BUILD 43）= 房主「高级选项」里的增益倍选档（RunState::RUN_BUFFMULT_*，
 // 0/1/2 = ×1/×2/×3）：只乘"发放的 buff 三选一屏数"，队友按同一档发屏；非法值队友按 ×1。
+// runLadder（MOD_BUILD 45）= 房主「高级选项」里的场景难度阶梯档（RunState::RUN_LADDER_*，
+// 0=×1.33 现状 sentinel / 1=×1 / 2=×1.2 / 3=×1.5 / 4=×2）：乘在僵尸血量与出怪点数上，
+// 队友按同一档建局；非法值队友按现状档。无尽档不叠阶梯（该字节在无尽局恒 0）。
+// mRunZombieBuff（MOD_BUILD 45）= 僵尸 buff 档 0/1/2（每进一个新场景给僵尸叠几条）；
+// mZombieStacks[8]（MOD_BUILD 45）= 8 条强化的当前层数快照（下标 = RunState 池子枚举，
+// 0..255）——权威值在主机，队友一律按这条快照覆盖自己的层数（投票结果只驱动 UI，
+// 层数不信投票帧、只信本快照，防乱序）；重连补发（mLastStartLevel）自动带上。
 // 单关局 isRun=0：runSeed/runLevelIndex/runMode 全是 0，runDiff 记标准档（1，单关局
-// 不参与难度缩放），高级选项三格记 标准/标准/关，场景记 0，其余语义一字不变。
+// 不参与难度缩放），高级选项三格记 标准/标准/关，场景记 0，阶梯记现状 0、僵尸 buff
+// 记关 0、8 层数记 0，其余语义一字不变。
 struct MsgStartLevel
 {
 	uint8_t			mSrcSeat;
@@ -438,6 +454,9 @@ struct MsgStartLevel
 	uint8_t			mRunEndlessScene;
 	uint8_t			mRunBossFlag;
 	uint8_t			mRunBuffMult;
+	uint8_t			mRunLadder;
+	uint8_t			mRunZombieBuff;
+	uint8_t			mZombieStacks[8];
 };
 
 // LEVEL_DONE：{ srcSeat, dstSeat, u8 done }（1 = 我这块草坪清完了，0 = 又不清净了）
@@ -805,6 +824,9 @@ inline int EncodeStartLevel(uint8_t* theBuffer, int theCapacity, const MsgStartL
 	aWriter.U8(theMsg.mRunEndlessScene);
 	aWriter.U8(theMsg.mRunBossFlag);
 	aWriter.U8(theMsg.mRunBuffMult);
+	aWriter.U8(theMsg.mRunLadder);
+	aWriter.U8(theMsg.mRunZombieBuff);
+	for (int i = 0; i < 8; i++) aWriter.U8(theMsg.mZombieStacks[i]);
 	return aWriter.Overflowed() ? -1 : aWriter.Size();
 }
 
@@ -827,6 +849,9 @@ inline bool DecodeStartLevel(const uint8_t* theData, int theSize, MsgStartLevel&
 	theMsg.mRunEndlessScene = aReader.U8();
 	theMsg.mRunBossFlag = aReader.U8();
 	theMsg.mRunBuffMult = aReader.U8();
+	theMsg.mRunLadder = aReader.U8();
+	theMsg.mRunZombieBuff = aReader.U8();
+	for (int i = 0; i < 8; i++) theMsg.mZombieStacks[i] = aReader.U8();
 	return !aReader.Overflowed();
 }
 

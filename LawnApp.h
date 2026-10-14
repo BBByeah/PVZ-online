@@ -329,10 +329,14 @@ public:
 	// = 另一个场景的无尽，续了就是错的局）；非无尽档一律归 0。
 	// theBossFlag（MOD_BUILD 38）：关底巨型 boss 开关——房间级设置，只覆盖、不参与重建判等。
 	// theBuffMult（MOD_BUILD 43）：增益倍选档——同口径，房间级设置，只覆盖、不参与重建判等。
+	// theLadder / theZombieBuff / theZombieStacks（MOD_BUILD 45）：场景难度阶梯档 / 僵尸
+	// buff 档 / 8 条强化层数快照——前者与档是房间级设置（只覆盖），层数是本局进度快照
+	// （权威在主机，一律按快照覆盖）；非法档在实现里钳回现状档/关。
 	// （默认参用字面量：头里对 RunState 只有前置声明。）
 	void							AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode, int theRunDiff,
 							int theRunScale = 1, int theRunTempo = 1, int theZombotany = 0,
-							int theEndlessScene = 0, int theBossFlag = 0, int theBuffMult = 0);
+							int theEndlessScene = 0, int theBossFlag = 0, int theBuffMult = 0,
+							int theLadder = 0, int theZombieBuff = 0, const uint8_t* theZombieStacks = nullptr);
 	void							UpdateRunEnd();
 	// @pvz-online: 无尽局原地续关（无尽续草坪批）的两个分叉口：建新草坪前先问一句"这块
 	// 草坪能不能留着"（无尽局过关不清草坪，留则连波次重排一起安排）；放开开场（三选一

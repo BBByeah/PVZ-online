@@ -71,6 +71,7 @@ public:
 		ZOMBIE_BUFF_GHOSTWALK = 7,	// 无视阻挡：普通僵尸直接走过植物不停下啃咬
 	};
 	static const int	RUN_ZOMBIE_BUFF_COUNT	= 8;	// 池子大小（= 上面枚举条目数）
+	static const int	RUN_ZOMBIE_VOTE_CHOICES	= 3;	// 每次开票的候选数（三选一口径，2026-10-14 用户令）
 	static const int	RUN_ZOMBIE_VOTED_NONE	= 0xFFFF;	// mZombieVotedLevel 的"没投过"哨兵
 
 	static const int	RUN_LEVEL_COUNT		= 25;	// 完整版总关数 = 5 场景 × 5 关（数组/静态表的尺寸上限）
@@ -254,6 +255,11 @@ public:
 	int					ZombieBuffBitePermille() const;			// 狂食：2^层 千分比，封顶 32000（×32）
 	int					ZombieBuffRegenPermillePerSec() const;	// 再生：5×层（每秒回血的千分比），封顶 250
 
+	// 这一关的投票候选（2026-10-14 用户令）：池子 8 条按 (runSeed, 关序号) 哈希洗牌取前
+	// RUN_ZOMBIE_VOTE_CHOICES 条——房主抽、随 OPEN 消息广播，单机自抽；各端同一把种子推出
+	// 同一组，客户端不自己抽（收 OPEN 回填）。写进 theOut（长度 RUN_ZOMBIE_VOTE_CHOICES）。
+	void				RollZombieVoteChoices(int theLevelIndex, unsigned char theOut[RUN_ZOMBIE_VOTE_CHOICES]) const;
+
 	// 该选植物 / 该选 buff 了（一局开始时先挑四株 + 两个增益——进第 1 关前手里就有 6 株；
 	// 快速版开局加厚成六株 + 四个增益，批十 2026-10-05；无尽档开局只发四个增益，2026-10-11
 	// ——卡池开局即满、植物屏自动归零）。每过一关再挑一批：植物按时长档
@@ -358,5 +364,13 @@ public:
 	int					GetSceneIndex() const;
 	int					GetDifficultyPermille() const;
 };
+
+// 池子 8 条的展示文案（投票框与结果横幅共用，2026-10-14）：名字按当前语言择一（中文档
+// 中文名、英文档英文名），说明一句、UTF-8。
+// 分工照 GetRunChoiceName / GetRunChoiceDisplayName 的老规矩：GetZombieBuffName 恒 ASCII
+// （石材按钮的位图字体回退路径只认 Latin）；显示名走宽字符直绘（CjkStoneButton / ModText）。
+const char* GetZombieBuffName(int theId);
+const char* GetZombieBuffDisplayName(int theId);
+const char* GetZombieBuffDesc(int theId);
 
 #endif

@@ -143,6 +143,7 @@ set(Lawn__Widget__Widget_Include
     "../Lawn/Widget/ZombatarItems.h"
     "../Lawn/Widget/ZombatarScreen.h"
     "../Lawn/Widget/ZombatarTOSDialog.h"
+    "../Lawn/Widget/ZombieVoteDialog.h"
 )
 source_group("Lawn\\Widget\\Widget Include" FILES ${Lawn__Widget__Widget_Include})
 
@@ -175,6 +176,7 @@ set(Lawn__Widget__Widget_Source
     "../Lawn/Widget/ZombatarItems.cpp"
     "../Lawn/Widget/ZombatarScreen.cpp"
     "../Lawn/Widget/ZombatarTOSDialog.cpp"
+    "../Lawn/Widget/ZombieVoteDialog.cpp"
 )
 source_group("Lawn\\Widget\\Widget Source" FILES ${Lawn__Widget__Widget_Source})
 

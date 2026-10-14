@@ -4,6 +4,7 @@
 #include "ConstEnums.h"
 #include "Lawn/Online/NetProtocol.h"	// @pvz-online: MsgStartLevel 按值存在 LawnApp 里（开局询问框）
 #include "Lawn/Run/RunBuffs.h"			// @pvz-online: RunPlantUpgradeKind（修正批的 Kind 闸门取用口签名）
+#include "Lawn/Run/RunState.h"			// @pvz-online: 僵尸强化投票的候选数/状态字段（MOD_BUILD 45）
 #include "SexyAppFramework/SexyApp.h"
 #include "Sexy.TodLib/TodFoley.h"
 
@@ -195,6 +196,22 @@ public:
 	// 另一头的"他选好了没有"由会话层按对面报的状态记着（NetSession::IsPeerSeedsReady）。
 	// 每轮选卡开始时清（ShowSeedChooserScreen），回主菜单时清（ShowGameSelector）。
 	bool							mOnlineSeedsHeld;
+	// @pvz-online: 僵尸强化投票（MOD_BUILD 45，2026-10-14 用户令）：每进一个新场景
+	// （无尽五关一选）全队各投一票，给僵尸叠 0/1/2 条强化。画面归 ZombieVoteDialog，
+	// 流程全在这几个字段上：房主/单机开票（TryOpenZombieVote）→ 各家表态
+	// （ZombieVoteChosen / MSG_ZOMBIE_VOTE）→ 计票、超时、结算在 UpdateZombieVote 每帧收口。
+	// 客户端不自己开票也不自己计票，只跟房主的 OPEN/RESULT 走；层数以随后的 START_LEVEL
+	// 快照为准（结果消息只驱动 UI——乱序也不伤数值）。
+	bool							mZombieVoteActive;			// 本端有一张票在进行（投票框该在）
+	int								mZombieVoteLevel;			// 这张票对应的关序号（= 这一票为哪一关投）
+	unsigned char					mZombieVoteCandidates[RunState::RUN_ZOMBIE_VOTE_CHOICES];	// 候选（房主抽、随 OPEN 广播；客户端收包回填）
+	int								mZombieVoteMyChoice;		// 本端的表态：0..2、3=弃权、-1=还没投
+	int								mZombieVoteFrames;			// 开票以来帧数（倒计时显示；房主还拿它做 30 秒超时）
+	int								mZombieVoteVotes[RunState::RUN_ZOMBIE_VOTE_CHOICES];	// 房主计票：每条候选几票
+	int								mZombieVoteAbstains;		// 房主计票：弃权几票（区分"明确弃权"与"纯超时"）
+	int								mZombieVoteVotedSeats;		// 房主计票：已表态席位数
+	unsigned int					mZombieVoteSeatMask;		// 房主计票：已表态席位位图（一席一票，重发/重开框不重计）
+	std::string						mZombieVotePendingBanner;	// 待推的结果横幅（等草坪真开打再 PushCustomBanner）
 
 public:
 	LawnApp();
@@ -353,6 +370,24 @@ public:
 	void							UpdateRunPick();
 	void							RunPickChosen(int theIndex);
 	void							RunPickSkipped();
+	// @pvz-online: 僵尸强化投票（MOD_BUILD 45，2026-10-14 用户令）。全流程见 LawnApp.cpp 的
+	// 函数注释。TryOpenZombieVote 在"该进新场景"的三条路口各挂一次：返回真 = 票在开、
+	// 先别往下走（调用方 return）；UpdateZombieVote 每帧跑（收包、倒计时、结算、横幅）；
+	// ZombieVoteChosen 是投票框的回调（候选 0..2、3=弃权）。
+	bool							TryOpenZombieVote();
+	void							UpdateZombieVote();
+	void							ZombieVoteChosen(int theChoice);
+	// 投票框状态行（倒计时 + 已投进度）：倒计时两边同一个数；进度分口径——房主/单机报
+	// 全队的账（「已投 n/m」），客户端只报自己的表态（票数在房主手里，客户端不数不猜，
+	// 别把"还没收到别人的票"画成"别人没投"）。
+	std::string						ZombieVoteStatusText();
+	// 同一票的内部收口（上面三个入口该调它们；分出来是给单机/房主/客户端三条腿共用）：
+	// 开框与开票记账、记一席的票、应投票席位数、结算并广播 RESULT、撤框。
+	void							ZombieVoteOpenLocal(int theLevel, const unsigned char* theCandidates);
+	void							ZombieVoteRegister(int theSeat, int theChoice);
+	int								ZombieVoteExpectedVoters();
+	void							ZombieVoteResolve();
+	void							ZombieVoteCloseUI();
 	// @pvz-online: 三选一「重摇」（花园批 2026-10-13 用户拍板；2026-10-14 用户令起第一次也
 	// 花金币——免费「换一批」取消）：按 RunState::GetPaidRerollCost 的当前价（底价 100，
 	// 同屏 ×10/次阶梯）花币再摇一批——扣存档钱包 mCoins（同商店），关屏重抽。

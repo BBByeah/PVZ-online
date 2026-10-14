@@ -348,3 +348,108 @@ void ModText::DrawTextWide(Graphics* g, Font* theFont, int theX, int theY,
 		DeleteDC(aDC);
 	}
 }
+
+// ── 中文断行与整块绘制（2026-10-14 从 RunPickDialog.cpp 提取）────────────
+// 原实现见 2026-10-03 语言批的 RunPickDialog：中文说明在那一屏首次成套出现，
+// 断行系统随之定型（测量与绘制共用一份，杜绝叠字/出栏）。僵尸强化投票框成为第二个
+// 消费方，遂收进这里——两份实现迟早画歪。
+
+namespace
+{
+// 折行时的最小单元：中文一字一个；空格独立成单元（英文在空格处断行）；英文单词
+// 不打散——「0.75/stack」「20%」整着走，「×0.75」的 × 归到后一个词里一起走
+// （2026-10-03 玩家截图里「0.75」被拆成两行是旧口径的毛病）。
+// 2026-10-04：旧口径把"连续 ASCII"当一个单元——纯英文句子整句都是 ASCII，成了一句
+// 放不下的巨型单元、被硬放进位（wrap 里"一个单元比整列还宽：硬放"），英文档的说明
+// 就是这么横穿邻列叠在一起的。
+int BreakUnit(const std::wstring& theText, int theIndex)
+{
+	wchar_t aChar = theText[theIndex];
+	if (aChar == L' ') return 1;
+	if (aChar >= 0x80 && aChar != 0x00D7) return 1;	// ×（0xD7）例外：随后面的词走
+	int anEnd = theIndex;
+	while (anEnd < (int)theText.size())
+	{
+		wchar_t aCh = theText[anEnd];
+		if (aCh == L' ') break;
+		if (aCh >= 0x80 && aCh != 0x00D7) break;
+		anEnd++;
+	}
+	return anEnd - theIndex;
+}
+
+// 不能起行的字（收尾标点）；断行时把它们留在上一行
+bool NoLineStart(const std::wstring& theText, int theIndex)
+{
+	static const wchar_t* aPuncts[] = { L"、",L"，",L"。",L"！",L"？",L"：",L"；",L"）",L"】",L"》",L"”",L"’",L"%",L"…" };
+	std::wstring aUnit = theText.substr(theIndex, 1);
+	for (int i = 0; i < (int)(sizeof(aPuncts) / sizeof(aPuncts[0])); i++)
+	{
+		if (aUnit == aPuncts[i]) return true;
+	}
+	return false;
+}
+}
+
+void ModText::WrapLines(Font* theFont, const std::wstring& theText, int theWidth,
+	std::vector<std::wstring>& theLines)
+{
+	if (theWidth <= 0) theWidth = 1;
+	int aStart = 0;
+	while (true)
+	{
+		int aBreak = (int)theText.find(L'\n', aStart);
+		if (aBreak < 0) aBreak = (int)theText.size();
+		std::wstring aPara = theText.substr(aStart, aBreak - aStart);
+		int aPos = 0;
+		while (aPos < (int)aPara.size())
+		{
+			int aFit = aPos;
+			int aCursor = aPos;
+			while (aCursor < (int)aPara.size())
+			{
+				int aNext = aCursor + BreakUnit(aPara, aCursor);
+				if (aFit > aPos && TextWidth(theFont, aPara.substr(aPos, aNext - aPos)) > theWidth) break;
+				aFit = aNext;
+				aCursor = aNext;
+			}
+			if (aFit == aPos) aFit = aPos + BreakUnit(aPara, aPos); // 一个单元比整列还宽：硬放
+			while (aFit < (int)aPara.size() && NoLineStart(aPara, aFit))
+			{
+				aFit += BreakUnit(aPara, aFit);
+			}
+			theLines.push_back(aPara.substr(aPos, aFit - aPos));
+			aPos = aFit;
+		}
+		if (aBreak >= (int)theText.size()) break;
+		aStart = aBreak + 1;
+	}
+}
+
+int ModText::WrapLineCount(Font* theFont, const char* theUtf8, int theWidth)
+{
+	std::vector<std::wstring> aLines;
+	WrapLines(theFont, WideFromUtf8(theUtf8), theWidth, aLines);
+	return (int)aLines.size() > 0 ? (int)aLines.size() : 1;
+}
+
+void ModText::DrawWrappedCjk(Graphics* g, Font* theFont, const Rect& theRect,
+	const char* theUtf8, const Color& theColor)
+{
+	if (theRect.mWidth <= 0) return;
+
+	std::vector<std::wstring> aLines;
+	WrapLines(theFont, WideFromUtf8(theUtf8), theRect.mWidth, aLines);
+
+	int aLineHeight = LineHeight(theFont) + 3;
+	int aY = theRect.mY + (theRect.mHeight - (int)aLines.size() * aLineHeight) / 2;
+	if (aY < theRect.mY) aY = theRect.mY;
+	for (int i = 0; i < (int)aLines.size(); i++)
+	{
+		int aX = theRect.mX + (theRect.mWidth - TextWidth(theFont, aLines[i])) / 2;
+		if (aX < theRect.mX) aX = theRect.mX;
+		// 原 DrawString 是基线口径（y + Ascent 才是顶），这里收顶对齐：
+		// 行的顶就是 aY + i * aLineHeight
+		DrawTextWide(g, theFont, aX, aY + i * aLineHeight, aLines[i], theColor, g->mClipRect);
+	}
+}

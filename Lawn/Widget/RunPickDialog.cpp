@@ -12,7 +12,6 @@
 #include "../ModText.h"
 #include "../System/PlayerInfo.h"
 #include <cstdio>
-#include <vector>
 
 // ── 中文描述这一档 ──────────────────────────────────────────────────────
 // 引擎自带的字体全是位图字体，没有中文字形，所以这一屏的中文说明走 ModText 的宽字符
@@ -20,42 +19,11 @@
 // 原先这里的转码（RunPickAnsiFromUtf8）与字体缓存（RunPickCjkFont、13pt）已并入
 // Lawn/ModText；断行系统一并宽字符化——不再有 CP936 双字节的字节口径，一个 wchar_t
 // 就是一个单元。
+// 2026-10-14：断行/整块绘制五件套（含断单元与"不能起行"两表）整体搬去 ModText
+// （WrapLines / WrapLineCount / DrawWrappedCjk）——僵尸强化投票框成了第二个消费方，
+// 测量与绘制共用的"唯一实现"纪律升格为全局。
 
 static ModText::Font* RunPickCjkFont() { return ModText::GetFont(13, false); }
-
-// 折行时的最小单元：中文一字一个；空格独立成单元（英文在空格处断行）；英文单词
-// 不打散——「0.75/stack」「20%」整着走，「×0.75」的 × 归到后一个词里一起走
-// （2026-10-03 玩家截图里「0.75」被拆成两行是旧口径的毛病）。
-// 2026-10-04：旧口径把"连续 ASCII"当一个单元——纯英文句子整句都是 ASCII，成了一句
-// 放不下的巨型单元、被硬放进位（wrap 里"一个单元比整列还宽：硬放"），英文档的说明
-// 就是这么横穿邻列叠在一起的。
-static int RunPickBreakUnit(const std::wstring& theText, int theIndex)
-{
-	wchar_t aChar = theText[theIndex];
-	if (aChar == L' ') return 1;
-	if (aChar >= 0x80 && aChar != 0x00D7) return 1;	// ×（0xD7）例外：随后面的词走
-	int anEnd = theIndex;
-	while (anEnd < (int)theText.size())
-	{
-		wchar_t aCh = theText[anEnd];
-		if (aCh == L' ') break;
-		if (aCh >= 0x80 && aCh != 0x00D7) break;
-		anEnd++;
-	}
-	return anEnd - theIndex;
-}
-
-// 不能起行的字（收尾标点）；断行时把它们留在上一行
-static bool RunPickNoLineStart(const std::wstring& theText, int theIndex)
-{
-	static const wchar_t* aPuncts[] = { L"、",L"，",L"。",L"！",L"？",L"：",L"；",L"）",L"】",L"》",L"”",L"’",L"%",L"…" };
-	std::wstring aUnit = theText.substr(theIndex, 1);
-	for (int i = 0; i < (int)(sizeof(aPuncts) / sizeof(aPuncts[0])); i++)
-	{
-		if (aUnit == aPuncts[i]) return true;
-	}
-	return false;
-}
 
 // 一条描述按显式 \n 拆行后的最大行宽——列宽就按它定，不让任何一条被硬折
 static int RunPickDescWidth(ModText::Font* theFont, const char* theUtf8)
@@ -73,74 +41,6 @@ static int RunPickDescWidth(ModText::Font* theFont, const char* theUtf8)
 		aStart = aBreak + 1;
 	}
 	return aMax;
-}
-
-// 断行的唯一实现（显式 \n 分段 + 按列宽折行）：绘制与面积测算共用同一份——
-// 2026-10-03 的文本重叠就是两边各算各的、算的比画的少两行算出来的。
-static void RunPickWrapLines(ModText::Font* theFont, const std::wstring& theText, int theWidth, std::vector<std::wstring>& theLines)
-{
-	if (theWidth <= 0) theWidth = 1;
-	int aStart = 0;
-	while (true)
-	{
-		int aBreak = (int)theText.find(L'\n', aStart);
-		if (aBreak < 0) aBreak = (int)theText.size();
-		std::wstring aPara = theText.substr(aStart, aBreak - aStart);
-		int aPos = 0;
-		while (aPos < (int)aPara.size())
-		{
-			int aFit = aPos;
-			int aCursor = aPos;
-			while (aCursor < (int)aPara.size())
-			{
-				int aNext = aCursor + RunPickBreakUnit(aPara, aCursor);
-				if (aFit > aPos && ModText::TextWidth(theFont, aPara.substr(aPos, aNext - aPos)) > theWidth) break;
-				aFit = aNext;
-				aCursor = aNext;
-			}
-			if (aFit == aPos) aFit = aPos + RunPickBreakUnit(aPara, aPos); // 一个单元比整列还宽：硬放
-			while (aFit < (int)aPara.size() && RunPickNoLineStart(aPara, aFit))
-			{
-				aFit += RunPickBreakUnit(aPara, aFit);
-			}
-			theLines.push_back(aPara.substr(aPos, aFit - aPos));
-			aPos = aFit;
-		}
-		if (aBreak >= (int)theText.size()) break;
-		aStart = aBreak + 1;
-	}
-}
-
-// 这条说明在给定列宽下画出来是几行——对话框的面积按它算（显式 \n 与折行一格不落）。
-static int RunPickCountLines(ModText::Font* theFont, const char* theUtf8, int theWidth)
-{
-	std::vector<std::wstring> aLines;
-	RunPickWrapLines(theFont, ModText::WideFromUtf8(theUtf8), theWidth, aLines);
-	return (int)aLines.size() > 0 ? (int)aLines.size() : 1;
-}
-
-// 中文没有空格，WriteWordWrapped 那套按词断行的排版用不了：自己量着宽度断
-// （行内的显式 \n 先拆段）。断点不会超列宽，所以文字不会再压到按钮上；
-// 整块垂直居中、逐行水平居中。
-static void RunPickDrawCjkLines(Graphics* g, ModText::Font* theFont, const Rect& theRect,
-	const char* theUtf8, const Sexy::Color& theColor)
-{
-	if (theRect.mWidth <= 0) return;
-
-	std::vector<std::wstring> aLines;
-	RunPickWrapLines(theFont, ModText::WideFromUtf8(theUtf8), theRect.mWidth, aLines);
-
-	int aLineHeight = ModText::LineHeight(theFont) + 3;
-	int aY = theRect.mY + (theRect.mHeight - (int)aLines.size() * aLineHeight) / 2;
-	if (aY < theRect.mY) aY = theRect.mY;
-	for (int i = 0; i < (int)aLines.size(); i++)
-	{
-		int aX = theRect.mX + (theRect.mWidth - ModText::TextWidth(theFont, aLines[i])) / 2;
-		if (aX < theRect.mX) aX = theRect.mX;
-		// 原 DrawString 是基线口径（y + Ascent 才是顶），这里收顶对齐：
-		// 行的顶就是 aY + i * aLineHeight
-		ModText::DrawTextWide(g, theFont, aX, aY + i * aLineHeight, aLines[i], theColor, g->mClipRect);
-	}
 }
 
 RunPickDialog::RunPickDialog(LawnApp* theApp, RunState* theRun) : LawnDialog(
@@ -278,7 +178,7 @@ RunPickDialog::RunPickDialog(LawnApp* theApp, RunState* theRun) : LawnDialog(
 			for (int j = 0; j < RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + RUN_PLANT_BUFF2_COUNT; j++)
 			{
 				if (j >= RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT && !RunPlantBuff2InPool(j - RUN_BUFF_COUNT - RUN_PLANT_UPGRADE_COUNT)) continue;
-				int aLines = RunPickCountLines(aCjkFont, GetRunChoiceDesc(j), mColumnWidth - 4);
+				int aLines = ModText::WrapLineCount(aCjkFont, GetRunChoiceDesc(j), mColumnWidth - 4);
 				if (aLines > aMaxLines) aMaxLines = aLines;
 			}
 			aNeededArea = (aMaxLines + 2) * aFitLineHeight + 6;
@@ -455,7 +355,7 @@ void RunPickDialog::Draw(Graphics* g)
 						aRarity >= 3 ? Sexy::Color(255, 200, 60) : Sexy::Color(150, 140, 130), g->mClipRect);
 				}
 			}
-			RunPickDrawCjkLines(g, aFont, aRect, GetRunChoiceDesc(aBuffId), mColors[Dialog::COLOR_LINES]);
+			ModText::DrawWrappedCjk(g, aFont, aRect, GetRunChoiceDesc(aBuffId), mColors[Dialog::COLOR_LINES]);
 
 			// 「已有 x/N」：封顶条目带 /N；无限条目只报已有层数。画在卡片区底边、逐列居中。
 			int aOwned = mRun->GetBuffCount(aBuffId);

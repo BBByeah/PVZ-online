@@ -2,6 +2,7 @@
 #define __MODTEXT_H__
 
 #include <string>
+#include <vector>
 #include "graphics/Color.h"
 #include "graphics/Graphics.h"
 #include "misc/Rect.h"
@@ -68,6 +69,19 @@ namespace ModText
 	// 名字叫 Wide 后缀：wingdi.h 会把 DrawText 宏替换成 DrawTextA/W，定义处会炸。
 	void		DrawTextWide(Sexy::Graphics* g, Font* theFont, int theX, int theY,
 					const std::wstring& theText, const Sexy::Color& theColor, const Sexy::Rect& theClipRect);
+
+	// ── 中文断行与整块绘制（2026-10-14 从 RunPickDialog 提取成唯一实现）──────
+	// 中文没有空格，WriteWordWrapped 那套按词断行用不了——自己量着宽度断。测量与绘制
+	// 必须共用同一份断行：两处各算各的曾经直接叠字（2026-10-03 三选一屏的老病根）。
+	// 断行单元：中文一字一个；空格独立成单元；ASCII 词不打散（× 0xD7 随后词走）；
+	// 显式 \n 先分段，段内按 theWidth 折行（断点不超列宽；收尾标点不留行首）。
+	void		WrapLines(Font* theFont, const std::wstring& theText, int theWidth,
+					std::vector<std::wstring>& theLines);
+	// 一段 UTF-8 在给定列宽下画出来几行（走同一份断行）。
+	int			WrapLineCount(Font* theFont, const char* theUtf8, int theWidth);
+	// 在 theRect 里整块垂直居中、逐行水平居中地画一段 UTF-8。
+	void		DrawWrappedCjk(Sexy::Graphics* g, Font* theFont, const Sexy::Rect& theRect,
+					const char* theUtf8, const Sexy::Color& theColor);
 }
 
 #endif

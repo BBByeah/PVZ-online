@@ -2600,19 +2600,28 @@ void LawnApp::ZombieVoteRegister(int theSeat, int theChoice)
 	else mZombieVoteAbstains++;
 }
 
-int LawnApp::ZombieVoteExpectedVoters()
+unsigned int LawnApp::ZombieVoteRequiredSeatMask()
 {
 	// 单机：就本端一票。
-	if (!IsOnlineGame()) return 1;
+	const unsigned int aLocalBit = 1u << (mOnlineSession ? mOnlineSession->GetLocalSeat() : 0);
+	if (!IsOnlineGame()) return aLocalBit;
 
 	// 房主：应投的席位 = 已上座且不在掉线宽限里的。掉线宽限席按弃权收口（不拖满 30 秒），
 	// 中途退房的席位同理——名册一变，UpdateZombieVote 的每帧检查就会让这一票立刻结算。
-	int aCount = 0;
+	unsigned int aMask = 0;
 	for (int i = 1; i <= NetProto::MAX_PLAYERS; i++)
 	{
-		if (mOnlineSession->IsSeatOccupied((uint8_t)i) && !mOnlineSession->IsSeatOffline((uint8_t)i)) aCount++;
+		if (mOnlineSession->IsSeatOccupied((uint8_t)i) && !mOnlineSession->IsSeatOffline((uint8_t)i)) aMask |= 1u << i;
 	}
-	return aCount < 1 ? 1 : aCount;
+	return aMask ? aMask : aLocalBit;
+}
+
+int LawnApp::ZombieVoteExpectedVoters()
+{
+	unsigned int aMask = ZombieVoteRequiredSeatMask();
+	int aCount = 0;
+	for (; aMask; aMask &= aMask - 1) aCount++;
+	return aCount;
 }
 
 void LawnApp::ZombieVoteResolve()
@@ -2733,8 +2742,11 @@ std::string LawnApp::ZombieVoteStatusText()
 	}
 	else
 	{
+		unsigned int aReceived = mZombieVoteSeatMask & ZombieVoteRequiredSeatMask();
+		int aCurrentVoted = 0;
+		for (; aReceived; aReceived &= aReceived - 1) aCurrentVoted++;
 		snprintf(aBuf, sizeof(aBuf), ModText::Tr("还剩 %d 秒 · 已投 %d/%d", "%ds left - voted %d/%d"),
-			aSeconds, mZombieVoteVotedSeats, ZombieVoteExpectedVoters());
+			aSeconds, aCurrentVoted, ZombieVoteExpectedVoters());
 	}
 	return std::string(aBuf);
 }
@@ -2792,7 +2804,9 @@ void LawnApp::UpdateZombieVote()
 	// 与"开到一半有人退房"：名册一动，下面这个等式就成立；超时到点也走同一条结算。
 	if (!IsOnlineClient())
 	{
-		if (mZombieVoteVotedSeats >= ZombieVoteExpectedVoters()
+		// @pvz-online: a departed voter's count must not stand in for a still-online player's missing vote.
+		const unsigned int aRequired = ZombieVoteRequiredSeatMask();
+		if ((mZombieVoteSeatMask & aRequired) == aRequired
 			|| mZombieVoteFrames > ZOMBIE_VOTE_TIMEOUT_FRAMES)
 		{
 			ZombieVoteResolve();

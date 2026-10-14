@@ -390,6 +390,7 @@ public:
 	void							ZombieVoteOpenLocal(int theLevel, const unsigned char* theCandidates);
 	void							ZombieVoteRegister(int theSeat, int theChoice);
 	int								ZombieVoteExpectedVoters();
+	unsigned int                    ZombieVoteRequiredSeatMask();
 	void							ZombieVoteResolve();
 	void							ZombieVoteCloseUI();
 	void                            ResetZombieVote(); // @pvz-online: a vote belongs to one run, never the next menu/game.

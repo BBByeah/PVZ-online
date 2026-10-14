@@ -9707,6 +9707,34 @@ void Board::KeyChar(SexyChar theChar)
 
 	TodTraceAndLog("Board cheat key '%c'", theChar);
 
+	// TEMP 冒烟钩子（2026-10-14，冒烟完即刻删）：'v' 开一张僵尸强化票。先走真入口
+	// TryOpenZombieVote（关卡/档位条件全在），条件没到（比如票已经在开的第 1 关）就
+	// 强开一张——只给冒烟看框和结算，不参与正式逻辑。
+	if (theChar == _S('v') && mApp->mRunState != nullptr)
+	{
+		if (!mApp->TryOpenZombieVote())
+		{
+			unsigned char aCand[RunState::RUN_ZOMBIE_VOTE_CHOICES];
+			int aLevel = mApp->mRunState->GetPlayingLevelIndex();
+			mApp->mRunState->RollZombieVoteChoices(aLevel, aCand);
+			mApp->ZombieVoteOpenLocal(aLevel, aCand);
+		}
+		return;
+	}
+
+	// TEMP 冒烟钩子（2026-10-14，冒烟完即刻删）：'L' 建一个"建房等人"的监听会话
+	// （LISTENING 态）——复现 2026-10-14 玩家报"开着房点花园被弹回菜单"的现场。
+	if (theChar == _S('L'))
+	{
+		if (mApp->mOnlineSession == nullptr)
+		{
+			mApp->DoOnlineDialog();
+			mApp->KillDialog(Dialogs::DIALOG_ONLINE);
+		}
+		if (mApp->mOnlineSession != nullptr) mApp->mOnlineSession->StartHost(27777);
+		return;
+	}
+
 	if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN)
 	{
 		if (theChar == _S('m'))

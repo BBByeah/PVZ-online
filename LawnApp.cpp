@@ -1967,6 +1967,7 @@ void LawnApp::UpdateStartupAnnounce()
 
 void LawnApp::StartRun(int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag, int theBuffMult, int theLadder, int theZombieBuff)
 {
+	ResetZombieVote();
 	delete mRunState;
 	mRunState = new RunState();
 	mRunState->StartNew(MakeRunSeed(mAppCounter), theRunMode, theRunDiff, theRunScale, theRunTempo, theZombotany, theEndlessScene, theBossFlag, theBuffMult, theLadder, theZombieBuff);
@@ -1981,6 +1982,7 @@ void LawnApp::StartRun(int theRunMode, int theRunDiff, int theRunScale, int theR
 
 void LawnApp::ContinueRun()
 {
+	ResetZombieVote();
 	delete mRunState;
 	mRunState = new RunState();
 
@@ -2675,6 +2677,24 @@ void LawnApp::ZombieVoteCloseUI()
 	mZombieVoteActive = false;
 }
 
+void LawnApp::ResetZombieVote()
+{
+	// @pvz-online: an exit can interrupt a vote before RESULT; clear its UI and every per-run record.
+	ZombieVoteCloseUI();
+	mZombieVoteLevel = -1;
+	mZombieVoteMyChoice = -1;
+	mZombieVoteFrames = 0;
+	mZombieVoteAbstains = 0;
+	mZombieVoteVotedSeats = 0;
+	mZombieVoteSeatMask = 0;
+	for (int i = 0; i < RunState::RUN_ZOMBIE_VOTE_CHOICES; i++)
+	{
+		mZombieVoteCandidates[i] = 0;
+		mZombieVoteVotes[i] = 0;
+	}
+	mZombieVotePendingBanner.clear();
+}
+
 // 投票框回调：本端点了第 N 张（0..2）或「弃权」（3）。客户端只上报（数票是房主的事，
 // 本地的"已投/未投"由 mZombieVoteMyChoice 记）；房主 / 单机的本票不走网络，直接记账。
 void LawnApp::ZombieVoteChosen(int theChoice)
@@ -3141,6 +3161,7 @@ void LawnApp::NewGame()
 // GOTY @Patoke: 0x452B80
 void LawnApp::ShowGameSelector()
 {
+	ResetZombieVote();
 	KillBoard();
 	// @pvz-online: 回主菜单 = 这次在关卡里的运行结束了。闯关状态（卡池 / buff / 关序号）
 	// 就在这儿丢——检查点每关开打时已经写进 userdata/run%d.dat，CONTINUE RUN 再读回来。

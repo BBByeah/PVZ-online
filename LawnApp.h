@@ -392,6 +392,7 @@ public:
 	int								ZombieVoteExpectedVoters();
 	void							ZombieVoteResolve();
 	void							ZombieVoteCloseUI();
+	void                            ResetZombieVote(); // @pvz-online: a vote belongs to one run, never the next menu/game.
 	// @pvz-online: 三选一「重摇」（花园批 2026-10-13 用户拍板；2026-10-14 用户令起第一次也
 	// 花金币——免费「换一批」取消）：按 RunState::GetPaidRerollCost 的当前价（底价 100，
 	// 同屏 ×10/次阶梯）花币再摇一批——扣存档钱包 mCoins（同商店），关屏重抽。

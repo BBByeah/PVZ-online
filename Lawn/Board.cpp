@@ -5792,6 +5792,7 @@ void Board::SpawnRunBoss()
 	if (aBoss == nullptr) return;
 
 	aBoss->mScaleZombie = kRunBossScale;
+	aBoss->mBossMode = Zombie::RUN_BOSS_MARKER;
 	int aMult = mApp->OnlineSeatMultiplier() * kRunBossHpFactor;
 	aBoss->mBodyHealth = RunMath::ScaleHealth(aBoss->mBodyHealth, aMult, 1);
 	aBoss->mBodyMaxHealth = aBoss->mBodyHealth;
@@ -5806,8 +5807,11 @@ void Board::SpawnRunBoss()
 
 bool Board::IsRunBossZombie(Zombie* theZombie)
 {
-	return theZombie != nullptr && mRunBossZombieID != ZombieID::ZOMBIEID_NULL
-		&& mRunBossZombieID == ZombieGetID(theZombie);
+	// @pvz-online: a board can receive more than one boss; a single spawn ID cannot identify all of them.
+	return theZombie != nullptr &&
+		((theZombie->mBossMode == Zombie::RUN_BOSS_MARKER &&
+		  (theZombie->mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR || theZombie->mZombieType == ZombieType::ZOMBIE_FOOTBALL)) ||
+		 (mRunBossZombieID != ZombieID::ZOMBIEID_NULL && mRunBossZombieID == ZombieGetID(theZombie)));
 }
 
 // @pvz-online: 发阳光（MOD_BUILD 38，2026-10-10 用户定案）——点自己的阳光银行，把一档
@@ -5942,11 +5946,15 @@ bool Board::TryRelayEscapedZombie(Zombie* theZombie)
 	NetProto::MsgEscapedZombie aMsg;
 	aMsg.mRow = (uint8_t)theZombie->mRow;
 	aMsg.mZombieType = (uint16_t)theZombie->mZombieType;
-	aMsg.mFlags = 0;		// v1 还没用上；留一个字节是因为加字段就要再抬一次构建号
+	aMsg.mFlags = IsRunBossZombie(theZombie) ? NetProto::ESCAPED_FLAG_RUN_BOSS : 0;
 	aMsg.mBodyHealth = theZombie->mBodyHealth;
 	aMsg.mHelmHealth = theZombie->mHelmHealth;
 	aMsg.mShieldHealth = theZombie->mShieldHealth;
 	aMsg.mFlyingHealth = theZombie->mFlyingHealth;
+	aMsg.mBodyMaxHealth = theZombie->mBodyMaxHealth;
+	aMsg.mHelmMaxHealth = theZombie->mHelmMaxHealth;
+	aMsg.mShieldMaxHealth = theZombie->mShieldMaxHealth;
+	aMsg.mFlyingMaxHealth = theZombie->mFlyingMaxHealth;
 
 	// 发不出去（末席没有下一席位，或者队友刚好断了、socket 坏了）就当没传成：
 	// 宁可这边判负，也不能让这只怪凭空消失——那等于把惩罚取消了。
@@ -5970,7 +5978,8 @@ void Board::NoteMowerConsumed(int theRow)
 // @pvz-online: 漏怪传递的接收侧。位置、速度、外观都按本机规则重新生成（同类型的怪从右侧
 // 正常走进来），只覆写四个当前血量——那是这只怪身上唯一由对面玩家打出来的东西。
 // 血量上限、入场动画这些不用传：本机重新初始化时就按类型定好了。
-Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBodyHealth, int theHelmHealth, int theShieldHealth, int theFlyingHealth)
+Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBodyHealth, int theHelmHealth, int theShieldHealth, int theFlyingHealth,
+    uint8_t theFlags, int theBodyMaxHealth, int theHelmMaxHealth, int theShieldMaxHealth, int theFlyingMaxHealth)
 {
 	// 行号和类型是网络来的（对面包长已经校验过，但内容没有）：行号越界会直接写穿
 	// mPlantRow / mGridSquareType，类型越界会在初始化里撞到没有分支的 switch。
@@ -5978,6 +5987,9 @@ Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBod
 	if (theZombieType < 0 || theZombieType >= ZombieType::NUM_ZOMBIE_TYPES) return nullptr;
 	// 已经没血的怪就是已经死了的怪，别把尸体摆上来（摆上来 UpdatePlaying 的血量断言也会炸）。
 	if (theBodyHealth <= 0) return nullptr;
+	if (theFlags & ~NetProto::ESCAPED_FLAG_RUN_BOSS) return nullptr;
+	const bool aRunBoss = (theFlags & NetProto::ESCAPED_FLAG_RUN_BOSS) != 0;
+	if (aRunBoss && theZombieType != ZombieType::ZOMBIE_REDEYE_GARGANTUAR && theZombieType != ZombieType::ZOMBIE_FOOTBALL) return nullptr;
 
 	Zombie* aZombie = AddZombieInRow(theZombieType, theRow, mCurrentWave);
 	if (aZombie == nullptr) return nullptr;		// 场上满了（AddZombieInRow 里那声 "Too many zombies!!"）
@@ -5986,6 +5998,17 @@ Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBod
 	aZombie->mHelmHealth = theHelmHealth;
 	aZombie->mShieldHealth = theShieldHealth;
 	aZombie->mFlyingHealth = theFlyingHealth;
+	// @pvz-online: do not infer source maximum HP from the receiving seat's freshly initialized zombie.
+	aZombie->mBodyMaxHealth = std::max(theBodyHealth, theBodyMaxHealth > 0 ? theBodyMaxHealth : aZombie->mBodyMaxHealth);
+	if (theHelmMaxHealth > 0) aZombie->mHelmMaxHealth = std::max(theHelmHealth, theHelmMaxHealth);
+	if (theShieldMaxHealth > 0) aZombie->mShieldMaxHealth = std::max(theShieldHealth, theShieldMaxHealth);
+	if (theFlyingMaxHealth > 0) aZombie->mFlyingMaxHealth = std::max(theFlyingHealth, theFlyingMaxHealth);
+	if (aRunBoss)
+	{
+		aZombie->mBossMode = Zombie::RUN_BOSS_MARKER;
+		aZombie->mScaleZombie = kRunBossScale;
+		aZombie->UpdateAnimSpeed();
+	}
 
 	// 对面丢掉的那部分要跟着丢：本机是刚初始化的新怪，帽子/铁门/报纸都还在身上。
 	// 走游戏自己的掉装备函数、带上"不留尸体"标志——状态对了，粒子音效那些不重放。

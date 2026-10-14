@@ -1219,7 +1219,8 @@ void LawnApp::UpdateOnlineRelay()
 		}
 
 		Zombie* aZombie = mBoard->AddRelayedZombie((int)aMsg.mRow, (ZombieType)aMsg.mZombieType,
-			(int)aMsg.mBodyHealth, (int)aMsg.mHelmHealth, (int)aMsg.mShieldHealth, (int)aMsg.mFlyingHealth);
+			(int)aMsg.mBodyHealth, (int)aMsg.mHelmHealth, (int)aMsg.mShieldHealth, (int)aMsg.mFlyingHealth,
+			aMsg.mFlags, aMsg.mBodyMaxHealth, aMsg.mHelmMaxHealth, aMsg.mShieldMaxHealth, aMsg.mFlyingMaxHealth);
 		if (aZombie == nullptr)
 		{
 			// 满场或包内容越界。掉一只怪等于把队友的惩罚取消了，但除了日志没有别的办法。

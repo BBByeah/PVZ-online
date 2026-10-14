@@ -514,8 +514,8 @@ struct MsgPause
 	uint8_t			mPaused;
 };
 
-// ESCAPED_ZOMBIE：{ srcSeat, dstSeat, u8 row, u16 zombieType, u8 flags, i32 ×4 当前血量 }
-// 只传"当前值"。上限/入场动画等由接收方按 zombieType 重新初始化后覆写。
+// ESCAPED_ZOMBIE (MOD_BUILD 46): current HP and max HP travel together; bit 0 preserves run-boss identity.
+const uint8_t ESCAPED_FLAG_RUN_BOSS = 1;
 struct MsgEscapedZombie
 {
 	uint8_t			mSrcSeat;
@@ -527,6 +527,10 @@ struct MsgEscapedZombie
 	int32_t			mHelmHealth;
 	int32_t			mShieldHealth;
 	int32_t			mFlyingHealth;
+	int32_t         mBodyMaxHealth = 0;
+	int32_t         mHelmMaxHealth = 0;
+	int32_t         mShieldMaxHealth = 0;
+	int32_t         mFlyingMaxHealth = 0;
 };
 
 // GAME_OVER：{ srcSeat, dstSeat, u8 reason }
@@ -1013,6 +1017,10 @@ inline int EncodeEscapedZombie(uint8_t* theBuffer, int theCapacity, const MsgEsc
 	aWriter.I32(theMsg.mHelmHealth);
 	aWriter.I32(theMsg.mShieldHealth);
 	aWriter.I32(theMsg.mFlyingHealth);
+	aWriter.I32(theMsg.mBodyMaxHealth);
+	aWriter.I32(theMsg.mHelmMaxHealth);
+	aWriter.I32(theMsg.mShieldMaxHealth);
+	aWriter.I32(theMsg.mFlyingMaxHealth);
 	return aWriter.Overflowed() ? -1 : aWriter.Size();
 }
 
@@ -1028,6 +1036,10 @@ inline bool DecodeEscapedZombie(const uint8_t* theData, int theSize, MsgEscapedZ
 	theMsg.mHelmHealth = aReader.I32();
 	theMsg.mShieldHealth = aReader.I32();
 	theMsg.mFlyingHealth = aReader.I32();
+	theMsg.mBodyMaxHealth = aReader.I32();
+	theMsg.mHelmMaxHealth = aReader.I32();
+	theMsg.mShieldMaxHealth = aReader.I32();
+	theMsg.mFlyingMaxHealth = aReader.I32();
 	return !aReader.Overflowed();
 }
 

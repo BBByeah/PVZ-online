@@ -21,7 +21,7 @@ const int	RUN_GO_PAYLOAD_SIZE		= 2;	// src, dst
 const int	SEEDS_READY_PAYLOAD_SIZE = 3;	// src, dst, u8 ready
 const int	SWAP_REQUEST_PAYLOAD_SIZE = 2;	// src, dst
 const int	SWAP_REPLY_PAYLOAD_SIZE = 3;	// src, dst, u8 accepted
-const int	ESCAPED_ZOMBIE_PAYLOAD_SIZE = 22;	// src, dst, u8 row, u16 type, u8 flags, i32 ×4 血量
+const int	ESCAPED_ZOMBIE_PAYLOAD_SIZE = 38; // @pvz-online: current and max HP for all four sections (MOD_BUILD 46).
 const int	SEND_SUN_PAYLOAD_SIZE	= 4;	// src, dst, u16 amount（发阳光到账额，MOD_BUILD 38）
 const int	ZOMBIE_VOTE_OPEN_PAYLOAD_SIZE = 7;	// src, dst, u16 sceneIndex, u8 candidates[3]（僵尸强化开票，MOD_BUILD 45）
 const int	ZOMBIE_VOTE_PAYLOAD_SIZE = 5;	// src, dst, u16 sceneIndex, u8 choice（0..2=候选下标、3=弃权）

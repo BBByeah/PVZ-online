@@ -327,8 +327,9 @@ public:
 	// 由 LawnMower 调进来，行号记进 RunState、随检查点持久——用过的行跨关不再补。
 	void							NoteMowerConsumed(int theRow);
 	// @pvz-online: 漏怪传递的接收侧。队友那儿漏过来的僵尸在本棋盘右侧按原类型重新生成，
-	// 只把"还剩多少血"照搬过来。行号/类型是网络来的，越界就不收（返回 nullptr）。
-	Zombie*							AddRelayedZombie(int theRow, ZombieType theZombieType, int theBodyHealth, int theHelmHealth, int theShieldHealth, int theFlyingHealth);
+	// @pvz-online: MOD_BUILD 46 also preserves maximum HP and run-boss identity; reject invalid row/type.
+	Zombie*                         AddRelayedZombie(int theRow, ZombieType theZombieType, int theBodyHealth, int theHelmHealth, int theShieldHealth, int theFlyingHealth,
+                                        uint8_t theFlags = 0, int theBodyMaxHealth = 0, int theHelmMaxHealth = 0, int theShieldMaxHealth = 0, int theFlyingMaxHealth = 0);
 	void							DrawLevel(Graphics* g);
 	void							DrawShovel(Graphics* g);
 	void							UpdateZombieSpawning();

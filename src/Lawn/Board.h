@@ -128,6 +128,14 @@ struct BungeeDropGrid
 class Board : public Widget, public ButtonListener
 {
 public:
+    void FillSeedBankFromRunPool();
+    bool TryRelayEscapedZombie(Zombie* zombie);
+    Zombie* AddRelayedZombie(int row, ZombieType type, int body, int helm, int shield, int flying);
+    bool OnlineWaitingForTeam();
+    void NoteMowerConsumed(int row);
+    void GiveSunGift(int amount, uint8_t seat);
+    static int ComputeLevelRandSeed(int boardSeed, bool adventure, int playerId, int finished, int level, int stage, int mode);
+	bool mOnlineBoard = false;
 	ZombieID mRunBossZombieID = ZombieID::ZOMBIEID_NULL;
 	void SpawnRunBoss();
 	void InitEndlessRunStage();
@@ -350,7 +358,7 @@ public:
 	int								GetSeedPacketPositionX(int theIndex);
 	void							AddGraveStones(int theGridX, int theCount, MTRand& theLevelRNG);
 	int								GetGraveStoneCount();
-	void							ZombiesWon(Zombie* theZombie = nullptr);
+	void							ZombiesWon(Zombie* theZombie = nullptr, bool theFromPeer = false);
 	void							DrawLevel(Graphics* g);
 	void							DrawShovel(Graphics* g);
 	void							UpdateZombieSpawning();

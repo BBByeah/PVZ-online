@@ -1,5 +1,6 @@
 #include "../../LawnApp.h"
 #include "RunState.h"
+#include "../Online/NetSession.h"
 #include "RunBuffs.h"
 #include "RunPortSupport.h"
 #include "../ModText.h"
@@ -24,6 +25,9 @@ void LawnApp::KillRunFlowScreen()
 
 void LawnApp::ShowRunMenu()
 {
+    if (!IsOnlineStartAllowed() && !(mOnlineSession && mOnlineSession->GetRole() == NetSession::Role::HOST && mOnlineSession->GetState() == NetSession::State::LISTENING))
+    { DoOnlineDialog(); return; }
+
     KillRunFlowScreen();
     KillBoard();
     KillGameSelector();
@@ -36,17 +40,23 @@ void LawnApp::ShowRunMenu()
 
 void LawnApp::StartRun(int mode, int buffMult, int difficulty, int scale, int tempo, int zombotany, int endlessScene, int bossFlag, int ladder, int zombieBuff)
 {
+    if (!IsOnlineStartAllowed() && !(mOnlineSession && mOnlineSession->GetRole() == NetSession::Role::HOST && mOnlineSession->GetState() == NetSession::State::LISTENING))
+    { DoOnlineDialog(); return; }
+
     KillRunFlowScreen();
     KillBoard();
     KillGameSelector();
     mRunState = std::make_unique<RunState>();
     mRunState->StartNew(Sexy::Rand(), mode, difficulty, scale, tempo, zombotany, endlessScene, bossFlag, buffMult, ladder, zombieBuff);
     mRunState->BeginStartPicks();
-    ShowRunPicks();
+    EnterRunLevel();
 }
 
 void LawnApp::ResumeRun()
 {
+    if (!IsOnlineStartAllowed() && !(mOnlineSession && mOnlineSession->GetRole() == NetSession::Role::HOST && mOnlineSession->GetState() == NetSession::State::LISTENING))
+    { DoOnlineDialog(); return; }
+
     auto run = std::make_unique<RunState>();
     bool compatible = run->Load(mPlayerInfo->mId);
     if (run->mMode < RunState::RUN_MODE_FULL || run->mMode > RunState::RUN_MODE_ENDLESS || run->IsComplete() ||
@@ -62,49 +72,25 @@ void LawnApp::ResumeRun()
         return;
     }
     mRunState = std::move(run);
-    StartRunLevel();
+    EnterRunLevel();
 }
 
 void LawnApp::ShowRunPicks()
 {
     KillRunFlowScreen();
-    if (!mRunState) return;
-    if (!mRunState->HasPendingPick())
-    {
-        mRunState->Save(mPlayerInfo->mId);
-        StartRunLevel();
-        return;
-    }
-    if (mBoard) mBoard->mPaused = true;
+    if (!mRunState || !mRunState->HasPendingPick() || !mBoard || !mRunIntroHeld) return;
     mRunFlowScreen = std::make_unique<RunFlowScreen>(this, false);
     mWidgetManager->AddWidget(mRunFlowScreen.get());
     mWidgetManager->BringToFront(mRunFlowScreen.get());
     mWidgetManager->SetFocus(mRunFlowScreen.get());
 }
 
-void LawnApp::StartRunLevel()
-{
-    KillRunFlowScreen();
-    KillGameSelector();
-    mGameMode = GAMEMODE_ADVENTURE;
-    mAppRandSeed = mRunState->GetLevelSeed();
-    if (mRunState->IsEndless() && mBoard && mBoardResult != BOARDRESULT_LOST &&
-        (mBoard->mLevelComplete || mBoard->mLevelAwardSpawned))
-    {
-        mBoardResult = BOARDRESULT_NONE;
-        mGameScene = SCENE_LEVEL_INTRO;
-        mBoard->mPaused = false;
-        mBoard->InitEndlessRunStage();
-        ShowSeedChooserScreen();
-        mBoard->mCutScene->StartLevelIntro();
-        return;
-    }
-    NewGame();
-}
+void LawnApp::StartRunLevel() { EnterRunLevel(); }
 
 void LawnApp::RetryRunLevel()
 {
     if (!mRunState) return;
+    if (IsOnlineGame()) { RetryOnlineLevel(); return; }
     KillDialog(DIALOG_GAME_OVER);
     KillDialog(DIALOG_CONFIRM_RESTART);
     KillNewOptionsDialog();

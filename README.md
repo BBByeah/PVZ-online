@@ -1,6 +1,6 @@
 # PvZ Online Android（移植中）
 
-此 `android-port` 分支是 PvZ Online 的 Android 移植工程，当前已在 MuMu Android 15 运行，包含单机闯关、中英文资源切换、现有僵尸出怪规则、标准场景难度、48 种常规植物、完整 PC buff 消费者、增益倍选、金币重摇和失败重打。规则来源固定为 PC Build 45 / `0e08297`；八种防具变体、高级单机选项、无尽场景及关底首领规则已接入；代表检查和未验范围见 [本轮结果](docs/VARIANTS-OPTIONS-STATUS.md)。五档场景阶梯、僵尸强化消费者、v14 检查点及付费首摇已同步，见 [Build 45 结果](docs/BUILD45-SYNC-STATUS.md)。投票游戏流程、游戏侧联机、原版风格 mod UI 与手机专项仍在推进。PC 持续更新流程见 [同步准备](docs/PC-SYNC-WORKFLOW.md)。完整 buff 的代码覆盖、代表检查和存档兼容见 [迁移结果](docs/BUFF-PORT-STATUS.md)。当前交付及有限验收见 [进度](PORTING-STATUS.md) 与 [后续批次](docs/NEXT-BATCH.md)。
+此 `android-port` 分支是 PvZ Online 的 Android 移植工程，当前已在 MuMu Android 15 运行，包含单机闯关、中英文资源切换、48 种常规植物、完整 PC buff 消费者、增益倍选、金币重摇和失败重打。规则来源固定为 PC Build 45 / `0e08297`；防具变体、高级选项、无尽、首领及五档场景阶梯已接入。主菜单已开放联机开发入口，房间、开局就绪屏障、漏怪与团队结算挂点已迁入；真实 APK 与固定 Windows 原生会话端完成双向检查，完整 PC 游戏客户端验收仍待完成，见 [联机结果](docs/NETWORK-GAME-STATUS.md)。投票游戏流程、游戏内联机操作 UI、原版风格 mod UI 与手机专项继续推进。PC 持续更新见 [同步流程](docs/PC-SYNC-WORKFLOW.md)；完整 buff 覆盖见 [迁移结果](docs/BUFF-PORT-STATUS.md)，当前交付及后续顺序见 [进度](PORTING-STATUS.md) 与 [批次 D 计划](docs/BATCH-D-PLAN.md)。
 
 - 两人协作与同伴任务：[docs/COLLABORATION.md](docs/COLLABORATION.md)
 - 开发入口：[DEVELOPMENT.md](DEVELOPMENT.md)

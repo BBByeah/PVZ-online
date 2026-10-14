@@ -1,5 +1,16 @@
 # Android 开发更新记录
 
+## 2026-10-14 · 房间与游戏侧联机
+
+- 主菜单加入中英联机入口、直连/中继房间、输入框和席位名册；接入 Android 网络权限与会话更新循环。
+- 沿固定 PC Build 45 接入 START_ACK/RUN_GO、奖励/补发、大小卡池选卡就绪门、漏怪接力、席位阳光/出怪、末席推车、暂停与团队胜负/重试。
+- 联机棋盘不覆盖冒险局内档；退关清理失败弹窗，客户端不能独自重试。修复闯关两株卡池触发戴夫强选三株的崩溃。
+- 最终 APK 与固定 Windows 原生会话端双向开局检查通过；完整 PC 游戏、中继与整队跨关仍待代表验收。已恢复五个原用户文件，哈希一致。交付与限制见 [NETWORK-GAME-STATUS.md](NETWORK-GAME-STATUS.md)。
+
+### English
+
+Added bilingual direct/relay lobby UI and Android networking permission. Pinned Build 45 game hooks now cover start acknowledgements, rewards, seed-ready barriers, zombie relay, seat rules, pause and team outcomes. Online boards preserve adventure saves; exit clears failure dialogs and clients cannot restart the team alone. Fixed Crazy Dave picking three plants from a two-plant run pool. The real APK passed bidirectional checks with a pinned Windows native session peer; full PC gameplay, relay and team transitions remain to be validated. Original user files were restored with matching hashes.
+
 ## 2026-10-14 · Build 45 规则与存档同步
 
 - 固定 PC `0e08297`，迁入五档场景阶梯、八条僵尸强化消费者、花盆/荷叶抽取权重和首次付费重摇。

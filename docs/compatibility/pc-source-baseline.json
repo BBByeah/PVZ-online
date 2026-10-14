@@ -17,18 +17,19 @@
     "zombie-buff-consumers",
     "checkpoint-v14",
     "paid-reroll-build45",
-    "plant-pick-weights-build45"
-  ],
-  "compiledOnly": [
+    "plant-pick-weights-build45",
     "network-transport",
     "network-session",
+    "lobby-ui",
+    "network-game-hooks"
+  ],
+  "compiledOnly": [
     "zombie-vote-protocol"
   ],
   "next": [
     "zombie-vote-game-flow",
-    "network-game-hooks",
-    "lobby-ui",
     "pc-android-runtime-check",
+    "network-ingame-ui",
     "mobile-ui-and-lifecycle"
   ]
 }

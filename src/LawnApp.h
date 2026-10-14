@@ -23,6 +23,7 @@
 #define __LAWNAPP_H__
 
 #include "ConstEnums.h"
+#include "Lawn/Online/NetProtocol.h"
 #include "SexyAppFramework/SexyApp.h"
 #include "PvzpLib/PvzpFoley.h"
 #include <memory>
@@ -50,6 +51,7 @@ class StoreScreen;
 class AlmanacDialog;
 #include "Lawn/Run/RunBuffs.h"
 class RunState;
+class NetSession;
 class RunFlowScreen;
 class TypingCheck;
 
@@ -79,6 +81,49 @@ public:
 	// @pvz-online: run progress is independent of the original adventure profile.
 	std::unique_ptr<RunState> mRunState;
 	std::unique_ptr<RunFlowScreen> mRunFlowScreen;
+
+    std::unique_ptr<NetSession> mOnlineSession;
+    bool mHasOnlineStart = false, mOnlineWasConnected = false, mOnlineWaitingStartAck = false;
+    int mOnlineStartLevel = 0, mOnlineStartSeed = 0, mOnlineStartWaitFrames = 0;
+    bool mOnlineRunStartHeld = false, mOnlineRunGo = false, mRunIntroHeld = false;
+    bool mOnlineStartPromptActive = false, mOnlineSeedsHeld = false, mOnlineWaitingAdviceOn = false;
+    bool mPauseMenuWasOpen = false, mPauseMenuFromPeer = false;
+    NetProto::MsgStartLevel mOnlineStartPromptMsg{};
+    int mOnlineStartPromptFrames = 0;
+    std::string mOnlineAddress = "127.0.0.1", mOnlinePort = "27777", mOnlineRoomCode;
+    void DisconnectOnline();
+    void AlignRunToHost(int seed, int index, int mode, int difficulty, int scale, int tempo,
+        int zombotany, int scene, int boss, int buffMult, int ladder, int zombieBuff, const uint8_t* stacks);
+    bool IsOnlineGame();
+    bool IsOnlineStartAllowed();
+    bool IsOnlineClient();
+    bool WillWaitForStartAck();
+    void SetOnlineStartOverride(int theLevel, int theSeed);
+    bool GetOnlineStartOverride(int& theLevel, int& theSeed);
+    void ClearOnlineStartOverride();
+    void UpdateOnlineStart();
+    void OnlineStartWaitCancelled();
+    void OnlineReconnectCancelled();
+    void EnterOnlineStart(const NetProto::MsgStartLevel& theMsg);
+    void ShowOnlineStartPrompt(const NetProto::MsgStartLevel& theMsg);
+    void OnlineStartPromptAnswer(bool theAccepted);
+    void DismissOnlineStartPrompt(bool theSendAck);
+    bool TryHoldSeedChooserForTeammates();
+    void UpdateOnlineSeeds();
+    void UpdateOnlineRelay();
+    void UpdateOnlineLevelExit();
+    void UpdateOnlinePause();
+    void UpdateOnlineEvents();
+    void UpdateOnlineEnd();
+    void RetryOnlineLevel();
+    void EnterRunLevel();
+    bool TryKeepEndlessLawn();
+    void ReleaseRunIntro();
+    void UpdateRunPick();
+    int OnlineSeatMultiplier();
+    int OnlineStartSunBonus();
+    void DoOnlineDialog();
+
 	void ShowRunMenu();
 	void StartRun(int mode, int buffMult = 0, int difficulty = 1, int scale = 1, int tempo = 1, int zombotany = 0, int endlessScene = 0, int bossFlag = 0, int ladder = 0, int zombieBuff = 0);
 	void RunPickPaidReroll();
@@ -217,7 +262,7 @@ public:
 	void							ShowSeedChooserScreen();
 	void							KillSeedChooserScreen();
 	void							DoHighScoreDialog();
-	void							DoBackToMain();
+	void							DoBackToMain(bool notifyOnline = true);
 	void							DoConfirmBackToMain();
 	void							DoNewOptions(bool theFromGameSelector);
 	void							ShowZombatarTOS();

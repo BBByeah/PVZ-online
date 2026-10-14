@@ -87,6 +87,7 @@ NewOptionsDialog::NewOptionsDialog(LawnApp* theApp, bool theFromGameSelector) :
 	mHardwareAccelerationCheckbox->SetVisible(false);
 #endif
 
+	if (mApp->IsOnlineGame()) mRestartButton->SetVisible(false);
 	if (mFromGameSelector)
 	{
 		mRestartButton->SetVisible(false);

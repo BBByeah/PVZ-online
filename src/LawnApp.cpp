@@ -24,6 +24,9 @@
 #include <cstdio>
 #include <format>
 #include "LawnApp.h"
+#include "Lawn/Online/NetSession.h"
+#include "Lawn/Online/NetworkLog.h"
+#include "Lawn/Widget/OnlineStartDialog.h"
 #include "Resources.h"
 #include "Lawn/LawnCommon.h"
 #include "Lawn/Board.h"
@@ -177,6 +180,7 @@ LawnApp::LawnApp()
 
 LawnApp::~LawnApp()
 {
+	if (mOnlineSession) mOnlineSession->Close();
 	KillRunFlowScreen();
 	while (!mDialogMap.empty())
 	{
@@ -348,6 +352,7 @@ void LawnApp::PreNewGame(GameMode theGameMode, bool theLookForSavedGame)
 	// A run retry must not erase or load the player's adventure save.
 	if (mRunState && theGameMode == GAMEMODE_ADVENTURE)
 	{
+		if (IsOnlineGame() && mBoardResult != BOARDRESULT_LOST) return;
 		RetryRunLevel();
 		return;
 	}
@@ -358,6 +363,68 @@ void LawnApp::PreNewGame(GameMode theGameMode, bool theLookForSavedGame)
 	//}
 
 	mGameMode = theGameMode;
+	if (mOnlineSession && mOnlineSession->IsActive()
+		&& mOnlineSession->GetState() != NetSession::State::DEAD)
+	{
+		// 上一次开局还在等队友回应：这次的请求按下不表（不然等待期间每触发一次就重发一条
+		// START_LEVEL，对面收到一串）。等出头了再说。
+		if (mOnlineWaitingStartAck)
+		{
+			NetworkLog("PreNewGame: still waiting for the teammate's answer, ignored");
+			return;
+		}
+
+		// 棋盘还在就来开新局（暂停菜单里的 Restart Level）：联机不给重开——两边棋盘各跑各的，
+		// 重开必然对不上。C 里把菜单上那颗按钮收掉，这儿是兜底。
+		if (mBoard != nullptr)
+		{
+			NetworkLog("PreNewGame: online game, restarting a level is not allowed, ignored");
+			return;
+		}
+
+		if (!IsOnlineStartAllowed())
+		{
+			// 开不了（没连上 / 客户端）。要是主菜单已经被拆掉（点了开局又赶上队友掉线），
+			// 就地补一个回来：拆了菜单又没有棋盘，屏幕上就什么都不剩了。
+			if (mGameScene == GameScenes::SCENE_MENU && mGameSelector == nullptr)
+			{
+				ShowGameSelector();
+			}
+			NetworkLog("PreNewGame: online session cannot start right now, ignored");
+			return;
+		}
+
+		// 房里就我一个（队友还没来）：没有要通知的人，也就没有 ACK 可等——直接进场。
+		// 摆"本机的数要和广播出去的一致"那套覆盖值也免了：没广播，就无所谓一致不一致。
+		// 队友之后中途进来会被主机当场拉进这一关（见 UpdateOnlineEvents）。
+		if (!WillWaitForStartAck())
+		{
+			NetworkLog("[net] no one else in the room - entering the level right away");
+			KillDialog(Dialogs::DIALOG_ONLINE);
+			KillGameSelector();
+			NewGame();
+			return;
+		}
+
+		// 主场先广播、后进场：队友没收到命令的话，主机一个人开着关跑下去是最糟的结局。
+		// 广播要带关卡和种子，可这时候棋盘还没建（要等 ACK 才建）——所以按 Board 的算式
+		// 在这儿算一份，设成覆盖值；等 ACK 到了 NewGame()，InitLevel 和 GetLevelRandSeed
+		// 读的就是同一份覆盖值，和广播出去的完全一致。
+		//
+		// 生存模式的棋盘随机数取的是 Rand()（见 Board 构造函数），那种模式下这套算法对不上；
+		// 好在生存已经整段裁剪（IsPvzModeCulled），联机局开不出生存来。
+		int aLevel = IsAdventureMode() ? mPlayerInfo->mLevel : 0;
+		int aSeed = Board::ComputeLevelRandSeed(mAppRandSeed, IsAdventureMode(), mPlayerInfo->mId,
+			mPlayerInfo->mFinishedAdventure, aLevel, 0, (int)mGameMode);
+
+		SetOnlineStartOverride(aLevel, aSeed);
+		mOnlineWaitingStartAck = true;
+		mOnlineStartWaitFrames = 0;
+		NetworkLog("[net] host picked level %d, waiting for the teammate before entering", aLevel);
+		mOnlineSession->SendStartLevel((uint8_t)mGameMode, (uint32_t)aLevel, aSeed);
+		return;
+	}
+
 	if (theLookForSavedGame && TryLoadGame())
 		return;
 
@@ -445,15 +512,40 @@ void LawnApp::NewGame()
 	mBoardResult = BoardResult::BOARDRESULT_NONE;
 	mGameScene = GameScenes::SCENE_LEVEL_INTRO;
 
+	// @pvz-online: 选卡等队友（SEEDS_READY）：新一轮从"草坪刚建好"这一刻算起，先报
+	// "我还没选好"。报在这儿而不是选卡界面打开时：这一关欠着三选一（含补发追赶）的机器
+	// 可能过很久才轮到选卡，中间这段不能让对面以为"他早就选好了"（那会直接放行、白等一场）。
+	// 真选好了（按 Let's Rock / 这一关不用选卡）再报 1，见 TryHoldSeedChooserForTeammates
+	// 与 ShowSeedChooserScreen。
+	if (IsOnlineGame()) mOnlineSession->SendSeedsReady(false);
+
+	// @pvz-online: 联机闯关（R6）：草坪先建、选项后做——这一关还欠着三选一（含补发追赶）
+	// 的时候，把"选卡 + 开场"压住：人先站在自己的新草坪上，选项屏盖在草坪上做完，
+	// 才由 UpdateRunPick 放开（见那边的 ①）。单关局 / 非闯关一条路都不变。
+	mRunIntroHeld = false;
+	if (IsRunMode() && (mRunState->HasPendingPick() || mRunState->IsCatchingUp() ||
+        (IsOnlineGame() && !mBoard->ChooseSeedsOnCurrentLevel() && mOnlineSession->HasOtherSeats())))
+	{
+		mRunIntroHeld = true;
+		NetworkLog("[run] the lawn is up before the picks - the intro is held");
+		return;
+	}
+
 	ShowSeedChooserScreen();
 	mBoard->mCutScene->StartLevelIntro();
 }
 
 void LawnApp::ShowGameSelector()
 {
+	KillDialog(DIALOG_GAME_OVER);
 	KillRunFlowScreen();
 	KillBoard();
 	mRunState.reset();
+    ClearOnlineStartOverride();
+    if (mOnlineSession) mOnlineSession->DiscardLevelPackets();
+    mOnlineRunStartHeld = mOnlineRunGo = mRunIntroHeld = mOnlineSeedsHeld = false;
+    mOnlineWaitingStartAck = mOnlineStartPromptActive = false;
+    KillDialog(DIALOG_ONLINE_START);
 	//UpdateRegisterInfo();
 	if (mGameSelector)
 	{
@@ -564,6 +656,8 @@ void LawnApp::ShowSeedChooserScreen()
 {
 	PVZP_ASSERT(mSeedChooserScreen == nullptr);
 
+	mOnlineSeedsHeld = false;
+	if (IsOnlineGame() && mBoard) mOnlineSession->SendSeedsReady(!mBoard->ChooseSeedsOnCurrentLevel());
 	mSeedChooserScreen = std::make_unique<SeedChooserScreen>();
 	mSeedChooserScreen->Resize(0, 0, mWidth, mHeight);
 	mWidgetManager->AddWidget(mSeedChooserScreen.get());
@@ -597,8 +691,10 @@ void LawnApp::EndLevel()
 	mBoard->mCutScene->StartLevelIntro();
 }
 
-void LawnApp::DoBackToMain()
+void LawnApp::DoBackToMain(bool notifyOnline)
 {
+	KillDialog(DIALOG_GAME_OVER);
+	if (notifyOnline && IsOnlineGame()) mOnlineSession->SendLevelExit();
 	mMusic->StopAllMusic();
 	mSoundSystem->CancelPausedFoley();
 	WriteCurrentUserConfig();
@@ -1415,33 +1511,31 @@ bool LawnApp::UpdatePlayerProfileForFinishingLevel()
 
 void LawnApp::CheckForGameEnd()
 {
+	if (IsOnlineGame()) return;
 	if (mBoard == nullptr || !mBoard->mLevelComplete)
 		return;
 	if (mRunState)
 	{
-		if (mRunState->HasPendingPick()) return;
-		mBoardResult = BoardResult::BOARDRESULT_WON;
-		PvzpLogLn("[run] cleared index={} engine={}", mRunState->mLevelIndex, mBoard->mLevel);
-		mRunState->AdvanceLevel();
-		if (!mRunState->IsEndless()) KillBoard();
-		else
-		{
-			mGameScene = GameScenes::SCENE_LEVEL_INTRO;
-			mBoard->mBoardFadeOutCounter = -1;
-		}
-		if (mRunState->IsComplete())
-		{
-			RunState::DeleteCheckpoint(mPlayerInfo->mId);
-			ShowGameSelector();
-			LawnMessageBox(Dialogs::DIALOG_MESSAGE, ModText::Tr("闯关完成", "Run complete"), ModText::Tr("你通过了所有五个场景！", "You cleared all five scenes!"), "OK", "", Dialog::BUTTONS_FOOTER);
-		}
-		else
-		{
-			mRunState->BeginLevelEndPicks();
-			ShowRunPicks();
-		}
-		return;
-	}
+        if (mRunIntroHeld || mRunState->HasPendingPick()) return;
+        mRunState->AdvanceLevel();
+        mBoardResult = BOARDRESULT_NONE;
+        mGameScene = SCENE_LEVEL_INTRO;
+        if (mRunState->IsEndless()) mBoard->mBoardFadeOutCounter = -1;
+        else KillBoard();
+        if (mRunState->IsComplete())
+        {
+            RunState::DeleteCheckpoint(mPlayerInfo->mId);
+            ShowGameSelector();
+            LawnMessageBox(DIALOG_MESSAGE, ModText::Tr("闯关完成", "Run complete"),
+                ModText::Tr("这一局已通过全部关卡。", "Every level in this run is complete."), "OK", "", Dialog::BUTTONS_FOOTER);
+        }
+        else
+        {
+            mRunState->BeginLevelEndPicks();
+            if (mBoard) mRunIntroHeld = true;
+        }
+        return;
+    }
 
 	bool aUnlockedNewChallenge = UpdatePlayerProfileForFinishingLevel();
 
@@ -1595,6 +1689,49 @@ void LawnApp::UpdatePlayTimeStats()
 
 void LawnApp::UpdateFrames()
 {
+	if (mOnlineSession)
+	{
+		// @pvz-online 语言批：会话层的状态/提示文案跟着 UI 语言走，但那一层要能脱开
+		// 框架单测（nettest 直接编译它的 .cpp），不能自己引用 ModText——语言由这儿每帧
+		// 注入，注入后再 Update（状态行每帧在 Update 末尾重算，改语言下一帧就生效）。
+		mOnlineSession->SetTextChinese(ModText::IsChinese());
+		mOnlineSession->Update();
+
+		// @pvz-online: 组队成功就把联机面板收起来。面板是模态对话框，它在的时候后面
+		// 所有牌子一个都点不着，而"组队成功后还要回主菜单点关卡牌开局"是必经的一步——
+		// 玩家就是被这一点挡住的。状态收摊后由主菜单左侧的小状态条接着说
+		// （OnlineStatusWidget），面板随时点小状态条能再叫回来。
+		//
+		// 只在"刚变成已连接"那一下收，不是连着就一直收：玩家自己点开面板看状态时
+		// 不能被它按回去（那样面板就永远打不开了）。在这里关而不是在面板自己的
+		// Update 里关：KillDialog 是当场 delete，不能在自己 Update 的中途把自己删掉。
+		bool aConnected = mOnlineSession->IsConnected();
+		if (aConnected && !mOnlineWasConnected)
+			KillDialog(Dialogs::DIALOG_ONLINE);
+		mOnlineWasConnected = aConnected;
+
+		// @pvz-online: 对面问换位：把面板叫出来让玩家按同意/拒绝（面板开着别的地方
+		// 点不着，但主循环照跑——等答复不会把心跳等断）。正在关卡里就直接回绝：
+		// 顺位开局那一下就定死了，不该在棋盘上被问这事。
+		if (mOnlineSession->HasIncomingSwapRequest())
+		{
+			if (mBoard != nullptr)
+				mOnlineSession->AnswerSwapRequest(false);
+			else if (GetDialog(Dialogs::DIALOG_ONLINE) == nullptr)
+				DoOnlineDialog();
+		}
+	}
+	// 开局要换场景、动一堆 UI，所以也放在循环外、widget 更新之前——收包链里干了迟早出事。
+	UpdateOnlineStart();
+	UpdateOnlineRelay();
+	UpdateOnlineLevelExit();
+	UpdateOnlinePause();
+	UpdateOnlineEvents();
+	UpdateOnlineEnd();
+	// 选卡等队友（SEEDS_READY）：门口拦下的那次等对面也选好，齐了撤框、重新关屏。
+	UpdateOnlineSeeds();
+	UpdateRunPick();
+
 	if ((!mActive || mMinimized) && mBoard)
 	{
 		mBoard->ResetFPSStats();
@@ -3324,4 +3461,13 @@ bool LawnApp::NeedRegister()
 void LawnApp::UpdateRegisterInfo()
 {
 
+}
+
+void LawnApp::DisconnectOnline()
+{
+    const bool inLevel = mBoard != nullptr;
+    if (mOnlineSession) mOnlineSession->Close();
+    KillDialog(DIALOG_ONLINE);
+    if (inLevel || mOnlineWaitingStartAck || mOnlineStartPromptActive) DoBackToMain(false);
+    mOnlineWasConnected = false;
 }

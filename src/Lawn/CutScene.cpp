@@ -1371,6 +1371,7 @@ bool CutScene::IsShowingCrazyDave()
 
 void CutScene::Update()
 {
+	if (mApp->mRunIntroHeld) return;
 	if (mPreUpdatingBoard)
 		return;
 

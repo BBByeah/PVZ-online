@@ -25,6 +25,9 @@
 #include <format>
 #include "ZenGarden.h"
 #include "BoardInclude.h"
+#include "Online/NetSession.h"
+#include "Online/NetworkLog.h"
+#include "ModText.h"
 #include "Run/RunState.h"
 #include "Run/RunZombieRoster.h"
 #include "LawnCommon.h"
@@ -351,6 +354,7 @@ void Board::TryToSaveGame()
 
 bool Board::NeedSaveGame()
 {
+	if (mOnlineBoard) return false;
 	// @pvz-online: checkpoints use their own format; never overwrite adventure mid-level saves.
 	if (mApp->mRunState) return false;
 	return
@@ -705,7 +709,7 @@ void Board::PickZombieWaves()
 		// 各客户端只为自己的棋盘缩放，不涉协议。乘在旗帜波 ×2.5 之前。
 		// 同一倍率也放大每波数量封顶（下面 aWaveZombieCap）：1 号位 32 倍时 20 → 640 只。
 		// 2026-10-06：公式抽到 LawnApp::OnlineSeatMultiplier（顺位开局阳光同用）。
-		int aSeatMult = 1;
+		int aSeatMult = mApp->OnlineSeatMultiplier();
 
 		// @pvz-online: 出怪难度档（2026-10-03 用户定案）：房主开局前选的全局旋钮，
 		// 直接乘在顺位乘数上——轻松 ×0.5 / 高压 ×2.0，乘后向下取整、保底 1 倍
@@ -875,17 +879,16 @@ void Board::PickZombieWaves()
 
 int Board::GetLevelRandSeed()
 {
-	if (mApp->mRunState) return mApp->mRunState->GetLevelSeed();
-	int aRndSeed = mApp->mPlayerInfo->mId + mBoardRandSeed;
-	if (mApp->IsAdventureMode())
-	{
-		aRndSeed += mApp->mPlayerInfo->mFinishedAdventure * 101 + mLevel;
-	}
-	else
-	{
-		aRndSeed += mChallenge->mSurvivalStage * 101 + mApp->mGameMode;
-	}
-	return aRndSeed;
+	// @pvz-online: 联机局里两边的波表必须同源，客户端直接用主机广播的那一份——
+	// 本机自己算永远对不上（这个式子里有各自的存档 ID 和各自的开局随机数）。
+	int anOnlineLevel = 0, anOnlineSeed = 0;
+	if (mApp->GetOnlineStartOverride(anOnlineLevel, anOnlineSeed))
+		return anOnlineSeed;
+
+	// 非冒险模式才碰 mChallenge（原式就是如此），所以先分流再取生存阶段
+	int aSurvivalStage = mApp->IsAdventureMode() ? 0 : mChallenge->mSurvivalStage;
+	return ComputeLevelRandSeed(mBoardRandSeed, mApp->IsAdventureMode(), mApp->mPlayerInfo->mId,
+		mApp->mPlayerInfo->mFinishedAdventure, mLevel, aSurvivalStage, (int)mApp->mGameMode);
 }
 
 void Board::LoadBackgroundImages()
@@ -1429,6 +1432,7 @@ void Board::GetZenButtonRect(GameObjectType theObjectType, Rect& theRect)
 
 void Board::InitLevel()
 {
+	mOnlineBoard = mApp->IsOnlineGame();
 	mRunBossZombieID = ZombieID::ZOMBIEID_NULL;
 	mMainCounter = 0;
 	mBoardUpdateCounter = 0;
@@ -1441,7 +1445,9 @@ void Board::InitLevel()
 	{
 		mApp->mMusic->StopAllMusic();
 	}
-	mLevel = mApp->mRunState ? mApp->mRunState->GetLevel() : mApp->IsAdventureMode() ? mApp->mPlayerInfo->mLevel : 0;
+    int level = 0, seed = 0;
+    if (mApp->GetOnlineStartOverride(level, seed)) mLevel = level;
+    else mLevel = mApp->mRunState ? mApp->mRunState->GetLevel() : mApp->IsAdventureMode() ? mApp->mPlayerInfo->mLevel : 0;
 	PickBackground();
 	InitZombieWaves();
 	if (aGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED || aGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED_TWIST ||
@@ -1466,6 +1472,8 @@ void Board::InitLevel()
 		mSunMoney = 50;
 	}
 
+	mSunMoney += mApp->OnlineStartSunBonus();
+	if (mApp->IsRunMode()) mSunMoney = std::max(50, mSunMoney);
 	memset(mRowPickingArray, 0, sizeof(mRowPickingArray));
 	for (int aRow = 0; aRow < MAX_GRID_SIZE_Y; aRow++)
 	{
@@ -1648,6 +1656,7 @@ Reanimation* Board::CreateRakeReanim(float theRakeX, float theRakeY, int theRend
 
 void Board::PlaceRake()
 {
+	if (mApp->IsOnlineGame()) return;
 	if (mApp->mRunState) return;
 	if (!mApp->mPlayerInfo->mPurchases[StoreItem::STORE_ITEM_RAKE])
 		return;
@@ -1701,21 +1710,32 @@ void Board::PlaceRake()
 
 void Board::InitLawnMowers()
 {
-	// PC single-player runs have no mower; persistent last-seat mowers belong to the later relay port.
-	if (mApp->mRunState) return;
 	GameMode aGameMode = mApp->mGameMode;
-	// levels that never have lawn mowers
-	if (aGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED || aGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED_TWIST ||
+	// 这里优化一下原版的代码，事先列举一些不创建小推车的关卡
+	// @pvz-online: 末位推车（2026-10-03 用户定案）：漏怪链的末位玩家、多人局，每行发一台车——
+	// 链到他为止，再漏就是全队败，房前给他留一重兜底。整局一次性：用过的行记在 RunState
+	// （检查点 v5），跨关不再补。非末位照旧没有车：他们的漏怪要传给队友，房前不留兜底；
+	// 单机闯关也没有（房前不留兜底，早先已拍板）。
+	bool aOnlineLastSeat = mApp->IsOnlineGame() && mApp->mOnlineSession->IsLastRelaySeat();
+	if ((!aOnlineLastSeat && (mApp->IsOnlineGame() || mApp->IsRunMode())) ||
+		aGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED || aGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED_TWIST ||
 		aGameMode == GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN || aGameMode == GameMode::GAMEMODE_TREE_OF_WISDOM ||
 		aGameMode == GameMode::GAMEMODE_CHALLENGE_LAST_STAND || aGameMode == GameMode::GAMEMODE_CHALLENGE_ZOMBIQUARIUM ||
-		mApp->IsSquirrelLevel() || mApp->IsIZombieLevel() || (StageHasRoof() && !mApp->mPlayerInfo->mPurchases[StoreItem::STORE_ITEM_ROOF_CLEANER]))
+		mApp->IsSquirrelLevel() || mApp->IsIZombieLevel() ||
+		// 末位联机不认屋顶清洁车的购买位：全队的兜底不挂在一件商店购买上（车本身照旧
+		// 按场景定型——屋顶关是屋顶清洁车型，见 LawnMowerInitialize）
+		(!aOnlineLastSeat && StageHasRoof() && !mApp->mPlayerInfo->mPurchases[StoreItem::STORE_ITEM_ROOF_CLEANER]))
 		return;
 
 	for (int aRow = 0; aRow < MAX_GRID_SIZE_Y; aRow++)
 	{
+		// 这一局（闯关）已经用掉的行不再发车——RunState 里跨关、跨检查点记着
+		if (aOnlineLastSeat && mApp->IsRunMode() && (mApp->GetRunState()->mMowerUsedRows & (1u << aRow)) != 0)
+			continue;
+
 		if ((aGameMode == GameMode::GAMEMODE_CHALLENGE_RESODDED && aRow <= 4) ||
-			(mApp->IsAdventureMode() && mLevel == 35) ||   // no row check here, so adventure 4-5 gets mowers on all 6 rows
-			(!mApp->IsScaryPotterLevel() && mPlantRow[aRow] != PlantRowType::PLANTROW_DIRT))  // Scary Potter levels only have dirt rows, so they get no mowers
+			(mApp->IsAdventureMode() && mLevel == 35) ||   // 这里原版没有对于行的判断，故冒险模式 4-5 关卡有 6 行小推车
+			(!mApp->IsScaryPotterLevel() && mPlantRow[aRow] != PlantRowType::PLANTROW_DIRT))  // 除冒险模式 4-5 关卡外的破罐者模式关卡无小推车
 		{
 			LawnMower* aLawnMower = mLawnMowers.DataArrayAlloc();
 			aLawnMower->LawnMowerInitialize(aRow);
@@ -1928,6 +1948,7 @@ void Board::CompleteEndLevelSequenceForSaving()
 
 void Board::FadeOutLevel()
 {
+	if (mApp->IsOnlineGame()) return;
 	if (mApp->mRunState)
 	{
 		ClearCursor();
@@ -5465,20 +5486,45 @@ void Board::PuzzleSaveStreak()
 	}
 }
 
-void Board::ZombiesWon(Zombie* theZombie)
+void Board::ZombiesWon(Zombie* theZombie, bool theFromPeer)
 {
 	if (mApp->mGameScene == GameScenes::SCENE_ZOMBIES_WON)
 		return;
-	if (mApp->mRunState && mApp->mBoardResult != BoardResult::BOARDRESULT_LOST)
-		mApp->NoteRunFailure();
+
+	// @pvz-online: theFromPeer = 队友那边先丢的草坪，这条是"照着演一遍"的命令。下面两件事
+	// 都要绕开：不许把 GAME_OVER 再回发一遍（回声），也不用问"手上还有没有队友可传"——
+	// 全队败是既成事实，两台机器演的是同一件事（见 LawnApp::UpdateOnlineEnd）。
+	if (!theFromPeer)
+	{
+		// @pvz-online: 联机局里的漏怪一律先走传递（见 Zombie::CheckForBoardEdge），
+		// 传不成才落到这儿——那只有末席。万一别处绕过传递直接调进来，手上还有队友可传
+		// 也不能认输：认了就是把队友也一起判了。
+		if (mApp->IsOnlineGame() && mApp->mOnlineSession->GetRelayTargetSeat() != NetProto::SEAT_UNSET)
+			return;
+
+		// @pvz-online: 闯关（R4）输一关记一笔失败（进检查点，首版只存不用）。
+		// mBoardResult 已经是 LOST 说明这一败记过账了，不再重复。
+		if (mApp->IsRunMode() && mApp->mBoardResult != BoardResult::BOARDRESULT_LOST)
+		{
+			mApp->NoteRunFailure();
+		}
+
+		// @pvz-online: 到了这儿就是全队败——最后一名席位漏怪，没有下一家可传。输的不是
+		// "谁漏谁出局"，是所有人，所以先把话告诉队友（他们收到也跟着把这一局演完，
+		// 演完只有主机点得动重开，见 LawnApp::RetryOnlineLevel），本机再照原版把"房子被吃"演完。
+		// mBoardResult 已经输了就不用再报一遍。
+		if (mApp->IsOnlineGame() && mApp->mBoardResult != BoardResult::BOARDRESULT_LOST)
+		{
+			mApp->mOnlineSession->SendGameOver(NetProto::GAMEOVER_ZOMBIES_WON);
+		}
+	}
 
 	ClearAdvice(AdviceType::ADVICE_NONE);
 	mApp->mBoardResult = BoardResult::BOARDRESULT_LOST;
 
-	for (Zombie* aZombie : mZombies)
+	Zombie* aZombie = nullptr;
+	while (IterateZombies(aZombie))
 	{
-		if (aZombie->mDead)
-			continue;
 		if (aZombie == theZombie)
 			continue;
 
@@ -5498,25 +5544,25 @@ void Board::ZombiesWon(Zombie* theZombie)
 	std::string aGameOverMsg;
 	if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_ZOMBIQUARIUM)
 	{
-		aGameOverMsg = "[ZOMBIQUARIUM_DEATH_MESSAGE]";
+		aGameOverMsg = ("[ZOMBIQUARIUM_DEATH_MESSAGE]");
 	}
 	else if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_LAST_STAND)
 	{
-		std::string aFlagStr = mApp->Pluralize(GetSurvivalFlagsCompleted(), "[ONE_FLAG]", "[COUNT_FLAGS]");
-		aGameOverMsg = PvzpReplaceString("[LAST_STAND_DEATH_MESSAGE]", "{FLAGS}", aFlagStr);
+		std::string aFlagStr = mApp->Pluralize(GetSurvivalFlagsCompleted(), ("[ONE_FLAG]"), ("[COUNT_FLAGS]"));
+		aGameOverMsg = PvzpReplaceString(("[LAST_STAND_DEATH_MESSAGE]"), ("{FLAGS}"), aFlagStr);
 	}
 	else if (mApp->IsEndlessIZombie(mApp->mGameMode) || mApp->IsEndlessScaryPotter(mApp->mGameMode))
 	{
-		aGameOverMsg = PvzpReplaceNumberString("[ENDLESS_PUZZLE_DEATH_MESSAGE]", "{STREAK}", mChallenge->mSurvivalStage);
+		aGameOverMsg = PvzpReplaceNumberString(("[ENDLESS_PUZZLE_DEATH_MESSAGE]"), ("{STREAK}"), mChallenge->mSurvivalStage);
 	}
 	else if (mApp->IsIZombieLevel())
 	{
-		aGameOverMsg = "[I_ZOMBIE_DEATH_MESSAGE]";
+		aGameOverMsg = ("[I_ZOMBIE_DEATH_MESSAGE]");
 	}
 	else
 	{
 		mApp->mGameScene = GameScenes::SCENE_ZOMBIES_WON;
-		if (theZombie)  // theZombie can be null when game over is triggered without a zombie
+		if (theZombie)  // 原版此处没有对 theZombie 进行空指针判断，但加上判断后便允许绕过僵尸而直接调用游戏失败
 		{
 			theZombie->WalkIntoHouse();
 		}
@@ -5531,7 +5577,6 @@ void Board::ZombiesWon(Zombie* theZombie)
 
 	GameOverDialog* aGameOverDialog = new GameOverDialog(aGameOverMsg, true);
 	mApp->AddDialog(Dialogs::DIALOG_GAME_OVER, aGameOverDialog);
-	mApp->mWidgetManager->SetFocus(aGameOverDialog);
 
 	mApp->mMusic->StopAllMusic();
 	StopAllZombieSounds();
@@ -5598,7 +5643,7 @@ bool Board::HasLevelAwardDropped()
 void Board::UpdateSunSpawning()
 {
 	if ((StageIsNight() && !mApp->RunSkySunAtNight()) ||
-		(HasLevelAwardDropped()) ||
+		(HasLevelAwardDropped() && !OnlineWaitingForTeam()) ||
 		mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_RAINING_SEEDS ||
 		mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_ICE ||
 		mApp->mGameMode == GameMode::GAMEMODE_UPSELL ||
@@ -6124,6 +6169,7 @@ void Board::UpdateGame()
 
 void Board::Update()
 {
+	if (mApp->GetDialog(DIALOG_ONLINE_RECONNECT)) { MarkDirty(); return; }
 	PvzpHesitationBracket aHesitation("Board::Update");
 
 	Widget::Update();
@@ -9955,6 +10001,7 @@ void Board::SpawnRunBoss()
 	// 「一号位棋盘」——换位后房主可能不在 1 号位，boss 固定跟席位 1 走，不跟房主；
 	// 单机恒有）。1 号位空席（人离房释放了）时本关不刷。
 
+	if (mApp->IsOnlineGame() && mApp->mOnlineSession->GetLocalSeat() != NetProto::SEAT_HOST) return;
 	int aRows[MAX_GRID_SIZE_Y];
 	int aRowCount = 0;
 	for (int i = 0; i < MAX_GRID_SIZE_Y; i++)
@@ -9974,7 +10021,7 @@ void Board::SpawnRunBoss()
 	if (aBoss == nullptr) return;
 
 	aBoss->mScaleZombie = 2.0f;
-	int aMult = 1 * 3;
+	int aMult = mApp->OnlineSeatMultiplier() * 3;
 	aBoss->mBodyHealth = aBoss->mBodyHealth * aMult;
 	aBoss->mBodyMaxHealth = aBoss->mBodyHealth;
 	if (aBossType == ZombieType::ZOMBIE_FOOTBALL)
@@ -10019,4 +10066,99 @@ void Board::InitEndlessRunStage()
 	{
 		mWaveRowGotLawnMowered[i] = -100;
 	}
+}
+
+void Board::FillSeedBankFromRunPool()
+{
+	RunState* aRun = mApp->GetRunState();
+	mSeedBank->mNumPackets = GetNumSeedsInBank();
+	for (int i = 0; i < mSeedBank->mNumPackets; i++)
+	{
+		mSeedBank->mSeedPackets[i].SetPacketType(aRun->mPool[i]);
+	}
+	mSeedBank->UpdateWidth();
+}
+
+bool Board::TryRelayEscapedZombie(Zombie* theZombie)
+{
+	if (!mApp->IsOnlineGame()) return false;
+
+	NetProto::MsgEscapedZombie aMsg;
+	aMsg.mRow = (uint8_t)theZombie->mRow;
+	aMsg.mZombieType = (uint16_t)theZombie->mZombieType;
+	aMsg.mFlags = 0;		// v1 还没用上；留一个字节是因为加字段就要再抬一次构建号
+	aMsg.mBodyHealth = theZombie->mBodyHealth;
+	aMsg.mHelmHealth = theZombie->mHelmHealth;
+	aMsg.mShieldHealth = theZombie->mShieldHealth;
+	aMsg.mFlyingHealth = theZombie->mFlyingHealth;
+
+	// 发不出去（末席没有下一席位，或者队友刚好断了、socket 坏了）就当没传成：
+	// 宁可这边判负，也不能让这只怪凭空消失——那等于把惩罚取消了。
+	if (!mApp->mOnlineSession->SendEscapedZombie(aMsg)) return false;
+
+	theZombie->DieNoLoot();
+	return true;
+}
+
+Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBodyHealth, int theHelmHealth, int theShieldHealth, int theFlyingHealth)
+{
+	// 行号和类型是网络来的（对面包长已经校验过，但内容没有）：行号越界会直接写穿
+	// mPlantRow / mGridSquareType，类型越界会在初始化里撞到没有分支的 switch。
+	if (theRow < 0 || theRow >= MAX_GRID_SIZE_Y) return nullptr;
+	if (theZombieType < 0 || theZombieType >= ZombieType::NUM_ZOMBIE_TYPES) return nullptr;
+	// 已经没血的怪就是已经死了的怪，别把尸体摆上来（摆上来 UpdatePlaying 的血量断言也会炸）。
+	if (theBodyHealth <= 0) return nullptr;
+
+	Zombie* aZombie = AddZombieInRow(theZombieType, theRow, mCurrentWave);
+	if (aZombie == nullptr) return nullptr;		// 场上满了（AddZombieInRow 里那声 "Too many zombies!!"）
+
+	aZombie->mBodyHealth = theBodyHealth;
+	aZombie->mHelmHealth = theHelmHealth;
+	aZombie->mShieldHealth = theShieldHealth;
+	aZombie->mFlyingHealth = theFlyingHealth;
+
+	// 对面丢掉的那部分要跟着丢：本机是刚初始化的新怪，帽子/铁门/报纸都还在身上。
+	// 走游戏自己的掉装备函数、带上"不留尸体"标志——状态对了，粒子音效那些不重放。
+	// （只剩多少血那种"半残"不用管：伤害值已经覆写，下一击时游戏自己会接上。）
+	const unsigned int aQuietFlags = 1 << (int)DamageFlags::DAMAGE_DOESNT_LEAVE_BODY;
+	if (aZombie->mHelmHealth == 0) aZombie->DropHelm(aQuietFlags);
+	if (aZombie->mShieldHealth == 0) aZombie->DropShield(aQuietFlags);
+
+	return aZombie;
+}
+
+bool Board::OnlineWaitingForTeam()
+{
+	return mApp->IsOnlineGame() && mLevelAwardSpawned
+		&& mApp->mOnlineSession != nullptr && mApp->mOnlineSession->HasOtherSeats()
+		&& !mApp->mOnlineSession->IsPeerLevelDone();
+}
+
+void Board::NoteMowerConsumed(int theRow)
+{
+	if (!mApp->IsOnlineGame() || !mApp->IsRunMode()) return;
+
+	mApp->GetRunState()->mMowerUsedRows |= (1u << theRow);
+	NetworkLog("[run] the mower on row %d is spent - no more this run", theRow);
+}
+
+int Board::ComputeLevelRandSeed(int theBoardRandSeed, bool theAdventureMode, int thePlayerId,
+	int theFinishedAdventure, int theLevel, int theSurvivalStage, int theGameMode)
+{
+	int aRndSeed = thePlayerId + theBoardRandSeed;
+	if (theAdventureMode)
+	{
+		aRndSeed += theFinishedAdventure * 101 + theLevel;
+	}
+	else
+	{
+		aRndSeed += theSurvivalStage * 101 + theGameMode;
+	}
+	return aRndSeed;
+}
+
+void Board::GiveSunGift(int amount, uint8_t seat)
+{
+    mSunMoney = std::min(9990, mSunMoney + std::max(0, amount));
+    mApp->mOnlineSession->PostNotice(ModText::Format("收到 {} 号队友的 {} 阳光", "Received a sun gift from seat {}: {}", seat, amount).c_str());
 }

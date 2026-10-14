@@ -4252,7 +4252,7 @@ void Zombie::UpdateDamageStates(unsigned int theDamageFlags)
 		DropLoot();
 		StopZombieSound();
 
-		if (mBoard->HasLevelAwardDropped())
+		if (mBoard->HasLevelAwardDropped() && !mBoard->OnlineWaitingForTeam())
 		{
 			PlayDeathAnim(theDamageFlags);
 		}
@@ -4899,7 +4899,7 @@ void Zombie::CheckForBoardEdge()
 		}
 		else
 		{
-			mBoard->ZombiesWon(this);
+			if (!mBoard->TryRelayEscapedZombie(this)) mBoard->ZombiesWon(this);
 		}
 	}
 	if (mX <= aEdgeX + 70 && !mHasHead)
@@ -4916,7 +4916,7 @@ void Zombie::UpdatePlaying()
     int aZombiesCount = mBoard->mZombies.mSize;
     // @pvz-online: 等待窗里呻吟照旧（清空 ≠ 结束，见 Board::OnlineWaitingForTeam）
     if (mGroanCounter == 0 && Rand(aZombiesCount) == 0 && mHasHead && mZombieType != ZombieType::ZOMBIE_BOSS
-        && !mBoard->HasLevelAwardDropped())
+        && (!mBoard->HasLevelAwardDropped() || mBoard->OnlineWaitingForTeam()))
     {
         float aPitch = 0.0f;
         if (mApp->IsLittleTroubleLevel())
@@ -7871,7 +7871,7 @@ void Zombie::DropLoot()
 	}
 
 	TrySpawnLevelAward();
-	if (mDroppedLoot || mBoard->HasLevelAwardDropped() || !mBoard->CanDropLoot())
+	if (mDroppedLoot || (mBoard->HasLevelAwardDropped() && !mBoard->OnlineWaitingForTeam()) || !mBoard->CanDropLoot())
 		return;
 
 	mDroppedLoot = true;

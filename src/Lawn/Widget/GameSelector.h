@@ -69,6 +69,8 @@ private:
 
 public:
 	LawnApp*                    mApp;
+    bool mOnlineMenuLocked = false;
+    void SetMenuButtonsDisabled(bool disabled);
 	// Non-owning: owned by the widget container (RemoveAllWidgets(true)); do not delete or wrap in unique_ptr.
 	NewLawnButton*              mAdventureButton;
 	NewLawnButton*              mMinigameButton;

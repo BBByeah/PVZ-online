@@ -19,7 +19,7 @@
 
 ## 当前状态
 
-Build 45 已提交依赖同步完成：五档阶梯、八条僵尸强化消费者、花盆/荷叶权重、首次付费重摇、v14 与协议快照。当前 APK 为 `pvz-online-build45-arm64.apk`，28,069,036 字节，已安装 MuMu；相关检查通过，五个原存档已恢复且哈希一致。僵尸游戏投票与双端联网尚未接通。详见 [同步结果](docs/BUILD45-SYNC-STATUS.md) 与 [批次 D 计划](docs/BATCH-D-PLAN.md)。
+Build 45 规则与存档依赖已同步；本轮进一步接入房间 UI、开局/选卡就绪屏障、漏怪接力及团队玩法挂点。真实 APK 与固定 PC 原生会话验证程序完成双向建房、小卡池/十张选卡等待、漏怪接收、队伍失败和退出检查；验证程序不能替代完整 PC 游戏客户端。当前 APK 为 `pvz-online-network-arm64.apk`，28,123,956 字节，已安装 MuMu，v2 签名及 16 KB 对齐通过；五个原存档恢复且哈希一致。完整客户端、中继与跨关/重试仍待代表验收，`onlineGameReady=false`；僵尸游戏投票与游戏内联机操作 UI 仍待完成。详见 [联机结果](docs/NETWORK-GAME-STATUS.md) 与 [后续计划](docs/BATCH-D-PLAN.md)。
 
 ### 批次 C 交付记录（历史）
 

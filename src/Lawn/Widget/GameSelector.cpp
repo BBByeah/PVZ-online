@@ -76,13 +76,21 @@ GameSelector::GameSelector(LawnApp* theApp)
 	mToolTip = std::make_unique<ToolTipWidget>();
 	// @pvz-online: keep the existing adventure entry while the new run flow is ported.
 	auto* runButton = new Sexy::ButtonWidget(5001, this);
-	runButton->mLabel = ModText::Tr("闯关模式", "Roguelike Run");
+	runButton->mLabel = ModText::Tr("闯关", "Run");
 	runButton->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 28));
 	runButton->SetLabelColor(Sexy::Color(245, 230, 165));
 	runButton->SetLabelHiliteColor(Sexy::Color::White);
 	runButton->SetBkgColor(Sexy::Color(37, 83, 55));
-	runButton->Resize(30, 330, 235, 55);
+	runButton->Resize(30, 330, 112, 55);
 	AddWidget(runButton);
+
+    auto* onlineButton = new Sexy::ButtonWidget(5002, this);
+    onlineButton->mLabel = ModText::Tr("联机", "Online");
+    onlineButton->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 28));
+    onlineButton->SetLabelColor(Sexy::Color(245, 230, 165));
+    onlineButton->SetBkgColor(Sexy::Color(37, 83, 55));
+    onlineButton->Resize(152, 330, 113, 55);
+    AddWidget(onlineButton);
 
 	mAdventureButton = MakeNewButton(
 		GameSelector::GameSelector_Adventure,
@@ -745,6 +753,7 @@ void GameSelector::UpdateTooltip()
 
 void GameSelector::Update()
 {
+	if (mOnlineMenuLocked) { Widget::Update(); MarkDirty(); return; }
 	Widget::Update();
 	MarkDirty();
 	UpdateTooltip();
@@ -1185,6 +1194,8 @@ bool GameSelector::ShouldDoZenTuturialBeforeAdventure()
 
 void GameSelector::ButtonDepress(int theId)
 {
+    if (mOnlineMenuLocked) return;
+    if (theId == 5002) { mApp->DoOnlineDialog(); return; }
 	if (mSlideCounter > 0)
 		return;
 	if (theId == 5001)
@@ -1400,4 +1411,11 @@ void GameSelector::ShowAchievementsScreen()
 {
 	SlideTo(0, -mApp->mHeight);
 	mWidgetManager->SetFocus(mAchievementsWidget.get());
+}
+
+void GameSelector::SetMenuButtonsDisabled(bool disabled)
+{
+    mOnlineMenuLocked = disabled;
+    for (auto* widget : mWidgets) widget->mDisabled = disabled;
+    MarkDirty();
 }

@@ -1316,7 +1316,7 @@ void Plant::UpdateProductionPlant()
         return;
 
     // @pvz-online: 联机等待窗里照常生产（清空 ≠ 结束，见 Board::OnlineWaitingForTeam）
-    if (mBoard->HasLevelAwardDropped())
+    if (mBoard->HasLevelAwardDropped() && !mBoard->OnlineWaitingForTeam())
         return;
 
     if (mSeedType == SeedType::SEED_MARIGOLD && mBoard->mCurrentWave == mBoard->mNumWaves)

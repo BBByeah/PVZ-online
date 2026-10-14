@@ -368,6 +368,7 @@ void LawnMower::Draw(Graphics* g)
 
 void LawnMower::Die()
 {
+	mBoard->NoteMowerConsumed(mRow);
 	mDead = true;
 	mApp->RemoveReanimation(mReanimID);
 	if (mBoard->mBonusLawnMowersRemaining > 0 && !mBoard->HasLevelAwardDropped())
@@ -386,6 +387,7 @@ void LawnMower::StartMower()
 		return;
 	}
 
+	mBoard->NoteMowerConsumed(mRow);
 	Reanimation* aMowerReanim = mApp->ReanimationGet(mReanimID);
 	if (mMowerType == LawnMowerType::LAWNMOWER_POOL)
 	{

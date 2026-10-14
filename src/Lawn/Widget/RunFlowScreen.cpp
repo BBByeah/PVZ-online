@@ -36,6 +36,7 @@ RunFlowScreen::RunFlowScreen(LawnApp* app, bool modePage) : mApp(app), mModePage
         for (int i = 0; i < 6; ++i)
             mOptionButtons[i] = addButton(20 + i, "", 35 + (i % 3) * 250, 255 + (i / 3) * 68, 230, 52);
         RefreshOptionLabels();
+        mZombieBuffButton = addButton(27, ModText::Tr("僵尸强化：关", "Zombie boosts: off"), 35, 455, 230, 42);
         const char* ladders[] = { "1.33", "1", "1.2", "1.5", "2" };
         mLadderButton = addButton(26, ModText::Format("场景阶梯：×{}", "Scene ladder: x{}", ladders[mLadder]), 35, 391, 230, 52);
         mBuffMultButton = addButton(14, ModText::Format("增益倍选：×{}", "Buff picks: x{}", RunState::BuffMultValueFor(mBuffMult)), 285, 391, 230, 52);
@@ -53,7 +54,7 @@ RunFlowScreen::RunFlowScreen(LawnApp* app, bool modePage) : mApp(app), mModePage
             addButton(i, label ? label : "Plant", 48 + i * 240, 205, 224, 95)->SetDisabled(!valid);
         }
         const int cost = run.GetPaidRerollCost();
-        addButton(4, ModText::Format("重摇 -{}", "Reroll -{}", cost), 90, 450, 250, 60)
+        addButton(4, ModText::Format("重摇 -{}", "Reroll -{}", LawnApp::GetMoneyString(cost)), 90, 450, 250, 60)
             ->SetDisabled(app->mPlayerInfo->mCoins < cost);
         addButton(5, ModText::Tr("跳过", "Skip"), 460, 450, 250, 60);
     }
@@ -93,8 +94,8 @@ void RunFlowScreen::Draw(Sexy::Graphics* g)
         g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 28));
         g->DrawString(ModText::Tr("通过五个场景，逐步收集植物和增益。", "Build your collection as you progress through five scenes."), 60, 135);
         g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 20));
-        g->DrawString(ModText::Tr("无尽锁定场景；场景阶梯仅影响有限关卡。", "Endless locks its scene; scene ladder applies to finite runs."), 70, 475);
-        g->DrawString(ModText::Tr("僵尸强化投票将在联机阶段开放。", "Zombie buff voting will open with multiplayer."), 70, 501);
+        g->DrawString(ModText::Tr("无尽锁定场景；场景阶梯仅影响有限关卡。", "Endless locks its scene; scene ladder applies to finite runs."), 285, 475);
+        g->DrawString(ModText::Tr("新场景投票；可选择弃权。", "Vote in a new scene; abstaining is allowed."), 70, 501);
     }
     else
     {
@@ -102,7 +103,7 @@ void RunFlowScreen::Draw(Sexy::Graphics* g)
         g->DrawString(run.IsEndless() ? ModText::Format("无尽第 {} 关   植物：{}", "Endless level {}   Plants: {}", run.mLevelIndex + 1, run.mPool.size()) :
             ModText::Format("第 {} / {} 关   植物：{}", "Level {} / {}   Plants: {}", run.mLevelIndex + 1, run.GetLevelCount(), run.mPool.size()), 70, 135);
         g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 22));
-        g->DrawString(ModText::Format("金币 {}   增益倍选 ×{}", "Coins {}   Buff picks x{}", mApp->mPlayerInfo->mCoins, RunState::BuffMultValueFor(run.mBuffMult)), 70, 170);
+        g->DrawString(ModText::Format("金币 {}   增益倍选 ×{}", "Coins {}   Buff picks x{}", LawnApp::GetMoneyString(mApp->mPlayerInfo->mCoins), RunState::BuffMultValueFor(run.mBuffMult)), 70, 170);
         if (!run.IsPlantPick())
         {
             for (int i = 0; i < RunState::RUN_CHOICES; ++i)
@@ -140,6 +141,12 @@ void RunFlowScreen::ButtonDepress(int id)
             RefreshOptionLabels();
             return;
         }
+        if (id == 27)
+        {
+            mZombieBuff = (mZombieBuff + 1) % 3;
+            mZombieBuffButton->mLabel = ModText::Format("僵尸强化：{}", "Zombie boosts: {}", mZombieBuff ? std::to_string(mZombieBuff) : ModText::Tr("关", "off"));
+            MarkDirty(); return;
+        }
         if (id == 26)
         {
             mLadder = (mLadder + 1) % 5;
@@ -158,7 +165,7 @@ void RunFlowScreen::ButtonDepress(int id)
         if (id == 13) mApp->ResumeRun();
         else if ((id >= 10 && id <= 12) || id == 15)
             mApp->StartRun(id == 15 ? RunState::RUN_MODE_ENDLESS : id - 10, mBuffMult,
-                mDifficulty, mScale, mTempo, mZombotany, mEndlessScene, mBossFlag, mLadder);
+                mDifficulty, mScale, mTempo, mZombotany, mEndlessScene, mBossFlag, mLadder, mZombieBuff);
         return;
     }
     RunState& run = *mApp->mRunState;

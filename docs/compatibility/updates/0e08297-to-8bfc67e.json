@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "0e08297fb047cda41b735d7be092a2bdf499ca90",
+  "baselineBuild": 45,
+  "candidateCommit": "8bfc67ea9c85be37cac0a182c3416f3add2c1640",
+  "candidateBuild": 46,
+  "candidateProtocol": 1,
+  "automaticallyApplied": false,
+  "changes": [
+    {
+      "status": "M",
+      "path": "ConstEnums.h",
+      "review": "枚举编号、定义/缓存边界、输入校验"
+    },
+    {
+      "status": "M",
+      "path": "Lawn/Board.cpp",
+      "review": "开局/就绪屏障、团队结算、难度、生命周期"
+    },
+    {
+      "status": "M",
+      "path": "Lawn/Board.h",
+      "review": "开局/就绪屏障、团队结算、难度、生命周期"
+    },
+    {
+      "status": "M",
+      "path": "Lawn/ModText.cpp",
+      "review": "人工审查相关性，不自动复制无关 Windows 文件"
+    },
+    {
+      "status": "M",
+      "path": "Lawn/ModText.h",
+      "review": "人工审查相关性，不自动复制无关 Windows 文件"
+    },
+    {
+      "status": "M",
+      "path": "Lawn/Online/NetProtocol.h",
+      "review": "线格式、会话语义、双端版本/能力核对"
+    },
+    {
+      "status": "M",
+      "path": "Lawn/Online/NetSession.cpp",
+      "review": "线格式、会话语义、双端版本/能力核对"
+    },
+    {
+      "status": "M",
+      "path": "Lawn/Online/NetSession.h",
+      "review": "线格式、会话语义、双端版本/能力核对"
+    },
+    {
+      "status": "A",
+      "path": "Lawn/Run/RunMath.h",
+      "review": "闯关规则、确定性抽取、检查点兼容、迁移矩阵"
+    },
+    {
+      "status": "M",
+      "path": "Lawn/Run/RunState.cpp",
+      "review": "闯关规则、确定性抽取、检查点兼容、迁移矩阵"
+    },
+    {
+      "status": "M",
+      "path": "Lawn/Run/RunState.h",
+      "review": "闯关规则、确定性抽取、检查点兼容、迁移矩阵"
+    },
+    {
+      "status": "M",
+      "path": "Lawn/Widget/RunPickDialog.cpp",
+      "review": "Android 交互与中英文 UI 适配"
+    },
+    {
+      "status": "A",
+      "path": "Lawn/Widget/ZombieVoteDialog.cpp",
+      "review": "Android 交互与中英文 UI 适配"
+    },
+    {
+      "status": "A",
+      "path": "Lawn/Widget/ZombieVoteDialog.h",
+      "review": "Android 交互与中英文 UI 适配"
+    },
+    {
+      "status": "M",
+      "path": "Lawn/Zombie.cpp",
+      "review": "效果消费者、实体默认值、局内存档、漏怪/观战状态"
+    },
+    {
+      "status": "M",
+      "path": "Lawn/Zombie.h",
+      "review": "效果消费者、实体默认值、局内存档、漏怪/观战状态"
+    },
+    {
+      "status": "M",
+      "path": "LawnApp.cpp",
+      "review": "开局/就绪屏障、团队结算、难度、生命周期"
+    },
+    {
+      "status": "M",
+      "path": "LawnApp.h",
+      "review": "开局/就绪屏障、团队结算、难度、生命周期"
+    },
+    {
+      "status": "M",
+      "path": "SexyAppFramework/CMakeLists.txt",
+      "review": "人工审查相关性，不自动复制无关 Windows 文件"
+    },
+    {
+      "status": "M",
+      "path": "docs/03-过程与问题.md",
+      "review": "人工审查相关性，不自动复制无关 Windows 文件"
+    },
+    {
+      "status": "M",
+      "path": "docs/04-联机-M2.md",
+      "review": "人工审查相关性，不自动复制无关 Windows 文件"
+    },
+    {
+      "status": "M",
+      "path": "docs/07-强度与难度调整日志.md",
+      "review": "人工审查相关性，不自动复制无关 Windows 文件"
+    },
+    {
+      "status": "M",
+      "path": "docs/08-更新日志.md",
+      "review": "人工审查相关性，不自动复制无关 Windows 文件"
+    },
+    {
+      "status": "A",
+      "path": "docs/交接-2026-10-14-MOD45批与两修复.md",
+      "review": "人工审查相关性，不自动复制无关 Windows 文件"
+    }
+  ]
+}

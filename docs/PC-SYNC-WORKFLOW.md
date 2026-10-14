@@ -4,11 +4,11 @@
 
 ## 当前固定版本
 
-[pc-source-baseline.json](compatibility/pc-source-baseline.json) 是 Android 已迁规则的唯一来源清单：PC `0e08297` / Build 45 / Protocol 1。生成的 `src/Lawn/Run/PortVersion.h` 用于界面规则版本和会话编译断言。元数据检查只证明清单、头文件和协议常量一致，不替代效果消费者审查或双端运行。
+[pc-source-baseline.json](compatibility/pc-source-baseline.json) 是 Android 已迁规则的唯一来源清单：PC `8bfc67e` / Build 46 / Protocol 1。生成的 `src/Lawn/Run/PortVersion.h` 用于界面规则版本和会话编译断言。元数据检查只证明清单、头文件和协议常量一致，不替代效果消费者审查或双端运行。
 
 `onlineGameReady=false` 目前保持不变：房间和游戏侧开局、就绪、漏怪与团队结算已接入，开发入口可用于验收。真实 Android 与固定 PC 原生会话端双向检查已通过，但完整 PC 游戏客户端仍待验收；见 [联机结果](NETWORK-GAME-STATUS.md)。还不能把手机与 PC 显示相同 Build 当作所有对局路径兼容。
 
-Build 44→45 的首次审计列出 21 个变更文件，涉及规则/实体、检查点、队伍投票协议和 UI；见 [历史候选报告](compatibility/updates/61c37d6-to-0e08297.md)。已提交依赖现已迁入；游戏侧僵尸投票仍缺 PC 来源调用，继续等待新的固定提交或两端共用方案。
+Build 44→45 的首次审计列出 21 个变更文件，涉及规则/实体、检查点、队伍投票协议和 UI；见 [历史候选报告](compatibility/updates/61c37d6-to-0e08297.md)。已提交依赖现已迁入；Build 46 已补齐投票调用，并增加首领接力/血量上限线格式；本轮已迁入，见 [手机协作与同步](MOBILE-COOP-STATUS.md) 及 [45→46 审计](compatibility/updates/0e08297-to-8bfc67e.md)。
 
 ## 更新顺序
 
@@ -20,7 +20,7 @@ Build 44→45 的首次审计列出 21 个变更文件，涉及规则/实体、�
 
 ```powershell
 # 从 Android 仓库运行；只读指定 PC 提交，不写 PC 工作区。
-.\tools\sync\audit-pc-update.ps1 -PcRepository ..\re-plants-vs-zombies -Candidate 0e08297
+.\tools\sync\audit-pc-update.ps1 -PcRepository ..\re-plants-vs-zombies -Candidate 8bfc67ea9c85be37cac0a182c3416f3add2c1640
 
 # 在实际迁移完成并更新来源清单后生成；协议常量不一致会直接报错。
 .\tools\sync\generate-port-version.ps1
@@ -33,4 +33,4 @@ APK 构建脚本会检查生成头和固定协议常量，防止来源清单已�
 
 联机接入时继续沿用 PC 的 START_LEVEL 全部参数、就绪屏障、席位乘数、漏怪/观战字段与团队结算。只有双方一起更新时才能扩展线格式；未经完整适配的旧版本连接策略要明确，不只看 PROTOCOL_VERSION。当前 PC 会话允许 Build 不同并提示，这项来源行为不等于 Android 已保证跨 Build 战斗兼容。
 
-当前固定来源已推进至 Build 45 / `0e08297`，规则、实体、RunState 和 NetSession 依赖已迁入，详见 [同步结果](BUILD45-SYNC-STATUS.md)。该 PC 提交还没有游戏侧开票/计票调用；Android 同样保留这一未完成状态。后续投票要把多人选择、共享结果与检查点记账一起接入，再开放入口。Android 已有的独立源码、APK 与资源隔离方式保持不变；正版素材不进入共享仓库。
+当前固定来源已推进至 Build 46 / `8bfc67e`，规则、实体、RunState、协议和投票游戏流程已迁入。手机协作入口使用相同的快捷聊天/送阳光消息；不同 Build 能入房不代表不同线格式可混用，完整双端玩法应使用双方同一固定 Build 46。实际源码迁入与有限验证见 [本轮结果](MOBILE-COOP-STATUS.md)。Android 独立源码、APK 与资源隔离方式保留，正版素材不进入共享仓库。

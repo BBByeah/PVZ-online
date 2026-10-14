@@ -1,5 +1,16 @@
 # Android 开发更新记录
 
+## 2026-10-14 · 手机协作与 Build 46
+
+- 记录非原版风格 UI 清单与替换顺序；整体美术重做尚未执行。
+- 三个石材触屏按钮实现快捷消息、植物表情与送阳光；沿 PC 的 ID、扣款/到账/冷却，接收横幅和阳光展示不重复入账。
+- 固定 Build 46 同步血量饱和计算、首领血量上限接力、16 位投票与原生投票框、重摇币面显示修正。
+- MuMu 与固定 Windows 会话验证端完成代表检查；完整 PC 战斗与跨关仍待验收。APK 与保存边界见 [执行记录](MOBILE-COOP-STATUS.md)。
+
+### English
+
+Added touch chat, plant emotes and targeted sun gifts using PC rules and native stone art. Pinned Build 46 ports saturated health, relayed boss identity/max HP, 16-bit votes with a native dialog, and coin display fixes. A UI style audit records the later reskin work. Representative native-peer checks passed; full PC gameplay and team transitions remain pending.
+
 ## 2026-10-14 · 中继连接流程修复
 
 - 核对固定 PC 面板，分开「主机 IP」与「服务器」，加入房间自动使用中继端口 97，直连仍使用 27777，移除混用的端口输入框。

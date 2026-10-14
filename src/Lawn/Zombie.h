@@ -74,6 +74,8 @@ class PvzpParticleSystem;
 class Zombie : public GameObject
 {
 public:
+    static const int RUN_BOSS_MARKER = -1; // fixed PC marker
+
 	enum
 	{
 		ZOMBIE_WAVE_DEBUG = -1,

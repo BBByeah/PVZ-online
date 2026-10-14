@@ -315,6 +315,13 @@ void LawnApp::GotFocus()
 
 void LawnApp::LostFocus()
 {
+    if (mBoard)
+    {
+        mBoard->CloseQuickChatPanel();
+        mBoard->mSunGiftSelectFrames = 0;
+        mBoard->mCoopTouchCaptured = false;
+        mBoard->mCoopTouchAction = -1;
+    }
 #if (defined(__ANDROID__) && !defined(__TERMUX__)) || defined(__IPHONEOS__)
 	if (!mCheatKeys && CanPauseNow())
 	{
@@ -363,6 +370,14 @@ void LawnApp::PreNewGame(GameMode theGameMode, bool theLookForSavedGame)
 	//}
 
 	mGameMode = theGameMode;
+    if (IsLocalOnlyMode(theGameMode))
+    {
+        mOnlineWaitingStartAck = false;
+        KillDialog(DIALOG_ONLINE);
+        EraseFile(GetSavedGameName(mGameMode, mPlayerInfo->mId));
+        NewGame();
+        return;
+    }
 	if (mOnlineSession && mOnlineSession->IsActive()
 		&& mOnlineSession->GetState() != NetSession::State::DEAD)
 	{
@@ -537,6 +552,7 @@ void LawnApp::NewGame()
 
 void LawnApp::ShowGameSelector()
 {
+    ResetZombieVote();
 	KillDialog(DIALOG_GAME_OVER);
 	KillRunFlowScreen();
 	KillBoard();
@@ -1730,6 +1746,7 @@ void LawnApp::UpdateFrames()
 	UpdateOnlineEnd();
 	// 选卡等队友（SEEDS_READY）：门口拦下的那次等对面也选好，齐了撤框、重新关屏。
 	UpdateOnlineSeeds();
+	UpdateZombieVote();
 	UpdateRunPick();
 
 	if ((!mActive || mMinimized) && mBoard)

@@ -36,6 +36,7 @@ using namespace Sexy;
 class Coin : public GameObject
 {
 public:
+    bool mVisualOnly = false;
 	float                   mPosX;
 	float                   mPosY;
 	float                   mVelX;

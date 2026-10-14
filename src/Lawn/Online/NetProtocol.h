@@ -185,7 +185,7 @@ const uint16_t	PROTOCOL_VERSION	= 1;
 //        26→36）：阶梯档与 8 条强化层数都对不齐会让两边怪强度岔开，混搭必须两边同版本。
 //        旧长度（26 字节）的 START_LEVEL 被新端按串包拒掉。投票走后续三个新 MSG（20/21/22，
 //        游戏帧、中继零改动）。检查点同版升 v14。
-const uint16_t	MOD_BUILD			= 45;
+const uint16_t	MOD_BUILD			= 46;
 
 const uint16_t	DEFAULT_PORT		= 27777;
 
@@ -514,8 +514,8 @@ struct MsgPause
 	uint8_t			mPaused;
 };
 
-// ESCAPED_ZOMBIE：{ srcSeat, dstSeat, u8 row, u16 zombieType, u8 flags, i32 ×4 当前血量 }
-// 只传"当前值"。上限/入场动画等由接收方按 zombieType 重新初始化后覆写。
+// ESCAPED_ZOMBIE (MOD_BUILD 46): current HP and max HP travel together; bit 0 preserves run-boss identity.
+const uint8_t ESCAPED_FLAG_RUN_BOSS = 1;
 struct MsgEscapedZombie
 {
 	uint8_t			mSrcSeat;
@@ -527,6 +527,10 @@ struct MsgEscapedZombie
 	int32_t			mHelmHealth;
 	int32_t			mShieldHealth;
 	int32_t			mFlyingHealth;
+	int32_t         mBodyMaxHealth = 0;
+	int32_t         mHelmMaxHealth = 0;
+	int32_t         mShieldMaxHealth = 0;
+	int32_t         mFlyingMaxHealth = 0;
 };
 
 // GAME_OVER：{ srcSeat, dstSeat, u8 reason }
@@ -563,7 +567,7 @@ struct MsgSendSun
 	uint16_t		mAmount;
 };
 
-// ZOMBIE_VOTE_OPEN（MOD_BUILD 45）：{ srcSeat, dstSeat, u8 sceneIndex, u8 candidates[3] }
+// ZOMBIE_VOTE_OPEN（MOD_BUILD 46）：{ srcSeat, dstSeat, u16 sceneIndex, u8 candidates[3] }
 // 进新场景要给僵尸加强化时，房主抽 3 个不同候选（三选一口径）广播开票，各端弹投票框。
 // candidates 是 RunState::ZOMBIE_BUFF_* 的 3 个 id，顺序即候选卡顺序（投票传下标）。
 // sceneIndex 是把场景号也带上：投完票之前换场景（重打/退关）时，旧票在计票端按号丢弃、
@@ -572,22 +576,22 @@ struct MsgZombieVoteOpen
 {
 	uint8_t			mSrcSeat;
 	uint8_t			mDstSeat;
-	uint8_t			mSceneIndex;
+	uint16_t		mSceneIndex;
 	uint8_t			mCandidates[3];
 };
 
-// ZOMBIE_VOTE：{ srcSeat, dstSeat, u8 sceneIndex, u8 choice }
+// ZOMBIE_VOTE：{ srcSeat, dstSeat, u16 sceneIndex, u8 choice }
 // 我的投票：choice 0..2 = 候选下标，3 = 明确弃权（本场景不给僵尸加条、不参与兜底随机）。
 // 每席最多一票，房主先到先记、重复投只认第一条；超时未投由房主按弃权收口（客户端不发包）。
 struct MsgZombieVote
 {
 	uint8_t			mSrcSeat;
 	uint8_t			mDstSeat;
-	uint8_t			mSceneIndex;
+	uint16_t		mSceneIndex;
 	uint8_t			mChoice;
 };
 
-// ZOMBIE_VOTE_RESULT：{ srcSeat, dstSeat, u8 sceneIndex, u8 count, u8 ids[2] }
+// ZOMBIE_VOTE_RESULT：{ srcSeat, dstSeat, u16 sceneIndex, u8 count, u8 ids[2] }
 // 计票结果广播：count 0..2 = 本场景加哪几条（0 = 全队弃权、本条只当一条公示）。
 // 只驱动 UI（结果横幅/本场景公示）——**层数的权威是随后 START_LEVEL 里的 mZombieStacks
 // 快照**，乱序/丢包都不会让两端层数岔开（重连也由快照自愈）。
@@ -595,7 +599,7 @@ struct MsgZombieVoteResult
 {
 	uint8_t			mSrcSeat;
 	uint8_t			mDstSeat;
-	uint8_t			mSceneIndex;
+	uint16_t		mSceneIndex;
 	uint8_t			mCount;
 	uint8_t			mIds[2];
 };
@@ -1013,6 +1017,10 @@ inline int EncodeEscapedZombie(uint8_t* theBuffer, int theCapacity, const MsgEsc
 	aWriter.I32(theMsg.mHelmHealth);
 	aWriter.I32(theMsg.mShieldHealth);
 	aWriter.I32(theMsg.mFlyingHealth);
+	aWriter.I32(theMsg.mBodyMaxHealth);
+	aWriter.I32(theMsg.mHelmMaxHealth);
+	aWriter.I32(theMsg.mShieldMaxHealth);
+	aWriter.I32(theMsg.mFlyingMaxHealth);
 	return aWriter.Overflowed() ? -1 : aWriter.Size();
 }
 
@@ -1028,6 +1036,10 @@ inline bool DecodeEscapedZombie(const uint8_t* theData, int theSize, MsgEscapedZ
 	theMsg.mHelmHealth = aReader.I32();
 	theMsg.mShieldHealth = aReader.I32();
 	theMsg.mFlyingHealth = aReader.I32();
+	theMsg.mBodyMaxHealth = aReader.I32();
+	theMsg.mHelmMaxHealth = aReader.I32();
+	theMsg.mShieldMaxHealth = aReader.I32();
+	theMsg.mFlyingMaxHealth = aReader.I32();
 	return !aReader.Overflowed();
 }
 
@@ -1054,7 +1066,7 @@ inline int EncodeZombieVoteOpen(uint8_t* theBuffer, int theCapacity, const MsgZo
 	Writer aWriter(theBuffer, theCapacity);
 	aWriter.U8(theMsg.mSrcSeat);
 	aWriter.U8(theMsg.mDstSeat);
-	aWriter.U8(theMsg.mSceneIndex);
+	aWriter.U16(theMsg.mSceneIndex);
 	for (int i = 0; i < 3; i++) aWriter.U8(theMsg.mCandidates[i]);
 	return aWriter.Overflowed() ? -1 : aWriter.Size();
 }
@@ -1064,9 +1076,16 @@ inline bool DecodeZombieVoteOpen(const uint8_t* theData, int theSize, MsgZombieV
 	Reader aReader(theData, theSize);
 	theMsg.mSrcSeat = aReader.U8();
 	theMsg.mDstSeat = aReader.U8();
-	theMsg.mSceneIndex = aReader.U8();
+	theMsg.mSceneIndex = aReader.U16();
 	for (int i = 0; i < 3; i++) theMsg.mCandidates[i] = aReader.U8();
-	return !aReader.Overflowed();
+	// @pvz-online: legal length alone does not make candidate IDs safe or meaningful.
+	if (aReader.Overflowed()) return false;
+	for (int i = 0; i < 3; i++)
+	{
+		if (theMsg.mCandidates[i] >= 8) return false;
+		for (int j = 0; j < i; j++) if (theMsg.mCandidates[i] == theMsg.mCandidates[j]) return false;
+	}
+	return true;
 }
 
 inline int EncodeZombieVote(uint8_t* theBuffer, int theCapacity, const MsgZombieVote& theMsg)
@@ -1074,7 +1093,7 @@ inline int EncodeZombieVote(uint8_t* theBuffer, int theCapacity, const MsgZombie
 	Writer aWriter(theBuffer, theCapacity);
 	aWriter.U8(theMsg.mSrcSeat);
 	aWriter.U8(theMsg.mDstSeat);
-	aWriter.U8(theMsg.mSceneIndex);
+	aWriter.U16(theMsg.mSceneIndex);
 	aWriter.U8(theMsg.mChoice);
 	return aWriter.Overflowed() ? -1 : aWriter.Size();
 }
@@ -1084,9 +1103,9 @@ inline bool DecodeZombieVote(const uint8_t* theData, int theSize, MsgZombieVote&
 	Reader aReader(theData, theSize);
 	theMsg.mSrcSeat = aReader.U8();
 	theMsg.mDstSeat = aReader.U8();
-	theMsg.mSceneIndex = aReader.U8();
+	theMsg.mSceneIndex = aReader.U16();
 	theMsg.mChoice = aReader.U8();
-	return !aReader.Overflowed();
+	return !aReader.Overflowed(); // semantic choice errors are dropped by the session, not treated as broken framing.
 }
 
 inline int EncodeZombieVoteResult(uint8_t* theBuffer, int theCapacity, const MsgZombieVoteResult& theMsg)
@@ -1094,7 +1113,7 @@ inline int EncodeZombieVoteResult(uint8_t* theBuffer, int theCapacity, const Msg
 	Writer aWriter(theBuffer, theCapacity);
 	aWriter.U8(theMsg.mSrcSeat);
 	aWriter.U8(theMsg.mDstSeat);
-	aWriter.U8(theMsg.mSceneIndex);
+	aWriter.U16(theMsg.mSceneIndex);
 	aWriter.U8(theMsg.mCount);
 	for (int i = 0; i < 2; i++) aWriter.U8(theMsg.mIds[i]);
 	return aWriter.Overflowed() ? -1 : aWriter.Size();
@@ -1105,10 +1124,13 @@ inline bool DecodeZombieVoteResult(const uint8_t* theData, int theSize, MsgZombi
 	Reader aReader(theData, theSize);
 	theMsg.mSrcSeat = aReader.U8();
 	theMsg.mDstSeat = aReader.U8();
-	theMsg.mSceneIndex = aReader.U8();
+	theMsg.mSceneIndex = aReader.U16();
 	theMsg.mCount = aReader.U8();
 	for (int i = 0; i < 2; i++) theMsg.mIds[i] = aReader.U8();
-	return !aReader.Overflowed();
+	// @pvz-online: the banner iterates mCount, so reject out-of-array counts before queueing it.
+	if (aReader.Overflowed() || theMsg.mCount > 2) return false;
+	for (int i = 0; i < theMsg.mCount; i++) if (theMsg.mIds[i] >= 8) return false;
+	return true;
 }
 
 inline int EncodeHello(uint8_t* theBuffer, int theCapacity, const MsgHello& theMsg)

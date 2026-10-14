@@ -128,9 +128,30 @@ struct BungeeDropGrid
 class Board : public Widget, public ButtonListener
 {
 public:
+    bool QuickChatAvailable();
+    void CloseQuickChatPanel();
+    bool HandleQuickChatKey(KeyCode key);
+    bool HandleSunGiftKey(KeyCode key);
+    bool TrySendSunGift(uint8_t seat);
+    void UpdateQuickChat();
+    void PushQuickChatBanner(uint8_t seat, uint8_t id);
+    void PushCustomBanner(const char* text);
+    void DrawCoopUI(Sexy::Graphics* g);
+    int CoopHit(int x, int y);
+    void CoopAction(int action);
+    bool CoopMouseDown(int x, int y, int clicks);
+    bool CoopMouseUp(int x, int y, int clicks);
+    enum { QUICK_CHAT_BANNER_MAX=3, QUICK_CHAT_BANNER_FRAMES=500, QUICK_CHAT_PANEL_TIMEOUT=1000, QUICK_CHAT_KEY_COOLDOWN=18 };
+    struct QuickChatBanner { uint8_t mSeat=0, mId=0; int mFrames=0; char mCustom[192]{}; };
+    QuickChatBanner mChatBanners[3]{};
+    int mChatBannerCount=0, mChatPanelTimer=0, mChatInputCooldown=0;
+    bool mChatPanelOpen=false, mChatEmotePage=false;
+    int mSunGiftCooldownFrames=0, mSunGiftSelectFrames=0;
+    bool mCoopTouchCaptured=false;
+    int mCoopTouchAction=-1;
     void FillSeedBankFromRunPool();
     bool TryRelayEscapedZombie(Zombie* zombie);
-    Zombie* AddRelayedZombie(int row, ZombieType type, int body, int helm, int shield, int flying);
+    Zombie* AddRelayedZombie(int row, ZombieType type, int body, int helm, int shield, int flying, uint8_t flags, int bodyMax, int helmMax, int shieldMax, int flyingMax);
     bool OnlineWaitingForTeam();
     void NoteMowerConsumed(int row);
     void GiveSunGift(int amount, uint8_t seat);

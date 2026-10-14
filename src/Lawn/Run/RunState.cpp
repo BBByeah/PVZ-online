@@ -1,5 +1,6 @@
 #include "RunState.h"
 #include "RunBuffs.h"
+#include "../ModText.h"
 #include "RunPortSupport.h"
 #include <cstring>
 #include "../LawnCommon.h"
@@ -1206,4 +1207,69 @@ int RunState::ZombieBuffRegenPermillePerSec() const
 {
 	int aPermille = 5 * ZombieBuffCount(ZOMBIE_BUFF_REGEN);	// 0.5%/层 = 5‰
 	return (aPermille > 250) ? 250 : aPermille;				// 封顶 25%/s（层 50 起）
+}
+
+void RunState::RollZombieVoteChoices(int theLevelIndex, unsigned char theOut[RUN_ZOMBIE_VOTE_CHOICES]) const
+{
+	unsigned int aSeed = (unsigned int)mRunSeed
+		^ (0x9E3779B9u * (unsigned int)(theLevelIndex + 1))
+		^ 0x27D4EB2Fu;
+	Sexy::MTRand aRNG(aSeed);
+	int aPool[RUN_ZOMBIE_BUFF_COUNT];
+	for (int i = 0; i < RUN_ZOMBIE_BUFF_COUNT; i++) aPool[i] = i;
+	for (int i = RUN_ZOMBIE_BUFF_COUNT - 1; i > 0; i--)
+	{
+		int j = (int)aRNG.Next((unsigned long)(i + 1));
+		int aTmp = aPool[i];
+		aPool[i] = aPool[j];
+		aPool[j] = aTmp;
+	}
+	for (int i = 0; i < RUN_ZOMBIE_VOTE_CHOICES; i++) theOut[i] = (unsigned char)aPool[i];
+}
+
+// 池子 8 条的展示文案（投票框与结果横幅共用）。中文名/说明走宽字符直绘（GDI，无位图
+// 字库缺字风险）；英文名上石材按钮的位图字体路径，保持 ASCII。
+namespace
+{
+struct ZombieBuffText
+{
+	const char*	mName;		// 英文名（ASCII；按钮位图字体标签用）
+	const char*	mNameZh;	// 中文名（宽字符直绘：投票框顶行与结果横幅）
+	const char*	mDesc;		// 中文说明（UTF-8，宽字符直绘）
+	const char*	mDescEn;	// 英文说明
+};
+}
+
+static const ZombieBuffText kZombieBuffTexts[RunState::RUN_ZOMBIE_BUFF_COUNT] = {
+	{ "Swift", "迅捷", "僵尸移动速度 +30%/层（至多 ×4）", "Zombie walk speed +30% per stack (up to x4)" },
+	{ "Iron", "铁壁", "僵尸生命值 ×1.5/层（至多 ×100）", "Zombie health x1.5 per stack (up to x100)" },
+	{ "Heartguard", "护心", "单次伤害封顶 200，每层 -50（最低 50）", "Single-hit damage capped at 200, -50 per stack (min 50)" },
+	{ "Ravenous", "狂食", "每口啃咬伤害 ×2/层（至多 ×32）", "Bite damage x2 per stack (up to x32)" },
+	{ "Regen", "再生", "每秒回复 0.5% 最大生命/层（至多 25%）", "Regen 0.5% max HP per second per stack (up to 25%)" },
+	{ "Steadfast", "免控", "免疫减速、冰冻、黄油、击退、换道与魅惑", "Immune to slow, freeze, butter, knockback, lane change and charm" },
+	{ "Gravekeeper", "墓碑者", "巨人砸碎植物时，原地留下墓碑", "Gargantuars leave a gravestone where they crush a plant" },
+	{ "Ghostwalk", "无视阻挡", "普通僵尸不再停下啃咬，直接走过植物", "Normal zombies walk through plants instead of chewing them" },
+};
+
+static const ZombieBuffText& ZombieBuffTextAt(int theId)
+{
+	if (theId < 0 || theId >= RunState::RUN_ZOMBIE_BUFF_COUNT) theId = 0;
+	return kZombieBuffTexts[theId];
+}
+
+const char* GetZombieBuffName(int theId)
+{
+	return ZombieBuffTextAt(theId).mName;
+}
+
+const char* GetZombieBuffDisplayName(int theId)
+{
+	const ZombieBuffText& aText = ZombieBuffTextAt(theId);
+	return ModText::IsChinese() ? aText.mNameZh : aText.mName;
+}
+
+const char* GetZombieBuffDesc(int theId)
+{
+	const ZombieBuffText& aText = ZombieBuffTextAt(theId);
+	return ModText::IsChinese() ? aText.mDesc : aText.mDescEn;
 }

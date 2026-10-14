@@ -91,6 +91,24 @@ public:
     NetProto::MsgStartLevel mOnlineStartPromptMsg{};
     int mOnlineStartPromptFrames = 0;
     std::string mOnlineAddress = "127.0.0.1", mOnlineServer = "101.200.131.182", mOnlineRoomCode;
+    bool IsLocalOnlyMode(GameMode mode) const;
+    bool mZombieVoteActive = false;
+    int mZombieVoteLevel = -1, mZombieVoteMyChoice = -1, mZombieVoteFrames = 0;
+    unsigned char mZombieVoteCandidates[3]{};
+    int mZombieVoteVotes[3]{}, mZombieVoteAbstains = 0, mZombieVoteVotedSeats = 0;
+    unsigned int mZombieVoteSeatMask = 0;
+    std::string mZombieVotePendingBanner;
+    bool TryOpenZombieVote();
+    void UpdateZombieVote();
+    void ZombieVoteChosen(int choice);
+    std::string ZombieVoteStatusText();
+    void ZombieVoteOpenLocal(int level, const unsigned char* candidates);
+    void ZombieVoteRegister(int seat, int choice);
+    unsigned int ZombieVoteRequiredSeatMask();
+    int ZombieVoteExpectedVoters();
+    void ZombieVoteResolve();
+    void ZombieVoteCloseUI();
+    void ResetZombieVote();
     void DisconnectOnline();
     void AlignRunToHost(int seed, int index, int mode, int difficulty, int scale, int tempo,
         int zombotany, int scene, int boss, int buffMult, int ladder, int zombieBuff, const uint8_t* stacks);

@@ -69,6 +69,7 @@ void Coin::CoinInitialize(int theX, int theY, CoinType theCoinType, CoinMotion t
 	mHasBouncyArrow = false;
 	mHitGround = false;
 	mTimesDropped = 0;
+    mVisualOnly = false;
 	mPottedPlantSpec.InitializePottedPlant(SeedType::SEED_NONE);
 
 	if (IsSun())
@@ -434,7 +435,7 @@ void Coin::ScoreCoin()
 {
 	Die();
 
-	if (IsSun())
+	if (IsSun() && !mVisualOnly)
 	{
 		int aSunValue = GetSunValue();
 		mBoard->AddSunMoney(aSunValue);
@@ -568,6 +569,7 @@ void Coin::UpdateFall()
 		{
 			mHitGround = true;
 			PlayGroundSound();
+            if (mVisualOnly) Collect();
 		}
 
 		mPosY = mGroundY;

@@ -942,6 +942,7 @@ static void SyncProjectileTailPortable(PortableSaveContext& theContext, Projecti
 
 static void SyncCoinTailPortable(PortableSaveContext& theContext, Coin& theCoin)
 {
+    if (theContext.mReading) theCoin.mVisualOnly = false;
 	theContext.SyncFloat(theCoin.mPosX);
 	theContext.SyncFloat(theCoin.mPosY);
 	theContext.SyncFloat(theCoin.mVelX);

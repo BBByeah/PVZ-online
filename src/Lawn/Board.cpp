@@ -29,6 +29,7 @@
 #include "Online/NetworkLog.h"
 #include "ModText.h"
 #include "Run/RunState.h"
+#include "Run/RunMath.h"
 #include "Run/RunZombieRoster.h"
 #include "LawnCommon.h"
 #include "System/Music.h"
@@ -3327,6 +3328,7 @@ void Board::MouseMove(int x, int y)
 
 void Board::MouseDrag(int x, int y)
 {
+    if (mCoopTouchCaptured) return;
 #ifdef __ANDROID__
 	// @pvz-online: a small movement threshold keeps tapping a card available.
 	if (mTouchSeedDrag &&
@@ -4759,6 +4761,7 @@ void Board::PickUpTool(GameObjectType theObjectType)
 
 void Board::MouseDown(int x, int y, int theClickCount)
 {
+    if (CoopMouseDown(x, y, theClickCount)) return;
 #ifdef __ANDROID__
 	mTouchSeedDrag = false;
 	mTouchSeedDragMoved = false;
@@ -4994,6 +4997,7 @@ bool Board::CanInteractWithBoardButtons()
 
 void Board::MouseUp(int x, int y, int theClickCount)
 {
+    if (CoopMouseUp(x, y, theClickCount)) return;
 	Widget::MouseUp(x, y, theClickCount);
 #ifdef __ANDROID__
 	const bool aDropSeed = mTouchSeedDrag && theClickCount > 0 &&
@@ -5900,7 +5904,7 @@ void Board::UpdateProgressMeter()
 		Zombie* aBoss = GetBossZombie();
 		if (aBoss && !aBoss->IsDeadOrDying())
 		{
-			mProgressMeterWidth = 150 * (aBoss->mBodyMaxHealth - aBoss->mBodyHealth) / aBoss->mBodyMaxHealth;
+			mProgressMeterWidth = aBoss->mBodyMaxHealth > 0 ? static_cast<int>(static_cast<int64_t>(150) * (aBoss->mBodyMaxHealth - aBoss->mBodyHealth) / aBoss->mBodyMaxHealth) : 0;
 		}
 		else
 		{
@@ -6169,6 +6173,7 @@ void Board::UpdateGame()
 
 void Board::Update()
 {
+    UpdateQuickChat();
 	if (mApp->GetDialog(DIALOG_ONLINE_RECONNECT)) { MarkDirty(); return; }
 	PvzpHesitationBracket aHesitation("Board::Update");
 
@@ -7944,6 +7949,7 @@ void Board::Draw(Graphics* g)
 
 	mDrawCount++;
 	DrawGameObjects(g);
+    DrawCoopUI(g);
 }
 
 void Board::SetMustacheMode(bool theEnableMustache)
@@ -8106,6 +8112,7 @@ void Board::DoTypingCheck(KeyCode theKey)
 
 void Board::KeyDown(KeyCode theKey)
 {
+    if (HandleQuickChatKey(theKey) || HandleSunGiftKey(theKey)) return;
 	DoTypingCheck(theKey);
 
 	if (mApp->mGameScene == GameScenes::SCENE_LEVEL_INTRO &&
@@ -8922,7 +8929,7 @@ int Board::CountSunBeingCollected()
 	int aCount = 0;
 	for (Coin* aCoin : mCoins)
 	{
-		if (aCoin->mDead)
+		if (aCoin->mDead || aCoin->mVisualOnly)
 			continue;
 		if (aCoin->mIsBeingCollected && aCoin->IsSun())
 		{
@@ -10021,12 +10028,13 @@ void Board::SpawnRunBoss()
 	if (aBoss == nullptr) return;
 
 	aBoss->mScaleZombie = 2.0f;
+    aBoss->mBossMode = Zombie::RUN_BOSS_MARKER;
 	int aMult = mApp->OnlineSeatMultiplier() * 3;
-	aBoss->mBodyHealth = aBoss->mBodyHealth * aMult;
+	aBoss->mBodyHealth = RunMath::ScaleHealth(aBoss->mBodyHealth, aMult, 1);
 	aBoss->mBodyMaxHealth = aBoss->mBodyHealth;
 	if (aBossType == ZombieType::ZOMBIE_FOOTBALL)
 	{
-		aBoss->mHelmHealth = aBoss->mHelmHealth * aMult;
+		aBoss->mHelmHealth = RunMath::ScaleHealth(aBoss->mHelmHealth, aMult, 1);
 		aBoss->mHelmMaxHealth = aBoss->mHelmHealth;
 	}
 	aBoss->UpdateAnimSpeed();
@@ -10035,8 +10043,11 @@ void Board::SpawnRunBoss()
 
 bool Board::IsRunBossZombie(Zombie* theZombie)
 {
-	return theZombie != nullptr && mRunBossZombieID != ZombieID::ZOMBIEID_NULL
-		&& mRunBossZombieID == ZombieGetID(theZombie);
+	// @pvz-online: a board can receive more than one boss; a single spawn ID cannot identify all of them.
+	return theZombie != nullptr &&
+		((theZombie->mBossMode == Zombie::RUN_BOSS_MARKER &&
+		  (theZombie->mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR || theZombie->mZombieType == ZombieType::ZOMBIE_FOOTBALL)) ||
+		 (mRunBossZombieID != ZombieID::ZOMBIEID_NULL && mRunBossZombieID == ZombieGetID(theZombie)));
 }
 
 void Board::InitEndlessRunStage()
@@ -10086,11 +10097,15 @@ bool Board::TryRelayEscapedZombie(Zombie* theZombie)
 	NetProto::MsgEscapedZombie aMsg;
 	aMsg.mRow = (uint8_t)theZombie->mRow;
 	aMsg.mZombieType = (uint16_t)theZombie->mZombieType;
-	aMsg.mFlags = 0;		// v1 还没用上；留一个字节是因为加字段就要再抬一次构建号
+	aMsg.mFlags = IsRunBossZombie(theZombie) ? NetProto::ESCAPED_FLAG_RUN_BOSS : 0;
 	aMsg.mBodyHealth = theZombie->mBodyHealth;
 	aMsg.mHelmHealth = theZombie->mHelmHealth;
 	aMsg.mShieldHealth = theZombie->mShieldHealth;
 	aMsg.mFlyingHealth = theZombie->mFlyingHealth;
+	aMsg.mBodyMaxHealth = theZombie->mBodyMaxHealth;
+	aMsg.mHelmMaxHealth = theZombie->mHelmMaxHealth;
+	aMsg.mShieldMaxHealth = theZombie->mShieldMaxHealth;
+	aMsg.mFlyingMaxHealth = theZombie->mFlyingMaxHealth;
 
 	// 发不出去（末席没有下一席位，或者队友刚好断了、socket 坏了）就当没传成：
 	// 宁可这边判负，也不能让这只怪凭空消失——那等于把惩罚取消了。
@@ -10100,7 +10115,8 @@ bool Board::TryRelayEscapedZombie(Zombie* theZombie)
 	return true;
 }
 
-Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBodyHealth, int theHelmHealth, int theShieldHealth, int theFlyingHealth)
+Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBodyHealth, int theHelmHealth, int theShieldHealth, int theFlyingHealth,
+    uint8_t theFlags, int theBodyMaxHealth, int theHelmMaxHealth, int theShieldMaxHealth, int theFlyingMaxHealth)
 {
 	// 行号和类型是网络来的（对面包长已经校验过，但内容没有）：行号越界会直接写穿
 	// mPlantRow / mGridSquareType，类型越界会在初始化里撞到没有分支的 switch。
@@ -10108,6 +10124,9 @@ Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBod
 	if (theZombieType < 0 || theZombieType >= ZombieType::NUM_ZOMBIE_TYPES) return nullptr;
 	// 已经没血的怪就是已经死了的怪，别把尸体摆上来（摆上来 UpdatePlaying 的血量断言也会炸）。
 	if (theBodyHealth <= 0) return nullptr;
+	if (theFlags & ~NetProto::ESCAPED_FLAG_RUN_BOSS) return nullptr;
+	const bool aRunBoss = (theFlags & NetProto::ESCAPED_FLAG_RUN_BOSS) != 0;
+	if (aRunBoss && theZombieType != ZombieType::ZOMBIE_REDEYE_GARGANTUAR && theZombieType != ZombieType::ZOMBIE_FOOTBALL) return nullptr;
 
 	Zombie* aZombie = AddZombieInRow(theZombieType, theRow, mCurrentWave);
 	if (aZombie == nullptr) return nullptr;		// 场上满了（AddZombieInRow 里那声 "Too many zombies!!"）
@@ -10116,6 +10135,17 @@ Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBod
 	aZombie->mHelmHealth = theHelmHealth;
 	aZombie->mShieldHealth = theShieldHealth;
 	aZombie->mFlyingHealth = theFlyingHealth;
+	// @pvz-online: do not infer source maximum HP from the receiving seat's freshly initialized zombie.
+	aZombie->mBodyMaxHealth = std::max(theBodyHealth, theBodyMaxHealth > 0 ? theBodyMaxHealth : aZombie->mBodyMaxHealth);
+	if (theHelmMaxHealth > 0) aZombie->mHelmMaxHealth = std::max(theHelmHealth, theHelmMaxHealth);
+	if (theShieldMaxHealth > 0) aZombie->mShieldMaxHealth = std::max(theShieldHealth, theShieldMaxHealth);
+	if (theFlyingMaxHealth > 0) aZombie->mFlyingMaxHealth = std::max(theFlyingHealth, theFlyingMaxHealth);
+	if (aRunBoss)
+	{
+		aZombie->mBossMode = Zombie::RUN_BOSS_MARKER;
+		aZombie->mScaleZombie = 2.0f;
+		aZombie->UpdateAnimSpeed();
+	}
 
 	// 对面丢掉的那部分要跟着丢：本机是刚初始化的新怪，帽子/铁门/报纸都还在身上。
 	// 走游戏自己的掉装备函数、带上"不留尸体"标志——状态对了，粒子音效那些不重放。
@@ -10155,10 +10185,4 @@ int Board::ComputeLevelRandSeed(int theBoardRandSeed, bool theAdventureMode, int
 		aRndSeed += theSurvivalStage * 101 + theGameMode;
 	}
 	return aRndSeed;
-}
-
-void Board::GiveSunGift(int amount, uint8_t seat)
-{
-    mSunMoney = std::min(9990, mSunMoney + std::max(0, amount));
-    mApp->mOnlineSession->PostNotice(ModText::Format("收到 {} 号队友的 {} 阳光", "Received a sun gift from seat {}: {}", seat, amount).c_str());
 }

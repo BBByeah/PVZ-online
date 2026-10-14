@@ -43,6 +43,7 @@ void LawnApp::StartRun(int mode, int buffMult, int difficulty, int scale, int te
     if (!IsOnlineStartAllowed() && !(mOnlineSession && mOnlineSession->GetRole() == NetSession::Role::HOST && mOnlineSession->GetState() == NetSession::State::LISTENING))
     { DoOnlineDialog(); return; }
 
+    ResetZombieVote();
     KillRunFlowScreen();
     KillBoard();
     KillGameSelector();
@@ -54,6 +55,7 @@ void LawnApp::StartRun(int mode, int buffMult, int difficulty, int scale, int te
 
 void LawnApp::ResumeRun()
 {
+    ResetZombieVote();
     if (!IsOnlineStartAllowed() && !(mOnlineSession && mOnlineSession->GetRole() == NetSession::Role::HOST && mOnlineSession->GetState() == NetSession::State::LISTENING))
     { DoOnlineDialog(); return; }
 

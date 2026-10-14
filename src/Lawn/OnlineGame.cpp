@@ -9,6 +9,7 @@
 #include "Online/NetSession.h"
 #include "Online/NetworkLog.h"
 #include "Widget/OnlineDialog.h"
+#include "Widget/ZombieVoteDialog.h"
 #include "Widget/OnlineStartDialog.h"
 #include "Widget/GameSelector.h"
 #include "Widget/SeedChooserScreen.h"
@@ -564,7 +565,8 @@ void LawnApp::UpdateOnlineRelay()
 		}
 
 		Zombie* aZombie = mBoard->AddRelayedZombie((int)aMsg.mRow, (ZombieType)aMsg.mZombieType,
-			(int)aMsg.mBodyHealth, (int)aMsg.mHelmHealth, (int)aMsg.mShieldHealth, (int)aMsg.mFlyingHealth);
+			(int)aMsg.mBodyHealth, (int)aMsg.mHelmHealth, (int)aMsg.mShieldHealth, (int)aMsg.mFlyingHealth,
+            aMsg.mFlags, aMsg.mBodyMaxHealth, aMsg.mHelmMaxHealth, aMsg.mShieldMaxHealth, aMsg.mFlyingMaxHealth);
 		if (aZombie == nullptr)
 		{
 			// 满场或包内容越界。掉一只怪等于把队友的惩罚取消了，但除了日志没有别的办法。
@@ -576,7 +578,8 @@ void LawnApp::UpdateOnlineRelay()
 		NetworkLog("[net] relayed zombie is on the board: row %u type %u hp %d/%d/%d/%d",
 			(unsigned)aMsg.mRow, (unsigned)aMsg.mZombieType,
 			(int)aMsg.mBodyHealth, (int)aMsg.mHelmHealth,
-			(int)aMsg.mShieldHealth, (int)aMsg.mFlyingHealth);
+			(int)aMsg.mShieldHealth, (int)aMsg.mFlyingHealth,
+            aMsg.mFlags, aMsg.mBodyMaxHealth, aMsg.mHelmMaxHealth, aMsg.mShieldMaxHealth, aMsg.mFlyingMaxHealth);
 	}
 
 	// @pvz-online: 发阳光（MOD_BUILD 38）——队友发来的到账额直接入账（封顶 9990）+
@@ -1247,6 +1250,7 @@ void LawnApp::UpdateRunPick()
 	// 选项不再盖在主菜单 / 上一关的残局上。
 	if (mRunIntroHeld && mBoard != nullptr)
 	{
+        if (TryOpenZombieVote()) return;
 		if (mRunState->HasPendingPick())
 		{
 			if (mRunFlowScreen) return;
@@ -1336,14 +1340,16 @@ void LawnApp::UpdateRunPick()
 			if (!mOnlineWaitingStartAck && mOnlineSession->IsLocalLevelDone()
 				&& (mOnlineSession->IsPeerLevelDone() || !mOnlineSession->HasOtherSeats()))
 			{
-				EnterRunLevel();
+				if (TryOpenZombieVote()) return;
+            EnterRunLevel();
 			}
 		}
 		else if (mOnlineRunStartHeld && mOnlineRunGo && aMyLevelOver)
 		{
 			// 客户端：命令到了（held）、主机也放行了（RUN_GO）、自己的草坪打完了
 			// （或输了等着重来）：收口进场。
-			EnterRunLevel();
+			if (TryOpenZombieVote()) return;
+            EnterRunLevel();
 		}
 		else if (aMyLevelOver
 			&& (!mBoard->mAdvice->IsBeingDisplayed() || mBoard->mAdvice->mDuration < 50))
@@ -1362,7 +1368,8 @@ void LawnApp::UpdateRunPick()
 	// 会话断了的客户端不在此列（IsOnlineClient 为假）：等不来放行，照旧按单机那条路进场。
 	if (IsOnlineClient())
 	{
-		if (mOnlineRunGo) EnterRunLevel();
+		if (mOnlineRunGo) if (TryOpenZombieVote()) return;
+            EnterRunLevel();
 		return;
 	}
 	// @pvz-online: 点名已经发出去了（主机在等 START_ACK）就别再点——这条路口每帧都经过，
@@ -1370,7 +1377,8 @@ void LawnApp::UpdateRunPick()
 	// 的框会一次次重新武装（答过的又弹出来，再答一次又是一个迟到的 ACK）。
 	// 等 ACK 的收口在 UpdateOnlineStart ③：人齐在那儿直接进场，不经过这里。
 	if (mOnlineWaitingStartAck) return;
-	EnterRunLevel();
+	if (TryOpenZombieVote()) return;
+            EnterRunLevel();
 }
 
 int LawnApp::OnlineSeatMultiplier()
@@ -1422,4 +1430,319 @@ void LawnApp::DoOnlineDialog()
 	OnlineDialog* aDialog = new OnlineDialog(this);
 	CenterDialog(aDialog, aDialog->mWidth, aDialog->mHeight);
 	AddDialog(Dialogs::DIALOG_ONLINE, aDialog);
+}
+
+static const int ZOMBIE_VOTE_TIMEOUT_FRAMES = 3000;
+
+static std::string ZombieVoteBannerText(int theCount, const unsigned char* theIds)
+{
+	// @pvz-online: keep this UI consumer bounded even if an internal caller bypasses wire validation.
+	if (theCount > 2) theCount = 2;
+	std::string aText = ModText::Tr("本场景僵尸强化：", "Zombie boosts: ");
+	if (theCount <= 0)
+	{
+		aText += ModText::Tr("无", "none");
+		return aText;
+	}
+	for (int i = 0; i < theCount; i++)
+	{
+		if (i > 0) aText += ModText::Tr("、", ", ");
+		aText += GetZombieBuffDisplayName(theIds[i]);
+	}
+	return aText;
+}
+
+bool LawnApp::IsLocalOnlyMode(GameMode theGameMode) const
+{
+	return theGameMode == GAMEMODE_CHALLENGE_ZEN_GARDEN
+		|| theGameMode == GAMEMODE_TREE_OF_WISDOM
+		|| theGameMode == GAMEMODE_INTRO
+		|| theGameMode == GAMEMODE_CHALLENGE_ICE;
+}
+
+bool LawnApp::TryOpenZombieVote()
+{
+	// 票已经在开：谁走到"该进新场景"的路口都得先等这张票落地——房主的 START_LEVEL 要等
+	// 票结清才发（层数在里头）；客户端也靠这一句挡住"结果还没到就先进了关"。
+	if (mZombieVoteActive) return true;
+
+	// 只有房主 / 单机开票；客户端收 OPEN 弹框（UpdateZombieVote），不在这儿开。
+	if (mRunState == nullptr || IsOnlineClient()) return false;
+	// 追赶期不开（补做的是过去的关，票是"下一场景"的事；追上了自然轮到）。
+	if (mRunState->IsCatchingUp()) return false;
+	// 没开这一档（高级选项「僵尸 buff」默认 0）就不开票——没这回事，一帧账都不记。
+	if (mRunState->GetZombieBuffPerScene() <= 0) return false;
+
+	// 只在"该进的新场景"开票：关序号是每场景关数的整倍数（完整 5 / 普通 2 / 快速 1；
+	// 无尽档越界回落 5）。第 1 关（序号 0）不开——那是开局，不是新场景。
+	int aLevel = mRunState->GetPlayingLevelIndex();
+	int aPerScene = RunState::LevelsPerScene(mRunState->mMode);
+	if (aLevel <= 0 || aPerScene <= 0 || aLevel % aPerScene != 0) return false;
+	// 这一关已经投过（重试同一关 / 输掉重来）：不重开票——一场景一票，投过的作数。
+	if (mRunState->mZombieVotedLevel == aLevel) return false;
+
+	unsigned char aCandidates[RunState::RUN_ZOMBIE_VOTE_CHOICES];
+	mRunState->RollZombieVoteChoices(aLevel, aCandidates);
+	// 房主广播 OPEN（候选以房主这份为准——两端同种子同算法本可以各推各的，但广播一下就
+	// 不再要求"算法逐位一致"）；单机跳过协议直接弹框。
+	if (IsOnlineGame() && mOnlineSession->GetRole() == NetSession::Role::HOST)
+	{
+		mOnlineSession->SendZombieVoteOpen((uint16_t)aLevel, aCandidates);
+	}
+	ZombieVoteOpenLocal(aLevel, aCandidates);
+	return true;
+}
+
+void LawnApp::ZombieVoteOpenLocal(int theLevel, const unsigned char* theCandidates)
+{
+	// 重入防御：同一轮重复 Open 直接忽略（OPEN 重发 / 迟到都别把已经投过的一票刷掉）。
+	if (mZombieVoteActive) return;
+
+	mZombieVoteActive = true;
+	mZombieVoteLevel = theLevel;
+	for (int i = 0; i < RunState::RUN_ZOMBIE_VOTE_CHOICES; i++)
+	{
+		mZombieVoteCandidates[i] = theCandidates[i];
+		mZombieVoteVotes[i] = 0;
+	}
+	mZombieVoteAbstains = 0;
+	mZombieVoteVotedSeats = 0;
+	mZombieVoteSeatMask = 0;
+	mZombieVoteMyChoice = -1;
+	mZombieVoteFrames = 0;
+
+	if (GetDialog(Dialogs::DIALOG_ZOMBIE_VOTE) == nullptr)
+	{
+		ZombieVoteDialog* aDialog = new ZombieVoteDialog(this);
+		CenterDialog(aDialog, aDialog->mWidth, aDialog->mHeight);
+        AddDialog(Dialogs::DIALOG_ZOMBIE_VOTE, aDialog);
+	}
+	NetworkLog("[vote] opened for scene %d: candidates %d %d %d", theLevel,
+		(int)mZombieVoteCandidates[0], (int)mZombieVoteCandidates[1], (int)mZombieVoteCandidates[2]);
+}
+
+void LawnApp::ZombieVoteRegister(int theSeat, int theChoice)
+{
+	if (theSeat < 0 || theSeat >= 32) return;
+	unsigned int aBit = 1u << theSeat;
+	if (mZombieVoteSeatMask & aBit) return;		// 一席一票（重发 / 第二次点击不重计）
+	mZombieVoteSeatMask |= aBit;
+	mZombieVoteVotedSeats++;
+	if (theChoice >= 0 && theChoice < RunState::RUN_ZOMBIE_VOTE_CHOICES) mZombieVoteVotes[theChoice]++;
+	else mZombieVoteAbstains++;
+}
+
+unsigned int LawnApp::ZombieVoteRequiredSeatMask()
+{
+	// 单机：就本端一票。
+	const unsigned int aLocalBit = 1u << (mOnlineSession ? mOnlineSession->GetLocalSeat() : 0);
+	if (!IsOnlineGame()) return aLocalBit;
+
+	// 房主：应投的席位 = 已上座且不在掉线宽限里的。掉线宽限席按弃权收口（不拖满 30 秒），
+	// 中途退房的席位同理——名册一变，UpdateZombieVote 的每帧检查就会让这一票立刻结算。
+	unsigned int aMask = 0;
+	for (int i = 1; i <= NetProto::MAX_PLAYERS; i++)
+	{
+		if (mOnlineSession->IsSeatOccupied((uint8_t)i) && !mOnlineSession->IsSeatOffline((uint8_t)i)) aMask |= 1u << i;
+	}
+	return aMask ? aMask : aLocalBit;
+}
+
+int LawnApp::ZombieVoteExpectedVoters()
+{
+	unsigned int aMask = ZombieVoteRequiredSeatMask();
+	int aCount = 0;
+	for (; aMask; aMask &= aMask - 1) aCount++;
+	return aCount;
+}
+
+void LawnApp::ZombieVoteResolve()
+{
+	if (!mZombieVoteActive || mRunState == nullptr) return;
+
+	int aWant = mRunState->GetZombieBuffPerScene();
+	unsigned char aPicked[RunState::RUN_ZOMBIE_VOTE_CHOICES];
+	int aPickedCount = 0;
+	int aTotalVotes = 0;
+	for (int i = 0; i < RunState::RUN_ZOMBIE_VOTE_CHOICES; i++) aTotalVotes += mZombieVoteVotes[i];
+
+	if (aTotalVotes > 0)
+	{
+		// 有票：按票数取前 aWant 个不同候选；票数相同按候选序（候选本就是种子洗过的，
+		// "种子序"就是下标序）。
+		bool aUsed[RunState::RUN_ZOMBIE_VOTE_CHOICES] = { false, false, false };
+		for (int n = 0; n < aWant; n++)
+		{
+			int aBest = -1;
+			for (int i = 0; i < RunState::RUN_ZOMBIE_VOTE_CHOICES; i++)
+			{
+				if (aUsed[i] || mZombieVoteVotes[i] <= 0) continue;
+				if (aBest < 0 || mZombieVoteVotes[i] > mZombieVoteVotes[aBest]) aBest = i;
+			}
+			if (aBest < 0) break;
+			aUsed[aBest] = true;
+			aPicked[aPickedCount++] = mZombieVoteCandidates[aBest];
+		}
+	}
+	else if (mZombieVoteAbstains > 0)
+	{
+		// 一张有效票都没有、但有明确弃权：这一场景不加（明确表态不参与随机兜底）。
+	}
+	else
+	{
+		// 全队一个人都没表态（纯超时）：种子兜底取前 aWant——票开了就得有结果，
+		// 不能因为没人理这事儿把全队钉住（等待必须有出路）。
+		for (int n = 0; n < aWant; n++) aPicked[aPickedCount++] = mZombieVoteCandidates[n];
+	}
+
+	for (int i = 0; i < aPickedCount; i++) mRunState->AddZombieBuffStack(aPicked[i]);
+	mRunState->mZombieVotedLevel = (unsigned short)mZombieVoteLevel;
+
+	// RESULT 广播（房主）：先于同一次的 START_LEVEL 发——公示与层数快照不拧巴。
+	if (IsOnlineGame() && mOnlineSession->GetRole() == NetSession::Role::HOST)
+	{
+		uint8_t aIds[2] = { 0, 0 };
+		for (int i = 0; i < aPickedCount && i < 2; i++) aIds[i] = aPicked[i];
+		mOnlineSession->SendZombieVoteResult((uint16_t)mZombieVoteLevel, (uint8_t)aPickedCount, aIds);
+	}
+
+	// 结果横幅：结算发生在"上一关刚完、下一关还没开打"的空档，当场推会被随后的换场盖掉——
+	// 先存着，等草坪真的开打（UpdateZombieVote 每帧看）再推。
+	mZombieVotePendingBanner = ZombieVoteBannerText(aPickedCount, aPicked);
+	NetworkLog("[vote] resolved for scene %d: %d boost(s) - %s", mZombieVoteLevel, aPickedCount,
+		mZombieVotePendingBanner.c_str());
+	ZombieVoteCloseUI();
+}
+
+void LawnApp::ZombieVoteCloseUI()
+{
+	KillDialog(Dialogs::DIALOG_ZOMBIE_VOTE);
+	mZombieVoteActive = false;
+}
+
+void LawnApp::ResetZombieVote()
+{
+	// @pvz-online: an exit can interrupt a vote before RESULT; clear its UI and every per-run record.
+	ZombieVoteCloseUI();
+	mZombieVoteLevel = -1;
+	mZombieVoteMyChoice = -1;
+	mZombieVoteFrames = 0;
+	mZombieVoteAbstains = 0;
+	mZombieVoteVotedSeats = 0;
+	mZombieVoteSeatMask = 0;
+	for (int i = 0; i < RunState::RUN_ZOMBIE_VOTE_CHOICES; i++)
+	{
+		mZombieVoteCandidates[i] = 0;
+		mZombieVoteVotes[i] = 0;
+	}
+	mZombieVotePendingBanner.clear();
+}
+
+void LawnApp::ZombieVoteChosen(int theChoice)
+{
+	if (!mZombieVoteActive) return;
+	// 一席一票：本端已经投过就忽略（投票框点过就把按钮锁上了，这里是双保险）。
+	if (mZombieVoteMyChoice >= 0) return;
+	mZombieVoteMyChoice = theChoice;
+
+	if (IsOnlineClient())
+	{
+		mOnlineSession->SendZombieVote((uint16_t)mZombieVoteLevel, (uint8_t)theChoice);
+	}
+	else
+	{
+		ZombieVoteRegister(mOnlineSession != nullptr ? (int)mOnlineSession->GetLocalSeat() : 0, theChoice);
+	}
+}
+
+std::string LawnApp::ZombieVoteStatusText()
+{
+	int aSeconds = (ZOMBIE_VOTE_TIMEOUT_FRAMES - mZombieVoteFrames + 99) / 100;
+	if (aSeconds < 0) aSeconds = 0;
+
+	char aBuf[128];
+	if (IsOnlineClient())
+	{
+		snprintf(aBuf, sizeof(aBuf), ModText::Tr("还剩 %d 秒 · %s", "%ds left - %s"), aSeconds,
+			mZombieVoteMyChoice >= 0 ? ModText::Tr("已投", "voted") : ModText::Tr("未投", "not voted"));
+	}
+	else
+	{
+		unsigned int aReceived = mZombieVoteSeatMask & ZombieVoteRequiredSeatMask();
+		int aCurrentVoted = 0;
+		for (; aReceived; aReceived &= aReceived - 1) aCurrentVoted++;
+		snprintf(aBuf, sizeof(aBuf), ModText::Tr("还剩 %d 秒 · 已投 %d/%d", "%ds left - voted %d/%d"),
+			aSeconds, aCurrentVoted, ZombieVoteExpectedVoters());
+	}
+	return std::string(aBuf);
+}
+
+void LawnApp::UpdateZombieVote()
+{
+	// ① 客户端：收 OPEN（弹框）与 RESULT（公示 + 关框）。层数不在这儿动——等 START_LEVEL。
+	if (IsOnlineClient() && mOnlineSession != nullptr)
+	{
+		NetProto::MsgZombieVoteOpen aOpen;
+		while (mOnlineSession->TakePendingZombieVoteOpen(aOpen))
+		{
+			// 已经在投的票 / 已经投过的关：迟到或重发的 OPEN 不重开框（重开会把已经投过的
+			// 那一票从框上"解锁"，第二下点击又是一票——房主只认第一条，白折腾玩家）。
+			if (!mZombieVoteActive && mRunState != nullptr
+				&& mRunState->mZombieVotedLevel != (unsigned short)aOpen.mSceneIndex)
+			{
+				ZombieVoteOpenLocal((int)aOpen.mSceneIndex, aOpen.mCandidates);
+			}
+		}
+		NetProto::MsgZombieVoteResult aResult;
+		while (mOnlineSession->TakePendingZombieVoteResult(aResult))
+		{
+			if (mRunState != nullptr) mRunState->mZombieVotedLevel = (unsigned short)aResult.mSceneIndex;
+			mZombieVotePendingBanner = ZombieVoteBannerText((int)aResult.mCount, aResult.mIds);
+			if (mZombieVoteActive) ZombieVoteCloseUI();
+		}
+	}
+	// 房主：收队友的票记账（本机这一票在 ZombieVoteChosen 里直接记，不走网络）。
+	else if (mOnlineSession != nullptr)
+	{
+		NetProto::MsgZombieVote aVote;
+		while (mOnlineSession->TakePendingZombieVote(aVote))
+		{
+			if (!mZombieVoteActive || (int)aVote.mSceneIndex != mZombieVoteLevel) continue;
+			ZombieVoteRegister((int)aVote.mSrcSeat, (int)aVote.mChoice);
+		}
+	}
+
+	if (!mZombieVoteActive)
+	{
+		// ② 结果横幅：等草坪真的开打（板子在、开场放开、场景已是游玩）再推——押后见上面。
+		if (!mZombieVotePendingBanner.empty() && mBoard != nullptr && !mRunIntroHeld
+			&& mGameScene == GameScenes::SCENE_PLAYING)
+		{
+			mBoard->PushCustomBanner(mZombieVotePendingBanner.c_str());
+			mZombieVotePendingBanner.clear();
+		}
+		return;
+	}
+
+	mZombieVoteFrames++;
+
+	// ③ 收口。房主 / 单机每帧看"应投的都投了没有"——这么写一并覆盖"掉线宽限席按弃权"
+	// 与"开到一半有人退房"：名册一动，下面这个等式就成立；超时到点也走同一条结算。
+	if (!IsOnlineClient())
+	{
+		// @pvz-online: a departed voter's count must not stand in for a still-online player's missing vote.
+		const unsigned int aRequired = ZombieVoteRequiredSeatMask();
+		if ((mZombieVoteSeatMask & aRequired) == aRequired
+			|| mZombieVoteFrames > ZOMBIE_VOTE_TIMEOUT_FRAMES)
+		{
+			ZombieVoteResolve();
+		}
+	}
+	// 客户端只留一条本地兜底：RESULT 迟迟不来（房主掉线 / 丢包）也别把框和"等票"的路口
+	// 永远钉住——到两倍超时就把框撤了（层数反正只信 START_LEVEL，撤框不伤数值）。
+	else if (mZombieVoteFrames > ZOMBIE_VOTE_TIMEOUT_FRAMES * 2)
+	{
+		NetworkLog("[vote] no result from the host - closing the vote dialog locally");
+		ZombieVoteCloseUI();
+	}
 }

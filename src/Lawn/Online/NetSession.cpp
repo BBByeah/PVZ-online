@@ -24,11 +24,11 @@ const int	RUN_GO_PAYLOAD_SIZE		= 2;	// src, dst
 const int	SEEDS_READY_PAYLOAD_SIZE = 3;	// src, dst, u8 ready
 const int	SWAP_REQUEST_PAYLOAD_SIZE = 2;	// src, dst
 const int	SWAP_REPLY_PAYLOAD_SIZE = 3;	// src, dst, u8 accepted
-const int	ESCAPED_ZOMBIE_PAYLOAD_SIZE = 22;	// src, dst, u8 row, u16 type, u8 flags, i32 ×4 血量
+const int	ESCAPED_ZOMBIE_PAYLOAD_SIZE = 38; // @pvz-online: current and max HP for all four sections (MOD_BUILD 46).
 const int	SEND_SUN_PAYLOAD_SIZE	= 4;	// src, dst, u16 amount（发阳光到账额，MOD_BUILD 38）
-const int	ZOMBIE_VOTE_OPEN_PAYLOAD_SIZE = 6;	// src, dst, u8 sceneIndex, u8 candidates[3]（僵尸强化开票，MOD_BUILD 45）
-const int	ZOMBIE_VOTE_PAYLOAD_SIZE = 4;	// src, dst, u8 sceneIndex, u8 choice（0..2=候选下标、3=弃权）
-const int	ZOMBIE_VOTE_RESULT_PAYLOAD_SIZE = 6;	// src, dst, u8 sceneIndex, u8 count, u8 ids[2]
+const int	ZOMBIE_VOTE_OPEN_PAYLOAD_SIZE = 7;	// src, dst, u16 sceneIndex, u8 candidates[3]（僵尸强化开票，MOD_BUILD 45）
+const int	ZOMBIE_VOTE_PAYLOAD_SIZE = 5;	// src, dst, u16 sceneIndex, u8 choice（0..2=候选下标、3=弃权）
+const int	ZOMBIE_VOTE_RESULT_PAYLOAD_SIZE = 7;	// src, dst, u16 sceneIndex, u8 count, u8 ids[2]
 const int	HEARTBEAT_PAYLOAD_SIZE	= 6;	// src, dst, u32 tick
 const int	BYE_PAYLOAD_SIZE		= 3;	// src, dst, u8 reason
 const int	LEVEL_EXIT_PAYLOAD_SIZE	= 3;	// src, dst, u8 reason
@@ -1223,7 +1223,7 @@ bool NetSession::TakePendingSunGift(NetProto::MsgSendSun& theMsg)
 	return true;
 }
 
-bool NetSession::SendZombieVoteOpen(uint8_t theSceneIndex, const uint8_t* theCandidates3)
+bool NetSession::SendZombieVoteOpen(uint16_t theSceneIndex, const uint8_t* theCandidates3)
 {
 	// @pvz-online: 僵尸强化投票（MOD_BUILD 45）——房主抽完 3 个候选后广播开票。
 	if (mRole != Role::HOST || !IsConnected()) return false;
@@ -1253,7 +1253,7 @@ bool NetSession::TakePendingZombieVoteOpen(NetProto::MsgZombieVoteOpen& theMsg)
 	return true;
 }
 
-bool NetSession::SendZombieVote(uint8_t theSceneIndex, uint8_t theChoice)
+bool NetSession::SendZombieVote(uint16_t theSceneIndex, uint8_t theChoice)
 {
 	// 单张选票只归房主收：中继下定向发到主机那一席（扇出会把票播给别的客户端）。
 	if (mRole != Role::CLIENT || !IsConnected()) return false;
@@ -1284,7 +1284,7 @@ bool NetSession::TakePendingZombieVote(NetProto::MsgZombieVote& theMsg)
 	return true;
 }
 
-bool NetSession::SendZombieVoteResult(uint8_t theSceneIndex, uint8_t theCount, const uint8_t* theIds2)
+bool NetSession::SendZombieVoteResult(uint16_t theSceneIndex, uint8_t theCount, const uint8_t* theIds2)
 {
 	// 计票结果只驱动 UI（层数以随后的 START_LEVEL 快照为准），房主广播。
 	if (mRole != Role::HOST || !IsConnected()) return false;

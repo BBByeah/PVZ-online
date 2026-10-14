@@ -70,7 +70,8 @@ public:
 		ZOMBIE_BUFF_GRAVEKEEPER = 6,	// 墓碑者：巨人砸碎植物→原地生成墓碑
 		ZOMBIE_BUFF_GHOSTWALK = 7,	// 无视阻挡：普通僵尸直接走过植物不停下啃咬
 	};
-	static const int	RUN_ZOMBIE_BUFF_COUNT	= 8;	// 池子大小（= 上面枚举条目数）
+	static const int	RUN_ZOMBIE_BUFF_COUNT	= 8; // pool size
+    static const int RUN_ZOMBIE_VOTE_CHOICES = 3; // candidates per vote
 	static const int	RUN_ZOMBIE_VOTED_NONE	= 0xFFFF;	// mZombieVotedLevel 的"没投过"哨兵
 
 	static const int	RUN_LEVEL_COUNT		= 25;	// 完整版总关数 = 5 场景 × 5 关（数组/静态表的尺寸上限）
@@ -86,14 +87,9 @@ public:
 	// 格子填它——不是合法 id（全局 9 + 单株 48 + 第二 buff 39 都够不到），选择函数与
 	// 屏上按钮一律忽略。
 	static const unsigned short RUN_BUFF_CHOICE_NONE = 0xFFFF;
-	// @pvz-online: 三选一「重摇」底价（花园批 2026-10-13 用户拍板的三选一金币出路；同日
-	// 用户令改阶梯价；2026-10-14 用户令「第一次也要花金币」取消免费「换一批」——本常量
-	// 也是第一次的价）：同一屏里每摇一次 ×10
-	// （100 → 1000 → 10000…公式不设上限，实际被钱包上限 99999 自然封死在第三步之后），
-	// 进新的三选一屏即回到底价重新起算（见 GetPaidRerollCost）。
-	// 扣存档钱包 mCoins，与商店同源；对齐金僵尸掉落的 100。纯本地下注，不进协议——联机
-	// 双端各花各的钱、各摇各的屏。
-	static const int	RUN_PAID_REROLL_COST	= 100;
+    // Build 46: stored coins are displayed x10. Cost 10/100/1000 coins is $100/$1,000/$10,000.
+    // Each new pick screen resets this escalating cost; no free reroll.
+    static const int RUN_PAID_REROLL_COST = 10;
 
 	// @pvz-online: 出怪编排旋钮（M4-a，用户定案）：点数不封顶、数量封顶；点数多就出强僵尸。
 	// 用在 Board::PickZombieWaves / Board::PickZombieType 的闯关分支，调平衡只动这组数。
@@ -252,7 +248,8 @@ public:
 	int					ZombieBuffHealthPermille() const;		// 铁壁：1.5^层 千分比（逐层截尾），封顶 100000（×100）
 	int					ZombieBuffSingleHitCap() const;			// 护心：max(50, 250−50×层)；0 = 不封顶
 	int					ZombieBuffBitePermille() const;			// 狂食：2^层 千分比，封顶 32000（×32）
-	int					ZombieBuffRegenPermillePerSec() const;	// 再生：5×层（每秒回血的千分比），封顶 250
+	int					ZombieBuffRegenPermillePerSec() const;
+    void RollZombieVoteChoices(int level, unsigned char out[RUN_ZOMBIE_VOTE_CHOICES]) const; // fixed-seed candidates
 
 	// 该选植物 / 该选 buff 了（一局开始时先挑四株 + 两个增益——进第 1 关前手里就有 6 株；
 	// 快速版开局加厚成六株 + 四个增益，批十 2026-10-05；无尽档开局只发四个增益，2026-10-11
@@ -358,5 +355,9 @@ public:
 	int					GetSceneIndex() const;
 	int					GetDifficultyPermille() const;
 };
+
+const char* GetZombieBuffName(int id);
+const char* GetZombieBuffDisplayName(int id);
+const char* GetZombieBuffDesc(int id);
 
 #endif

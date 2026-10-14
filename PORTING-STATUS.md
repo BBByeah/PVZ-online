@@ -19,7 +19,7 @@
 
 ## 当前状态
 
-Build 45 规则与存档依赖已同步；本轮进一步接入房间 UI、开局/选卡就绪屏障、漏怪接力及团队玩法挂点。真实 APK 与固定 PC 原生会话验证程序完成双向建房、小卡池/十张选卡等待、漏怪接收、队伍失败和退出检查；验证程序不能替代完整 PC 游戏客户端。后续中继连接修复已按 PC 分开主机 IP/服务器输入，加入房间自动使用 97，真实 PC 中继房间入房与名册已确认。当前 APK 为 `pvz-online-relay-fix-arm64.apk`，28,124,068 字节，已安装 MuMu，v2 签名及 16 KB 对齐通过。完整双端战斗与跨关/重试仍待代表验收，`onlineGameReady=false`；僵尸游戏投票与游戏内联机操作 UI 仍待完成。详见 [联机结果](docs/NETWORK-GAME-STATUS.md) 与 [后续计划](docs/BATCH-D-PLAN.md)。
+当前同步至固定 PC Build 46 / `8bfc67ea9c85be37cac0a182c3416f3add2c1640`：血量计算、首领接力、16 位投票流程与重摇币面口径已迁入；手机战斗新增消息、表情、送阳光三个入口，已有房间/开局/选卡屏障保留。源码 UI 非原版风格清单已记录，整体美术替换尚未执行。最新 APK 为 `pvz-online-mobile-coop-arm64.apk`，28,165,020 字节，已安装 MuMu，v2 签名与 16 KB 对齐通过。协作与受控投票代表检查见 [本轮结果](docs/MOBILE-COOP-STATUS.md)，后续界面替换见 [UI 盘点](docs/UI-STYLE-AUDIT.md)。完整 PC 战斗/跨关仍待验收，onlineGameReady=false。
 
 ### 批次 C 交付记录（历史）
 

@@ -557,7 +557,7 @@ void RunState::PaidReroll()
 }
 
 // 这一屏当前的重摇价 = 底价 × 10^（本屏已花币重摇的次数）。循环封顶在第 7 步只是防 int
-// 溢出（100×10^7 = 1e9 仍合法）；实际到不了——存档钱包上限 99999，第 4 步 100000 就已买不起。
+// 溢出（10×10^7 = 1e8 仍合法）；实际到不了——存档钱包上限 99999，第 5 步 100000 就已买不起。
 int RunState::GetPaidRerollCost() const
 {
 	int aCost = RUN_PAID_REROLL_COST;

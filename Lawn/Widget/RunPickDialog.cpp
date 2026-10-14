@@ -101,7 +101,8 @@ RunPickDialog::RunPickDialog(LawnApp* theApp, RunState* theRun) : LawnDialog(
 	mSkipButton = MakeButton(RunPickDialog_Skip, this, ModText::Tr("放弃", "Skip"));
 	// 「重摇」（花园批 2026-10-13 加付费态；2026-10-14 用户令「第一次也要花金币」取消免费
 	// 「换一批」——单按钮不再两态，恒为付费重摇）：N = RunState::GetPaidRerollCost 的当前价
-	// （底价 100，同一屏里每摇一次 ×10：100/1000/10000…，进新一屏回底价——同日用户令）。
+	// （底价 10 币，同一屏里每摇一次 ×10：显示 $100/$1,000/$10,000…，进新一屏回底价——
+	// 2026-10-14 二次定案：玩家看到的 100/1000/10000 就是显示数，币面按 ×10 口径取）。
 	// 金额按显示口径走 GetMoneyString（币 ×10 的 $ 串）——和本屏左下角钱罐、局内钱罐、商店
 	// 是同一个串数，玩家在任何地方看到的都是同一个数。钱不够当前价（比原始币）时置灰。
 	// 置灰走框架的 Widget::mDisabled，点在派发层就被拦下（和本作其它置灰石钮同口径：

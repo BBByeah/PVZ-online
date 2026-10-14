@@ -187,6 +187,21 @@ LawnApp::LawnApp()
 	mOnlineStartPromptActive = false;
 	mOnlineStartPromptFrames = 0;
 	mOnlineSeedsHeld = false;
+	// @pvz-online: 投票这组字段一个都不能省。mZombieVoteActive 吃到堆里的脏值时会永远为真，
+	// TryOpenZombieVote 第一行「票已在进行」静默早退，UpdateRunPick 的进关路口被每帧钉住——
+	// 症状就是选完模式卡后进不去关卡、一直停在主菜单（2026-10-14 实机复现的卡死根因）。
+	mZombieVoteActive = false;
+	mZombieVoteLevel = -1;
+	mZombieVoteMyChoice = -1;
+	mZombieVoteFrames = 0;
+	mZombieVoteAbstains = 0;
+	mZombieVoteVotedSeats = 0;
+	mZombieVoteSeatMask = 0;
+	for (int i = 0; i < RunState::RUN_ZOMBIE_VOTE_CHOICES; i++)
+	{
+		mZombieVoteCandidates[i] = 0;
+		mZombieVoteVotes[i] = 0;
+	}
 }
 
 //0x44EDD0、0x44EDF0

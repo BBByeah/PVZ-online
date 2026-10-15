@@ -8,7 +8,7 @@
 - PC Release增量编译与Android Native增量编译已通过（含存档改动）；日志在仓库外 android-artifacts/relay-marker-fix/。没有修改联机消息或Go中继，不抬Build。
 - 已将可复用真实渲染探针提交到PC `tools/relay_marker_probe.cpp`；同目录probe.rsp/.exe为本机链接入口。独立产品名PvZRelayMarkerProbe隔离数据，不操作玩家47972进程，不覆盖runtime可执行文件。初始化/命令行适配问题已解决，最终探针退出0。
 - 当前玩家PC进程仍暂停在对局中，绝不能杀掉/覆盖它来验证。current-pc.png只用于看当前状态，1902×1326非1:1，不是布局验收证据。
-- Android RunBuffs.cpp/.h 是其他agent当前修改，禁止添加进本批提交。PC tools/symbols/同样不属于本轮。
+- Android RunBuffs.cpp/.h 原先是其他agent当前修改，本批未添加；收口时对方已另行提交为 `1b74abd`，与PC来源中的火力20%一致。PC tools/symbols/仍不属于本轮。
 
 ## 运行证据
 
@@ -20,7 +20,14 @@
 
 ## 接续与交付边界
 
-1. 本轮只提交Board/Board.h/Zombie/SaveGame、观战注释、固定来源和文档，不提交其他agent的RunBuffs.cpp/.h；其当前火力20%变更尚在工作区，不能在新APK中假称来自固定PC来源。
-2. 本轮未产生新APK；此前候选不含此修复。下次整合buff后统一打包，再做一次Android接收怪和保存重载定点即可，不需要全套冒烟。
+1. 本轮修复提交PC `5224048` / Android `db22f9b`。没有代替其他agent提交RunBuffs；其火力同步 `1b74abd` 已独立完成，当前共享源码与固定来源一致，可统一打包。
+2. 此前候选不含此修复，新APK以本文末产物为准。Android运行及保存重载尚未定点，不需要全套buff冒烟；本轮不覆盖安装，避免打断其他设备上的对局。
 3. PC新产物在 `re-plants-vs-zombies/build-rel-x86/SexyAppFramework.exe`。`runtime/SexyAppFramework.exe`仍是正在运行的旧程序；不能杀用户的暂停对局来覆盖，也不能声称现有进程已修复。玩家正常结束对局后再更新运行产物。
 4. 已经用旧版保存、丢失来源标记的档无法反推“哪只是接力怪”；新接收怪和新标记保存开始保留。禁止把所有在场僵尸一律标成接力怪。
+
+## 最终产物
+
+- Android候选：`../android-artifacts/pvz-online-build53-relay-marker-fix-arm64.apk`（相对仓库根），28,361,844字节。
+- SHA256：`F6DF8543B2E2960A027DBB288BAE750505973F9A543284612B712DBEB7C48B12`。
+- Native、Gradle、APK签名验证及16KB zipalign通过；没有安装设备、没有公开发布。固定来源与生成PortVersion一致。
+- PC用户进程47972仍在原路径运行；验证探针均已退出，未替换玩家运行程序和存档。

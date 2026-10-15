@@ -15,7 +15,7 @@
 #   --seed N          局种子                       --scene 0..4  无尽锁定场景
 #   --pool 0,1,...    卡池（SeedType id；默认 0,1 = 豌豆+向日葵 = StartNew 起始两株）
 #   --vouchers 0..2 --awardedlevel N   重摇券及已结算关序号（默认0/-1）
-#   --buffs id:count,...   本局 buff 叠层（id 上限 110 = 全局9 + 单株48 + 扩展表54（2026-10-15 忧郁菇 emotional damage 追加））
+#   --buffs id:count,...   本局 buff 叠层（id 上限 111 = 全局9 + 单株48 + 扩展表55（2026-10-15 坚果保龄球追加））
 #   --ladder 0..4     场景难度阶梯档               --zombiebuff 0..2  僵尸 buff 每场景档
 #   --stacks id:count,...  僵尸强化 8 条池的层数（0..7，各 0..255）
 #   --votedlevel N    上一票投在第几关（默认 0xFFFF = 没投过）
@@ -80,7 +80,7 @@ for my $s (split /,/, $OPT{pool}) {
 	push @pool, $s + 0;
 }
 @pool <= 48 or die "pool 超 48 株";
-my @buffs  = parse_pairs($OPT{buffs}, 110, 255);
+my @buffs  = parse_pairs($OPT{buffs}, 111, 255);
 @buffs <= 110 or die "buff 条目超 110";
 my @stacks = parse_pairs($OPT{stacks}, 7, 255);
 

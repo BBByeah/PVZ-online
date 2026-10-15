@@ -148,6 +148,16 @@ static int PlantShootTicks(int theBaseTicks, float theSpeed)
     return aScaled < 1 ? 1 : aScaled;
 }
 
+// @pvz-online: 「Nut Bowling」扩展表词条：坚果变保龄球。IsWallnutBowlingLevel 在闯关模式
+// 恒 false（它驱动档案关型判定副作用，不能翻），各行为点按本词条单独放行；模仿者解析到本株。
+static bool IsBowlingNut(const Plant* thePlant)
+{
+    SeedType aType = thePlant->mSeedType;
+    if (aType == SeedType::SEED_IMITATER && thePlant->mImitaterType != SeedType::SEED_NONE)
+        aType = thePlant->mImitaterType;
+    return aType == SeedType::SEED_WALLNUT && thePlant->mApp->RunExtraBuffCount(RUN_BUFF2_NUT_BOWLING) > 0;
+}
+
 void Plant::PlantInitialize(int theGridX, int theGridY, SeedType theSeedType, SeedType theImitaterType)
 {
     mPlantCol = theGridX;
@@ -227,7 +237,7 @@ void Plant::PlantInitialize(int theGridX, int theGridY, SeedType theSeedType, Se
         if (aBodyReanim->TrackExists("anim_idle"))
             aBodyReanim->SetFramesForLayer("anim_idle");
 
-        if (mApp->IsWallnutBowlingLevel() && aBodyReanim->TrackExists("_ground"))
+        if ((mApp->IsWallnutBowlingLevel() || IsBowlingNut(this)) && aBodyReanim->TrackExists("_ground"))
         {
             aBodyReanim->SetFramesForLayer("_ground");
             if (mSeedType == SeedType::SEED_WALLNUT || mSeedType == SeedType::SEED_EXPLODE_O_NUT)
@@ -610,7 +620,7 @@ int Plant::CalcRenderOrder()
     if (mSeedType == SeedType::SEED_IMITATER && mImitaterType != SeedType::SEED_NONE)
         aSeedType = mImitaterType;
 
-    if (mApp->IsWallnutBowlingLevel())
+    if (mApp->IsWallnutBowlingLevel() || IsBowlingNut(this))
     {
         aLayer = RenderLayer::RENDER_LAYER_PROJECTILE;
     }
@@ -3128,7 +3138,7 @@ void Plant::UpdateAbilities()
     if (mStateCountdown > 0)
         mStateCountdown--;
 
-    if (mApp->IsWallnutBowlingLevel())
+    if (mApp->IsWallnutBowlingLevel() || IsBowlingNut(this))
     {
         UpdateBowling();
         return;
@@ -6074,6 +6084,13 @@ int Plant::GetCost(SeedType theSeedType, SeedType theImitaterType)
                 return 0;
             }
 
+            // @pvz-online: 「Nut Bowling」（扩展表尾追加，2026-10-15）：坚果费用变 0（保龄球
+            // 质变词条的费用轴，同卷心菜/分裂豌豆先例；卡面/扣费/可用判定同走 GetCost）。
+            if (aCostSeedType == SeedType::SEED_WALLNUT && gLawnApp->RunExtraBuffCount(RUN_BUFF2_NUT_BOWLING) > 0)
+            {
+                return 0;
+            }
+
             // @pvz-online: 闯关里紫卡直接种（见 Board::CanPlantAt），售价 = 紫卡原价
             // + 基础植物原价（用户定案清单）；两笔都按原版取值，不再叠加蘑菇 +25。
             SeedType aBaseType = GetUpgradeBaseFor(aCostSeedType);
@@ -6140,6 +6157,12 @@ int Plant::GetRefreshTime(SeedType theSeedType, SeedType theImitaterType)
     if (aRealType == SeedType::SEED_HYPNOSHROOM && gLawnApp->RunPlantUpgradeCount(SeedType::SEED_HYPNOSHROOM) > 0)
     {
         aRefreshTime *= 6;
+    }
+    // @pvz-online: 「Nut Bowling」：坚果冷却改 15 秒（1500cs，2026-10-15）。速种
+    // （RUN_BUFF_FASTSEED）在 SeedPacket 侧随后再乘，属预期叠加。
+    if (aRealType == SeedType::SEED_WALLNUT && gLawnApp->RunExtraBuffCount(RUN_BUFF2_NUT_BOWLING) > 0)
+    {
+        aRefreshTime = 1500;
     }
     return aRefreshTime;
 }
@@ -6234,7 +6257,7 @@ Rect Plant::GetPlantRect()
 Rect Plant::GetPlantAttackRect(PlantWeapon thePlantWeapon)
 {
     Rect aRect;
-    if (mApp->IsWallnutBowlingLevel())
+    if (mApp->IsWallnutBowlingLevel() || IsBowlingNut(this))
     {
         aRect = Rect(mX, mY, mWidth - 20, mHeight);
     }

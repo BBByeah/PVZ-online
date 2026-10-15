@@ -270,6 +270,7 @@ enum RunPlantBuff2Id
 	RUN_BUFF2_REROLL_FUND,
 	RUN_BUFF2_HEART_SPORE,	// 胆小菇：当前本体生命5%，额外伤害最高800，2星1层。
 	RUN_BUFF2_EMO_DAMAGE,	// 忧郁菇：emotional damage——周围 8 格无植物时伤害 ×3、每次命中回 2% 最大生命（cap1，3★；2026-10-15 用户定案，中英同名）
+	RUN_BUFF2_NUT_BOWLING,	// 坚果墙：保龄球——费用变 0、冷却 15 秒，种下的坚果变保龄球滚撞击杀（cap1，3★；2026-10-15 用户定案，与「耐砸」/「荆棘之壁」互斥）
 	RUN_PLANT_BUFF2_COUNT
 };
 

@@ -4596,6 +4596,12 @@ void Board::MouseDownWithPlant(int x, int y, int theClickCount)
 				}
 			}
 			AddPlant(aGridX, aRow, mCursorObject->mType, mCursorObject->mImitaterType);
+			// @pvz-online: 「Nut Bowling」词条：种坚果出保龄球滚动音效（同保龄球关尾段口径）
+			if ((mCursorObject->mType == SeedType::SEED_WALLNUT || mCursorObject->mImitaterType == SeedType::SEED_WALLNUT) &&
+				mApp->RunExtraBuffCount(RUN_BUFF2_NUT_BOWLING) > 0)
+			{
+				mApp->PlaySample(Sexy::SOUND_BOWLING);
+			}
 		}
 	}
 
@@ -6033,6 +6039,7 @@ Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBod
 	Zombie* aZombie = AddZombieInRow(theZombieType, theRow, mCurrentWave);
 	if (aZombie == nullptr) return nullptr;		// 场上满了（AddZombieInRow 里那声 "Too many zombies!!"）
 
+	MarkRelayedZombie(aZombie);
 	aZombie->mBodyHealth = theBodyHealth;
 	aZombie->mHelmHealth = theHelmHealth;
 	aZombie->mShieldHealth = theShieldHealth;
@@ -12055,4 +12062,17 @@ bool Board::CheckForPostGameAchievements()
 	}
 
 	return aUnlockedNewChallenge;
+}
+
+// @pvz-online: pooled IDs include generations; stale marks cannot attach to reused slots.
+void Board::MarkRelayedZombie(Zombie* zombie)
+{
+    if (!zombie) return;
+    for (auto it=mRelayedZombieIds.begin(); it!=mRelayedZombieIds.end(); )
+        if (!mZombies.DataArrayTryToGet(*it)) it=mRelayedZombieIds.erase(it); else ++it;
+    mRelayedZombieIds.insert((unsigned int)mZombies.DataArrayGetID(zombie));
+}
+bool Board::IsRelayedZombie(Zombie* zombie)
+{
+    return zombie && mRelayedZombieIds.count((unsigned int)mZombies.DataArrayGetID(zombie)) != 0;
 }

@@ -286,6 +286,13 @@ static bool RunChoiceBlockedByCounterpart(const RunState* theRun, int theId)
             theRun->GetBuffCount(base + RUN_BUFF2_BUTTER_SPLASH) > 0;
     if (theId == base + RUN_BUFF2_BUTTERFEAST || theId == base + RUN_BUFF2_BUTTER_SPLASH)
         return theRun->GetBuffCount(RUN_BUFF_COUNT + RUN_UPGRADE_KERNELPULT) > 0;
+    // @pvz-online: 「Nut Bowling」（2026-10-15）三角互斥：老表「耐砸」/扩展表「荆棘之壁」
+    // 把坚果往站桩更硬推，保龄球把坚果变成滚撞击杀——口径相反，两两不可共存。
+    if (theId == RUN_BUFF_COUNT + RUN_UPGRADE_WALLNUT || theId == base + RUN_BUFF2_THORNS)
+        return theRun->GetBuffCount(base + RUN_BUFF2_NUT_BOWLING) > 0;
+    if (theId == base + RUN_BUFF2_NUT_BOWLING)
+        return theRun->GetBuffCount(RUN_BUFF_COUNT + RUN_UPGRADE_WALLNUT) > 0 ||
+            theRun->GetBuffCount(base + RUN_BUFF2_THORNS) > 0;
     return false;
 }
 

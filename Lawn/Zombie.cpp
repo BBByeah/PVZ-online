@@ -111,6 +111,9 @@ Zombie::Zombie()
 // GOTY @Patoke: 0x5329A0
 void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Zombie* theParentZombie, int theFromWave)
 {
+    // @pvz-online: imps and other parent-generated units keep their relay identity.
+    if (mBoard && theParentZombie && mBoard->IsRelayedZombie(theParentZombie)) mBoard->MarkRelayedZombie(this);
+
     TOD_ASSERT(theType >= 0 && theType <= ZombieType::NUM_ZOMBIE_TYPES);
 
     mHasZombatar = false;
@@ -6732,6 +6735,17 @@ void Zombie::Draw(Graphics* g)
     if (mZombieHeight == ZombieHeight::HEIGHT_GETTING_BUNGEE_DROPPED)
         return;
 
+    // @pvz-online: a small two-tone relay arrow remains distinct from chill/mind-control tint.
+    if (mBoard && !mDead && !IsDeadOrDying() && mBoard->IsRelayedZombie(this))
+    {
+        Graphics marker(*g);
+        marker.SetColor(Color(35, 30, 20, 230)); marker.FillRect(38, -9, 18, 18);
+        marker.SetColor(Color(255, 215, 70));
+        marker.FillRect(45, -7, 4, 8);
+        marker.FillRect(41, -1, 12, 3);
+        marker.FillRect(43, 2, 8, 3);
+        marker.FillRect(45, 5, 4, 2);
+    }
     ZombieDrawPosition aDrawPos;
     GetDrawPos(aDrawPos);
 
@@ -6785,6 +6799,17 @@ bool Zombie::CanTargetPlant(Plant* thePlant, ZombieAttackType theAttackType)
 {
     if (mApp->IsWallnutBowlingLevel() && theAttackType != ZombieAttackType::ATTACKTYPE_VAULT)
         return false;
+
+    // @pvz-online: 「Nut Bowling」词条：滚动中的坚果不可啃食（撑杆跳 ATTACKTYPE_VAULT
+    // 特例同保龄球关保留）。模仿者解析到本株。
+    {
+        SeedType aNutType = thePlant->mSeedType;
+        if (aNutType == SeedType::SEED_IMITATER && thePlant->mImitaterType != SeedType::SEED_NONE)
+            aNutType = thePlant->mImitaterType;
+        if (aNutType == SeedType::SEED_WALLNUT && mApp->RunExtraBuffCount(RUN_BUFF2_NUT_BOWLING) > 0 &&
+            theAttackType != ZombieAttackType::ATTACKTYPE_VAULT)
+            return false;
+    }
 
     if (thePlant->NotOnGround() || thePlant->mSeedType == SeedType::SEED_TANGLEKELP)
         return false;

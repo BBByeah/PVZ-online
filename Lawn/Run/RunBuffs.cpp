@@ -379,6 +379,10 @@ static const RunPlantUpgradeDef gRunPlantBuff2Defs[RUN_PLANT_BUFF2_COUNT] =
 	// GloomIsLonely/DoRowAreaDamage/Fire 挂点）。中英同名按用户原话；3★ 质变口径
 	//（忧郁菇本是阵眼光环植物，「周围全空」是反常态 build-around 条件）。
 	{ SeedType::SEED_GLOOMSHROOM, "emotional damage", "emotional damage", "周围 8 格没有植物时：伤害 ×3\n每次命中回复 2% 最大生命", "x3 damage with no plants in the 8 surrounding tiles\neach hit heals 2% max HP", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
+	// @pvz-online: 「Nut Bowling」（2026-10-15 用户定案）：费用变 0、冷却 15 秒，种下的坚果
+	// 变成保龄球滚撞（1800 直伤/400 盾/900 具，连杀掉币保留；屋顶可用，滚动按行判定）。
+	// 质变口径 3★ cap1；与老表「耐砸」、扩展表「荆棘之壁」互斥（RunChoiceBlockedByCounterpart）。
+	{ SeedType::SEED_WALLNUT, "Nut Bowling", "保龄球", "费用变 0、冷却 15 秒\n种下的坚果变成保龄球滚撞", "Wall-nuts cost 0, recharge 15s\nand roll as bowling nuts", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
 };
 
 const RunPlantUpgradeDef& GetRunPlantBuff2Def(int theIndex)

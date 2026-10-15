@@ -35,7 +35,8 @@ public:
         auto* z=mBoard->AddZombieInRow(ZOMBIE_TRAFFIC_CONE,2,0);z->mPosX=z->mX=450;
         std::fprintf(stderr,"ADD PLANT\n"); mBoard->AddPlant(2,1,SEED_SUNFLOWER,SEED_NONE);
         std::fprintf(stderr,"SEED BANK\n"); mBoard->mSunMoney=9990;mBoard->mShowShovel=true;mActive=true;mMinimized=false;
-        mBoard->mSeedBank->mNumPackets=2;
+        mBoard->mSeedBank->mNumPackets=10;
+        for(int i=0;i<10;++i)mBoard->mSeedBank->mSeedPackets[i].SetPacketType(SEED_SUNFLOWER);
         mBoard->mSeedBank->mSeedPackets[0].SetPacketType(SEED_SUNFLOWER);
         mBoard->mSeedBank->mSeedPackets[1].SetPacketType(SEED_PEASHOOTER);
         std::fprintf(stderr,"FOCUS\n"); mWidgetManager->SetFocus(mBoard);
@@ -50,6 +51,10 @@ public:
         mWidgetManager->KeyDown((KeyCode)'H',true);mWidgetManager->KeyUp((KeyCode)'H');auto held=render("held-h.bmp");
         press('H');auto j=render("plant-health.bmp");press('J');auto off=render("health-restored.bmp");
         press(KEYCODE_F5);press(KEYCODE_F7);bool noFnAlias=!mBoard->mChatPanelOpen&&!mBoard->mWatchKeyHeld;
+        press('2');bool top2=mBoard->mCursorObject->mCursorType==CURSOR_TYPE_PLANT_FROM_BANK&&mBoard->mCursorObject->mSeedBankIndex==1;
+        press('1');bool top1=mBoard->mCursorObject->mSeedBankIndex==0;
+        press('0');bool top0=mBoard->mCursorObject->mSeedBankIndex==9;
+        bool topRow=top1&&top2&&top0;
         press(KEYCODE_NUMPAD2);bool numpad=mBoard->mCursorObject->mCursorType==CURSOR_TYPE_PLANT_FROM_BANK&&mBoard->mCursorObject->mSeedBankIndex==1&&!GetDialog(DIALOG_COOP_PLAY);
         mBoard->RefreshSeedPacketFromCursor();press('T');bool chat=mBoard->mChatPanelOpen;
         mBoard->mChatInputCooldown=0;press(KEYCODE_NUMPAD2);bool chatChoice=!mBoard->mChatPanelOpen&&mBoard->mCursorObject->mCursorType==CURSOR_TYPE_NORMAL;
@@ -61,8 +66,8 @@ public:
         auto pw=[&](const std::vector<ulong>& v){return white(v,210,155,70,30);};
         bool renderOk=zw(h)>zw(base)&&pw(hj)>pw(h)&&zw(held)==zw(hj)&&pw(held)==pw(hj)&&zw(off)==zw(base)&&pw(off)==pw(base);
         std::printf("PIXELS zombie_off=%d zombie_H=%d plant_off=%d plant_J=%d held_z=%d restored_z=%d restored_p=%d\n",zw(base),zw(h),pw(base),pw(hj),zw(held),zw(off),pw(off));
-        std::printf("CHECK connected=%d h_no_chat=%d health_render=%d no_fn_alias=%d numpad2_slot2=%d chat_T=%d chat_numpad2=%d no_debug_spawn=%d\n",connected,hChat,renderOk,noFnAlias,numpad,chat,chatChoice,noSpawn);
-        std::fflush(stdout);ExitProcess(connected&&hChat&&renderOk&&noFnAlias&&numpad&&chat&&chatChoice&&noSpawn?0:5);
+        std::printf("CHECK connected=%d h_no_chat=%d health_render=%d no_fn_alias=%d top_row_1_2_0=%d optional_keypad2=%d chat_T=%d chat_numpad2=%d no_debug_spawn=%d\n",connected,hChat,renderOk,noFnAlias,topRow,numpad,chat,chatChoice,noSpawn);
+        std::fflush(stdout);ExitProcess(connected&&hChat&&renderOk&&noFnAlias&&topRow&&numpad&&chat&&chatChoice&&noSpawn?0:5);
     }
 };
 int main(int argc,char** argv){outRoot=std::filesystem::absolute(argc>1?argv[1]:"keyboard-health-probe").string()+"/";std::filesystem::create_directories(outRoot);if(auto f=(BOOL(WINAPI*)())GetProcAddress(GetModuleHandleA("user32.dll"),"SetProcessDPIAware"))f();gExtractResourcesByName=ExtractResourcesByName;

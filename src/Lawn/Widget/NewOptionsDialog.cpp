@@ -224,7 +224,7 @@ void NewOptionsDialog::Draw(Sexy::Graphics* g)
     if (!mFromGameSelector && mApp->mBoard && mApp->mBoard->mKeyboardControlsUsed &&
         mApp->mBoard->HasPlantKeyboardControls())
     {
-        PvzpDrawString(g, ModText::Tr("1-9/0 选植物   Q 铲子   Esc 取消", "1-9/0 Plants   Q Shovel   Esc Cancel"),
+        PvzpDrawString(g, ModText::Tr("1-9/0 选卡  Q 铲子  H/J 血量", "1-9/0 Cards  Q Shovel  H/J Health"),
             mWidth / 2, 106, ModText::FontFor(FONT_DWARVENTODCRAFT18, 16),
             aTextColor, DrawStringJustification::DS_ALIGN_CENTER);
     }

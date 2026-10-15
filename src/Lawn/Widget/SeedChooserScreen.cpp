@@ -1116,7 +1116,7 @@ void SeedChooserScreen::CloseSeedChooser()
 
 void SeedChooserScreen::KeyDown(KeyCode theKey)
 {
-    if(theKey=='B'||theKey=='b'){mApp->ShowCoopPlay();return;}
+    if(theKey=='B'){mApp->ShowCoopPlay();return;}
 	mBoard->DoTypingCheck(theKey);
 
 	if (mChooseState == CHOOSE_VIEW_LAWN && (theKey == KeyCode::KEYCODE_SPACE || theKey == KeyCode::KEYCODE_RETURN || theKey == KeyCode::KEYCODE_ESCAPE))

@@ -42,7 +42,7 @@ bool Board::HandleQuickChatKey(KeyCode theKey)
             CloseQuickChatPanel();
             return true;
         }
-        if (theKey == 'T' || theKey == 't')
+        if (theKey == 'T')
         {
             if (mChatEmotePage)
             {
@@ -55,7 +55,7 @@ bool Board::HandleQuickChatKey(KeyCode theKey)
             }
             return true;
         }
-        if (theKey == 'E' || theKey == 'e')
+        if (theKey == 'E')
         {
             if (!mChatEmotePage)
             {
@@ -85,7 +85,7 @@ bool Board::HandleQuickChatKey(KeyCode theKey)
     }
 
     // 面板关着：只认 T / E，其余原样放回（RETURN/SPACE/ESC 那条链不受影响）
-    if (theKey != 'T' && theKey != 't' && theKey != 'E' && theKey != 'e')
+    if (theKey != 'T' && theKey != 'E')
         return false;
     if (mChatInputCooldown > 0)
         return true; // 冷却中吞掉，防自动重复把面板弹回去
@@ -93,7 +93,7 @@ bool Board::HandleQuickChatKey(KeyCode theKey)
         return false; // 单机 / 过场 / 选卡：不响应（焦点本就不在棋盘）
     mCoopToolsOpen = false;
     mChatPanelOpen = true;
-    mChatEmotePage = (theKey == 'E' || theKey == 'e');
+    mChatEmotePage = (theKey == 'E');
     mChatPanelTimer = QUICK_CHAT_PANEL_TIMEOUT;
     mChatInputCooldown = QUICK_CHAT_KEY_COOLDOWN;
     return true;
@@ -248,7 +248,7 @@ bool Board::HandleSunGiftKey(KeyCode theKey)
         return false;
     bool aSelecting = mSunGiftSelectFrames > 0;
 
-    if (theKey == 'G' || theKey == 'g')
+    if (theKey == 'G')
     {
         if (aSelecting)
         {

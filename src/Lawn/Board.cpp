@@ -6595,6 +6595,23 @@ static inline void AddUIRenderItem(RenderItem* theRenderList, int& theCurRenderI
 	theCurRenderItem++;
 }
 
+// @pvz-online: local display preferences stay outside Board snapshots, matching PC H/J.
+static bool gShowZombieHealthNumbers = false;
+static bool gShowPlantHealthNumbers = false;
+
+static void DrawHealthNumberOverRect(Graphics* g, int health, const Rect& rect, int line = 0)
+{
+    const std::string text = std::to_string(health);
+    Graphics label(*g);
+    label.SetFont(FONT_CONTINUUMBOLD14);
+    const int x = rect.mX + rect.mWidth / 2 - FONT_CONTINUUMBOLD14->StringWidth(text) / 2;
+    const int y = rect.mY - 4 - line * 16;
+    label.SetColor(Color::Black);
+    label.DrawString(text, x - 1, y); label.DrawString(text, x + 1, y);
+    label.DrawString(text, x, y - 1); label.DrawString(text, x, y + 1);
+    label.SetColor(Color::White); label.DrawString(text, x, y);
+}
+
 void Board::DrawGameObjects(Graphics* g)
 {
 	RenderItem aRenderList[MAX_RENDER_ITEMS];
@@ -7991,6 +8008,18 @@ void Board::Draw(Graphics* g)
 
 	mDrawCount++;
 	DrawGameObjects(g);
+    if (gShowZombieHealthNumbers)
+        for (Zombie* zombie : mZombies) {
+            if (zombie->mDead || zombie->IsDeadOrDying()) continue;
+            const Rect rect = zombie->GetZombieRect(); int line = 0;
+            DrawHealthNumberOverRect(g, zombie->mBodyHealth, rect, line++);
+            if (zombie->mHelmHealth > 0) DrawHealthNumberOverRect(g, zombie->mHelmHealth, rect, line++);
+            if (zombie->mShieldHealth > 0) DrawHealthNumberOverRect(g, zombie->mShieldHealth, rect, line++);
+            if (zombie->mFlyingHealth > 0) DrawHealthNumberOverRect(g, zombie->mFlyingHealth, rect, line++);
+        }
+    if (gShowPlantHealthNumbers)
+        for (Plant* plant : mPlants)
+            if (!plant->mDead) DrawHealthNumberOverRect(g, plant->mPlantHealth, plant->GetPlantRect());
     DrawRelayedZombieMarkers(g);
     DrawCoopUI(g);
     if (mMobileWatchOpen) DrawMobileWatch(g);
@@ -8156,21 +8185,31 @@ void Board::DoTypingCheck(KeyCode theKey)
 
 void Board::KeyDown(KeyCode theKey)
 {
-    if((theKey=='B'||theKey=='b') && mApp->IsOnlineGame()){mCoopToolsOpen=false;mApp->ShowCoopPlay();return;}
+    // @pvz-online: use uppercase VK letters; lowercase ASCII aliases collide with F5/F7/NUMPAD2.
+    if((theKey=='B') && mApp->IsOnlineGame()){mCoopToolsOpen=false;mApp->ShowCoopPlay();return;}
     // Cooperation gets first choice of normalized digits.
     if (theKey >= KEYCODE_NUMPAD0 && theKey <= KEYCODE_NUMPAD9)
         theKey = static_cast<KeyCode>('0' + theKey - KEYCODE_NUMPAD0);
-    if (((theKey >= '0' && theKey <= '9') || theKey == 'Q') && mWidgetManager->mIsKeyRepeat)
+    if (((theKey >= '0' && theKey <= '9') || theKey == 'Q' ||
+        theKey == 'H' || theKey == 'J') && mWidgetManager->mIsKeyRepeat)
         return; // A held panel choice must not become a plant after the panel closes.
     if (mMobileWatchOpen) {
-        if (theKey == KEYCODE_ESCAPE || theKey == 'v' || theKey == 'V') StopMobileWatch();
+        if (theKey == KEYCODE_ESCAPE || theKey == 'V') StopMobileWatch();
         else if (theKey == KEYCODE_RIGHT) CycleMobileWatch();
         return;
     }
-    if (theKey == 'v' || theKey == 'V') { if (QuickChatAvailable()) { CycleMobileWatch(); return; } }
+    if (theKey == 'V') { if (QuickChatAvailable()) { CycleMobileWatch(); return; } }
     if (HandleQuickChatKey(theKey) || HandleSunGiftKey(theKey)) return;
     if (mCoopToolsOpen) { if(theKey==KEYCODE_ESCAPE)mCoopToolsOpen=false; return; }
     if (HandlePlantKeyboardKey(theKey)) return;
+    if ((theKey == 'H' || theKey == 'J') && mApp->mGameScene == GameScenes::SCENE_PLAYING &&
+        mApp->mGameMode != GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN &&
+        mApp->mGameMode != GameMode::GAMEMODE_TREE_OF_WISDOM) {
+        mKeyboardControlsUsed = true;
+        if (theKey == 'H') gShowZombieHealthNumbers = !gShowZombieHealthNumbers;
+        else gShowPlantHealthNumbers = !gShowPlantHealthNumbers;
+        MarkDirty(); return;
+    }
 	DoTypingCheck(theKey);
 
 	if (mApp->mGameScene == GameScenes::SCENE_LEVEL_INTRO &&
@@ -8215,6 +8254,11 @@ static void PvzpCrash()
 
 void Board::KeyChar(char theChar)
 {
+    // @pvz-online: H/J must not also reach the debug zombie-spawn character handlers.
+    if ((theChar == 'h' || theChar == 'H' || theChar == 'j' || theChar == 'J') &&
+        mApp->mGameScene == GameScenes::SCENE_PLAYING &&
+        mApp->mGameMode != GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN &&
+        mApp->mGameMode != GameMode::GAMEMODE_TREE_OF_WISDOM) return;
     // SDL sends KeyChar after KeyDown too; reserve battle inputs even with debug enabled.
     if (HasPlantKeyboardControls() &&
         ((theChar >= '0' && theChar <= '9') || theChar == 'q' || theChar == 'Q')) return;

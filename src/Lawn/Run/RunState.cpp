@@ -1,5 +1,7 @@
 #include "RunState.h"
 #include "RunBuffs.h"
+#include "RunCheckpointIO.h"
+#include "../System/PlayerInfo.h"
 #include "../ModText.h"
 #include "RunPortSupport.h"
 #include <cstring>
@@ -50,7 +52,7 @@
 //     其余档读平，场景按 0 续。关数校验按 LevelCountForMode(3)=60000 封口（软上限）。
 
 static const unsigned int RUN_CHECKPOINT_MAGIC = 0x314E5552;	// 'RUN1'
-static const unsigned short RUN_CHECKPOINT_VERSION = 16;
+static const unsigned short RUN_CHECKPOINT_VERSION = 17;
 
 static std::vector<unsigned char>& AppendU16(std::vector<unsigned char>& theData, unsigned int theValue)
 {
@@ -175,6 +177,8 @@ void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theR
 	mPaidRerollCount = 0;		// 重摇阶梯价：新局从头起算（实际每屏还会在 RollChoices 清零）
 	mPickSeenBuffCount = 0;		// 候选去重批：新局无露脸/冷却
 	mPickCooldownBuffCount = 0;
+	mPickSeenPlantCount = 0;	// 植物屏跨屏冷却（2026-10-16 用户令）：新局无露脸/冷却
+	mPickCooldownPlantCount = 0;
 	mPickCounter = 0;
 	// 本机随机盐（用户 2026-10-03 定案：各玩家的候选不共用一套随机数）。不进检查点、
 	// 不随联机命令走——pending 屏本来就不落盘，读档/追赶时重抽的屏用什么盐都合法。
@@ -201,6 +205,8 @@ void RunState::BeginStartPicks()
 	// 候选去重批：冷却集只在一批屏内滚动（上一屏 → 下一屏），换批即清。
 	mPickSeenBuffCount = 0;
 	mPickCooldownBuffCount = 0;
+	mPickSeenPlantCount = 0;
+	mPickCooldownPlantCount = 0;
 	int aExtra = (mMode == RUN_MODE_QUICK || mMode == RUN_MODE_ENDLESS) ? 2 : 0;
 	mPendingPlantPicks = CanOfferPlantPick() ? 4 + aExtra : 0;
 	// 增益倍选（2026-10-13 用户令）：发放的 buff 屏数按倍率翻倍（只乘 buff 屏，植物屏不动）。
@@ -215,6 +221,8 @@ void RunState::BeginLevelEndPicks()
 	// 候选去重批：冷却集只在一批屏内滚动（上一屏 → 下一屏），换批即清（同 BeginStartPicks）。
 	mPickSeenBuffCount = 0;
 	mPickCooldownBuffCount = 0;
+	mPickSeenPlantCount = 0;
+	mPickCooldownPlantCount = 0;
 
 	// 每关后的植物奖励数（2026-10-09 定案）：完整 2 株/关不变、普通 6→3、快速 10→4——
 	// 大幅收紧让植物保持稀缺（一局拿不满 48 株），单株增益候选池不被一口气铺宽。
@@ -337,19 +345,30 @@ void RunState::RollChoices(bool theReroll)
 			}
 		}
 
-		// 候选去重批（2026-10-10）：「重摇」把本屏刚摆的三株从候选摘掉——池子够时重抽
-		// 必出全新三株；保底口径与增益屏一致（摘到只剩 min(池子, 3) 条为止，别让屏变秃）。
-		// 植物屏没有跨屏冷却：植物一次性入池，没"刷掉的株反复来"这回事。
-		if (theReroll)
+		// 候选去重批（2026-10-10 同屏排除 + 2026-10-16 用户令跨屏冷却，同 PC 2eb8646）：
+		// 「重摇」要刷掉的本屏现三株（theReroll）+ 上一屏露过脸没拿的（mPickCooldownPlants，
+		// 含被刷掉的那批）从候选里摘掉；摘到只剩 min(池子, 3) 条为止——池子小时自动放宽，
+		// 宁可又见到旧株，也不让三选一屏变秃（哨兵格）。
 		{
-			int aFloor = (aCount < RUN_CHOICES) ? aCount : RUN_CHOICES;
-			for (int i = 0; i < RUN_CHOICES && aCount > aFloor; i++)
+			SeedType aExclude[RUN_CHOICES * 3];
+			int aExcludeCount = 0;
+			if (theReroll)
 			{
-				SeedType aOld = mPlantChoices[i];
-				if (aOld == SeedType::SEED_NONE) continue;
+				for (int i = 0; i < RUN_CHOICES; i++)
+				{
+					if (mPlantChoices[i] != SeedType::SEED_NONE) aExclude[aExcludeCount++] = mPlantChoices[i];
+				}
+			}
+			for (int i = 0; i < mPickCooldownPlantCount; i++)
+			{
+				aExclude[aExcludeCount++] = (SeedType)mPickCooldownPlants[i];
+			}
+			int aFloor = (aCount < RUN_CHOICES) ? aCount : RUN_CHOICES;
+			for (int aE = 0; aE < aExcludeCount && aCount > aFloor; aE++)
+			{
 				for (int j = 0; j < aCount; j++)
 				{
-					if (aCandidates[j] == aOld)
+					if (aCandidates[j] == aExclude[aE])
 					{
 						aTotalW -= aWeights[j];
 						aCandidates[j] = aCandidates[aCount - 1];
@@ -380,6 +399,24 @@ void RunState::RollChoices(bool theReroll)
 			aTotalW -= aWeights[aPick];
 			aCandidates[aPick] = aCandidates[--aCount];		// 抽走的换到队尾，保证三条互不重复
 			aWeights[aPick] = aWeights[aCount];
+		}
+
+		// 候选去重批的记账（植物屏同款，2026-10-16 用户令）：本屏露过脸的全部（含「重摇」
+		// 刷掉的那批；theReroll 时不清零）抽的当下就记，消费时由 NotePlantScreenConsumed
+		// 生成下一屏冷却集。
+		if (!theReroll) mPickSeenPlantCount = 0;
+		for (int i = 0; i < RUN_CHOICES; i++)
+		{
+			if (mPlantChoices[i] == SeedType::SEED_NONE) continue;
+			bool aDup = false;
+			for (int j = 0; j < mPickSeenPlantCount; j++)
+			{
+				if (mPickSeenPlants[j] == (unsigned short)mPlantChoices[i]) { aDup = true; break; }
+			}
+			if (!aDup && mPickSeenPlantCount < RUN_CHOICES * 2)
+			{
+				mPickSeenPlants[mPickSeenPlantCount++] = (unsigned short)mPlantChoices[i];
+			}
 		}
 	}
 	else
@@ -556,6 +593,7 @@ void RunState::TakePlantChoice(int theIndex)
 	mPendingPlantPicks--;
 	// 这一屏消费掉了：下一屏（还有欠的话）得重新抽——见 LawnApp::UpdateRunPick 的"还没抽才抽"守卫。
 	mChoicesRolled = false;
+	NotePlantScreenConsumed(aSeed);	// 去重批（2026-10-16 植物屏同款）：本屏露过脸没拿的进下一屏冷却
 	// 刚拿到最后一株没到手的植物：本次欠的植物屏到此为止（再选就没候选了）。
 	if (mPendingPlantPicks > 0 && !CanOfferPlantPick()) mPendingPlantPicks = 0;
 }
@@ -596,6 +634,7 @@ void RunState::SkipPendingPick()
 	{
 		mPendingPlantPicks--;
 		mChoicesRolled = false;		// 这一屏消费掉了，下一屏重新抽（同 TakePlantChoice）
+		NotePlantScreenConsumed(SeedType::SEED_NONE);	// 去重批：放弃 = 本屏露过脸的全部进冷却
 		PvzpLogLn("[run] a plant pick was skipped ({} still owed)", mPendingPlantPicks);
 	}
 	else if (mPendingBuffPicks > 0)
@@ -618,6 +657,19 @@ void RunState::NoteBuffScreenConsumed(unsigned short theTakenId)
 		if (mPickSeenBuffs[i] != theTakenId) mPickCooldownBuffs[aCount++] = mPickSeenBuffs[i];
 	}
 	mPickCooldownBuffCount = aCount;
+}
+
+// @pvz-online: 植物屏同款回执（2026-10-16 用户令，同 PC 2eb8646）：「本屏露过脸的全部」
+// 减去拿走的那株 = 下一屏的冷却集。拿走的株已入卡池、候选 owned 过滤天然挡住（冷却里
+// 减不减无行为差，照抄增益屏口径）；放弃（theTakenSeed = SEED_NONE）则整批进冷却。
+void RunState::NotePlantScreenConsumed(SeedType theTakenSeed)
+{
+	int aCount = 0;
+	for (int i = 0; i < mPickSeenPlantCount; i++)
+	{
+		if (mPickSeenPlants[i] != (unsigned short)theTakenSeed) mPickCooldownPlants[aCount++] = mPickSeenPlants[i];
+	}
+	mPickCooldownPlantCount = aCount;
 }
 
 int RunState::GetBuffCount(int theBuffId) const
@@ -839,7 +891,7 @@ bool RunState::PeekCheckpoint(int theProfileId, int& theRunMode, int& theEndless
 	return true;
 }
 
-bool RunState::Save(int theProfileId) const
+std::vector<unsigned char> RunState::EncodeCheckpoint() const
 {
 	std::vector<unsigned char> aData;
 	AppendI32(aData, (int)RUN_CHECKPOINT_MAGIC);
@@ -888,17 +940,37 @@ bool RunState::Save(int theProfileId) const
     AppendU16(aData,(unsigned)mLoanBuffs.size());
     for(const auto& buff:mLoanBuffs){AppendU16(aData,buff.mId);AppendU16(aData,buff.mCount);}
 
-	MkDir(GetAppDataFolder() + "userdata");
-	if (!gSexyAppBase->WriteBytesToFile(GetCheckpointName(theProfileId), aData.data(), (unsigned long)aData.size()))
-	{
-		PvzpLogLn("[run] could not write the checkpoint file");
-		return false;
-	}
-	return true;
+    // @pvz-online: stage snapshots must preserve owed rewards, prices and candidate exclusion sets.
+    AppendI32(aData, mPendingPlantPicks); AppendI32(aData, mPendingBuffPicks);
+    for (int i=0;i<RUN_CHOICES;++i) { AppendI32(aData, (int)mPlantChoices[i]); AppendU16(aData, mBuffChoices[i]); }
+    AppendI32(aData, (int)mPickCounter); AppendI32(aData, (int)mPickSalt);
+    AppendU16(aData, mChoicesRolled ? 1 : 0); AppendI32(aData, mPaidRerollCount); AppendI32(aData, mCatchUpLevel);
+    auto writeSet=[&](const unsigned short* values,int count) {
+        AppendU16(aData,(unsigned)count); for(int i=0;i<count;++i)AppendU16(aData,values[i]);
+    };
+    writeSet(mPickSeenBuffs,mPickSeenBuffCount); writeSet(mPickCooldownBuffs,mPickCooldownBuffCount);
+    writeSet(mPickSeenPlants,mPickSeenPlantCount); writeSet(mPickCooldownPlants,mPickCooldownPlantCount);
+    return aData;
+}
+
+bool RunState::Save(int theProfileId) const
+{
+    MkDir(GetAppDataFolder() + "userdata");
+    const auto path=GetCheckpointName(theProfileId);
+    const auto user=GetAppDataFolder()+"userdata/user"+std::to_string(theProfileId)+".dat";
+    return RunCheckpointIO::Recover(path,user) && RunCheckpointIO::AtomicWrite(path,EncodeCheckpoint());
+}
+bool RunState::SaveWithPlayer(PlayerInfo& player) const
+{
+    MkDir(GetAppDataFolder() + "userdata");
+    return RunCheckpointIO::Commit(GetCheckpointName(player.mId),
+        GetAppDataFolder()+"userdata/user"+std::to_string(player.mId)+".dat",EncodeCheckpoint(),player.EncodeDetails());
 }
 
 bool RunState::Load(int theProfileId)
 {
+    if (!RunCheckpointIO::Recover(GetCheckpointName(theProfileId),
+        GetAppDataFolder()+"userdata/user"+std::to_string(theProfileId)+".dat")) return false;
 	Buffer aBuffer;
 	if (!gSexyAppBase->ReadBufferFromFile(GetCheckpointName(theProfileId), &aBuffer, false))
 	{
@@ -925,7 +997,7 @@ bool RunState::Load(int theProfileId)
 	// v13 才有关底 boss 开关；v14 才有僵尸强化字段（位包 bit7..11 与尾追加 8×u16+u16）。
 	int aMode = RUN_MODE_FULL;
 	int aDiff = RUN_DIFF_STD;
-	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 15 && aVersion != 14 && aVersion != 13 && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
+	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 16 && aVersion != 15 && aVersion != 14 && aVersion != 13 && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
 	{
 		PvzpLogLn("[run] checkpoint magic/version mismatch, ignored");
 		return false;
@@ -1131,6 +1203,31 @@ bool RunState::Load(int theProfileId)
             BuffStack b;b.mId=(unsigned short)id;b.mCount=(unsigned short)stacks;mLoanBuffs.push_back(b);}
         if(mLoanPlant<0 && (count || mLoanLevel>=0))return false;
     }
+    RunState picks;
+    if(aVersion>=17) {
+        int seed=0; unsigned value=0;
+        if(!aReader.ReadI32(picks.mPendingPlantPicks)||!aReader.ReadI32(picks.mPendingBuffPicks)||
+            picks.mPendingPlantPicks<0||picks.mPendingPlantPicks>10000||picks.mPendingBuffPicks<0||picks.mPendingBuffPicks>10000)return false;
+        for(int i=0;i<RUN_CHOICES;++i) {
+            if(!aReader.ReadI32(seed)||seed<(int)SEED_NONE||seed>=RUN_POOL_MAX||!aReader.ReadU16(value)||
+                (value!=RUN_BUFF_CHOICE_NONE&&value>=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT+RUN_PLANT_BUFF2_COUNT))return false;
+            picks.mPlantChoices[i]=(SeedType)seed; picks.mBuffChoices[i]=(unsigned short)value;
+        }
+        if(!aReader.ReadU32(picks.mPickCounter)||!aReader.ReadU32(picks.mPickSalt)||!aReader.ReadU16(value)||value>1)return false;
+        picks.mChoicesRolled=value!=0;
+        if(!aReader.ReadI32(picks.mPaidRerollCount)||picks.mPaidRerollCount<0||picks.mPaidRerollCount>1000000||
+            !aReader.ReadI32(picks.mCatchUpLevel)||picks.mCatchUpLevel < -1||picks.mCatchUpLevel>LevelCountForMode(aMode))return false;
+        auto readSet=[&](unsigned short* values,int& count,unsigned limit) {
+            unsigned n=0,id=0;if(!aReader.ReadU16(n)||n>RUN_CHOICES*2)return false;
+            count=(int)n;for(unsigned i=0;i<n;++i){if(!aReader.ReadU16(id)||id>=limit)return false;values[i]=(unsigned short)id;}return true;
+        };
+        const unsigned buffLimit=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT+RUN_PLANT_BUFF2_COUNT;
+        if(!readSet(picks.mPickSeenBuffs,picks.mPickSeenBuffCount,buffLimit)||
+            !readSet(picks.mPickCooldownBuffs,picks.mPickCooldownBuffCount,buffLimit)||
+            !readSet(picks.mPickSeenPlants,picks.mPickSeenPlantCount,RUN_POOL_MAX)||
+            !readSet(picks.mPickCooldownPlants,picks.mPickCooldownPlantCount,RUN_POOL_MAX))return false;
+    }
+
 	mRunSeed = aRunSeed;
 	mMode = aMode;
 	mDiff = aDiff;
@@ -1158,14 +1255,19 @@ bool RunState::Load(int theProfileId)
 	// 续档时一次补齐到与开新局同一口径（非无尽档不追溯，池子原样）。
 	if (mMode == RUN_MODE_ENDLESS) FillPoolWithAllPlants(mPool);
 	mBuffs = aBuffs;
-	// 检查点里没有"补发追赶"这回事（它只活在联机对齐的那一刻），读进来一律清掉。
-	mCatchUpLevel = -1;
-	// 读档也换一次盐（与 StartNew 同口径）：待选屏不进检查点，读档后重抽用新盐。
-	mPickSalt = (unsigned int)Sexy::Rand() ^ ((unsigned int)Sexy::Rand() << 16);
-	// 候选去重批的内存记账同样不进检查点，读档清零（与 StartNew 同口径）。
-	mPickSeenBuffCount = 0;
-	mPickCooldownBuffCount = 0;
-	mPaidRerollCount = 0;
+    mPendingPlantPicks=picks.mPendingPlantPicks; mPendingBuffPicks=picks.mPendingBuffPicks;
+    std::memcpy(mPlantChoices,picks.mPlantChoices,sizeof(mPlantChoices));
+    std::memcpy(mBuffChoices,picks.mBuffChoices,sizeof(mBuffChoices));
+    mPickCounter=picks.mPickCounter; mPickSalt=picks.mPickSalt; mChoicesRolled=picks.mChoicesRolled;
+    mPaidRerollCount=picks.mPaidRerollCount; mCatchUpLevel=picks.mCatchUpLevel;
+    auto copySet=[](unsigned short* dst,int& count,const unsigned short* src,int n) {
+        count=n;std::memcpy(dst,src,n*sizeof(*dst));
+    };
+    copySet(mPickSeenBuffs,mPickSeenBuffCount,picks.mPickSeenBuffs,picks.mPickSeenBuffCount);
+    copySet(mPickCooldownBuffs,mPickCooldownBuffCount,picks.mPickCooldownBuffs,picks.mPickCooldownBuffCount);
+    copySet(mPickSeenPlants,mPickSeenPlantCount,picks.mPickSeenPlants,picks.mPickSeenPlantCount);
+    copySet(mPickCooldownPlants,mPickCooldownPlantCount,picks.mPickCooldownPlants,picks.mPickCooldownPlantCount);
+
 	return true;
 }
 

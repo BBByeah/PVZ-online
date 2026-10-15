@@ -22,6 +22,7 @@
 // 永远是一关"手里牌齐了、能直接开打"的状态。中途退出再续就是从这一关重开——选卡
 // 已经进池，不会重抽、更不会丢；退在选卡屏里才回上一关重打（那一屏重新抽）。
 
+class PlayerInfo;
 class RunState
 {
 public:
@@ -106,7 +107,7 @@ public:
 		unsigned short	mCount;
 	};
 
-	// @pvz-online: "三选一"的待选状态（R2）。只在内存里活着，不进检查点——
+	// @pvz-online: "三选一"的待选状态（R2）。v17起完整保存选择阶段——
 	// 选了才写进卡池 / buff 表；检查点只在选卡做完的那一刻落盘（见头注释的写入时机）。
 	// 所以退在选卡屏里，这一屏的欠账不恢复：从上一关重打，回到这一关时重新抽。
 	// 候选由 runSeed + mPickSalt 推导（用户 2026-10-03 定案）：盐是本机自己随机的，
@@ -130,15 +131,22 @@ public:
 	int mRerollVouchers;
 	int mRerollAwardedLevel;
 	// @pvz-online: 候选去重批的记账（2026-10-10 用户定案「同屏排除+一屏冷却」，一屏/一批
-	// 生灭、纯内存不落检查点）。mPickSeenBuffs = 本屏露过脸的全部增益 id（含「重摇」
+	// 生灭、v17随检查点保存）。mPickSeenBuffs = 本屏露过脸的全部增益 id（含「重摇」
 	// 刷掉的那批，最多 3+3，抽的当下就记）；mPickCooldownBuffs = 上一屏露过脸又没拿的
 	// （= 本屏记账减去拿走的那条）——下一屏抽候选时整体摘掉，屏池不够时按"保底 3 条"
-	// 自动放宽（见 RollChoices）；拿走的不进冷却，跨屏叠层照旧。植物屏只做同屏排除
-	// （「重摇」必出全新三株），没有跨屏冷却。
+	// 自动放宽（见 RollChoices）；拿走的不进冷却，跨屏叠层照旧。植物屏同款记账见下方
+	// mPickSeenPlants（2026-10-16 用户令扩入，口径一致）。
 	unsigned short				mPickSeenBuffs[RUN_CHOICES * 2];
 	int							mPickSeenBuffCount;
 	unsigned short				mPickCooldownBuffs[RUN_CHOICES * 2];
 	int							mPickCooldownBuffCount;
+	// 植物屏跨屏冷却（2026-10-16 用户令，同 PC 2eb8646）：跳过/「重摇」刷掉的株，下一屏
+	// 不再出现；拿走的株已入卡池、owned 过滤天然挡住，冷却里减不减无行为差（照抄增益屏
+	// 口径保持一致）。v17随检查点保存；换批（BeginStartPicks/BeginLevelEndPicks）即清。
+	unsigned short				mPickSeenPlants[RUN_CHOICES * 2];
+	int							mPickSeenPlantCount;
+	unsigned short				mPickCooldownPlants[RUN_CHOICES * 2];
+	int							mPickCooldownPlantCount;
 
 public:
 	// @pvz-online 内存态：这一局正在打（含"刚过关、正要进下一关"的空档）。
@@ -304,6 +312,9 @@ public:
 	// （含「重摇」刷掉的那批）减去拿走的那条，记成下一屏的冷却集。放弃传哨兵 = 整批进冷却；
 	// 拿走的那条不进冷却（下一屏还能再来叠层）。
 	void				NoteBuffScreenConsumed(unsigned short theTakenId);
+	// @pvz-online: 植物屏同款回执（2026-10-16 用户令）：本屏露过脸的全部减去拿走的那株 =
+	// 下一屏冷却集；放弃传 SEED_NONE = 整批进冷却。
+	void				NotePlantScreenConsumed(SeedType theTakenSeed);
 	// 这一局拿到某个 buff 的层数（R3 的数值层按它算加成）。
 	int					GetBuffCount(int theBuffId) const;
 	// 这株植物在不在这局的卡池里。选卡界面（卡池 > 10 格才弹）靠它决定哪些袋子

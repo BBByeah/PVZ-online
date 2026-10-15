@@ -1084,6 +1084,7 @@ void Coin::Collect()
             mBoard->DisplayAdvice(_S("[ADVICE_FOUND_PLANT]"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_NONE);
             mApp->AddTodParticle(mPosX + 30.0f, mPosY + 30.0f, mRenderOrder + 1, ParticleEffect::PARTICLE_PRESENT_PICKUP);
             mApp->mZenGarden->AddPottedPlant(&mPottedPlantSpec);
+            mApp->WriteCurrentUserConfig(); // @pvz-online: save collected garden rewards.
         }
 
         mDisappearCounter = 0;
@@ -1160,6 +1161,8 @@ void Coin::Collect()
         mDisappearCounter = 0;
         StartFade();
 
+        // @pvz-online: persist the completed inventory transaction.
+        mApp->WriteCurrentUserConfig();
         if (aIsEndlessAward)
         {
             AttachmentDetachCrossFadeParticleType(mAttachmentID, ParticleEffect::PARTICLE_AWARD_PICKUP_ARROW, nullptr);

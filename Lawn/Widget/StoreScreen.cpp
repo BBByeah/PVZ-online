@@ -180,7 +180,7 @@ bool StoreScreen::IsComingSoon(StoreItem theStoreItem)
     else if (theStoreItem == STORE_ITEM_WHEEL_BARROW)
         return !mApp->mPlayerInfo->mPurchases[STORE_ITEM_MUSHROOM_GARDEN] && !mApp->mPlayerInfo->mPurchases[STORE_ITEM_AQUARIUM_GARDEN];
     else if (IsPottedPlant(theStoreItem))
-        return !mApp->HasFinishedAdventure();
+        return !mApp->CanShowZenGarden(); // @pvz-online: keep purchase/capacity rules, not campaign gates.
     else if (theStoreItem == STORE_ITEM_TREE_FOOD)
         return !mApp->mPlayerInfo->mPurchases[STORE_ITEM_TREE_OF_WISDOM] || mApp->mPlayerInfo->mPurchases[STORE_ITEM_TREE_FOOD] < PURCHASE_COUNT_OFFSET;
     return false;
@@ -495,15 +495,17 @@ void StoreScreen::Draw(Graphics* g)
     if (!mPrevButton->mDisabled)
     {
         int aNumPages = 0;
+        int aVisiblePage = 0;
         for (StorePages aPage = STORE_PAGE_SLOT_UPGRADES; aPage < NUM_STORE_PAGES; aPage = (StorePages)(aPage + 1))
         {
             if (IsPageShown(aPage))
             {
                 aNumPages++;
+                if (aPage == mPage) aVisiblePage = aNumPages;
             }
         }
 
-        SexyString aPageString = TodReplaceNumberString(TodReplaceNumberString(_S("[STORE_PAGE]"), _S("{PAGE}"), mPage), _S("{NUM_PAGES}"), aNumPages);
+        SexyString aPageString = TodReplaceNumberString(TodReplaceNumberString(_S("[STORE_PAGE]"), _S("{PAGE}"), aVisiblePage), _S("{NUM_PAGES}"), aNumPages);
         TodDrawString(g, aPageString, STORESCREEN_PAGESTRING_X, STORESCREEN_COINBANK_Y, Sexy::FONT_BRIANNETOD12, Color(80, 80, 80), DS_ALIGN_CENTER);
     }
 }
@@ -600,6 +602,7 @@ void StoreScreen::UpdateMouse()
 //0x48BE30
 void StoreScreen::StorePreload()
 {
+    Plant::PreloadPlantResources(SeedType::SEED_MARIGOLD);
     ReanimatorEnsureDefinitionLoaded(REANIM_CRAZY_DAVE, true);
     ReanimatorEnsureDefinitionLoaded(REANIM_ZENGARDEN_FERTILIZER, true);
     mApp->CrazyDaveEnter();

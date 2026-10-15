@@ -1127,6 +1127,7 @@ static void EnsureOnlineReconnectDialog(LawnApp* theApp)
 
 bool LawnApp::TryHoldSeedChooserForTeammates()
 {
+    if (IsLocalOnlyMode(mGameMode)) return false;
 	if (!IsOnlineGame()) return false;			// 单机 / 掉了线：原版节奏，不等
 
 	if (mOnlineSeedsHeld) return true;			// 已经拦下过一次：继续等（放行走 UpdateOnlineSeeds）
@@ -1151,6 +1152,7 @@ bool LawnApp::TryHoldSeedChooserForTeammates()
 // 等的人不会来了，后面本来就是单机收场，别把选卡界面锁死在"等待队友"上。
 void LawnApp::UpdateOnlineSeeds()
 {
+    if (mBoard && IsLocalOnlyMode(mGameMode)) return; // @pvz-online: local garden/tree only.
     if(mCoopPlay && mCoopPlay->Blocking())return;
 	if (!mOnlineSeedsHeld) return;
 
@@ -1209,6 +1211,7 @@ void LawnApp::UpdateOnlineSeeds()
 // 对面挨打后剩下的血。每只都打一行日志——玩家在两边看到的必须是同一只怪。
 void LawnApp::UpdateOnlineRelay()
 {
+    if (mBoard && IsLocalOnlyMode(mGameMode)) return; // @pvz-online: local garden/tree only.
 	if (!mOnlineSession) return;
 
 	NetProto::MsgEscapedZombie aMsg;
@@ -1263,6 +1266,7 @@ void LawnApp::UpdateOnlineLevelExit()
 
 	NetProto::MsgLevelExit aMsg;
 	if (!mOnlineSession->TakePendingLevelExit(aMsg)) return;
+    if (mBoard && IsLocalOnlyMode(mGameMode)) return; // @pvz-online: consume, do not eject local garden.
 
 	if (mBoard != nullptr)
 	{
@@ -1290,6 +1294,7 @@ void LawnApp::UpdateOnlineLevelExit()
 // 切出去不再开它，见 LostFocus）：自己切出去不该把队友强按进暂停菜单。
 void LawnApp::UpdateOnlinePause()
 {
+    if (mBoard && IsLocalOnlyMode(mGameMode)) return; // @pvz-online: local garden/tree only.
 	if (!mOnlineSession) return;
 
 	// ① 队友按了暂停 / 继续
@@ -1515,6 +1520,7 @@ void LawnApp::UpdateOnlineEvents()
 // 我这句"清完了"就得当场撤回，不然会赢在一只还在走的僵尸上。
 void LawnApp::UpdateOnlineEnd()
 {
+    if (mBoard && IsLocalOnlyMode(mGameMode)) return; // @pvz-online: local garden/tree only.
 	if (!mOnlineSession) return;
 
 	// ①
@@ -2292,7 +2298,7 @@ bool LawnApp::TryKeepEndlessLawn()
 	// 草坪接着用：本关的胜负记号翻篇，先报"我还没选好"（和 NewGame 一处口径）。
 	mBoardResult = BoardResult::BOARDRESULT_NONE;
 	mGameScene = GameScenes::SCENE_LEVEL_INTRO;
-	if (IsOnlineGame()) mOnlineSession->SendSeedsReady(false);
+	if (IsOnlineGame() && !IsLocalOnlyMode(mGameMode)) mOnlineSession->SendSeedsReady(false);
 
 	mRunIntroHeld = false;
 	if (mRunState->HasPendingPick() || mRunState->IsCatchingUp())
@@ -3235,7 +3241,7 @@ void LawnApp::NewGame()
 	// 可能过很久才轮到选卡，中间这段不能让对面以为"他早就选好了"（那会直接放行、白等一场）。
 	// 真选好了（按 Let's Rock / 这一关不用选卡）再报 1，见 TryHoldSeedChooserForTeammates
 	// 与 ShowSeedChooserScreen。
-	if (IsOnlineGame()) mOnlineSession->SendSeedsReady(false);
+	if (IsOnlineGame() && !IsLocalOnlyMode(mGameMode)) mOnlineSession->SendSeedsReady(false);
 
 	// @pvz-online: 联机闯关（R6）：草坪先建、选项后做——这一关还欠着三选一（含补发追赶）
 	// 的时候，把"选卡 + 开场"压住：人先站在自己的新草坪上，选项屏盖在草坪上做完，
@@ -3415,7 +3421,7 @@ void LawnApp::ShowSeedChooserScreen()
 	// 残留先清掉，同时把本机这一轮的状态报准——这一关根本不用选卡的机器（卡池 ≤10 之类
 	// 全场不开选卡界面）直接算"选好了"：它走不到 Let's Rock，不主动报就会让队友干等。
 	mOnlineSeedsHeld = false;
-	if (IsOnlineGame() && mBoard != nullptr)
+	if (IsOnlineGame() && mBoard != nullptr && !IsLocalOnlyMode(mGameMode))
 	{
 		mOnlineSession->SendSeedsReady(!mBoard->ChooseSeedsOnCurrentLevel());
 	}
@@ -3461,7 +3467,7 @@ void LawnApp::DoBackToMain(bool theNotifyOnline)
 	// @pvz-online: 退关要告诉对面——不然一边在关卡里、一边在菜单上；退的那边再点关卡
 	// 开局时会撞上"对面不在菜单、开局命令被丢掉"的卡死（见 UpdateOnlineLevelExit）。
 	// theNotifyOnline=false 是"收到对面的退关、我跟着退"，别回声。
-	if (theNotifyOnline && IsOnlineGame() && mBoard)
+	if (theNotifyOnline && IsOnlineGame() && mBoard && !IsLocalOnlyMode(mGameMode))
 	{
 		mOnlineSession->SendLevelExit(NetProto::EXIT_QUIT_TO_MENU);
 	}

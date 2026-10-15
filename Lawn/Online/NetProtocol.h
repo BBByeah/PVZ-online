@@ -191,7 +191,7 @@ const uint16_t	PROTOCOL_VERSION	= 1;
 // 50 → 51：快捷短语表 8→9 条（2026-10-15 用户定案）：短语占 id 1..9，植物表情整体后移为
 //        10..17（分界 = PHRASE_COUNT）——旧构建把 9 号解成「土豆雷」表情、新构建是第 9 句
 //        短语，表情 10..17 也各错一位，混搭必须两边同版本。
-const uint16_t	MOD_BUILD			= 52;
+const uint16_t	MOD_BUILD			= 53; // @pvz-online: campaign-independent garden and battle isolation.
 
 const uint16_t	DEFAULT_PORT		= 27777;
 

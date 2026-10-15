@@ -8934,6 +8934,7 @@ void Board::DoTypingCheck(KeyCode theKey)
 
 bool Board::QuickChatAvailable()
 {
+    if (mApp->IsLocalOnlyMode(mApp->mGameMode)) return false;
 	// 观看队友场地时不开面板：观看层盖住全屏，面板看不见却还在吞键（T/E 会被这里先接走）
 	return !mWatchKeyHeld && mApp->IsOnlineGame() && mApp->mOnlineSession != nullptr &&
 		mApp->mOnlineSession->IsConnected() &&
@@ -11978,7 +11979,7 @@ bool Board::CanUseGameObject(GameObjectType theGameObject)
 	}
 	if (theGameObject == GameObjectType::OBJECT_TYPE_MONEY_SIGN)
 	{
-		return mApp->HasFinishedAdventure();
+		return mApp->CanShowZenGarden(); // @pvz-online: selling is part of the garden economy.
 	}
 	if (theGameObject == GameObjectType::OBJECT_TYPE_TREE_FOOD)
 	{

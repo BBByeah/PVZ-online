@@ -1,5 +1,6 @@
 #ifndef __BOARD_H__
 #define __BOARD_H__
+#include <unordered_set>
 
 #include "../ConstEnums.h"
 #include "../Sexy.TodLib/DataArray.h"
@@ -109,6 +110,11 @@ struct BungeeDropGrid
 class Board : public Widget, public ButtonListener
 {
 public:
+    // @pvz-online: online-only presentation metadata avoids changing native zombie save layout.
+    std::unordered_set<unsigned int> mRelayedZombieIds;
+    void MarkRelayedZombie(Zombie* zombie);
+    bool IsRelayedZombie(Zombie* zombie);
+
 	LawnApp*						mApp;													//+0x8C
 	DataArray<Zombie>				mZombies;												//+0x90
 	DataArray<Plant>				mPlants;												//+0xAC

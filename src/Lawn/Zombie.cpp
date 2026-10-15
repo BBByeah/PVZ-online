@@ -237,6 +237,9 @@ void Zombie::AttachPaperHelmReanim()
 
 void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Zombie* theParentZombie, int theFromWave)
 {
+    // @pvz-online: imps and other parent-generated units keep their relay identity.
+    if (mBoard && theParentZombie && mBoard->IsRelayedZombie(theParentZombie)) mBoard->MarkRelayedZombie(this);
+
 	PVZP_ASSERT(theType >= 0 && theType < ZombieType::NUM_ZOMBIE_TYPES);
 
 	int aZombatarRecordIndex = -1;
@@ -270,8 +273,11 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
 	mChilledCounter = 0;
 	mIceTrapCounter = 0;
 	mButteredCounter = 0;
+    mRunBarbedCounter = 0;
 	mControlImmune = false;
-	mMindControlled = false;
+    // @pvz-online: 僵尸强化「护心」改版（MOD_BUILD 47）——首伤挡一次，逐实例新鲜起算。
+    mHeartguardUsed = false;
+    mMindControlled = false;
 	mBlowingAway = false;
 	mHasHead = true;
 	mHasArm = true;
@@ -2332,18 +2338,37 @@ void Zombie::UpdateZombieGargantuar()
                     }
                     else if (aPlant->mSeedType == SeedType::SEED_SPIKEROCK)
                     {
-                        TakeDamage(20, 32U);
+                        TakeDamage(mApp->RunExtraBuffCount(RUN_BUFF2_GIANT_COUNTER) > 0 ? 1000 : 20,
+                            mApp->RunExtraBuffCount(RUN_BUFF2_GIANT_COUNTER) > 0 ? (32U | RUN_FIXED_COUNTER_DAMAGE) : 32U);
                         aPlant->SpikeRockTakeDamage();
                         if (aPlant->mPlantHealth <= 0)
                         {
                             SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
                         }
                     }
-                    else if (aPlant->mSeedType == SeedType::SEED_GLOOMSHROOM && mApp->RunPlantBuff2Count(SeedType::SEED_GLOOMSHROOM) > 0)
+                    else if (aPlant->mSeedType == SeedType::SEED_PUMPKINSHELL &&
+                        mApp->RunExtraBuffCount(RUN_BUFF2_STEEL_PUMPKIN) > 0)
                     {
-                        // @pvz-online: 第二 buff 批 3「耐砸」（忧郁菇，docs/06 §8.6 #42）：巨人砸
-                        // 每次固定 -50（与被啃同额；2026-10-11 由 -200 改），砸空才没——像坚果耐砸分支一样不秒杀。
-                        aPlant->mPlantHealth -= 50;
+                        // @pvz-online: steel shell absorbs this smash; squish the whole tile only after shell exhaustion.
+                        aPlant->mPlantHealth -= 200;
+                        if (aPlant->mPlantHealth <= 0)
+                            SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
+                    }
+                    else if (aPlant->mSeedType == SeedType::SEED_PUMPKINSHELL &&
+                    mApp->RunExtraBuffCount(RUN_BUFF2_STEEL_PUMPKIN) > 0)
+                {
+                    // @pvz-online: steel shell absorbs this smash; squish the whole tile only after shell exhaustion.
+                    aPlant->mPlantHealth -= 200;
+                    if (aPlant->mPlantHealth <= 0)
+                        SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
+                }
+                else if (aPlant->mSeedType == SeedType::SEED_GLOOMSHROOM && mApp->RunPlantBuff2Count(SeedType::SEED_GLOOMSHROOM) > 0)
+                    {
+                        // @pvz-online: 第二 buff 批 3「耐砸」（忧郁菇，docs/06 §8.6 #42），
+                        // 2026-10-15 改版=坚果耐砸同款：每次砸固定 -200（1000 血 = 硬吃 5 砸），
+                        // 砸空才没——不秒杀。啃咬与其他伤害正常结算（EatPlant 分支已删固定扣血）；
+                        // 关底巨型 boss 真伤口径照旧（上面 IsRunBossZombie 分支一击压扁）。
+                        aPlant->mPlantHealth -= 200;
                         if (aPlant->mPlantHealth <= 0)
                         {
                             SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
@@ -2399,7 +2424,8 @@ void Zombie::UpdateZombieGargantuar()
                 }
                 else if (aPlant->mSeedType == SeedType::SEED_SPIKEROCK)
                 {
-                    TakeDamage(20, 32U);
+                    TakeDamage(mApp->RunExtraBuffCount(RUN_BUFF2_GIANT_COUNTER) > 0 ? 1000 : 20,
+                        mApp->RunExtraBuffCount(RUN_BUFF2_GIANT_COUNTER) > 0 ? (32U | RUN_FIXED_COUNTER_DAMAGE) : 32U);
                     aPlant->SpikeRockTakeDamage();
                     if (aPlant->mPlantHealth <= 0)
                     {
@@ -4440,11 +4466,23 @@ void Zombie::UpdateLadder()
 void Zombie::UpdateZombieWalking()
 {
 	if (ZombieNotWalking())
-		return;
+        return;
 
-	Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
-	if (aBodyReanim)
-	{
+    // @pvz-online: alter translation only, not attack animation; do not multiply stronger slows.
+    float aBarbedFactor = 1.0f;
+    if (mRunBarbedCounter > 0 && CanBeChilled())
+    {
+        float aExisting = IsMovingAtChilledSpeed() ? 0.5f : 1.0f;
+        if (!IsMovingAtChilledSpeed())
+        {
+            if (mFetidSlowCounter > 0) aExisting *= 1.0f - 0.2f * mApp->RunPlantBuff2Count(SeedType::SEED_FUMESHROOM);
+            if (mFrostArmorCounter > 0) aExisting *= 0.65f;
+        }
+        if (aExisting > 0.8f) aBarbedFactor = 0.8f / aExisting;
+    }
+    Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
+    if (aBodyReanim)
+    {
 		float aSpeed;
 		if (IsBouncingPogo() || mZombiePhase == ZombiePhase::PHASE_BALLOON_FLYING || mZombiePhase == ZombiePhase::PHASE_DOLPHIN_RIDING ||
 			mZombiePhase == ZombiePhase::PHASE_SNORKEL_WALKING_IN_POOL || mZombieType == ZombieType::ZOMBIE_CATAPULT)
@@ -4474,15 +4512,15 @@ void Zombie::UpdateZombieWalking()
 		}
 
 		if (IsWalkingBackwards() || mZombiePhase == ZombiePhase::PHASE_DANCER_DANCING_IN)
-		{
-			mPosX += aSpeed;
-		}
-		else
-		{
-			mPosX -= aSpeed;
-		}
+        {
+            mPosX += aSpeed * aBarbedFactor;
+        }
+        else
+        {
+            mPosX -= aSpeed * aBarbedFactor;
+        }
 
-		if (mZombieType == ZombieType::ZOMBIE_FOOTBALL && mFromWave != Zombie::ZOMBIE_WAVE_WINNER)
+        if (mZombieType == ZombieType::ZOMBIE_FOOTBALL && mFromWave != Zombie::ZOMBIE_WAVE_WINNER)
 		{
 			if (aBodyReanim->ShouldTriggerTimedEvent(0.03f))
 			{
@@ -4541,15 +4579,15 @@ void Zombie::UpdateZombieWalking()
 			}
 
 			if (IsWalkingBackwards())
-			{
-				mPosX += aSpeed;
-			}
-			else
-			{
-				mPosX -= aSpeed;
-			}
-		}
-	}
+            {
+                mPosX += aSpeed * aBarbedFactor;
+            }
+            else
+            {
+                mPosX -= aSpeed * aBarbedFactor;
+            }
+        }
+    }
 }
 
 Plant* Zombie::IsStandingOnSpikeweed()
@@ -4984,6 +5022,7 @@ void Zombie::UpdatePlaying()
             UpdateAnimSpeed();
         }
     }
+    if (mRunBarbedCounter > 0) --mRunBarbedCounter;
     if (mFetidSlowCounter > 0)
     {
         mFetidSlowCounter--;
@@ -6717,7 +6756,18 @@ void Zombie::Draw(Graphics* g)
 	if (mZombieHeight == ZombieHeight::HEIGHT_GETTING_BUNGEE_DROPPED)
 		return;
 
-	ZombieDrawPosition aDrawPos;
+	    // @pvz-online: a small two-tone relay arrow remains distinct from chill/mind-control tint.
+    if (mBoard && !mDead && !IsDeadOrDying() && mBoard->IsRelayedZombie(this))
+    {
+        Graphics marker(*g);
+        marker.SetColor(Color(35, 30, 20, 230)); marker.FillRect(38, -9, 18, 18);
+        marker.SetColor(Color(255, 215, 70));
+        marker.FillRect(45, -7, 4, 8);
+        marker.FillRect(41, -1, 12, 3);
+        marker.FillRect(43, 2, 8, 3);
+        marker.FillRect(45, 5, 4, 2);
+    }
+ZombieDrawPosition aDrawPos;
 	GetDrawPos(aDrawPos);
 
 	if (mApp->mGameScene == GameScenes::SCENE_ZOMBIES_WON && !SetupDrawZombieWon(g))
@@ -7604,17 +7654,43 @@ void Zombie::EatPlant(Plant* thePlant)
     }
 
     thePlant->mPlantHealth -= aBiteDamage;
-    // @pvz-online: 第二 buff 批 3「耐砸」（忧郁菇，docs/06 §8.6 #42）：被击固定扣 50/口
-    //（500 血 = 10 口；1★；2026-10-11 由 200 改）。巨人砸分支同额 -50/砸（见 Zombie::Update 的 Squish 分支）。
-    if (thePlant->mSeedType == SeedType::SEED_GLOOMSHROOM && mApp->RunPlantBuff2Count(SeedType::SEED_GLOOMSHROOM) > 0)
-    {
-        thePlant->mPlantHealth -= (50 - aBiteDamage);	// 上面已扣 aBiteDamage，补差到固定 50
-    }
+    // @pvz-online: 「耐砸」2026-10-15 改版（用户定案）：忧郁菇被啃不再固定扣 50——
+    // 正常结算（每口 4、狂食照乘）；仅巨人砸击保留每次 -200 特例（Zombie::Update 砸分支）。
     thePlant->mRecentlyEatenCountdown = 50;
     // @pvz-online: 第二 buff「荆棘之壁」（坚果墙 #3，docs/06 §8.6，2★ cap2）：啃食者受
     // 40/层·秒反伤——啃食节拍 4 帧/口（25 口 = 1 秒），每 25 口给啃食者自己反伤 40×层；
     // 计数器借坚果的 mLaunchCounter（该株只在保龄球模式用它，与闯关词条不共存）。
     // 冰冻慢啃（节拍翻倍）时反伤同步减半——反伤跟着啃食动作走。
+    if (thePlant->mSeedType == SeedType::SEED_GARLIC &&
+        mApp->RunExtraBuffCount(RUN_BUFF2_GARLIC_CLOUD) > 0 && thePlant->mRunGarlicCooldown == 0)
+    {
+        Zombie* aTargets[3] = {};
+        float aDistances[3] = { 1e9f, 1e9f, 1e9f };
+        Zombie* aOther = nullptr;
+        int aRow = thePlant->mRow;
+        while (mBoard->IterateZombies(aOther))
+        {
+            if (aOther->mRow != aRow || aOther->IsDeadOrDying() || aOther->mMindControlled ||
+                aOther->mControlImmune || aOther->IsFlying() || mBoard->IsRunBossZombie(aOther) ||
+                aOther->mZombiePhase != ZombiePhase::PHASE_ZOMBIE_NORMAL) continue;
+            bool aPool = mBoard->mPlantRow[aRow] == PlantRowType::PLANTROW_POOL;
+            bool aCanSwitch = false;
+            for (int r = aRow - 1; r <= aRow + 1; r += 2)
+                if (mBoard->RowCanHaveZombies(r) && (mBoard->mPlantRow[r] == PlantRowType::PLANTROW_POOL) == aPool)
+                    aCanSwitch = true;
+            if (!aCanSwitch) continue;
+            Rect aRect = aOther->GetZombieRect();
+            float d = aRect.mX - thePlant->mX;
+            if (d < -30.0f || d > 160.0f) continue;
+            for (int i = 0; i < 3; ++i) if (d < aDistances[i])
+            {
+                for (int j = 2; j > i; --j) { aTargets[j] = aTargets[j - 1]; aDistances[j] = aDistances[j - 1]; }
+                aTargets[i] = aOther; aDistances[i] = d; break;
+            }
+        }
+        thePlant->mRunGarlicCooldown = 500;
+        for (int i = 0; i < 3; ++i) if (aTargets[i]) aTargets[i]->SwitchLanes();
+    }
     if (thePlant->mSeedType == SeedType::SEED_WALLNUT)
     {
         int aThornStacks = mApp->RunPlantBuff2Count(SeedType::SEED_WALLNUT);
@@ -8574,42 +8650,67 @@ void Zombie::TakeBodyDamage(int theDamage, unsigned int theDamageFlags)
 	}
 }
 
-void Zombie::TakeDamage(int theDamage, unsigned int theDamageFlags)
+void Zombie::TakeDamage(int theDamage, unsigned int theDamageFlags, int theFixedBonus)
 {
     if (mZombiePhase == ZombiePhase::PHASE_JACK_IN_THE_BOX_POPPING || IsDeadOrDying())
         return;
 
-    // @pvz-online: 批 18 全局「Precision 所有伤害 +15%」——僵尸受击的总入口，先放大再走
-    // 各分支（护盾/头盔/本体的依次分配、HITS_SHIELD_AND_BODY 的重置全吃放大值）。
-    // 火力（Firepower）在弹种基数上先乘，这里末梢再乘，两条全局乘性叠加；非闯关自动 1.0。
-    theDamage = (int)(theDamage * mApp->RunBuffMul(RUN_BUFF_PRECISION) + 0.5f);
-
-    // @pvz-online: 第二 buff「伤口加深」（地刺 #21，docs/06 §8.6）：被扎者——脚下格
-    // 正踩着地刺的僵尸——受全伤害 ×(1+30%/层)（站上去才开始生效、离开即止，无需状态位；
-    // 只认地刺本体格，南瓜/花盆不算）。词条未抽取时短路，高频入口零开销。
-    if (mApp->RunPlantBuff2Count(SeedType::SEED_SPIKEWEED) > 0)
+    bool aFixedCounter = (theDamageFlags & RUN_FIXED_COUNTER_DAMAGE) != 0;
+    theDamageFlags &= ~RUN_FIXED_COUNTER_DAMAGE;
+    // @pvz-online: fixed counter damage must not grow with Precision or support auras.
+    if (!aFixedCounter)
     {
-        Rect aZombieRect = GetZombieRect();
-        Plant* aUnderPlant = mBoard->GetTopPlantAt(
-            mBoard->PixelToGridX(aZombieRect.mX + aZombieRect.mWidth / 2, aZombieRect.mY + aZombieRect.mHeight / 2),
-            mBoard->PixelToGridY(aZombieRect.mX + aZombieRect.mWidth / 2, aZombieRect.mY + aZombieRect.mHeight / 2),
-            PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION);
-        if (aUnderPlant != nullptr && aUnderPlant->mSeedType == SeedType::SEED_SPIKEWEED)
+        // @pvz-online: 批 18 全局「Precision 所有伤害 +15%」——僵尸受击的总入口，先放大再走
+        // 各分支（护盾/头盔/本体的依次分配、HITS_SHIELD_AND_BODY 的重置全吃放大值）。
+        // 火力（Firepower）在弹种基数上先乘，这里末梢再乘，两条全局乘性叠加；非闯关自动 1.0。
+        theDamage = (int)(theDamage * mApp->RunBuffMul(RUN_BUFF_PRECISION) + 0.5f);
+
+        // @pvz-online: 第二 buff「伤口加深」（地刺 #21，docs/06 §8.6）：被扎者——脚下格
+        // 正踩着地刺的僵尸——受全伤害 ×(1+30%/层)（站上去才开始生效、离开即止，无需状态位；
+        // 只认地刺本体格，南瓜/花盆不算）。词条未抽取时短路，高频入口零开销。
+        if (mApp->RunPlantBuff2Count(SeedType::SEED_SPIKEWEED) > 0)
         {
-            theDamage = (int)(theDamage * (1.0f + 0.3f * mApp->RunPlantBuff2Count(SeedType::SEED_SPIKEWEED)) + 0.5f);
+            Rect aZombieRect = GetZombieRect();
+            Plant* aUnderPlant = mBoard->GetTopPlantAt(
+                mBoard->PixelToGridX(aZombieRect.mX + aZombieRect.mWidth / 2, aZombieRect.mY + aZombieRect.mHeight / 2),
+                mBoard->PixelToGridY(aZombieRect.mX + aZombieRect.mWidth / 2, aZombieRect.mY + aZombieRect.mHeight / 2),
+                PlantPriority::TOPPLANT_ONLY_NORMAL_POSITION);
+            if (aUnderPlant != nullptr && aUnderPlant->mSeedType == SeedType::SEED_SPIKEWEED)
+            {
+                theDamage = (int)(theDamage * (1.0f + 0.3f * mApp->RunPlantBuff2Count(SeedType::SEED_SPIKEWEED)) + 0.5f);
+            }
+        }
+
+        // @pvz-online: one live lantern in the lane enables one aura, regardless of lantern count.
+        if (mApp->RunExtraBuffCount(RUN_BUFF2_LANE_LIGHT) > 0 && !mMindControlled)
+        {
+            Plant* aLantern = nullptr;
+            while (mBoard->IteratePlants(aLantern))
+                if (aLantern->mSeedType == SeedType::SEED_PLANTERN && aLantern->mRow == mRow &&
+                    !aLantern->NotOnGround() && !aLantern->mIsAsleep)
+                {
+                    theDamage = (int)std::min((long long)INT_MAX, (long long)theDamage * 125 / 100);
+                    break;
+                }
         }
     }
 
-    // @pvz-online: 僵尸强化「护心」（MOD_BUILD 45）：单次伤害封顶（层 1=200、层 2=150、
-    // 层 3=100、层 4 起保底 50）。放在一切乘性加成（精准/伤口加深）之后、分配进护盾/
-    // 头盔/本体之前——单次伤害事件真正打到的量不可能超上限，灰烬族（爆炸直伤走的
-    // TakeDamage 通路）不再一发秒杀；层数 0 短路零改动。
-    if (mApp->IsRunMode())
+    // @pvz-online: percent bonus bypasses amplification, but shares one hit with armor and Heartguard.
+    if (theFixedBonus > 0)
+        theDamage = (int)std::min((long long)INT_MAX, (long long)theDamage + theFixedBonus);
+
+    // @pvz-online: 僵尸强化「护心」（MOD_BUILD 45 落地，47 改版=用户令）：改「仅对第一次
+    // 实际生效的伤害封顶」——mHeartguardUsed 未消耗且本帧原伤超封顶值，才把伤害压到上限
+    // 并消耗（原伤没超就不算挨挡、不消耗；多段小伤不打这块盾）。挡完这只僵尸回归普通，
+    // 灰烬第二发、常态伤害照常结算。层 1=200、层 2=150、层 3=100、层 4 起保底 50。放在
+    // 一切乘性加成之后、分配进护盾/头盔/本体之前。
+    if (mApp->IsRunMode() && !mHeartguardUsed)
     {
         int aSingleHitCap = mApp->GetRunState()->ZombieBuffSingleHitCap();
         if (aSingleHitCap > 0 && theDamage > aSingleHitCap)
         {
             theDamage = aSingleHitCap;
+            mHeartguardUsed = true;
         }
     }
 
@@ -9361,11 +9462,12 @@ void Zombie::ApplyBurn(int theDirectDamage)
     if (mDead || mZombiePhase == ZombiePhase::PHASE_ZOMBIE_BURNED)
         return;
 
-    // @pvz-online: 僵尸强化「护心」（MOD_BUILD 45）：投过护心的僵尸不吃灰烬秒杀——燃烧
-    // 改按单次伤害走 TakeDamage（里面的封顶即护心值）。血厚的（≥1800/boss）原路径本就
-    // 过 TakeDamage，与下一分支同一调用、行为不变；薄血原走"直接烧死"的现在只掉封顶血。
-    // 层数 0（=不封顶）时本块短路，行为与现状逐位一致。
-    if (mApp->IsRunMode() && mApp->GetRunState()->ZombieBuffSingleHitCap() > 0)
+    // @pvz-online: 僵尸强化「护心」（MOD_BUILD 45 落地，47 改版）：投过护心且尚未消耗的
+    // 僵尸不吃灰烬秒杀——燃烧按单次伤害走 TakeDamage（里面的封顶即护心值，压到上限的
+    // 同时把盾消耗掉）；从下一发起这只僵尸就是普通血肉，再烧直接烧死。厚血（≥1800/boss）
+    // 原路径本就过 TakeDamage，首次燃烧与下一分支同一调用、行为一致；层数 0（=不封顶）
+    // 时本块短路，行为与现状逐位一致。
+    if (mApp->IsRunMode() && !mHeartguardUsed && mApp->GetRunState()->ZombieBuffSingleHitCap() > 0)
     {
         int aBlastBase = theDirectDamage > 0 ? theDirectDamage : 1800;
         TakeDamage((int)(aBlastBase * mApp->RunBuffMul(RUN_BUFF_BLAST) + 0.5f), 18U);

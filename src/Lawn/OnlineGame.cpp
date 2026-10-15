@@ -1,3 +1,4 @@
+#include "CoopPlay.h"
 // Game session flow from pinned PC Build 45 (0e08297), with native ownership/UI adapters.
 #include "../LawnApp.h"
 #include "Board.h"
@@ -501,6 +502,7 @@ bool LawnApp::TryHoldSeedChooserForTeammates()
 
 void LawnApp::UpdateOnlineSeeds()
 {
+    if(mCoopPlay && mCoopPlay->Blocking())return;
 	if (!mOnlineSeedsHeld) return;
 
 	// @pvz-online MOD_BUILD 39：重连期断的是我自己的线，不是"队友没了"——放行条件
@@ -890,7 +892,9 @@ void LawnApp::UpdateOnlineEnd()
 			if (IsRunMode())
 			{
 				NetworkLog("[net] every lawn is clear - the run moves on");
-				mRunState->AdvanceLevel();
+				AwardRunRerollVoucher();
+        ExpireCoopLoan();
+        mRunState->AdvanceLevel();
 				if (mRunState->IsComplete())
 				{
 					NetworkLog("[run] the run is complete");
@@ -1586,7 +1590,8 @@ void LawnApp::ZombieVoteResolve()
 	}
 	else if (mZombieVoteAbstains > 0)
 	{
-		// 一张有效票都没有、但有明确弃权：这一场景不加（明确表态不参与随机兜底）。
+        // PC Build 47: abstaining still grants one deterministic candidate.
+        aPicked[aPickedCount++] = mZombieVoteCandidates[Rand(RunState::RUN_ZOMBIE_VOTE_CHOICES)];
 	}
 	else
 	{

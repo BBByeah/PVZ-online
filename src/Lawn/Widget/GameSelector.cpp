@@ -1,3 +1,4 @@
+#include "MobileCoopDraw.h"
 /*
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
@@ -75,7 +76,7 @@ GameSelector::GameSelector(LawnApp* theApp)
 	mHasTrophy = false;
 	mToolTip = std::make_unique<ToolTipWidget>();
 	// @pvz-online: keep the existing adventure entry while the new run flow is ported.
-	auto* runButton = new Sexy::ButtonWidget(5001, this);
+	auto* runButton = new MobileStoneButton(5001, this);
 	runButton->mLabel = ModText::Tr("闯关", "Run");
 	runButton->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 28));
 	runButton->SetLabelColor(Sexy::Color(245, 230, 165));
@@ -84,7 +85,7 @@ GameSelector::GameSelector(LawnApp* theApp)
 	runButton->Resize(30, 330, 112, 55);
 	AddWidget(runButton);
 
-    auto* onlineButton = new Sexy::ButtonWidget(5002, this);
+    auto* onlineButton = new MobileStoneButton(5002, this);
     onlineButton->mLabel = ModText::Tr("联机", "Online");
     onlineButton->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 28));
     onlineButton->SetLabelColor(Sexy::Color(245, 230, 165));

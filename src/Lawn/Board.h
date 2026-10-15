@@ -21,9 +21,11 @@
 
 #ifndef __BOARD_H__
 #define __BOARD_H__
+#include <unordered_set>
 
 #include <cstdint>
 #include <memory>
+#include "Online/NetSession.h"
 
 #include "../ConstEnums.h"
 #include "../PvzpLib/DataArray.h"
@@ -128,6 +130,20 @@ struct BungeeDropGrid
 class Board : public Widget, public ButtonListener
 {
 public:
+    // @pvz-online: online-only presentation metadata avoids changing native zombie save layout.
+    std::unordered_set<unsigned int> mRelayedZombieIds;
+    void MarkRelayedZombie(Zombie* zombie);
+    bool IsRelayedZombie(Zombie* zombie);
+
+    // @pvz-online: snapshot-only mobile spectator state is transient.
+    NetSession::ViewSnapshot mRemoteSnapshot{};
+    bool mMobileWatchOpen=false, mHasRemoteSnapshot=false;
+    int mWatchSnapshotTicker=0;
+    int BuildBoardSnapshot(uint8_t* buffer, int capacity);
+    void UpdateBoardWatch();
+    void CycleMobileWatch();
+    void StopMobileWatch();
+    void DrawMobileWatch(Graphics* g);
     bool QuickChatAvailable();
     void CloseQuickChatPanel();
     bool HandleQuickChatKey(KeyCode key);

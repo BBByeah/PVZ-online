@@ -1,3 +1,4 @@
+#include "../CoopPlay.h"
 /*
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
@@ -429,6 +430,7 @@ void SeedChooserScreen::Draw(Graphics* g)
 	aBoardFrameG.mTransY -= mY;
 	mMenuButton->Draw(&aBoardFrameG);
 	mToolTip->Draw(g);
+    if(mApp->mCoopPlay)mApp->mCoopPlay->DrawEntry(g,640,70);
 }
 
 void SeedChooserScreen::UpdateViewLawn()
@@ -976,6 +978,7 @@ void SeedChooserScreen::UpdateImitaterButton()
 
 void SeedChooserScreen::MouseDown(int x, int y, int theClickCount)
 {
+    if(theClickCount>0 && Rect(640,70,140,40).Contains(x,y) && mApp->IsOnlineGame()){mApp->ShowCoopPlay();return;}
 	Widget::MouseDown(x, y, theClickCount);
 
 	if (mSeedsInFlight > 0)
@@ -1088,6 +1091,7 @@ bool SeedChooserScreen::PickedPlantType(SeedType theSeedType)
 
 void SeedChooserScreen::CloseSeedChooser()
 {
+    if(mApp->mCoopPlay && mApp->mCoopPlay->Blocking())return;
 	if (mApp->TryHoldSeedChooserForTeammates()) return;
 	DBG_ASSERT(mBoard->mSeedBank->mNumPackets == mBoard->GetNumSeedsInBank());
 	for (int anIndex = 0; anIndex < mBoard->mSeedBank->mNumPackets; anIndex++)
@@ -1099,7 +1103,9 @@ void SeedChooserScreen::CloseSeedChooser()
 		if (aChosenSeed.mRefreshing)
 		{
 			aSeedPacket.mRefreshCounter = aChosenSeed.mRefreshCounter;
-			aSeedPacket.mRefreshTime = Plant::GetRefreshTime(aSeedPacket.mPacketType, aSeedPacket.mImitaterType);
+			aSeedPacket.mRefreshTime = (int)(Plant::GetRefreshTime(aSeedPacket.mPacketType, aSeedPacket.mImitaterType) *
+                mApp->RunBuffMul(RUN_BUFF_FASTSEED)*mApp->RunPlantUpgradeMulKind(aSeedPacket.mPacketType,RUN_UPGRADE_KIND_COOLDOWN)*
+                mApp->RunCoffeeBeanRefreshMul(aSeedPacket.mPacketType,aSeedPacket.mImitaterType));
 			aSeedPacket.mRefreshing = true;
 			aSeedPacket.mActive = false;
 		}
@@ -1109,6 +1115,7 @@ void SeedChooserScreen::CloseSeedChooser()
 
 void SeedChooserScreen::KeyDown(KeyCode theKey)
 {
+    if(theKey=='B'||theKey=='b'){mApp->ShowCoopPlay();return;}
 	mBoard->DoTypingCheck(theKey);
 
 	if (mChooseState == CHOOSE_VIEW_LAWN && (theKey == KeyCode::KEYCODE_SPACE || theKey == KeyCode::KEYCODE_RETURN || theKey == KeyCode::KEYCODE_ESCAPE))

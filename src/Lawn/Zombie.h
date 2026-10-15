@@ -166,6 +166,9 @@ public:
 	int32_t mScorchedCounter = 0;
 	int32_t mFrostArmorCounter = 0;
 	bool mIceShroomTrap = false;
+	static constexpr unsigned int RUN_FIXED_COUNTER_DAMAGE = 0x80000000U;
+	int32_t mRunBarbedCounter=0;
+	bool mHeartguardUsed=false;
 	bool mControlImmune = false; // PC Build 45; also persisted in optional v4 chunk 104.
 
 public:
@@ -185,7 +188,7 @@ public:
 //  void                            DrawZombieWithParts(Graphics* g, const ZombieDrawPosition& theDrawPos);
 	void                            DrawZombiePart(Graphics* g, Image* theImage, int theFrame, int theRow, const ZombieDrawPosition& theDrawPos);
 	void                            DrawBungeeCord(Graphics* g, int theOffsetX);
-	void                            TakeDamage(int theDamage, unsigned int theDamageFlags);
+	void                            TakeDamage(int theDamage, unsigned int theDamageFlags, int theFixedBonus = 0);
 	void                 SetRow(int theRow);
 	float                           GetPosYBasedOnRow(int theRow);
 	void                            ApplyChill(bool theIsIceTrap);

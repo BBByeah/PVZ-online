@@ -1,3 +1,4 @@
+#include "CoopPlay.h"
 /*
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
@@ -875,6 +876,34 @@ void Board::PickZombieWaves()
 			ZombieType aZombieType = PickZombieType(aZombiePoints, aWave, &aZombiePicker);
 			PutZombieInWave(aZombieType, aWave, &aZombiePicker);
 		}
+
+		// @pvz-online: 每波构成落日志（47，取证惯例——「出怪不对」类报障直接对 log.txt
+		// 对数，不再靠猜 RNG）。只闯关局记；伴舞不入波表，日志里见不到（落地才翻）。
+		if (mApp->IsRunMode())
+		{
+			char aWaveLog[512];
+			int aLeft = aZombiePoints > 0 ? aZombiePoints : 0;
+			int aLen = snprintf(aWaveLog, sizeof(aWaveLog), "[wave] lvl=%d wave=%d/%d pts_left=%d picks=%d:",
+				mLevel, aWave + 1, mNumWaves, aLeft, aZombiePicker.mZombieCount);
+			for (int aZombieType = 0; aZombieType < ZombieType::NUM_ZOMBIE_TYPES && aLen > 0 && aLen < (int)sizeof(aWaveLog) - 1; aZombieType++)
+			{
+				int aCnt = aZombiePicker.mZombieTypeCount[aZombieType];
+				if (aCnt <= 0) continue;
+				const ZombieDefinition& aLogDef = GetZombieDefinition((ZombieType)aZombieType);
+				char aZName[48];
+				int aNameLen = 0;
+				while (aLogDef.mZombieName[aNameLen] != '\0' && aNameLen < (int)sizeof(aZName) - 1)
+				{
+					aZName[aNameLen] = (char)aLogDef.mZombieName[aNameLen];
+					aNameLen++;
+				}
+				aZName[aNameLen] = '\0';
+				int aWritten = snprintf(aWaveLog + aLen, sizeof(aWaveLog) - aLen, " %s x%d", aZName, aCnt);
+				if (aWritten < 0) break;
+				aLen += aWritten;
+			}
+			NetworkLog("%s", aWaveLog);
+		}
 	}
 }
 
@@ -1623,7 +1652,7 @@ void Board::InitLevel()
 	else if (mApp->mRunState && !ChooseSeedsOnCurrentLevel())
 	{
 		for (int i = 0; i < mSeedBank->mNumPackets; ++i)
-			mSeedBank->mSeedPackets[i].SetPacketType(mApp->mRunState->mPool[i]);
+			mSeedBank->mSeedPackets[i].SetPacketType(mApp->mRunState->GetUsablePool()[i]);
 	}
 	else if (!ChooseSeedsOnCurrentLevel() && !HasConveyorBeltSeedBank())
 	{
@@ -1747,7 +1776,7 @@ void Board::InitLawnMowers()
 
 bool Board::ChooseSeedsOnCurrentLevel()
 {
-	if (mApp->mRunState) return mApp->mRunState->mPool.size() > RunState::RUN_SEED_SLOTS;
+	if (mApp->mRunState) return mApp->mRunState->GetUsablePool().size() > RunState::RUN_SEED_SLOTS;
 	if (mApp->IsChallengeWithoutSeedBank() || HasConveyorBeltSeedBank())
 		return false;
 
@@ -1768,7 +1797,7 @@ void Board::StartLevel()
 	if (mApp->mRunState)
 		PvzpLogLn("[run] board: index={} engine={} waves={} difficulty={} seed={} plants={} mowers={}",
 			mApp->mRunState->mLevelIndex, mLevel, mNumWaves, mApp->mRunState->GetDifficultyPermille(),
-			GetLevelRandSeed(), mApp->mRunState->mPool.size(), CountUntriggerLawnMowers());
+			GetLevelRandSeed(), mApp->mRunState->GetUsablePool().size(), CountUntriggerLawnMowers());
 	mCoinBankFadeCount = 0;
 	mApp->mLastLevelStats->Reset();
 	mChallenge->StartLevel();
@@ -2636,6 +2665,15 @@ ZombieType Board::PickZombieType(int theZombiePoints, int theWaveIndex, ZombiePi
 			{
 				continue;
 			}
+			// @pvz-online: 舞王每波至多 1 只（47，2026-10-14 实机报障「一进来满屏舞王卡死」）：
+			// 舞王 value=5 落在强怪池，权重平铺 1000 后与其他强怪同权——快速第 4 关（舞王
+			// 首关）点数富余时一波连抽五六只，每只落地又翻 1+4 伴舞 + 追光特效，人数直接
+			// 爆表掉帧。伴舞不走抽取通道、不占 cap，与巨人同闸写法、跨波不限。
+			if (aZombieType == ZombieType::ZOMBIE_DANCER &&
+				theZombiePicker->mZombieTypeCount[(int)ZombieType::ZOMBIE_DANCER] >= 1)
+			{
+				continue;
+			}
 		}
 		// 僵尸最早出现的波数的限制（出怪限制）
 		else if (aGameMode != GameMode::GAMEMODE_CHALLENGE_POGO_PARTY && aGameMode != GameMode::GAMEMODE_CHALLENGE_BOBSLED_BONANZA && aGameMode != GameMode::GAMEMODE_CHALLENGE_AIR_RAID)
@@ -3158,9 +3196,11 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 		}
 
 		// 坚果包扎术
-		if ((theSeedType == SeedType::SEED_WALLNUT || theSeedType == SeedType::SEED_TALLNUT) && aAidPurchased)
+		if (((theSeedType == SeedType::SEED_WALLNUT || theSeedType == SeedType::SEED_TALLNUT) && aAidPurchased) ||
+			(theSeedType == SeedType::SEED_WALLNUT && mApp->RunExtraBuffCount(RUN_BUFF2_WALLNUT_AID) > 0))
 		{
-			if (aNormalPlant->mPlantHealth < aNormalPlant->mPlantMaxHealth * 2 / 3 &&
+			if (aNormalPlant->mPlantHealth < (mApp->RunExtraBuffCount(RUN_BUFF2_WALLNUT_AID) > 0 &&
+				theSeedType == SeedType::SEED_WALLNUT ? aNormalPlant->mPlantMaxHealth : aNormalPlant->mPlantMaxHealth * 2 / 3) &&
 				aNormalPlant->mSeedType == theSeedType && aNormalPlant->mOnBungeeState != PlantOnBungeeState::GETTING_GRABBED_BY_BUNGEE)
 			{
 				return PlantingReason::PLANTING_OK;
@@ -3328,7 +3368,7 @@ void Board::MouseMove(int x, int y)
 
 void Board::MouseDrag(int x, int y)
 {
-    if (mCoopTouchCaptured) return;
+    if (mCoopTouchCaptured || mMobileWatchOpen) return;
 #ifdef __ANDROID__
 	// @pvz-online: a small movement threshold keeps tapping a card available.
 	if (mTouchSeedDrag &&
@@ -6174,6 +6214,7 @@ void Board::UpdateGame()
 void Board::Update()
 {
     UpdateQuickChat();
+    UpdateBoardWatch();
 	if (mApp->GetDialog(DIALOG_ONLINE_RECONNECT)) { MarkDirty(); return; }
 	PvzpHesitationBracket aHesitation("Board::Update");
 
@@ -7951,6 +7992,7 @@ void Board::Draw(Graphics* g)
 	mDrawCount++;
 	DrawGameObjects(g);
     DrawCoopUI(g);
+    if (mMobileWatchOpen) DrawMobileWatch(g);
 }
 
 void Board::SetMustacheMode(bool theEnableMustache)
@@ -8113,11 +8155,18 @@ void Board::DoTypingCheck(KeyCode theKey)
 
 void Board::KeyDown(KeyCode theKey)
 {
+    if((theKey=='B'||theKey=='b') && mApp->IsOnlineGame()){mApp->ShowCoopPlay();return;}
     // Cooperation gets first choice of normalized digits.
     if (theKey >= KEYCODE_NUMPAD0 && theKey <= KEYCODE_NUMPAD9)
         theKey = static_cast<KeyCode>('0' + theKey - KEYCODE_NUMPAD0);
     if (((theKey >= '0' && theKey <= '9') || theKey == 'Q') && mWidgetManager->mIsKeyRepeat)
         return; // A held panel choice must not become a plant after the panel closes.
+    if (mMobileWatchOpen) {
+        if (theKey == KEYCODE_ESCAPE || theKey == 'v' || theKey == 'V') StopMobileWatch();
+        else if (theKey == KEYCODE_RIGHT) CycleMobileWatch();
+        return;
+    }
+    if (theKey == 'v' || theKey == 'V') { if (QuickChatAvailable()) { CycleMobileWatch(); return; } }
     if (HandleQuickChatKey(theKey) || HandleSunGiftKey(theKey)) return;
     if (HandlePlantKeyboardKey(theKey)) return;
 	DoTypingCheck(theKey);
@@ -9058,7 +9107,7 @@ bool Board::HasConveyorBeltSeedBank()
 
 int Board::GetNumSeedsInBank()
 {
-	if (mApp->mRunState) return std::min(RunState::RUN_SEED_SLOTS, (int)mApp->mRunState->mPool.size());
+	if (mApp->mRunState) return std::min(RunState::RUN_SEED_SLOTS, (int)mApp->mRunState->GetUsablePool().size());
 	if (mApp->IsScaryPotterLevel())
 	{
 		return 1;
@@ -10095,7 +10144,7 @@ void Board::FillSeedBankFromRunPool()
 	mSeedBank->mNumPackets = GetNumSeedsInBank();
 	for (int i = 0; i < mSeedBank->mNumPackets; i++)
 	{
-		mSeedBank->mSeedPackets[i].SetPacketType(aRun->mPool[i]);
+		mSeedBank->mSeedPackets[i].SetPacketType(aRun->GetUsablePool()[i]);
 	}
 	mSeedBank->UpdateWidth();
 }
@@ -10141,6 +10190,7 @@ Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBod
 	Zombie* aZombie = AddZombieInRow(theZombieType, theRow, mCurrentWave);
 	if (aZombie == nullptr) return nullptr;		// 场上满了（AddZombieInRow 里那声 "Too many zombies!!"）
 
+	MarkRelayedZombie(aZombie);
 	aZombie->mBodyHealth = theBodyHealth;
 	aZombie->mHelmHealth = theHelmHealth;
 	aZombie->mShieldHealth = theShieldHealth;
@@ -10195,4 +10245,17 @@ int Board::ComputeLevelRandSeed(int theBoardRandSeed, bool theAdventureMode, int
 		aRndSeed += theSurvivalStage * 101 + theGameMode;
 	}
 	return aRndSeed;
+}
+
+// @pvz-online: pooled IDs include generations; stale marks cannot attach to reused slots.
+void Board::MarkRelayedZombie(Zombie* zombie)
+{
+    if (!zombie) return;
+    for (auto it=mRelayedZombieIds.begin(); it!=mRelayedZombieIds.end(); )
+        if (!mZombies.DataArrayTryToGet(*it)) it=mRelayedZombieIds.erase(it); else ++it;
+    mRelayedZombieIds.insert((unsigned int)mZombies.DataArrayGetID(zombie));
+}
+bool Board::IsRelayedZombie(Zombie* zombie)
+{
+    return zombie && mRelayedZombieIds.count((unsigned int)mZombies.DataArrayGetID(zombie)) != 0;
 }

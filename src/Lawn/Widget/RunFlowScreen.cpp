@@ -1,3 +1,5 @@
+#include "../CoopPlay.h"
+#include "MobileCoopDraw.h"
 #include "RunFlowScreen.h"
 #include "../../LawnApp.h"
 #include "../../Resources.h"
@@ -17,7 +19,7 @@ RunFlowScreen::RunFlowScreen(LawnApp* app, bool modePage) : mApp(app), mModePage
 {
     Resize(0, 0, 800, 600);
     auto addButton = [&](int id, const std::string& text, int x, int y, int width, int height) {
-        auto* button = new Sexy::ButtonWidget(id, this);
+        auto* button = new MobileStoneButton(id, this);
         button->mLabel = text;
         button->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 28));
         button->SetLabelColor(Sexy::Color(245, 230, 165));
@@ -27,6 +29,7 @@ RunFlowScreen::RunFlowScreen(LawnApp* app, bool modePage) : mApp(app), mModePage
         AddWidget(button);
         return button;
     };
+    if(!mModePage && app->IsOnlineGame())addButton(30,ModText::Tr("协作 / 借用 B","Teamwork B"),570,65,190,42);
     if (mModePage)
     {
         addButton(10, ModText::Tr("完整：25 关", "Full: 25 levels"), 30, 170, 170, 58);
@@ -54,8 +57,8 @@ RunFlowScreen::RunFlowScreen(LawnApp* app, bool modePage) : mApp(app), mModePage
             addButton(i, label ? label : "Plant", 48 + i * 240, 205, 224, 95)->SetDisabled(!valid);
         }
         const int cost = run.GetPaidRerollCost();
-        addButton(4, ModText::Format("重摇 -{}", "Reroll -{}", LawnApp::GetMoneyString(cost)), 90, 450, 250, 60)
-            ->SetDisabled(app->mPlayerInfo->mCoins < cost);
+        addButton(4, (run.mRerollVouchers > 0 ? ModText::Format("重摇券 ×{}", "Reroll voucher x{}", run.mRerollVouchers) : ModText::Format("重摇 -{}", "Reroll -{}", LawnApp::GetMoneyString(cost))), 90, 450, 250, 60)
+            ->SetDisabled(run.mRerollVouchers == 0 && app->mPlayerInfo->mCoins < cost);
         addButton(5, ModText::Tr("跳过", "Skip"), 460, 450, 250, 60);
     }
     addButton(9, ModText::Tr("返回主菜单", "Back to menu"), 290, 525, 220, 50);
@@ -80,8 +83,7 @@ void RunFlowScreen::RefreshOptionLabels()
 
 void RunFlowScreen::Draw(Sexy::Graphics* g)
 {
-    g->SetColor(Sexy::Color(23, 57, 38));
-    g->FillRect(0, 0, 800, 600);
+    DrawMobilePanel(g, Sexy::Rect(0,0,800,600));
     g->SetColor(Sexy::Color(245, 230, 165));
     g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT24, 38));
     const std::string title = mModePage ? ModText::Tr("闯关模式", "Roguelike Run") : mApp->mRunState->IsPlantPick() ? ModText::Tr("选择植物", "Choose a plant") : ModText::Tr("选择增益", "Choose a bonus");
@@ -127,6 +129,8 @@ void RunFlowScreen::Draw(Sexy::Graphics* g)
 
 void RunFlowScreen::ButtonDepress(int id)
 {
+    if(id==30){mApp->ShowCoopPlay();return;}
+    if(mApp->mCoopPlay && mApp->mCoopPlay->Blocking())return;
     if (id == 9) { mApp->ShowGameSelector(); return; }
     if (mModePage)
     {
@@ -174,7 +178,11 @@ void RunFlowScreen::ButtonDepress(int id)
     else if (id >= 0 && id < RunState::RUN_CHOICES)
     {
         if (run.IsPlantPick()) run.TakePlantChoice(id);
-        else run.TakeBuffChoice(id);
+        else {
+            int choice=run.mBuffChoices[id], before=run.GetEffectiveBuffCount(choice);
+            run.TakeBuffChoice(id);
+            mApp->RefreshRunChoicePlants(choice,before);
+        }
     }
     mApp->ShowRunPicks();
 }

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "pcRepository": "https://github.com/Not-a-Different-Name/PVZ-online",
-  "pcCommit": "8bfc67ea9c85be37cac0a182c3416f3add2c1640",
-  "pcModBuild": 46,
+  "pcCommit": "d30f30a5e75f6b9f65471882a0505ae21a277f61",
+  "pcModBuild": 52,
   "pcProtocolVersion": 1,
   "portableCommit": "141c1476dd462ac3526f796e303177616f4de6bc",
   "onlineGameReady": false,
@@ -25,12 +25,24 @@
     "saturated-health-build46",
     "boss-relay-build46",
     "zombie-vote-game-flow",
-    "mobile-chat-emotes-sun-gifts"
+    "mobile-chat-emotes-sun-gifts",
+    "plant-buffs-through-build51",
+    "checkpoint-v15",
+    "reroll-vouchers",
+    "heartguard-first-hit-build47",
+    "quick-chat-build51",
+    "spectator-game-hooks-compiled",
+    "wallnut-bowling-build51",
+    "coop52-wire-and-session",
+    "temporary-plant-loans",
+    "sun-request-receipts",
+    "checkpoint-v16"
   ],
   "compiledOnly": [],
   "next": [
-    "pc-android-runtime-check",
-    "network-ingame-ui",
-    "mobile-ui-and-lifecycle"
+    "build52-full-game-wallet-and-loan-check",
+    "player-coop-seat-swap",
+    "mobile-spectator-runtime-check",
+    "mobile-ui-finish"
   ]
 }

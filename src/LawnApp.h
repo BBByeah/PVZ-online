@@ -1,3 +1,5 @@
+#include <memory>
+class CoopPlay;
 /*
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
@@ -77,6 +79,14 @@ public:
 class LawnApp : public SexyApp
 {
 public:
+    std::unique_ptr<CoopPlay> mCoopPlay;
+    bool SendCoopQuickChat(uint8_t id);
+    void UpdateCoopPlay();void ShowCoopPlay();void ExpireCoopLoan();
+
+    int RunExtraBuffCount(RunPlantBuff2Id index) const;
+    void AwardRunRerollVoucher();
+    void RefreshRunChoicePlants(int id, int before);
+
 	Board*							mBoard;
 	// @pvz-online: run progress is independent of the original adventure profile.
 	std::unique_ptr<RunState> mRunState;

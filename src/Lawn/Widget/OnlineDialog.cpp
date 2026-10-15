@@ -1,3 +1,4 @@
+#include "MobileCoopDraw.h"
 #include "OnlineDialog.h"
 #include "../../LawnApp.h"
 #include "../../Resources.h"
@@ -25,7 +26,7 @@ OnlineDialog::OnlineDialog(LawnApp* app)
     mServer = edit(31, 110, 340, 385, app->mOnlineServer, 253);
     mCode = edit(32, 580, 340, 125, app->mOnlineRoomCode, NetProto::ROOM_CODE_LEN);
     auto button = [&](int id, const char* text, int x, int y, int width) {
-        auto b = std::make_unique<Sexy::ButtonWidget>(id, this);
+        auto b = std::make_unique<MobileStoneButton>(id, this);
         b->mLabel = text; b->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 24));
         b->SetLabelColor(Sexy::Color(245, 230, 165)); b->SetLabelHiliteColor(Sexy::Color::White); b->SetBkgColor(Sexy::Color(37, 83, 55));
         b->Resize(x, y, width, 46); AddWidget(b.get()); mButtons.push_back(std::move(b));
@@ -57,7 +58,7 @@ void OnlineDialog::Update()
 }
 void OnlineDialog::Draw(Sexy::Graphics* g)
 {
-    g->SetColor(Sexy::Color(23, 57, 38)); g->FillRect(0, 0, mWidth, mHeight);
+    DrawMobilePanel(g, Sexy::Rect(0,0,mWidth,mHeight));
     g->SetColor(Sexy::Color(245, 230, 165));
     g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT24, 32));
     g->DrawString(ModText::Tr("联机房间", "Online room"), 30, 42);

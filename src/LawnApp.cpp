@@ -1,3 +1,4 @@
+#include "Lawn/CoopPlay.h"
 /*
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
@@ -1533,6 +1534,8 @@ void LawnApp::CheckForGameEnd()
 	if (mRunState)
 	{
         if (mRunIntroHeld || mRunState->HasPendingPick()) return;
+        AwardRunRerollVoucher();
+        ExpireCoopLoan();
         mRunState->AdvanceLevel();
         mBoardResult = BOARDRESULT_NONE;
         mGameScene = SCENE_LEVEL_INTRO;
@@ -1712,6 +1715,7 @@ void LawnApp::UpdateFrames()
 		// 注入，注入后再 Update（状态行每帧在 Update 末尾重算，改语言下一帧就生效）。
 		mOnlineSession->SetTextChinese(ModText::IsChinese());
 		mOnlineSession->Update();
+        UpdateCoopPlay();
 
 		// @pvz-online: 组队成功就把联机面板收起来。面板是模态对话框，它在的时候后面
 		// 所有牌子一个都点不着，而"组队成功后还要回主菜单点关卡牌开局"是必经的一步——
@@ -2479,7 +2483,7 @@ int LawnApp::GetSeedsAvailable()
 
 bool LawnApp::HasSeedType(SeedType theSeedType)
 {
-	if (mRunState) return mRunState->HasPlant(theSeedType);
+	if (mRunState) return mRunState->HasUsablePlant(theSeedType);
 	if (IsTrialStageLocked() && theSeedType >= SeedType::SEED_JALAPENO)
 		return false;
 
@@ -3488,3 +3492,7 @@ void LawnApp::DisconnectOnline()
     if (inLevel || mOnlineWaitingStartAck || mOnlineStartPromptActive) DoBackToMain(false);
     mOnlineWasConnected = false;
 }
+
+void LawnApp::UpdateCoopPlay(){if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->Update();}
+void LawnApp::ShowCoopPlay(){if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->Show();}
+void LawnApp::ExpireCoopLoan(){if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->ExpireLoan();}

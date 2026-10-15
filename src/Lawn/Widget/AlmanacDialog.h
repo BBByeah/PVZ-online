@@ -61,6 +61,7 @@ public:
 	std::unique_ptr<GameButton>	mPlantButton;
 	std::unique_ptr<GameButton>	mZombieButton;
 	AlmanacPage					mOpenPage;
+    int mRunEntryPage=0;
 	Reanimation*				mReanim[4];
 	SeedType					mSelectedSeed;
 	ZombieType					mSelectedZombie;

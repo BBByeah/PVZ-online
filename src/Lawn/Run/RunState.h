@@ -63,7 +63,7 @@ public:
 	{
 		ZOMBIE_BUFF_SWIFT = 0,		// 迅捷：移速 +30%/层
 		ZOMBIE_BUFF_IRON = 1,		// 铁壁：生命 ×1.5/层
-		ZOMBIE_BUFF_HEARTGUARD = 2,	// 护心：单次伤害封顶 200−50×(层−1)、底 50（灰烬不再秒杀）
+		ZOMBIE_BUFF_HEARTGUARD = 2,	// 护心（47 改版）：首次大额伤害封顶 200−50×(层−1)、底 50；只挡一次
 		ZOMBIE_BUFF_RAVENOUS = 3,	// 狂食：每口啃咬 ×2/层
 		ZOMBIE_BUFF_REGEN = 4,		// 再生：每秒回 0.5% 上限血/层
 		ZOMBIE_BUFF_STEADFAST = 5,	// 免控：免疫减速/冰冻/黄油/击退/换道/魅惑（≥1 层即全免）
@@ -126,6 +126,9 @@ public:
 	// 本屏已经花金币重摇过几次——当前价 = 底价 × 10^本数（见 GetPaidRerollCost）。纯内存、
 	// 不落检查点；新的一屏（RollChoices 非重抽路径）清零。
 	int							mPaidRerollCount;
+	// @pvz-online: run-local vouchers persist across checkpoints; clear credit is awarded once per index.
+	int mRerollVouchers;
+	int mRerollAwardedLevel;
 	// @pvz-online: 候选去重批的记账（2026-10-10 用户定案「同屏排除+一屏冷却」，一屏/一批
 	// 生灭、纯内存不落检查点）。mPickSeenBuffs = 本屏露过脸的全部增益 id（含「重摇」
 	// 刷掉的那批，最多 3+3，抽的当下就记）；mPickCooldownBuffs = 上一屏露过脸又没拿的
@@ -149,6 +152,14 @@ public:
 	int							mLevelIndex;	// 0..(关数-1) = 当前（或待打的）关序号；>= 关数 = 已通关（关数见 GetLevelCount）
 	std::vector<SeedType>		mPool;			// 这一局的卡池（按加入顺序；起始 = 向日葵 + 豌豆射手；无尽档起始 = 全部 48 株，2026-10-11）
 	std::vector<BuffStack>		mBuffs;			// 这一局拿到的 buff（同名可叠加）
+
+    // @pvz-online: temporary effects never enter the permanent growth/candidate table.
+    int mLoanPlant=-1, mLoanLevel=-1, mLentLevel=-1;
+    std::vector<BuffStack> mLoanBuffs;
+    int GetEffectiveBuffCount(int id) const;
+    bool ValidateLoan(SeedType plant,const std::vector<BuffStack>& buffs) const;
+    std::vector<SeedType> GetUsablePool() const;
+    bool HasUsablePlant(SeedType plant) const;
 	int							mFailCounts[RUN_LEVEL_COUNT];	// 每关失败次数（首版只存不用，平衡阶段再定惩罚）
 	// @pvz-online: 末位推车的"整局一次性"记账：bit = 行号。联机闯关里末位玩家的哪几行推车
 	// 已经用了（触发或被压）；用过的行跨关不再补。随检查点持久（v5），联机两端各记各的。

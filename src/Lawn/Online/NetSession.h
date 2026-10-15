@@ -1,3 +1,4 @@
+#include "CoopProtocol.h"
 #ifndef __NETSESSION_H__
 #define __NETSESSION_H__
 
@@ -19,6 +20,13 @@
 class NetSession
 {
 public:
+    uint64_t mCoopToken=0;
+    uint64_t mCoopPeers[NetProto::MAX_PLAYERS+1]{};
+    std::vector<CoopWire::Event> mCoopInbox;
+    bool SendCoop(CoopWire::Event event, uint8_t target=NetProto::SEAT_UNSET);
+    bool TakeCoop(CoopWire::Event& event);
+    uint8_t FindCoopSeat(uint64_t token) const;
+
 	enum class Role
 	{
 		NONE,

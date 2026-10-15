@@ -1,3 +1,4 @@
+#include "MobileCoopDraw.h"
 /*
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
@@ -79,7 +80,7 @@ NewOptionsDialog::NewOptionsDialog(LawnApp* theApp, bool theFromGameSelector) :
 
 	mFullscreenCheckbox = MakeNewCheckbox(NewOptionsDialog::NewOptionsDialog_Fullscreen, this, !theApp->mIsWindowed);
 	mHardwareAccelerationCheckbox = MakeNewCheckbox(NewOptionsDialog::NewOptionsDialog_HardwareAcceleration, this, theApp->Is3DAccelerated());
-	mLanguageButton = std::make_unique<ButtonWidget>(NewOptionsDialog_Language, this);
+	mLanguageButton = std::make_unique<MobileStoneButton>(NewOptionsDialog_Language, this);
 	mLanguageButton->SetFont(ModText::FontFor(FONT_DWARVENTODCRAFT18, 26));
 	mLanguageButton->mLabel = std::format("{}: {}", ModText::Tr("语言", "Language"), ModText::SettingName());
 #ifdef __ANDROID__

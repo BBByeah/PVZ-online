@@ -50,7 +50,7 @@
 //     其余档读平，场景按 0 续。关数校验按 LevelCountForMode(3)=60000 封口（软上限）。
 
 static const unsigned int RUN_CHECKPOINT_MAGIC = 0x314E5552;	// 'RUN1'
-static const unsigned short RUN_CHECKPOINT_VERSION = 14;
+static const unsigned short RUN_CHECKPOINT_VERSION = 16;
 
 static std::vector<unsigned char>& AppendU16(std::vector<unsigned char>& theData, unsigned int theValue)
 {
@@ -150,6 +150,9 @@ void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theR
 	memset(mZombieBuffStacks, 0, sizeof(mZombieBuffStacks));
 	mZombieVotedLevel = RUN_ZOMBIE_VOTED_NONE;
 	mLevelIndex = 0;
+    mLoanPlant=mLoanLevel=mLentLevel=-1; mLoanBuffs.clear();
+	mRerollVouchers = 0;
+	mRerollAwardedLevel = -1;
 	mPool.clear();
 	if (theRunMode == RUN_MODE_ENDLESS)
 	{
@@ -262,21 +265,27 @@ bool RunState::CanOfferPlantPick() const
 // 静默无效（卷心菜型死挂点）。口径：这两对里任一条已持有（>0 层）→ 另一条从候选整体
 // 剔除、本局不再出现（双向；对侧双持的存量旧档两条都被拦，不再往上叠）。双向判 = 这条
 // 所属株若在「对侧表」有互斥条且其已持有，返回 true。清单见 docs/06 §8.6.1。
-static bool RunChoiceBlockedByCounterpart(const RunState* theRun, SeedType thePlant, bool theSecondTable)
+// @pvz-online: exclusions compare actual IDs; a new same-plant buff must not inherit unrelated conflicts.
+static bool RunChoiceBlockedByCounterpart(const RunState* theRun, int theId)
 {
-	if (thePlant == SeedType::SEED_SNOWPEA)
-	{
-		return theSecondTable
-			? theRun->GetBuffCount(RUN_BUFF_COUNT + RUN_UPGRADE_SNOWPEA) > 0
-			: theRun->GetBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + RUN_BUFF2_FROSTPIERCE) > 0;
-	}
-	if (thePlant == SeedType::SEED_KERNELPULT)
-	{
-		return theSecondTable
-			? theRun->GetBuffCount(RUN_BUFF_COUNT + RUN_UPGRADE_KERNELPULT) > 0
-			: theRun->GetBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + RUN_BUFF2_BUTTERFEAST) > 0;
-	}
-	return false;
+    const int base = RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT;
+    if (theId == RUN_BUFF_COUNT + RUN_UPGRADE_SNOWPEA)
+        return theRun->GetBuffCount(base + RUN_BUFF2_FROSTPIERCE) > 0;
+    if (theId == base + RUN_BUFF2_FROSTPIERCE)
+        return theRun->GetBuffCount(RUN_BUFF_COUNT + RUN_UPGRADE_SNOWPEA) > 0;
+    if (theId == RUN_BUFF_COUNT + RUN_UPGRADE_KERNELPULT)
+        return theRun->GetBuffCount(base + RUN_BUFF2_BUTTERFEAST) > 0 ||
+            theRun->GetBuffCount(base + RUN_BUFF2_BUTTER_SPLASH) > 0;
+    if (theId == base + RUN_BUFF2_BUTTERFEAST || theId == base + RUN_BUFF2_BUTTER_SPLASH)
+        return theRun->GetBuffCount(RUN_BUFF_COUNT + RUN_UPGRADE_KERNELPULT) > 0;
+    // @pvz-online: 「Nut Bowling」（2026-10-15）三角互斥：老表「耐砸」/扩展表「荆棘之壁」
+    // 把坚果往站桩更硬推，保龄球把坚果变成滚撞击杀——口径相反，两两不可共存。
+    if (theId == RUN_BUFF_COUNT + RUN_UPGRADE_WALLNUT || theId == base + RUN_BUFF2_THORNS)
+        return theRun->GetBuffCount(base + RUN_BUFF2_NUT_BOWLING) > 0;
+    if (theId == base + RUN_BUFF2_NUT_BOWLING)
+        return theRun->GetBuffCount(RUN_BUFF_COUNT + RUN_UPGRADE_WALLNUT) > 0 ||
+            theRun->GetBuffCount(base + RUN_BUFF2_THORNS) > 0;
+    return false;
 }
 
 // 抽一屏的三条候选。种子挂上"这一屏是第几次抽"（mPickCounter），所以同一局里
@@ -408,7 +417,7 @@ void RunState::RollChoices(bool theReroll)
 			if (!HasPlant(GetRunPlantUpgradeDef(i).mPlant)) continue;
 			int aCap = GetRunChoiceMaxStacks(aId);
 			if (aCap > 0 && GetBuffCount(aId) >= aCap) continue;
-			if (RunChoiceBlockedByCounterpart(this, GetRunPlantUpgradeDef(i).mPlant, false)) continue;
+			if (RunChoiceBlockedByCounterpart(this, aId)) continue;
 			aCandidates[aCount] = aId;
 			aWeights[aCount] = GetRunChoiceWeight(aId);
 			aTotalW += aWeights[aCount];
@@ -423,7 +432,7 @@ void RunState::RollChoices(bool theReroll)
 			if (!HasPlant(GetRunPlantBuff2Def(i).mPlant)) continue;
 			int aCap = GetRunChoiceMaxStacks(aId);
 			if (aCap > 0 && GetBuffCount(aId) >= aCap) continue;
-			if (RunChoiceBlockedByCounterpart(this, GetRunPlantBuff2Def(i).mPlant, true)) continue;
+			if (RunChoiceBlockedByCounterpart(this, aId)) continue;
 			aCandidates[aCount] = aId;
 			aWeights[aCount] = GetRunChoiceWeight(aId);
 			aTotalW += aWeights[aCount];
@@ -873,6 +882,11 @@ bool RunState::Save(int theProfileId) const
 		AppendU16(aData, (unsigned int)mZombieBuffStacks[i]);
 	}
 	AppendU16(aData, (unsigned int)mZombieVotedLevel);
+	AppendU16(aData, (unsigned int)mRerollVouchers);
+	AppendI32(aData, mRerollAwardedLevel);
+    AppendI32(aData,mLoanPlant);AppendI32(aData,mLoanLevel);AppendI32(aData,mLentLevel);
+    AppendU16(aData,(unsigned)mLoanBuffs.size());
+    for(const auto& buff:mLoanBuffs){AppendU16(aData,buff.mId);AppendU16(aData,buff.mCount);}
 
 	MkDir(GetAppDataFolder() + "userdata");
 	if (!gSexyAppBase->WriteBytesToFile(GetCheckpointName(theProfileId), aData.data(), (unsigned long)aData.size()))
@@ -911,7 +925,7 @@ bool RunState::Load(int theProfileId)
 	// v13 才有关底 boss 开关；v14 才有僵尸强化字段（位包 bit7..11 与尾追加 8×u16+u16）。
 	int aMode = RUN_MODE_FULL;
 	int aDiff = RUN_DIFF_STD;
-	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 13 && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
+	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 15 && aVersion != 14 && aVersion != 13 && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
 	{
 		PvzpLogLn("[run] checkpoint magic/version mismatch, ignored");
 		return false;
@@ -978,7 +992,7 @@ bool RunState::Load(int theProfileId)
 	}
 
 	unsigned int aBuffCount = 0;
-	if (!aReader.ReadU16(aBuffCount) || aBuffCount > 64)
+	if (!aReader.ReadU16(aBuffCount) || aBuffCount > RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + RUN_PLANT_BUFF2_COUNT)
 	{
 		return false;
 	}
@@ -1021,6 +1035,13 @@ bool RunState::Load(int theProfileId)
 		{
 			aStack.mId = (unsigned short)(aStack.mId + 1);
 		}
+		// @pvz-online: old mine entries become the replacement choices; cap1 prevents misleading legacy stacks.
+		if (aStack.mId >= RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + RUN_PLANT_BUFF2_COUNT || aStack.mCount == 0)
+			return false;
+		if (aStack.mId == RUN_BUFF_COUNT + RUN_UPGRADE_POTATOMINE ||
+			aStack.mId == RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + RUN_BUFF2_MINEREGROW)
+			aStack.mCount = 1;
+		for (const BuffStack& aPrevious : aBuffs) if (aPrevious.mId == aStack.mId) return false;
 		aBuffs.push_back(aStack);
 	}
 
@@ -1091,6 +1112,25 @@ bool RunState::Load(int theProfileId)
 		}
 	}
 
+	unsigned int aVouchers = 0;
+	int aAwardedLevel = -1;
+	if (aVersion >= 15 && (!aReader.ReadU16(aVouchers) || aVouchers > 2 ||
+		!aReader.ReadI32(aAwardedLevel) || aAwardedLevel < -1 || aAwardedLevel > aLevelIndex)) return false;
+	mRerollVouchers = (int)aVouchers;
+	mRerollAwardedLevel = aAwardedLevel;
+
+    mLoanPlant=mLoanLevel=mLentLevel=-1; mLoanBuffs.clear();
+    if(aVersion>=16) {
+        unsigned count=0;
+        if(!aReader.ReadI32(mLoanPlant)||!aReader.ReadI32(mLoanLevel)||!aReader.ReadI32(mLentLevel)||
+            !aReader.ReadU16(count)||count>16||mLoanPlant < -1 || mLoanPlant>=48 ||
+            mLoanLevel < -1 || mLoanLevel>aLevelIndex || mLentLevel < -1 || mLentLevel>aLevelIndex)return false;
+        for(unsigned i=0;i<count;++i){unsigned id=0,stacks=0;if(!aReader.ReadU16(id)||!aReader.ReadU16(stacks)||!stacks)return false;
+            if(id<RUN_BUFF_COUNT || id>=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT+RUN_PLANT_BUFF2_COUNT || GetRunChoicePlant((int)id)!=(SeedType)mLoanPlant)return false;
+            for(const auto& b:mLoanBuffs)if(b.mId==id)return false;
+            BuffStack b;b.mId=(unsigned short)id;b.mCount=(unsigned short)stacks;mLoanBuffs.push_back(b);}
+        if(mLoanPlant<0 && (count || mLoanLevel>=0))return false;
+    }
 	mRunSeed = aRunSeed;
 	mMode = aMode;
 	mDiff = aDiff;
@@ -1243,7 +1283,7 @@ struct ZombieBuffText
 static const ZombieBuffText kZombieBuffTexts[RunState::RUN_ZOMBIE_BUFF_COUNT] = {
 	{ "Swift", "迅捷", "僵尸移动速度 +30%/层（至多 ×4）", "Zombie walk speed +30% per stack (up to x4)" },
 	{ "Iron", "铁壁", "僵尸生命值 ×1.5/层（至多 ×100）", "Zombie health x1.5 per stack (up to x100)" },
-	{ "Heartguard", "护心", "单次伤害封顶 200，每层 -50（最低 50）", "Single-hit damage capped at 200, -50 per stack (min 50)" },
+	{ "Heartguard", "护心", "首次受到的大额伤害封顶 200，每层 -50（最低 50）；只挡一次", "First big hit capped at 200, -50 per stack (min 50); blocks once" },
 	{ "Ravenous", "狂食", "每口啃咬伤害 ×2/层（至多 ×32）", "Bite damage x2 per stack (up to x32)" },
 	{ "Regen", "再生", "每秒回复 0.5% 最大生命/层（至多 25%）", "Regen 0.5% max HP per second per stack (up to 25%)" },
 	{ "Steadfast", "免控", "免疫减速、冰冻、黄油、击退、换道与魅惑", "Immune to slow, freeze, butter, knockback, lane change and charm" },
@@ -1272,4 +1312,48 @@ const char* GetZombieBuffDesc(int theId)
 {
 	const ZombieBuffText& aText = ZombieBuffTextAt(theId);
 	return ModText::IsChinese() ? aText.mDesc : aText.mDescEn;
+}
+
+int RunState::GetEffectiveBuffCount(int id) const
+{
+    int value=GetBuffCount(id);
+    int base=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT;
+    if(id==RUN_BUFF_COUNT+RUN_UPGRADE_SNOWPEA && GetBuffCount(base+RUN_BUFF2_FROSTPIERCE)>0)return value;
+    if(id==base+RUN_BUFF2_FROSTPIERCE && GetBuffCount(RUN_BUFF_COUNT+RUN_UPGRADE_SNOWPEA)>0)return value;
+    if(id==RUN_BUFF_COUNT+RUN_UPGRADE_KERNELPULT && (GetBuffCount(base+RUN_BUFF2_BUTTERFEAST)>0 || GetBuffCount(base+RUN_BUFF2_BUTTER_SPLASH)>0))return value;
+    if((id==base+RUN_BUFF2_BUTTERFEAST || id==base+RUN_BUFF2_BUTTER_SPLASH) && GetBuffCount(RUN_BUFF_COUNT+RUN_UPGRADE_KERNELPULT)>0)return value;
+    if((id==RUN_BUFF_COUNT+RUN_UPGRADE_WALLNUT || id==base+RUN_BUFF2_THORNS) && GetBuffCount(base+RUN_BUFF2_NUT_BOWLING)>0)return value;
+    if(id==base+RUN_BUFF2_NUT_BOWLING && (GetBuffCount(RUN_BUFF_COUNT+RUN_UPGRADE_WALLNUT)>0 || GetBuffCount(base+RUN_BUFF2_THORNS)>0))return value;
+
+    if(mLoanLevel==mLevelIndex && mLoanPlant>=0 && id>=RUN_BUFF_COUNT && GetRunChoicePlant(id)==(SeedType)mLoanPlant)
+        for(const auto& b:mLoanBuffs)if(b.mId==id)value=std::max(value,(int)b.mCount);
+    return value;
+}
+bool RunState::HasUsablePlant(SeedType plant) const
+{
+    return HasPlant(plant) || (mLoanLevel==mLevelIndex && mLoanPlant==(int)plant);
+}
+std::vector<SeedType> RunState::GetUsablePool() const
+{
+    auto result=mPool;
+    if(mLoanLevel==mLevelIndex && mLoanPlant>=0 && !HasPlant((SeedType)mLoanPlant))result.push_back((SeedType)mLoanPlant);
+    return result;
+}
+bool RunState::ValidateLoan(SeedType plant,const std::vector<BuffStack>& buffs) const
+{
+    if(plant<SEED_PEASHOOTER || plant>SEED_COBCANNON || buffs.size()>16)return false;
+    for(size_t i=0;i<buffs.size();++i) {
+        const auto& b=buffs[i];
+        if(b.mId<RUN_BUFF_COUNT || b.mId>=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT+RUN_PLANT_BUFF2_COUNT ||
+            !b.mCount || GetRunChoicePlant(b.mId)!=plant)return false;
+        for(size_t j=0;j<i;++j)if(buffs[j].mId==b.mId)return false;
+    }
+    auto has=[&](int id){int count=GetBuffCount(id);for(const auto& b:buffs)if(b.mId==id)count=std::max(count,(int)b.mCount);return count>0;};
+    int base=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT;
+    if(plant==SEED_SNOWPEA && has(RUN_BUFF_COUNT+RUN_UPGRADE_SNOWPEA) && has(base+RUN_BUFF2_FROSTPIERCE))return false;
+    if(plant==SEED_KERNELPULT && has(RUN_BUFF_COUNT+RUN_UPGRADE_KERNELPULT) &&
+        (has(base+RUN_BUFF2_BUTTERFEAST)||has(base+RUN_BUFF2_BUTTER_SPLASH)))return false;
+    if(plant==SEED_WALLNUT && has(base+RUN_BUFF2_NUT_BOWLING) &&
+        (has(RUN_BUFF_COUNT+RUN_UPGRADE_WALLNUT)||has(base+RUN_BUFF2_THORNS)))return false;
+    return true;
 }

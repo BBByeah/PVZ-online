@@ -1,3 +1,4 @@
+#include "MobileCoopDraw.h"
 #include "OnlineStartDialog.h"
 #include "../../LawnApp.h"
 #include "../../Resources.h"
@@ -14,7 +15,7 @@ OnlineStartDialog::OnlineStartDialog(LawnApp* app, const char* title, const char
     Resize(0, 0, 660, 310);
     const int count = (yes != nullptr) + (no != nullptr);
     auto add = [&](int buttonId, const char* label, int index) {
-        auto b = std::make_unique<Sexy::ButtonWidget>(buttonId, this);
+        auto b = std::make_unique<MobileStoneButton>(buttonId, this);
         b->mLabel = label;
         b->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 26));
         b->SetLabelColor(Sexy::Color(245, 230, 165));
@@ -30,7 +31,7 @@ OnlineStartDialog::~OnlineStartDialog() { for (auto& b : mButtons) RemoveWidget(
 void OnlineStartDialog::SetBody(const char* body) { mBody = body ? body : ""; MarkDirty(); }
 void OnlineStartDialog::Draw(Sexy::Graphics* g)
 {
-    g->SetColor(Sexy::Color(23, 57, 38)); g->FillRect(0, 0, mWidth, mHeight);
+    DrawMobilePanel(g, Sexy::Rect(0,0,mWidth,mHeight));
     g->SetColor(Sexy::Color(245, 230, 165));
     g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT24, 34));
     g->DrawString(mTitle, 30, 52);

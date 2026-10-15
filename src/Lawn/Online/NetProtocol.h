@@ -185,7 +185,13 @@ const uint16_t	PROTOCOL_VERSION	= 1;
 //        26→36）：阶梯档与 8 条强化层数都对不齐会让两边怪强度岔开，混搭必须两边同版本。
 //        旧长度（26 字节）的 START_LEVEL 被新端按串包拒掉。投票走后续三个新 MSG（20/21/22，
 //        游戏帧、中继零改动）。检查点同版升 v14。
-const uint16_t	MOD_BUILD			= 46;
+//        47（2026-10-14 实机反馈五修批）：护心改首伤一次性 + 弃权改随机兜底——投票数据
+//        消费口径变了，混搭两端会各算各的，必须同版本。
+// @pvz-online: build 50 adds percent-damage choice 109; all teammates need matching mechanics.
+// 50 → 51：快捷短语表 8→9 条（2026-10-15 用户定案）：短语占 id 1..9，植物表情整体后移为
+//        10..17（分界 = PHRASE_COUNT）——旧构建把 9 号解成「土豆雷」表情、新构建是第 9 句
+//        短语，表情 10..17 也各错一位，混搭必须两边同版本。
+const uint16_t	MOD_BUILD			= 52;
 
 const uint16_t	DEFAULT_PORT		= 27777;
 
@@ -227,12 +233,13 @@ enum MessageType : uint16_t
 	MSG_LEVEL_EXIT		= 13,	// 双向：我离开这一局、回主菜单了
 	MSG_RUN_GO			= 14,	// H→C：全员都已进场，各席位开始做自己的三选一
 	MSG_SEEDS_READY		= 15,	// 双向：我这一轮的选卡状态（1 = 选好了，等其他人）
-	MSG_QUICK_CHAT		= 16,	// 双向：局内快捷聊天，只传编号（1-8 短语、9-16 植物表情，查表在 QuickChat.h）
+	MSG_QUICK_CHAT		= 16,	// 双向：局内快捷聊天，只传编号（1-9 短语、10-17 植物表情，查表在 QuickChat.h）
 	MSG_BOARD_WATCH		= 17,	// 双向：观战点播/保活/收播（op 见 WatchOp；dst = 被看席位）
 	MSG_BOARD_SNAPSHOT	= 18,	// 被看方→观看者：战场定格快照（一行实体一款、分片发，见 MsgBoardSnapshot）
 	MSG_SEND_SUN		= 19,	// 双向：发阳光给队友（单 100 档、税 10、5s 冷却；载荷见 MsgSendSun）
 	MSG_ZOMBIE_VOTE_OPEN	= 20,	// H→C：本场景僵尸强化开票（房主抽 3 个候选；载荷见 MsgZombieVoteOpen）
 	MSG_ZOMBIE_VOTE		= 21,	// C→H：我对本场景强化的投票（0..2 = 候选下标、3 = 弃权）
+	MSG_COOP_EVENT = 23, // bounded, session-identified cooperation events
 	MSG_ZOMBIE_VOTE_RESULT	= 22	// H→C：计票结果（只驱动 UI；层数权威在随后的 START_LEVEL 快照）
 };
 

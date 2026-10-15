@@ -164,6 +164,9 @@ class PvzpParticleSystem;
 class Plant : public GameObject
 {
 public:
+    int CoopMaxHealth();
+    float CoopAttackPeriod();
+
 	SeedType                mSeedType;
 	int32_t                 mPlantCol;
 	int32_t                 mAnimCounter;
@@ -217,6 +220,7 @@ public:
 	int32_t mSquashSmashesLeft = -1;
 	float mSquashFromX = 0.0f;
 	float mSquashFromY = 0.0f;
+	int32_t mRunDispatchCursor = 0, mRunAliveTicks = 0, mRunGarlicCooldown = 0;
 	int32_t mMineregrowsLeft = 0;
 	int32_t mChainBitesLeft = 0;
 

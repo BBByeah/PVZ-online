@@ -1,3 +1,6 @@
+#include "MobileCoopDraw.h"
+#include "../Run/RunBuffs.h"
+#include <vector>
 /*
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
@@ -35,6 +38,17 @@
 #include "../System/ReanimationLawn.h"
 #include "../../PvzpLib/PvzpStringFile.h"
 #include "widget/WidgetManager.h"
+
+static std::vector<int> MobileAlmanacEntries(SeedType seed)
+{
+    std::vector<int> entries;
+    int first=RunPlantUpgradeIndexFor(seed);
+    if(first>=0 && RunPlantUpgradeInPool(seed)) entries.push_back(RUN_BUFF_COUNT+first);
+    for(int i=0;i<RUN_PLANT_BUFF2_COUNT;++i)
+        if(GetRunPlantBuff2Def(i).mPlant==seed && RunPlantBuff2InPool(i))
+            entries.push_back(RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT+i);
+    return entries;
+}
 
 bool gZombieDefeated[NUM_ZOMBIE_TYPES] = { false };
 
@@ -336,7 +350,18 @@ void AlmanacDialog::DrawPlants(Graphics* g)
 	std::string aName = Plant::GetNameString(mSelectedSeed, SEED_NONE);
 	std::string aDescriptionName = std::format("[{}_DESCRIPTION]", aPlantDef.mPlantName);
 	PvzpDrawString(g, aName, 617, 288, Sexy::FONT_DWARVENTODCRAFT18YELLOW, Color::White, DS_ALIGN_CENTER);
-	PvzpDrawStringWrapped(g, aDescriptionName, Rect(485, 309, 258, 230), Sexy::FONT_BRIANNETOD12, Color(40, 50, 90), DS_ALIGN_LEFT);
+	auto entries=MobileAlmanacEntries(mSelectedSeed);
+    mRunEntryPage=std::clamp(mRunEntryPage,0,(int)entries.size());
+    std::string description=aDescriptionName;
+    if(mRunEntryPage>0) {
+        int id=entries[mRunEntryPage-1];
+        description=std::string(GetRunChoiceDisplayName(id))+"\n"+GetRunChoiceDesc(id);
+    }
+    PvzpDrawStringWrapped(g, description, Rect(485, 309, 258, 222),
+        mRunEntryPage ? ModText::FontFor(Sexy::FONT_BRIANNETOD12,19) : Sexy::FONT_BRIANNETOD12,
+        Color(40,50,90), DS_ALIGN_LEFT);
+    if(!entries.empty()) DrawMobileStone(g,Rect(485,530,258,34),
+        ModText::Format("说明 / 词条 {}/{}", "Info / boosts {}/{}",mRunEntryPage+1,entries.size()+1),false,true,18);
 
 	if (mSelectedSeed != SeedType::SEED_IMITATER)
 	{
@@ -646,6 +671,12 @@ void AlmanacDialog::MouseUp([[maybe_unused]] int x, [[maybe_unused]] int y, [[ma
 
 void AlmanacDialog::MouseDown(int x, int y, [[maybe_unused]] int theClickCount)
 {
+    if(mOpenPage==ALMANAC_PAGE_PLANTS && Rect(485,530,258,34).Contains(x,y)) {
+        auto entries=MobileAlmanacEntries(mSelectedSeed);
+        mRunEntryPage=(mRunEntryPage+1) % (entries.size()+1);
+        MarkDirty(); return;
+    }
+
 	if (mPlantButton->IsMouseOver() || mCloseButton->IsMouseOver() || mIndexButton->IsMouseOver())
 		mApp->PlaySample(Sexy::SOUND_TAP);
 	if (mZombieButton->IsMouseOver())
@@ -655,6 +686,7 @@ void AlmanacDialog::MouseDown(int x, int y, [[maybe_unused]] int theClickCount)
 	if (aSeedType != SeedType::SEED_NONE && aSeedType != mSelectedSeed)
 	{
 		mSelectedSeed = aSeedType;
+        mRunEntryPage=0;
 		SetupPlant();
 		mApp->PlaySample(Sexy::SOUND_TAP);
 	}

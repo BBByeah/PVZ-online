@@ -95,7 +95,8 @@ enum SaveChunkTypeV4
 	SAVE4_CHUNK_ZOMBIE_VARIANTS = 101,
 	SAVE4_CHUNK_RUN_BOSS = 102,
 	SAVE4_CHUNK_EXPANDED_WAVES = 103,
-	SAVE4_CHUNK_ZOMBIE_CONTROL = 104
+	SAVE4_CHUNK_ZOMBIE_CONTROL = 104,
+    SAVE4_CHUNK_BUILD51_EFFECTS = 105
 };
 
 static constexpr const uint32_t SAVE4_CHUNK_VERSION = 1U;
@@ -2006,10 +2007,12 @@ static void SyncRunEffectsPortable(PortableSaveContext& context, Board* board)
 		c.SyncInt32(p.mSquashSmashesLeft);
 		c.SyncFloat(p.mSquashFromX); c.SyncFloat(p.mSquashFromY);
 		c.SyncInt32(p.mMineregrowsLeft); c.SyncInt32(p.mChainBitesLeft);
+        if(c.mReading) p.mRunDispatchCursor=p.mRunAliveTicks=p.mRunGarlicCooldown=0;
 		if (p.mExtraTanglekelpCount < 0 || p.mExtraTanglekelpCount > 2) c.mFailed = true;
 	});
 	SyncRunEffectArray(context, board->mProjectiles, [](PortableSaveContext& c, Projectile& p) {
 		c.SyncInt32(p.mPricklyHitsLeft);
+        if(c.mReading) { p.mRunIceSource=p.mRunCactusSource=p.mRunScaredySource=false; p.mRunCrystalDamage=0; }
 		for (auto& id : p.mPricklyHitIds) SyncEnum32(c, id);
 		c.SyncInt32(p.mPricklyHitCount);
 		if (p.mPricklyHitCount < 0) c.mFailed = true;
@@ -2036,7 +2039,25 @@ static void SyncZombieControlPortable(PortableSaveContext& context, Board* board
 {
 	SyncRunEffectArray(context, board->mZombies, [](PortableSaveContext& c, Zombie& z) {
 		c.SyncBool(z.mControlImmune);
+        if(c.mReading) { z.mHeartguardUsed=false; z.mRunBarbedCounter=0; }
 	});
+}
+
+// @pvz-online: optional extension preserves v4 base and old extension layouts.
+static void SyncBuild51EffectsPortable(PortableSaveContext& context, Board* board)
+{
+    SyncRunEffectArray(context, board->mPlants, [](PortableSaveContext& c, Plant& p) {
+        c.SyncInt32(p.mRunDispatchCursor); c.SyncInt32(p.mRunAliveTicks); c.SyncInt32(p.mRunGarlicCooldown);
+        if(p.mRunAliveTicks<0 || p.mRunAliveTicks>6000 || p.mRunGarlicCooldown<0) c.mFailed=true;
+    });
+    SyncRunEffectArray(context, board->mProjectiles, [](PortableSaveContext& c, Projectile& p) {
+        c.SyncBool(p.mRunIceSource); c.SyncBool(p.mRunCactusSource); c.SyncBool(p.mRunScaredySource);
+        c.SyncInt32(p.mRunCrystalDamage);
+    });
+    SyncRunEffectArray(context, board->mZombies, [](PortableSaveContext& c, Zombie& z) {
+        c.SyncInt32(z.mRunBarbedCounter); c.SyncBool(z.mHeartguardUsed);
+        if(z.mRunBarbedCounter<0) c.mFailed=true;
+    });
 }
 
 static void SyncExpandedWavesPortable(PortableSaveContext& context, Board* board)
@@ -2051,6 +2072,8 @@ static ChunkSyncFn GetChunkSyncFn(uint32_t theChunkType)
 {
 	switch (theChunkType)
 	{
+	case SAVE4_CHUNK_BUILD51_EFFECTS:
+        return SyncBuild51EffectsPortable;
 	case SAVE4_CHUNK_RUN_EFFECTS:
 		return SyncRunEffectsPortable;
 	case SAVE4_CHUNK_ZOMBIE_VARIANTS:
@@ -2913,6 +2936,7 @@ bool LawnSaveGame(Board* theBoard, const std::string& theFilePath)
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_RUN_BOSS, theBoard)) return false;
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_EXPANDED_WAVES, theBoard)) return false;
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_ZOMBIE_CONTROL, theBoard)) return false;
+    if (!WriteChunkV4(aPayload, SAVE4_CHUNK_BUILD51_EFFECTS, theBoard)) return false;
 
 	SaveFileHeaderV4 aHeader{};
 	memcpy(aHeader.mMagic, SAVE_FILE_MAGIC_V4, sizeof(aHeader.mMagic));

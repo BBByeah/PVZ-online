@@ -96,7 +96,8 @@ enum SaveChunkTypeV4
 	SAVE4_CHUNK_RUN_BOSS = 102,
 	SAVE4_CHUNK_EXPANDED_WAVES = 103,
 	SAVE4_CHUNK_ZOMBIE_CONTROL = 104,
-    SAVE4_CHUNK_BUILD51_EFFECTS = 105
+    SAVE4_CHUNK_BUILD51_EFFECTS = 105,
+    SAVE4_CHUNK_RELAY_MARKS = 106
 };
 
 static constexpr const uint32_t SAVE4_CHUNK_VERSION = 1U;
@@ -2068,10 +2069,32 @@ static void SyncExpandedWavesPortable(PortableSaveContext& context, Board* board
 
 typedef void (*ChunkSyncFn)(PortableSaveContext&, Board*);
 
+// @pvz-online: keep markers in an optional chunk, not the stable zombie/base chunks.
+static void SyncRelayMarksPortable(PortableSaveContext& context, Board* board)
+{
+    std::vector<uint32_t> ids;
+    if (!context.mReading)
+        for (auto id : board->mRelayedZombieIds)
+            if (board->mZombies.DataArrayTryToGet(id)) ids.push_back(id);
+    std::sort(ids.begin(), ids.end());
+    uint32_t count = (uint32_t)ids.size();
+    context.SyncUInt32(count);
+    if (context.mFailed || count > 1024) { context.mFailed = true; return; }
+    if (context.mReading) { board->mRelayedZombieIds.clear(); ids.resize(count); }
+    for (auto& id : ids)
+    {
+        context.SyncUInt32(id);
+        if (context.mReading && (!board->mZombies.DataArrayTryToGet(id) ||
+            !board->mRelayedZombieIds.insert(id).second)) context.mFailed = true;
+    }
+}
+
 static ChunkSyncFn GetChunkSyncFn(uint32_t theChunkType)
 {
 	switch (theChunkType)
 	{
+	case SAVE4_CHUNK_RELAY_MARKS:
+        return SyncRelayMarksPortable;
 	case SAVE4_CHUNK_BUILD51_EFFECTS:
         return SyncBuild51EffectsPortable;
 	case SAVE4_CHUNK_RUN_EFFECTS:
@@ -2385,6 +2408,7 @@ static bool LawnLoadGameV4(Board* theBoard, const std::string& theFilePath)
 		return false;
 
 	TLVReader aReader(aPayload, aHeader.mPayloadSize);
+	theBoard->mRelayedZombieIds.clear(); // Older v4 saves have no marker chunk.
 	bool aBaseLoaded = false;
 	while (aReader.mOk && aReader.mPos < aReader.mSize)
 	{
@@ -2875,6 +2899,7 @@ static void SyncBoard(SaveGameContext& theContext, Board* theBoard)
 
 bool LawnLoadGame(Board* theBoard, const std::string& theFilePath)
 {
+	theBoard->mRelayedZombieIds.clear(); // Legacy saves also predate relay identity.
 	if (LawnLoadGameV4(theBoard, theFilePath))
 	{
 		PvzpLogLn("Loaded save game (v4)");
@@ -2937,6 +2962,7 @@ bool LawnSaveGame(Board* theBoard, const std::string& theFilePath)
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_EXPANDED_WAVES, theBoard)) return false;
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_ZOMBIE_CONTROL, theBoard)) return false;
     if (!WriteChunkV4(aPayload, SAVE4_CHUNK_BUILD51_EFFECTS, theBoard)) return false;
+    if (!WriteChunkV4(aPayload, SAVE4_CHUNK_RELAY_MARKS, theBoard)) return false;
 
 	SaveFileHeaderV4 aHeader{};
 	memcpy(aHeader.mMagic, SAVE_FILE_MAGIC_V4, sizeof(aHeader.mMagic));

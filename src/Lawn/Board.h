@@ -134,6 +134,7 @@ public:
     std::unordered_set<unsigned int> mRelayedZombieIds;
     void MarkRelayedZombie(Zombie* zombie);
     bool IsRelayedZombie(Zombie* zombie);
+    void DrawRelayedZombieMarkers(Sexy::Graphics* g);
 
     // @pvz-online: snapshot-only mobile spectator state is transient.
     NetSession::ViewSnapshot mRemoteSnapshot{};

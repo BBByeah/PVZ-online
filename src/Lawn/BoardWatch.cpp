@@ -209,7 +209,7 @@ void Board::DrawMobileWatch(Graphics* g)
             if(z.mFlags & (NetProto::SNAPSHOT_ZFLAG_HELMET | NetProto::SNAPSHOT_ZFLAG_SHIELD)) {
                 g->SetColor(Color(140,200,255)); g->FillRect(z.mX-27,y,4,4);
             }
-            // @pvz-online: 接力怪金色小箭头（与本地 Zombie::Draw 同款几何，随观看端布局平移）
+            // @pvz-online: 接力怪金色小箭头（观看端按缓存图定位，本地叠加层使用实体矩形）
             if(z.mFlags & NetProto::SNAPSHOT_ZFLAG_RELAYED) {
                 int aAX=z.mX+38, aAY=(int)y-9;
                 g->SetColor(Color(35,30,20,230)); g->FillRect(aAX,aAY,18,18);

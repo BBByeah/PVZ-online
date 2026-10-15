@@ -7991,6 +7991,7 @@ void Board::Draw(Graphics* g)
 
 	mDrawCount++;
 	DrawGameObjects(g);
+    DrawRelayedZombieMarkers(g);
     DrawCoopUI(g);
     if (mMobileWatchOpen) DrawMobileWatch(g);
 }
@@ -10310,4 +10311,28 @@ void Board::MarkRelayedZombie(Zombie* zombie)
 bool Board::IsRelayedZombie(Zombie* zombie)
 {
     return zombie && mRelayedZombieIds.count((unsigned int)mZombies.DataArrayGetID(zombie)) != 0;
+}
+
+// @pvz-online: markers belong to the final overlay, not behind the zombie's reanimation.
+// Use its live body rectangle so jumping, balloon and giant units keep the marker attached.
+void Board::DrawRelayedZombieMarkers(Graphics* g)
+{
+    Graphics marker(*g);
+    Zombie* zombie = nullptr;
+    while (IterateZombies(zombie))
+    {
+        if (!zombie->mVisible || zombie->mDead || zombie->IsDeadOrDying() ||
+            zombie->mZombieHeight == ZombieHeight::HEIGHT_GETTING_BUNGEE_DROPPED ||
+            !IsRelayedZombie(zombie)) continue;
+        Rect body = zombie->GetZombieRect();
+        int x = body.mX + body.mWidth / 2 - 9;
+        int y = body.mY - 24;
+        if (x + 18 <= 0 || x >= BOARD_WIDTH || y + 18 <= 0 || y >= BOARD_HEIGHT) continue;
+        marker.SetColor(Color(35, 30, 20, 230)); marker.FillRect(x, y, 18, 18);
+        marker.SetColor(Color(255, 215, 70));
+        marker.FillRect(x + 7, y + 2, 4, 8);
+        marker.FillRect(x + 3, y + 8, 12, 3);
+        marker.FillRect(x + 5, y + 11, 8, 3);
+        marker.FillRect(x + 7, y + 14, 4, 2);
+    }
 }

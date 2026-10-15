@@ -6756,17 +6756,6 @@ void Zombie::Draw(Graphics* g)
 	if (mZombieHeight == ZombieHeight::HEIGHT_GETTING_BUNGEE_DROPPED)
 		return;
 
-	    // @pvz-online: a small two-tone relay arrow remains distinct from chill/mind-control tint.
-    if (mBoard && !mDead && !IsDeadOrDying() && mBoard->IsRelayedZombie(this))
-    {
-        Graphics marker(*g);
-        marker.SetColor(Color(35, 30, 20, 230)); marker.FillRect(38, -9, 18, 18);
-        marker.SetColor(Color(255, 215, 70));
-        marker.FillRect(45, -7, 4, 8);
-        marker.FillRect(41, -1, 12, 3);
-        marker.FillRect(43, 2, 8, 3);
-        marker.FillRect(45, 5, 4, 2);
-    }
 ZombieDrawPosition aDrawPos;
 	GetDrawPos(aDrawPos);
 

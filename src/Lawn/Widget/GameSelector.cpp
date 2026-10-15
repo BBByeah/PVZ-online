@@ -1,3 +1,4 @@
+#include "../Online/RoomPresentation.h"
 #include "MobileCoopDraw.h"
 /*
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
@@ -55,6 +56,30 @@ void GameSelectorOverlay::Draw(Graphics* g)
 	mParent->DrawOverlay(g);
 }
 
+namespace {
+class MobileRoomStatus : public MobileStoneButton {
+    LawnApp* app;
+public:
+    MobileRoomStatus(LawnApp* a,ButtonListener* listener):MobileStoneButton(5003,listener),app(a){Resize(12,8,330,52);SetVisible(false);}
+    void Update() override {
+        ButtonWidget::Update();auto* session=RoomPresentation::Session(app);
+        SetVisible(session&&session->IsActive());MarkDirty();
+    }
+    void Draw(Graphics* g) override {
+        auto* session=RoomPresentation::Session(app);if(!session)return;
+        DrawMobileStrip(g,Rect(0,0,mWidth,mHeight));
+        auto* font=ModText::FontFor(FONT_DWARVENTODCRAFT18,18);g->SetFont(font);
+        g->SetColor(Color(245,230,165));
+        std::string title=RoomPresentation::Summary(app);
+        if(session->IsRelay()&&!session->GetRoomCode().empty())title+=ModText::Tr(" · 房间 "," · Room ")+session->GetRoomCode();
+        g->DrawString(MobileTextLine(font,title,mWidth-16),8,22);
+        g->SetColor(Color(210,225,235));
+        std::string line=RoomPresentation::CompactRoster(session);
+        g->DrawString(MobileTextLine(font,line,mWidth-16),8,45);
+    }
+};
+}
+
 GameSelectorOverlay::GameSelectorOverlay(GameSelector* theGameSelector)
 {
 	mParent = theGameSelector;
@@ -84,6 +109,7 @@ GameSelector::GameSelector(LawnApp* theApp)
 	runButton->SetBkgColor(Sexy::Color(37, 83, 55));
 	runButton->Resize(30, 330, 112, 55);
 	AddWidget(runButton);
+    AddWidget(new MobileRoomStatus(theApp,this));
 
     auto* onlineButton = new MobileStoneButton(5002, this);
     onlineButton->mLabel = ModText::Tr("联机", "Online");
@@ -1196,7 +1222,7 @@ bool GameSelector::ShouldDoZenTuturialBeforeAdventure()
 void GameSelector::ButtonDepress(int theId)
 {
     if (mOnlineMenuLocked) return;
-    if (theId == 5002) { mApp->DoOnlineDialog(); return; }
+    if (theId == 5002 || theId == 5003) { mApp->DoOnlineDialog(); return; }
 	if (mSlideCounter > 0)
 		return;
 	if (theId == 5001)

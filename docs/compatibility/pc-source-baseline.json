@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "pcRepository": "https://github.com/Not-a-Different-Name/PVZ-online",
-  "pcCommit": "ae489ee4917aef2e7f903b922b35b471952bc733",
+  "pcCommit": "1ae3ec306b2daa8b602f61635e459c0511a322ee",
   "pcModBuild": 53,
   "pcProtocolVersion": 1,
   "portableCommit": "141c1476dd462ac3526f796e303177616f4de6bc",
@@ -39,12 +39,13 @@
     "checkpoint-v16",
     "campaign-independent-shared-features",
     "garden-economy-without-campaign",
-    "local-garden-network-isolation"
+    "local-garden-network-isolation",
+    "room-status-and-six-seat-touch-ui"
   ],
   "compiledOnly": [],
   "next": [
     "build53-full-game-wallet-and-loan-check",
-    "player-coop-seat-swap",
+    "seat-swap-full-game-phase-check",
     "mobile-spectator-runtime-check",
     "mobile-ui-finish"
   ]

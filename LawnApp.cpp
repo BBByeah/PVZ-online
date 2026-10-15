@@ -1223,7 +1223,8 @@ void LawnApp::UpdateOnlineRelay()
 
 		Zombie* aZombie = mBoard->AddRelayedZombie((int)aMsg.mRow, (ZombieType)aMsg.mZombieType,
 			(int)aMsg.mBodyHealth, (int)aMsg.mHelmHealth, (int)aMsg.mShieldHealth, (int)aMsg.mFlyingHealth,
-			aMsg.mFlags, aMsg.mBodyMaxHealth, aMsg.mHelmMaxHealth, aMsg.mShieldMaxHealth, aMsg.mFlyingMaxHealth);
+			aMsg.mFlags, aMsg.mBodyMaxHealth, aMsg.mHelmMaxHealth, aMsg.mShieldMaxHealth, aMsg.mFlyingMaxHealth,
+			(int)aMsg.mSrcSeat);
 		if (aZombie == nullptr)
 		{
 			// 满场或包内容越界。掉一只怪等于把队友的惩罚取消了，但除了日志没有别的办法。
@@ -2964,16 +2965,15 @@ int LawnApp::RunMirrorStacks() const
 // @pvz-online: 上座顺位乘数（2026-10-06 从 Board::PickZombieWaves 抽出，出怪量与顺位开局
 // 阳光两处共用；公式与口径同原处注释）：末两席同为 ×2、再往前每升一位翻倍、封顶 ×32；
 // 单机 / 单人（上座不足 2 席）= 1。各客户端只为自己的棋盘算，不涉协议。
-int LawnApp::OnlineSeatMultiplier()
+int LawnApp::OnlineSeatMultiplierForSeat(uint8_t theSeat)
 {
 	if (!IsOnlineGame() || mOnlineSession == nullptr) return 1;
 
 	int aSeatCount = mOnlineSession->GetOccupiedSeatCount();
 	if (aSeatCount < 2) return 1;
 
-	uint8_t aMySeat = mOnlineSession->GetLocalSeat();
 	int aRank = 0;
-	for (uint8_t aSeat = 1; aSeat <= aMySeat; aSeat++)
+	for (uint8_t aSeat = 1; aSeat <= theSeat; aSeat++)
 	{
 		if (mOnlineSession->IsSeatOccupied(aSeat))
 			aRank++;
@@ -2982,6 +2982,12 @@ int LawnApp::OnlineSeatMultiplier()
 	if (aSeatMult < 2) aSeatMult = 2;		// 末席保底 ×2（批七：末位出量翻倍，其余席位不动）
 	if (aSeatMult > 32) aSeatMult = 32;		// 用户定封顶 32（六席顶正好 32）
 	return aSeatMult;
+}
+
+int LawnApp::OnlineSeatMultiplier()
+{
+	if (mOnlineSession == nullptr) return 1;
+	return OnlineSeatMultiplierForSeat(mOnlineSession->GetLocalSeat());
 }
 
 // @pvz-online: 顺位开局阳光的档位表（2026-10-06 用户定案）：按上座顺位乘数取档——×2 → 0、
@@ -3001,6 +3007,11 @@ static int SeatStartSunForMult(int theSeatMult)
 int LawnApp::OnlineStartSunBonus()
 {
 	return SeatStartSunForMult(OnlineSeatMultiplier());
+}
+
+int LawnApp::OnlineStartSunBonusForSeat(uint8_t theSeat)
+{
+	return SeatStartSunForMult(OnlineSeatMultiplierForSeat(theSeat));
 }
 
 int LawnApp::RunBuffAdd(int theBuffId) const

@@ -22,8 +22,9 @@ public:
     std::map<uint64_t,int> requestLife;
     std::map<std::pair<uint64_t,uint32_t>,CoopWire::Event> receipts;
     std::string notice;
+    std::string mLoanLenderName;	// 借入来源显示名（内存态；借出者席位换人不追，docs/09 §三.8）
     int observedRun=0,observedLevel=-1;
-    void Update();void Show();void Close();void DrawEntry(Sexy::Graphics* g,int x,int y,int w=140,int h=40);bool Preparing() const;bool Blocking() const;
+    void Update();void Show();void Close();void DrawEntry(Sexy::Graphics* g,int x,int y,int w=140,int h=40,bool theFlat=false);bool Preparing() const;bool Blocking() const;
     bool RequestSun();bool Aid(uint64_t token);void SunReceived();
     bool Ask(uint64_t token,SeedType plant);void Answer(bool accept);
     void ExpireLoan();void ApplyLoan(const CoopWire::Event& event);

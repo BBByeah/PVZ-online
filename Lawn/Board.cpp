@@ -106,6 +106,7 @@ Board::Board(LawnApp* theApp)
 	mChatEmotePage = false;
 	mChatPanelTimer = 0;
 	mChatInputCooldown = 0;
+	mRelayBatchCount = 0;
 	mWatchSnapshotTicker = 0;
 	mHasRemoteSnapshot = false;
 	mWatchEndSeen = NetSession::WatchEnd::NONE;
@@ -6027,7 +6028,7 @@ void Board::NoteMowerConsumed(int theRow)
 // 正常走进来），只覆写四个当前血量——那是这只怪身上唯一由对面玩家打出来的东西。
 // 血量上限、入场动画这些不用传：本机重新初始化时就按类型定好了。
 Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBodyHealth, int theHelmHealth, int theShieldHealth, int theFlyingHealth,
-    uint8_t theFlags, int theBodyMaxHealth, int theHelmMaxHealth, int theShieldMaxHealth, int theFlyingMaxHealth)
+    uint8_t theFlags, int theBodyMaxHealth, int theHelmMaxHealth, int theShieldMaxHealth, int theFlyingMaxHealth, int theSrcSeat)
 {
 	// 行号和类型是网络来的（对面包长已经校验过，但内容没有）：行号越界会直接写穿
 	// mPlantRow / mGridSquareType，类型越界会在初始化里撞到没有分支的 switch。
@@ -6043,6 +6044,7 @@ Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBod
 	if (aZombie == nullptr) return nullptr;		// 场上满了（AddZombieInRow 里那声 "Too many zombies!!"）
 
 	MarkRelayedZombie(aZombie);
+	NoteRelayedZombie(theSrcSeat, theRow);	// 来源横幅记账（同源同行短窗合并，见 RelayBatchNotice）
 	aZombie->mBodyHealth = theBodyHealth;
 	aZombie->mHelmHealth = theHelmHealth;
 	aZombie->mShieldHealth = theShieldHealth;
@@ -9032,6 +9034,60 @@ void Board::PushQuickChatBanner(uint8_t theSeat, uint8_t theId)
 	mChatBannerCount++;
 }
 
+// @pvz-online: 接力怪入场来源批（2026-10-15）：只记账，横幅在窗口到期时统一推——
+// 同源同行的一群漏怪（点数富余一波能传十几只）合并成一条「来源 + 行 + 数量」，
+// 逐只推横幅会连顶三条还互相冲掉。席位名口径同聊天横幅（空名兜底 P+席位）。
+void Board::NoteRelayedZombie(int theSrcSeat, int theRow)
+{
+	if (theSrcSeat <= 0 || theSrcSeat > NetProto::MAX_PLAYERS) return;
+	if (theRow < 0 || theRow >= MAX_GRID_SIZE_Y) return;
+
+	for (int i = 0; i < mRelayBatchCount; i++)
+	{
+		if (mRelayBatches[i].mSrcSeat == theSrcSeat && mRelayBatches[i].mRow == theRow)
+		{
+			mRelayBatches[i].mCount++;
+			mRelayBatches[i].mFrames = RELAY_BATCH_FRAMES;	// 窗内续批：窗口重算，连传也连并
+			return;
+		}
+	}
+	if (mRelayBatchCount >= RELAY_BATCH_MAX)
+	{
+		for (int i = 1; i < mRelayBatchCount; i++) mRelayBatches[i - 1] = mRelayBatches[i];	// 满了丢最旧
+		mRelayBatchCount--;
+	}
+	mRelayBatches[mRelayBatchCount].mSrcSeat = theSrcSeat;
+	mRelayBatches[mRelayBatchCount].mRow = theRow;
+	mRelayBatches[mRelayBatchCount].mCount = 1;
+	mRelayBatches[mRelayBatchCount].mFrames = RELAY_BATCH_FRAMES;
+	mRelayBatchCount++;
+}
+
+void Board::UpdateRelayBatches()
+{
+	for (int i = 0; i < mRelayBatchCount; i++) mRelayBatches[i].mFrames--;
+	int aWrite = 0;
+	for (int i = 0; i < mRelayBatchCount; i++)
+	{
+		if (mRelayBatches[i].mFrames > 0)
+		{
+			if (aWrite != i) mRelayBatches[aWrite] = mRelayBatches[i];
+			aWrite++;
+			continue;
+		}
+		// 到期：推一条合并横幅。行号按人类的 1..5 报（棋盘内部 0 起算）
+		std::string aNameUtf8;
+		if (mApp->mOnlineSession != nullptr) aNameUtf8 = mApp->mOnlineSession->GetSeatName((uint8_t)mRelayBatches[i].mSrcSeat);
+		if (aNameUtf8.empty()) aNameUtf8 = "P" + std::to_string((unsigned)mRelayBatches[i].mSrcSeat);
+		char aBuf[128];
+		snprintf(aBuf, sizeof(aBuf),
+			ModText::Tr("%s 的僵尸从第 %d 行过来 x%d", "%s's zombies came on row %d x%d"),
+			aNameUtf8.c_str(), mRelayBatches[i].mRow + 1, mRelayBatches[i].mCount);
+		PushCustomBanner(aBuf);
+	}
+	mRelayBatchCount = aWrite;
+}
+
 // @pvz-online: 本机系统提示横幅（id 0）：不拼席位名前缀、不走协议——发阳光的
 // 「已发/阳光不足/没有队友」等即时反馈直接给一条文字。
 void Board::PushCustomBanner(const char* theTextUtf8)
@@ -9051,6 +9107,9 @@ void Board::PushCustomBanner(const char* theTextUtf8)
 
 void Board::UpdateQuickChat()
 {
+	// 接力来源批先走：横幅设施停用（掉线收摊等）时到期的批也不许攒着跨局面
+	UpdateRelayBatches();
+
 	// 发阳光选择态倒计时：超时自动退出（等待必须有出路）
 	if (mSunGiftSelectFrames > 0) mSunGiftSelectFrames--;
 
@@ -9110,7 +9169,7 @@ void Board::UpdateQuickChat()
 
 void Board::DrawQuickChat(Graphics* g)
 {
-    if(mApp->mCoopPlay)mApp->mCoopPlay->DrawEntry(g,4,330,140,40);
+    if(mApp->mCoopPlay)mApp->mCoopPlay->DrawEntry(g,4,330,140,40,true);
 	ModText::Font* aFont = ModText::GetFont(12, false);
 	const int anAscent = ModText::Ascent(aFont);	// 原 DrawString 是基线口径，转 ModText 顶对齐
 
@@ -9329,6 +9388,7 @@ int Board::BuildBoardSnapshot(uint8_t* theBuffer, int theCapacity)
 		if (aOne->mHelmType != HelmType::HELMTYPE_NONE) aFlags |= NetProto::SNAPSHOT_ZFLAG_HELMET;
 		if (aOne->mShieldType != ShieldType::SHIELDTYPE_NONE) aFlags |= NetProto::SNAPSHOT_ZFLAG_SHIELD;
 		if (aOne->mFlyingHealth > 0 && aOne->mFlyingMaxHealth > 0) aFlags |= NetProto::SNAPSHOT_ZFLAG_FLYING;
+		if (IsRelayedZombie(aOne)) aFlags |= NetProto::SNAPSHOT_ZFLAG_RELAYED;	// 观战侧同款小箭头
 
 		uint16_t aType = (uint16_t)aOne->mZombieType;
 		theBuffer[anAt++] = (uint8_t)(aType & 0xFF);
@@ -9672,6 +9732,20 @@ void Board::DrawBoardWatch(Graphics* g)
 		{
 			g->SetColor(Color(140, 200, 255, 220));	// 淡蓝小点 = 有甲（头盔/门板）
 			g->FillRect(aZ.mX - 31, (int)aDrawY + 3, 4, 4);
+		}
+		// @pvz-online: 接力小箭头——与 Zombie::Draw 的本机标记同款同位（本机坐标系里
+		// 箭头画在 (38,-9) 起 18×18；观看端的原点 = (mX, 行y-30)，气球再抬 30 已算进 aOriginY）
+		if (aZ.mFlags & NetProto::SNAPSHOT_ZFLAG_RELAYED)
+		{
+			int aAX = aZ.mX + 38;
+			int aAY = (int)aOriginY - 9;
+			g->SetColor(Color(35, 30, 20, 230));
+			g->FillRect(aAX, aAY, 18, 18);
+			g->SetColor(Color(255, 215, 70));
+			g->FillRect(aAX + 7, aAY + 2, 4, 8);
+			g->FillRect(aAX + 3, aAY + 8, 12, 3);
+			g->FillRect(aAX + 5, aAY + 11, 8, 3);
+			g->FillRect(aAX + 7, aAY + 14, 4, 2);
 		}
 	}
 

@@ -338,7 +338,7 @@ public:
 	// @pvz-online: 漏怪传递的接收侧。队友那儿漏过来的僵尸在本棋盘右侧按原类型重新生成，
 	// @pvz-online: MOD_BUILD 46 also preserves maximum HP and run-boss identity; reject invalid row/type.
 	Zombie*                         AddRelayedZombie(int theRow, ZombieType theZombieType, int theBodyHealth, int theHelmHealth, int theShieldHealth, int theFlyingHealth,
-                                        uint8_t theFlags = 0, int theBodyMaxHealth = 0, int theHelmMaxHealth = 0, int theShieldMaxHealth = 0, int theFlyingMaxHealth = 0);
+                                        uint8_t theFlags = 0, int theBodyMaxHealth = 0, int theHelmMaxHealth = 0, int theShieldMaxHealth = 0, int theFlyingMaxHealth = 0, int theSrcSeat = 0);
 	void							DrawLevel(Graphics* g);
 	void							DrawShovel(Graphics* g);
 	void							UpdateZombieSpawning();
@@ -570,6 +570,26 @@ public:
 	bool							mChatEmotePage;		// 面板当前页：0 = 短语、1 = 表情
 	int								mChatPanelTimer;
 	int								mChatInputCooldown;
+
+	// @pvz-online: 接力怪入场来源批（2026-10-15，docs/09 §五）：漏怪落地只记账不开写——
+	// 同一来源+同一行的怪在合并窗内并成一批，窗口到期才推一条「来源席 + 行号 + 数量」
+	// 横幅；高密度漏怪不再逐只刷屏。席位名渲染时现查（同聊天横幅口径）。
+	struct RelayBatchNotice
+	{
+		int							mSrcSeat;
+		int							mRow;
+		int							mCount;
+		int							mFrames;
+	};
+	enum
+	{
+		RELAY_BATCH_MAX				= 6,	// 每行最多攒一批（六行封顶），满了并给最旧一批
+		RELAY_BATCH_FRAMES			= 250	// 合并窗口 ≈2.5 秒：窗内同源同行续批，到期推横幅
+	};
+	void							NoteRelayedZombie(int theSrcSeat, int theRow);
+	void							UpdateRelayBatches();
+	RelayBatchNotice				mRelayBatches[RELAY_BATCH_MAX];
+	int								mRelayBatchCount;
 
 	// @pvz-online: 观战（队友场地查看）——被看端每 ~15Hz 打包战场快照逐观众单播；
 	// 观看端按住 V 时整窗画队友场地（批③），自己的棋盘照跑不暂停。

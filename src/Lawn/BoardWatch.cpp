@@ -87,6 +87,7 @@ int Board::BuildBoardSnapshot(uint8_t* theBuffer, int theCapacity)
 		if (aOne->mHelmType != HelmType::HELMTYPE_NONE) aFlags |= NetProto::SNAPSHOT_ZFLAG_HELMET;
 		if (aOne->mShieldType != ShieldType::SHIELDTYPE_NONE) aFlags |= NetProto::SNAPSHOT_ZFLAG_SHIELD;
 		if (aOne->mFlyingHealth > 0 && aOne->mFlyingMaxHealth > 0) aFlags |= NetProto::SNAPSHOT_ZFLAG_FLYING;
+		if (IsRelayedZombie(aOne)) aFlags |= NetProto::SNAPSHOT_ZFLAG_RELAYED;
 
 		uint16_t aType = (uint16_t)aOne->mZombieType;
 		theBuffer[anAt++] = (uint8_t)(aType & 0xFF);
@@ -207,6 +208,16 @@ void Board::DrawMobileWatch(Graphics* g)
             if(z.mHP<100) MobileWatchHealth(g,z.mX-20,y,z.mHP);
             if(z.mFlags & (NetProto::SNAPSHOT_ZFLAG_HELMET | NetProto::SNAPSHOT_ZFLAG_SHIELD)) {
                 g->SetColor(Color(140,200,255)); g->FillRect(z.mX-27,y,4,4);
+            }
+            // @pvz-online: 接力怪金色小箭头（与本地 Zombie::Draw 同款几何，随观看端布局平移）
+            if(z.mFlags & NetProto::SNAPSHOT_ZFLAG_RELAYED) {
+                int aAX=z.mX+38, aAY=(int)y-9;
+                g->SetColor(Color(35,30,20,230)); g->FillRect(aAX,aAY,18,18);
+                g->SetColor(Color(255,215,70));
+                g->FillRect(aAX+7,aAY+2,4,8);
+                g->FillRect(aAX+3,aAY+8,12,3);
+                g->FillRect(aAX+5,aAY+11,8,3);
+                g->FillRect(aAX+7,aAY+14,4,2);
             }
         }
     }

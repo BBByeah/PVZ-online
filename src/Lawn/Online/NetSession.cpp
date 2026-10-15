@@ -26,6 +26,7 @@ const int	RUN_GO_PAYLOAD_SIZE		= 2;	// src, dst
 const int	SEEDS_READY_PAYLOAD_SIZE = 3;	// src, dst, u8 ready
 const int	SWAP_REQUEST_PAYLOAD_SIZE = 2;	// src, dst
 const int	SWAP_REPLY_PAYLOAD_SIZE = 3;	// src, dst, u8 accepted
+const int	SWAP_REQUEST_TIMEOUT_FRAMES = 500;	// 换位请求等答复 ≈5 秒：对面掉线/装死时自己收摊（等待必须有出路）
 const int	ESCAPED_ZOMBIE_PAYLOAD_SIZE = 38; // @pvz-online: current and max HP for all four sections (MOD_BUILD 46).
 const int	SEND_SUN_PAYLOAD_SIZE	= 4;	// src, dst, u16 amount（发阳光到账额，MOD_BUILD 38）
 const int	ZOMBIE_VOTE_OPEN_PAYLOAD_SIZE = 7;	// src, dst, u16 sceneIndex, u8 candidates[3]（僵尸强化开票，MOD_BUILD 45）
@@ -140,6 +141,7 @@ NetSession::NetSession()
 	mHasPendingPause = false;
 	mPendingPauseValue = false;
 	mSwapRequestSeat = NetProto::SEAT_UNSET;
+	mSwapRequestTicks = 0;
 	mSwapAskSeat = NetProto::SEAT_UNSET;
 	mSwapCommitHandled = false;
 	mAnyAckRejected = false;
@@ -744,6 +746,19 @@ void NetSession::Update()
 	if (mNoticeFrames > 0 && --mNoticeFrames == 0)
 		mNoticeText.clear();
 
+	// @pvz-online: 换位请求等答复的超时（2026-10-15）。只在"回话还没来"这一段计时——
+	// 中继下对面点了头会转成等服务器广播（mSwapCommitHandled），那段不能掐。超时自己
+	// 清掉请求：迟到的答复到达时 IsSwapRequestPending 已经是 false，本来就不会被处理。
+	if (IsSwapRequestPending() && !mSwapCommitHandled)
+	{
+		if (--mSwapRequestTicks <= 0)
+		{
+			mSwapRequestSeat = NetProto::SEAT_UNSET;
+			SetNotice(NetText("换位请求没有回音，已收起。", "No answer to the swap ask - given up.").c_str());
+			NetworkLog("[net] swap request timed out");
+		}
+	}
+
 	UpdateStatusText();
 }
 
@@ -992,18 +1007,19 @@ bool NetSession::TakePauseState(bool& thePaused)
 	return true;
 }
 
-bool NetSession::SwapSeats()
+bool NetSession::SwapSeats(uint8_t theTargetSeat)
 {
 	// 一次只谈一件事：要么我在等回话，要么有人正问我——都不许再发一条
 	if (!IsConnected() || IsSwapRequestPending() || HasIncomingSwapRequest()) return false;
 
-	// 跟"环上的后一位"换：六席位时 2 号位换的是 3 号位，不是"永远跟主机换"。
-	uint8_t aTarget = NextOccupiedSeatInRing(mLocalSeat);
-	if (aTarget == NetProto::SEAT_UNSET) return false;		// 没别人可换
+	// 2026-10-15 放开：目标由大厅换位弹窗任选（任意上座、非自己的席位都行）。
+	// 协议字节不动——SWAP_REQUEST 本来就带 src/dst 两个席位号，COMMIT 也是 (A,B) 形状。
+	if (theTargetSeat == NetProto::SEAT_UNSET || theTargetSeat == mLocalSeat
+		|| theTargetSeat > NetProto::MAX_PLAYERS || !IsSeatOccupied(theTargetSeat)) return false;
 
 	NetProto::MsgSwapRequest aMsg;
 	aMsg.mSrcSeat = mLocalSeat;
-	aMsg.mDstSeat = aTarget;
+	aMsg.mDstSeat = theTargetSeat;
 
 	uint8_t aPayload[NetProto::MAX_PAYLOAD];
 	int aSize = NetProto::EncodeSwapRequest(aPayload, (int)sizeof(aPayload), aMsg);
@@ -1011,10 +1027,11 @@ bool NetSession::SwapSeats()
 
 	// 只是把请求发出去，本机先不动：换不换由对面点头，点头了才两边一起换。
 	// 发不出去当然也谈不上等回话。
-	if (!Dispatch(NetProto::MSG_SWAP_REQUEST, aPayload, aSize, aTarget)) return false;
+	if (!Dispatch(NetProto::MSG_SWAP_REQUEST, aPayload, aSize, theTargetSeat)) return false;
 
-	mSwapRequestSeat = aTarget;
-	NetworkLog("[net] asked seat %u to swap positions", (unsigned)aTarget);
+	mSwapRequestSeat = theTargetSeat;
+	mSwapRequestTicks = SWAP_REQUEST_TIMEOUT_FRAMES;	// 等答复有超时（等待必须有出路）
+	NetworkLog("[net] asked seat %u to swap positions", (unsigned)theTargetSeat);
 	return true;
 }
 
@@ -1714,6 +1731,7 @@ void NetSession::PushEvent(EventType theType, uint8_t theSeat)
 void NetSession::ClearSwapState()
 {
 	mSwapRequestSeat = NetProto::SEAT_UNSET;
+	mSwapRequestTicks = 0;
 	mSwapAskSeat = NetProto::SEAT_UNSET;
 	mSwapCommitHandled = false;
 }

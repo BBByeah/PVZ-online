@@ -149,7 +149,9 @@ public:
     void ReleaseRunIntro();
     void UpdateRunPick();
     int OnlineSeatMultiplier();
+    int OnlineSeatMultiplierForSeat(uint8_t theSeat);   // @pvz-online: 按席位号查同一条顺位曲线（换位预览用），2026-10-15
     int OnlineStartSunBonus();
+    int OnlineStartSunBonusForSeat(uint8_t theSeat);    // @pvz-online: 换位预览用
     void DoOnlineDialog();
 
 	void ShowRunMenu();

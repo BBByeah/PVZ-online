@@ -9,6 +9,106 @@
 #include "widget/WidgetManager.h"
 #include "graphics/Graphics.h"
 
+namespace
+{
+    // @pvz-online: 大厅换位选人框（2026-10-15，随 PC 协作批 UI 五项移植）：任选上座队友
+    // 发换位请求，行内给出换后顺位预览（换位不改变上座席位集合，倍率/阳光按席位号查档）。
+    // 对方同意才换；无回音由 NetSession 5 秒超时收摊。战斗中入口灰着（关间整备换位未做）。
+    class OnlineSwapDialog : public Dialog
+    {
+      public:
+        explicit OnlineSwapDialog(LawnApp *app) : Dialog(nullptr, nullptr, DIALOG_ONLINE_SWAP, true, "", "", "", BUTTONS_NONE), mApp(app), mDown(-1)
+        {
+            Resize(0, 0, 800, 600);
+        }
+        static Sexy::Rect SeatBox(int s) { return Sexy::Rect(40, 120 + (s - 1) * 56, 250, 44); }
+        int Hit(int x, int y)
+        {
+            if (Sexy::Rect(620, 520, 130, 46).Contains(x, y)) return 90;
+            auto *s = mApp->mOnlineSession.get();
+            if (!s) return -1;
+            for (int seat = 1; seat <= NetProto::MAX_PLAYERS; ++seat)
+                if (seat != (int)s->GetLocalSeat() && s->IsSeatOccupied(seat) && SeatBox(seat).Contains(x, y)) return seat;
+            return -1;
+        }
+        void Draw(Sexy::Graphics *g) override
+        {
+            DrawMobilePanel(g, Sexy::Rect(0, 0, mWidth, mHeight));
+            auto *s = mApp->mOnlineSession.get();
+            if (!s) { mApp->KillDialog(DIALOG_ONLINE_SWAP); return; }
+            g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT24, 30));
+            g->SetColor(Sexy::Color(245, 230, 165));
+            g->DrawString(ModText::Tr("换位 · 选择队友", "Swap - pick a teammate"), 40, 66);
+            g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 17));
+            g->SetColor(Sexy::Color(205, 205, 205));
+            g->DrawString(ModText::Tr("点一位队友发出换位请求：对方同意才换，五秒没回音自动收起。",
+                "Click a teammate to ask for a swap. It happens only if they accept; silent asks time out."), 40, 96);
+
+            uint8_t aMy = s->GetLocalSeat(), aLast = 0;
+            for (uint8_t seat = 1; seat <= NetProto::MAX_PLAYERS; ++seat)
+                if (s->IsSeatOccupied(seat)) aLast = seat;
+
+            for (int seat = 1; seat <= NetProto::MAX_PLAYERS; ++seat)
+            {
+                std::string name = s->GetSeatName(seat);
+                if (name.empty()) name = "P" + std::to_string(seat);
+                auto box = SeatBox(seat);
+                g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 20));
+                if (seat == (int)aMy)
+                {
+                    g->SetColor(Sexy::Color(150, 150, 150));
+                    g->DrawString(ModText::Format("{}号：你自己", "Seat {}: you", seat), box.mX + 12, box.mY + 30);
+                    continue;
+                }
+                if (!s->IsSeatOccupied(seat))
+                {
+                    g->SetColor(Sexy::Color(120, 120, 120));
+                    g->DrawString(ModText::Format("{}号：空席", "Seat {}: empty", seat), box.mX + 12, box.mY + 30);
+                    continue;
+                }
+                DrawMobileStone(g, box, ModText::Format("跟 {}", "With {}", name), false, true);
+                int newMult = mApp->OnlineSeatMultiplierForSeat(seat), oldMult = mApp->OnlineSeatMultiplierForSeat(aMy),
+                    newSun = mApp->OnlineStartSunBonusForSeat(seat);
+                g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 17));
+                g->SetColor(Sexy::Color(255, 230, 150));
+                g->DrawString(ModText::Format("换到 {}号位：刷怪 x{}（现在 x{}）· 顺位阳光 +{}",
+                    "Seat {}: spawn x{} (now x{}) - start sun +{}", seat, newMult, oldMult, newSun), 320, box.mY + 18);
+                g->SetColor(Sexy::Color(180, 180, 180));
+                if (aLast == seat)
+                    g->DrawString(ModText::Tr("换后末席是你：漏怪到头直接判全队败。",
+                        "You would hold the last seat - a leak there loses the run."), 320, box.mY + 40);
+                else if (aLast == aMy)
+                    g->DrawString(ModText::Format("换后末席是 {}。", "Last seat would be {}.", name), 320, box.mY + 40);
+                else
+                    g->DrawString(ModText::Format("末席不变（P{}）。", "Last seat unchanged (P{}).", (unsigned)aLast), 320, box.mY + 40);
+            }
+            g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 17));
+            g->SetColor(Sexy::Color(160, 160, 160));
+            g->DrawString(ModText::Tr("末位每行一台推车兜底（整局一次性）；换位不改变各席位的倍率档，只改变谁坐哪。",
+                "The last seat gets one mower per row (once per run). Swapping moves people, not the per-seat tiers."), 40, 545);
+            DrawMobileStone(g, Sexy::Rect(620, 520, 130, 46), ModText::Tr("返回", "Back"), false, true);
+        }
+        void MouseDown(int x, int y, int clicks) override { mDown = clicks > 0 ? Hit(x, y) : -1; }
+        void MouseUp(int x, int y, int clicks) override
+        {
+            int a = Hit(x, y);
+            if (clicks <= 0 || mDown < 0 || a != mDown) { mDown = -1; return; }
+            mDown = -1;
+            if (a == 90) { mApp->KillDialog(DIALOG_ONLINE_SWAP); return; }
+            auto *s = mApp->mOnlineSession.get();
+            if (s && s->SwapSeats((uint8_t)a)) mApp->KillDialog(DIALOG_ONLINE_SWAP);
+        }
+        void KeyDown(Sexy::KeyCode key) override
+        {
+            if (key == Sexy::KEYCODE_ESCAPE) mApp->KillDialog(DIALOG_ONLINE_SWAP);
+        }
+
+      private:
+        LawnApp *mApp;
+        int mDown;
+    };
+}
+
 OnlineDialog::OnlineDialog(LawnApp* app)
     : Dialog(nullptr, nullptr, DIALOG_ONLINE, true, "", "", "", BUTTONS_NONE), mApp(app)
 {
@@ -35,9 +135,10 @@ OnlineDialog::OnlineDialog(LawnApp* app)
     button(2, ModText::Tr("直连加入", "Join direct"), 210, 394, 155);
     button(3, ModText::Tr("创建房间", "Create room"), 385, 394, 155);
     button(4, ModText::Tr("加入房间", "Join room"), 560, 394, 155);
-    button(5, ModText::Tr("断开连接", "Disconnect"), 35, 475, 200);
-    button(6, ModText::Tr("关闭面板", "Close panel"), 275, 475, 200);
-    button(7, ModText::Tr("房主开始", "Host starts"), 515, 475, 200);
+    button(5, ModText::Tr("断开连接", "Disconnect"), 35, 475, 150);
+    button(8, ModText::Tr("换位", "Swap"), 195, 475, 120);
+    button(6, ModText::Tr("关闭面板", "Close panel"), 325, 475, 170);
+    button(7, ModText::Tr("房主开始", "Host starts"), 505, 475, 210);
 }
 OnlineDialog::~OnlineDialog()
 {
@@ -53,6 +154,7 @@ void OnlineDialog::Update()
         if (b->mId <= 4) b->SetDisabled(active);
         if (b->mId == 5) b->SetDisabled(!active);
         if (b->mId == 7) b->SetDisabled(!session.IsConnected() || !session.IsHostSeat() || mApp->mBoard != nullptr);
+        if (b->mId == 8) b->SetDisabled(!session.IsConnected() || mApp->mBoard != nullptr || session.GetOccupiedSeatCount() < 2);
     }
     MarkDirty();
 }
@@ -87,6 +189,13 @@ void OnlineDialog::ButtonDepress(int id)
     if (id == 6) { app->KillDialog(DIALOG_ONLINE); return; }
     if (id == 7) { app->KillDialog(DIALOG_ONLINE); app->ShowRunMenu(); return; }
     if (id == 5) { app->DisconnectOnline(); return; }
+    if (id == 8)
+    {
+        // 2026-10-15：换位改开选人框（任选上座队友 + 换后预览）；请求/答复/超时在 NetSession。
+        if (app->mOnlineSession && app->mOnlineSession->IsConnected() && app->mBoard == nullptr)
+            app->AddDialog(DIALOG_ONLINE_SWAP, new OnlineSwapDialog(app));
+        return;
+    }
     if (id < 1 || id > 4) return;
     if (app->mOnlineSession->IsActive() && app->mOnlineSession->GetState() != NetSession::State::DEAD) return;
     mInputError.clear(); auto& session = *app->mOnlineSession;

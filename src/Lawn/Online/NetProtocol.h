@@ -733,6 +733,7 @@ const uint8_t	SNAPSHOT_FLAG_TRUNCATED	= 0x04;	// 实体超编裁过（观看端�
 const uint8_t	SNAPSHOT_ZFLAG_HELMET	= 0x01;	// 有头甲（路障/铁桶等）
 const uint8_t	SNAPSHOT_ZFLAG_SHIELD	= 0x02;	// 有护盾（铁门/垃圾箱等）
 const uint8_t	SNAPSHOT_ZFLAG_FLYING	= 0x04;	// 飞行中（气球僵尸）
+const uint8_t	SNAPSHOT_ZFLAG_RELAYED	= 0x08;	// 接力怪（队友漏过来的）——观看端画同款小箭头
 
 // 一份快照的字节数：7 + 7×nZ + 4×nP（上限 7 + 840 + 240 = 1087B → 5 片）。
 

@@ -90,8 +90,17 @@ public:
         auto* session=CoopSession(coop->app);auto* run=coop->app->GetRunState();
         CoopText(g,ModText::Tr("队友协作 · 借用与求援","Teamwork · loans and sun"),45,40,700,42,26);
         std::string info=coop->notice;
-        if(run && run->mLoanLevel==run->mLevelIndex && run->mLoanPlant>=0)
+        if(run && run->mLoanLevel==run->mLevelIndex && run->mLoanPlant>=0) {
+            // docs/09 §三.8：借入展示来源玩家、有效词条（自己层数 vs 借用后生效层数）与期限。
             info+=std::string("\n")+ModText::Tr("本关借入：","Borrowed this level: ")+GetRunPlantName((SeedType)run->mLoanPlant);
+            if(!coop->mLoanLenderName.empty())info+=ModText::Tr("（来自 "," (from ")+coop->mLoanLenderName+")";
+            for(const auto& b:run->mLoanBuffs) {
+                int own=run->GetBuffCount(b.mId);int eff=own>b.mCount?own:b.mCount;
+                info+=std::string("\n")+GetRunChoiceDisplayName(b.mId)+" x"+std::to_string(eff)
+                    +ModText::Tr("（自己 x"," (own x")+std::to_string(own)+")";
+            }
+            info+=std::string("\n")+ModText::Tr("本关有效，下一关恢复自己的词条","Valid this level; your own traits return next level");
+        }
         CoopText(g,info,45,91,700,75,18);
         if(coop->hasIncoming) {
             const auto& e=coop->incoming;std::string name=session->GetSeatName(e.src);
@@ -229,6 +238,9 @@ void CoopPlay::Rescale(const std::vector<int>& health,const std::vector<float>& 
 }
 void CoopPlay::ApplyLoan(const CoopWire::Event& e) {
     auto* run=app->GetRunState();if(!run)return;
+    auto* session=CoopSession(app);
+    mLoanLenderName=session?session->GetSeatName(e.src):std::string();
+    if(mLoanLenderName.empty())mLoanLenderName="P"+std::to_string((unsigned)e.src);
     std::vector<RunState::BuffStack> buffs;for(int i=0;i<e.count;++i){RunState::BuffStack b;b.mId=e.ids[i];b.mCount=e.stacks[i];buffs.push_back(b);}
     if(!run->ValidateLoan((SeedType)e.plant,buffs)){notice=ModText::Tr("借用取消：词条互斥或数据不兼容","Loan declined: conflicting or incompatible traits");auto reply=Message(CoopWire::DECLINE);reply.request=e.request;Send(reply,e.sender);return;}
     std::vector<int> hp,refresh;std::vector<float> attack;Capture(hp,attack,refresh);
@@ -247,6 +259,7 @@ void CoopPlay::ExpireLoan() {
     auto* run=app->GetRunState();if(!run || run->mLoanLevel!=run->mLevelIndex)return;
     std::vector<int> hp,refresh;std::vector<float> attack;Capture(hp,attack,refresh);
     run->mLoanPlant=run->mLoanLevel=-1;run->mLoanBuffs.clear();Rescale(hp,attack,refresh);
+    mLoanLenderName.clear();
 }
 void CoopPlay::Handle(const CoopWire::Event& e) {
     auto* session=CoopSession(app);auto* run=app->GetRunState();auto* board=CoopBoard(app);
@@ -305,7 +318,7 @@ void CoopPlay::Update() {
     if(app->mGameScene!=SCENE_PLAYING){requests.clear();requestLife.clear();requestId=0;requestTicks=requestGrace=0;giftWaiting=false;}
     if(--helloTicks<=0){helloTicks=100;Send(Message(CoopWire::HELLO));}
     if(run && (observedRun!=run->mRunSeed||observedLevel!=run->mLevelIndex)) {
-        observedRun=run->mRunSeed;observedLevel=run->mLevelIndex;hasIncoming=loanWaiting=false;requests.clear();requestLife.clear();requestTicks=0;requestId=0;requestGrace=0;giftWaiting=false;
+        observedRun=run->mRunSeed;observedLevel=run->mLevelIndex;hasIncoming=loanWaiting=false;requests.clear();requestLife.clear();requestTicks=0;requestId=0;requestGrace=0;giftWaiting=false;mLoanLenderName.clear();
         if(app->GetDialog(DIALOG_COOP_PLAY))app->KillDialog(DIALOG_COOP_PLAY);
     }
     if(requestGrace>0)--requestGrace;
@@ -320,10 +333,22 @@ void CoopPlay::Update() {
     CoopWire::Event event;while(session->TakeCoop(event))Handle(event);
 }
 
-void CoopPlay::DrawEntry(Graphics* g,int x,int y,int w,int h)
+void CoopPlay::DrawEntry(Graphics* g,int x,int y,int w,int h,bool theFlat)
 {
     auto* session=CoopSession(app);
-    if(session && session->IsConnected() && app->GetRunState())CoopButton(g,Rect(x,y,w,h),ModText::Tr("协作 / 借用 B","Teamwork B"));
+    if(session && session->IsConnected() && app->GetRunState()) {
+        // 2026-10-15 用户令：局内的协作入口不用石头框，跟横幅/面板同款黑底细边精简样式
+        //（奖励/选卡页仍用石钮，与所在页面的按钮风格一致）；两端共享本分支。
+        if(theFlat) {
+            g->SetColor(Color(0,0,0,150));
+            g->FillRect(x,y,w,h);
+            g->SetColor(Color(255,255,255,255));
+            g->DrawRect(x,y,w-1,h-1);
+            CoopText(g,ModText::Tr("协作 / 借用 B","Teamwork B"),x+10,y+10,w-20,h-10,18);
+        } else {
+            CoopButton(g,Rect(x,y,w,h),ModText::Tr("协作 / 借用 B","Teamwork B"));
+        }
+    }
 }
 bool LawnApp::SendCoopQuickChat(uint8_t id)
 {

@@ -320,7 +320,7 @@ public:
 	// 开始前换位置：跟"环上的后一位"换（末位的后一位是首位），对面同意才真的换。
 	// 这一步只是把请求发出去，本机不动；同意/拒绝由对面定，见下面几条。
 	// 没连上、已经有一个请求在等回话、或对面正问着我，都返回 false（按不动）。
-	bool			SwapSeats();
+	bool			SwapSeats(uint8_t theTargetSeat);	// 2026-10-15：从「只跟环上后一位」放开为任选上座队友（大厅换位弹窗）
 
 	// 我发出的请求还在等对面回话（面板据此灰掉 Swap 键，也挡住重复请求）。
 	bool			IsSwapRequestPending() const { return mSwapRequestSeat != NetProto::SEAT_UNSET; }
@@ -586,6 +586,7 @@ private:
 	int					mBoardWatcherFrames[NetProto::MAX_PLAYERS + 1];
 	uint16_t			mSnapshotSeq;			// 快照代次（每发一份 +1，u16 回绕）
 	uint8_t				mSwapRequestSeat;	// 我发出的换位请求发给了谁（SEAT_UNSET = 没在等）
+	int					mSwapRequestTicks;	// 换位请求等答复的剩余帧数（2026-10-15：超时自己收摊，等答复不能没出路）
 	uint8_t				mSwapAskSeat;		// 哪个席位正问我换不换（SEAT_UNSET = 没有）
 	bool				mSwapCommitHandled;	// 中继：COMMIT 已经有人接手（我发的，或对面会发），等广播
 	bool				mAnyAckRejected;	// 收到过"现在不行"（粘着，直到下一次开局）

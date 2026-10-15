@@ -568,7 +568,7 @@ void LawnApp::UpdateOnlineRelay()
 
 		Zombie* aZombie = mBoard->AddRelayedZombie((int)aMsg.mRow, (ZombieType)aMsg.mZombieType,
 			(int)aMsg.mBodyHealth, (int)aMsg.mHelmHealth, (int)aMsg.mShieldHealth, (int)aMsg.mFlyingHealth,
-            aMsg.mFlags, aMsg.mBodyMaxHealth, aMsg.mHelmMaxHealth, aMsg.mShieldMaxHealth, aMsg.mFlyingMaxHealth);
+            aMsg.mFlags, aMsg.mBodyMaxHealth, aMsg.mHelmMaxHealth, aMsg.mShieldMaxHealth, aMsg.mFlyingMaxHealth, (int)aMsg.mSrcSeat);
 		if (aZombie == nullptr)
 		{
 			// 满场或包内容越界。掉一只怪等于把队友的惩罚取消了，但除了日志没有别的办法。
@@ -1388,11 +1388,19 @@ void LawnApp::UpdateRunPick()
 int LawnApp::OnlineSeatMultiplier()
 {
 	if (!IsOnlineGame() || mOnlineSession == nullptr) return 1;
+	return OnlineSeatMultiplierForSeat(mOnlineSession->GetLocalSeat());
+}
+
+// @pvz-online: 按席位号取同一条顺位曲线（大厅换位预览用，2026-10-15）：换位不改变
+// 上座席位集合，各席位号的乘数/阳光档不变——预览=直接查目标席位号的档。
+int LawnApp::OnlineSeatMultiplierForSeat(uint8_t theSeat)
+{
+	if (!IsOnlineGame() || mOnlineSession == nullptr) return 1;
 
 	int aSeatCount = mOnlineSession->GetOccupiedSeatCount();
 	if (aSeatCount < 2) return 1;
 
-	uint8_t aMySeat = mOnlineSession->GetLocalSeat();
+	uint8_t aMySeat = theSeat;
 	int aRank = 0;
 	for (uint8_t aSeat = 1; aSeat <= aMySeat; aSeat++)
 	{
@@ -1417,6 +1425,11 @@ static int SeatStartSunForMult(int theSeatMult)
 int LawnApp::OnlineStartSunBonus()
 {
 	return SeatStartSunForMult(OnlineSeatMultiplier());
+}
+
+int LawnApp::OnlineStartSunBonusForSeat(uint8_t theSeat)
+{
+	return SeatStartSunForMult(OnlineSeatMultiplierForSeat(theSeat));
 }
 
 void LawnApp::DoOnlineDialog()

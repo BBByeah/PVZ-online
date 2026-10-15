@@ -325,6 +325,7 @@ enum Dialogs : int32_t
 	DIALOG_ONLINE_RECONNECT,
     DIALOG_ZOMBIE_VOTE,
 	DIALOG_COOP_PLAY,
+    DIALOG_ONLINE_SWAP,                         // @pvz-online: 大厅换位选人框（任选队友 + 换后预览），2026-10-15
     NUM_DIALOGS
 };
 enum DebugTextMode : int32_t

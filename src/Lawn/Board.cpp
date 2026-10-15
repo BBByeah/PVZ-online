@@ -10174,8 +10174,61 @@ bool Board::TryRelayEscapedZombie(Zombie* theZombie)
 	return true;
 }
 
+// @pvz-online: 接力怪入场来源合并（2026-10-15，docs/09 §五）：只记账不开写——同一来源
+// 同一行的怪在合并窗内并成一批，窗口到期才推一条横幅，高密度漏怪不逐只刷屏。
+void Board::NoteRelayedZombie(int theSrcSeat, int theRow)
+{
+	if (theSrcSeat <= 0 || theSrcSeat > NetProto::MAX_PLAYERS) return;
+	if (theRow < 0 || theRow >= MAX_GRID_SIZE_Y) return;
+
+	for (int i = 0; i < mRelayBatchCount; i++)
+	{
+		if (mRelayBatches[i].mSrcSeat == theSrcSeat && mRelayBatches[i].mRow == theRow)
+		{
+			mRelayBatches[i].mCount++;
+			mRelayBatches[i].mFrames = RELAY_BATCH_FRAMES;	// 窗内续批：窗口重算，连传也连并
+			return;
+		}
+	}
+	if (mRelayBatchCount >= RELAY_BATCH_MAX)
+	{
+		for (int i = 1; i < mRelayBatchCount; i++) mRelayBatches[i - 1] = mRelayBatches[i];	// 满了丢最旧
+		mRelayBatchCount--;
+	}
+	mRelayBatches[mRelayBatchCount].mSrcSeat = theSrcSeat;
+	mRelayBatches[mRelayBatchCount].mRow = theRow;
+	mRelayBatches[mRelayBatchCount].mCount = 1;
+	mRelayBatches[mRelayBatchCount].mFrames = RELAY_BATCH_FRAMES;
+	mRelayBatchCount++;
+}
+
+void Board::UpdateRelayBatches()
+{
+	for (int i = 0; i < mRelayBatchCount; i++) mRelayBatches[i].mFrames--;
+	int aWrite = 0;
+	for (int i = 0; i < mRelayBatchCount; i++)
+	{
+		if (mRelayBatches[i].mFrames > 0)
+		{
+			if (aWrite != i) mRelayBatches[aWrite] = mRelayBatches[i];
+			aWrite++;
+			continue;
+		}
+		// 到期：推一条合并横幅。行号按人类的 1..5 报（棋盘内部 0 起算）
+		std::string aNameUtf8;
+		if (mApp->mOnlineSession != nullptr) aNameUtf8 = mApp->mOnlineSession->GetSeatName((uint8_t)mRelayBatches[i].mSrcSeat);
+		if (aNameUtf8.empty()) aNameUtf8 = "P" + std::to_string((unsigned)mRelayBatches[i].mSrcSeat);
+		char aBuf[128];
+		snprintf(aBuf, sizeof(aBuf),
+			ModText::Tr("%s 的僵尸从第 %d 行过来 x%d", "%s's zombies came on row %d x%d"),
+			aNameUtf8.c_str(), mRelayBatches[i].mRow + 1, mRelayBatches[i].mCount);
+		PushCustomBanner(aBuf);
+	}
+	mRelayBatchCount = aWrite;
+}
+
 Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBodyHealth, int theHelmHealth, int theShieldHealth, int theFlyingHealth,
-    uint8_t theFlags, int theBodyMaxHealth, int theHelmMaxHealth, int theShieldMaxHealth, int theFlyingMaxHealth)
+    uint8_t theFlags, int theBodyMaxHealth, int theHelmMaxHealth, int theShieldMaxHealth, int theFlyingMaxHealth, int theSrcSeat)
 {
 	// 行号和类型是网络来的（对面包长已经校验过，但内容没有）：行号越界会直接写穿
 	// mPlantRow / mGridSquareType，类型越界会在初始化里撞到没有分支的 switch。
@@ -10191,6 +10244,7 @@ Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBod
 	if (aZombie == nullptr) return nullptr;		// 场上满了（AddZombieInRow 里那声 "Too many zombies!!"）
 
 	MarkRelayedZombie(aZombie);
+	NoteRelayedZombie(theSrcSeat, theRow);
 	aZombie->mBodyHealth = theBodyHealth;
 	aZombie->mHelmHealth = theHelmHealth;
 	aZombie->mShieldHealth = theShieldHealth;

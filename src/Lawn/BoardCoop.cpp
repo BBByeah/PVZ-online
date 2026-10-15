@@ -131,6 +131,8 @@ void Board::PushCustomBanner(const char *theTextUtf8)
 
 void Board::UpdateQuickChat()
 {
+    UpdateRelayBatches();	// @pvz-online: 接力来源合并批的倒计时与到期横幅（2026-10-15）
+
     // 发阳光选择态倒计时：超时自动退出（等待必须有出路）
     if (mSunGiftSelectFrames > 0)
         mSunGiftSelectFrames--;

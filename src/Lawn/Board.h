@@ -163,11 +163,19 @@ public:
     int mChatBannerCount=0, mChatPanelTimer=0, mChatInputCooldown=0;
     bool mChatPanelOpen=false, mChatEmotePage=false;
     int mSunGiftCooldownFrames=0, mSunGiftSelectFrames=0;
+    // @pvz-online: 接力怪入场来源批（2026-10-15，docs/09 §五）：同源同行漏怪在合并窗内并批，
+    // 窗口到期才推一条「来源席 + 行号 + 数量」横幅；高密度漏怪不再逐只刷屏。
+    struct RelayBatchNotice { int mSrcSeat=0, mRow=0, mCount=0, mFrames=0; };
+    enum { RELAY_BATCH_MAX=6, RELAY_BATCH_FRAMES=250 };
+    void NoteRelayedZombie(int theSrcSeat, int theRow);
+    void UpdateRelayBatches();
+    RelayBatchNotice mRelayBatches[RELAY_BATCH_MAX];
+    int mRelayBatchCount=0;
     bool mCoopTouchCaptured=false;
     int mCoopTouchAction=-1;
     void FillSeedBankFromRunPool();
     bool TryRelayEscapedZombie(Zombie* zombie);
-    Zombie* AddRelayedZombie(int row, ZombieType type, int body, int helm, int shield, int flying, uint8_t flags, int bodyMax, int helmMax, int shieldMax, int flyingMax);
+    Zombie* AddRelayedZombie(int row, ZombieType type, int body, int helm, int shield, int flying, uint8_t flags, int bodyMax, int helmMax, int shieldMax, int flyingMax, int srcSeat=0);
     bool OnlineWaitingForTeam();
     void NoteMowerConsumed(int row);
     void GiveSunGift(int amount, uint8_t seat);

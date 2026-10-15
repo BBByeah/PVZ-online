@@ -84,6 +84,7 @@ source_group("Lawn\\Run\\Run Include" FILES ${Lawn__Run__Run_Include})
 
 set(Lawn__Run__Run_Source
     "../Lawn/Run/RunState.cpp"
+    "../Lawn/Run/RunCheckpointIO.cpp"
     "../Lawn/Run/RunBuffs.cpp"
     "../Lawn/Run/RunZombieRoster.cpp"
 )

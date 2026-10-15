@@ -1,5 +1,7 @@
 #include "DataSync.h"
 #include "PlayerInfo.h"
+#include "../Run/RunState.h"
+#include "../Run/RunCheckpointIO.h"
 #include "../LawnCommon.h"
 #include "../Widget/ChallengeScreen.h"
 #include "../../Sexy.TodLib/TodDebug.h"
@@ -107,6 +109,8 @@ void PlayerInfo::SyncDetails(DataSync& theSync)
 //0x469400
 void PlayerInfo::LoadDetails()
 {
+    if (!RunCheckpointIO::Recover(RunState::GetCheckpointName(mId),
+        GetAppDataFolder() + "userdata/user" + std::to_string(mId) + ".dat")) return;
 	try
 	{
 		Buffer aBuffer;
@@ -130,16 +134,26 @@ void PlayerInfo::LoadDetails()
 
 //0x4695F0
 // GOTY @Patoke: 0x46D750
+// @pvz-online: check durability before exposing a paid reroll or overwriting a pending transaction.
+std::vector<unsigned char> PlayerInfo::EncodeDetails()
+{
+    DataWriter writer;
+    writer.OpenMemory();
+    DataSync sync(writer);
+    SyncDetails(sync);
+    const auto* data = (const unsigned char*)writer.GetDataPtr();
+    return std::vector<unsigned char>(data, data + writer.GetDataLen());
+}
+bool PlayerInfo::SaveDetailsChecked()
+{
+    MkDir(GetAppDataFolder() + "userdata");
+    const std::string path = GetAppDataFolder() + "userdata/user" + std::to_string(mId) + ".dat";
+    return RunCheckpointIO::Recover(RunState::GetCheckpointName(mId), path) &&
+        RunCheckpointIO::AtomicWrite(path, EncodeDetails());
+}
 void PlayerInfo::SaveDetails()
 {
-	DataWriter aWriter;
-	aWriter.OpenMemory();
-	DataSync aSync(aWriter);
-	SyncDetails(aSync);
-
-	MkDir(GetAppDataFolder() + "userdata");
-	std::string aFileName = GetAppDataFolder() + StrFormat("userdata/user%d.dat", mId);
-	gSexyAppBase->WriteBytesToFile(aFileName, aWriter.GetDataPtr(), aWriter.GetDataLen());
+    SaveDetailsChecked();
 }
 
 //0x469810

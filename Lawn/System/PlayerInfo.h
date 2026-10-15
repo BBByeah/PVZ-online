@@ -6,6 +6,7 @@
 #define PURCHASE_COUNT_OFFSET 1000
 
 #include <ctime>
+#include <vector>
 #include "../../ConstEnums.h"
 #include "../../SexyAppFramework/Common.h"
 
@@ -117,6 +118,8 @@ public:
     void                DeleteUserFiles();
     void                LoadDetails();
     void                SaveDetails();
+    bool                SaveDetailsChecked();
+    std::vector<unsigned char> EncodeDetails();
     inline int          GetLevel() const { return mLevel; }
     inline void         SetLevel(int theLevel) { mLevel = theLevel; }
     /*inline*/ void     ResetChallengeRecord(GameMode theGameMode);

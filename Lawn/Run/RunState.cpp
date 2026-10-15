@@ -1,5 +1,7 @@
 #include "RunState.h"
 #include "RunBuffs.h"
+#include "RunCheckpointIO.h"
+#include "../System/PlayerInfo.h"
 #include "../ModText.h"
 #include <cstring>
 #include "../LawnCommon.h"
@@ -55,7 +57,7 @@
 //     v13 及更老的档读不到，按"没强过、没投过"续。载荷长度从 v14 起 +18 字节。
 
 static const unsigned int RUN_CHECKPOINT_MAGIC = 0x314E5552;	// 'RUN1'
-static const unsigned short RUN_CHECKPOINT_VERSION = 16;
+static const unsigned short RUN_CHECKPOINT_VERSION = 17;
 
 static std::vector<unsigned char>& AppendU16(std::vector<unsigned char>& theData, unsigned int theValue)
 {
@@ -1052,7 +1054,9 @@ bool RunState::HasCheckpoint(int theProfileId)
 
 void RunState::DeleteCheckpoint(int theProfileId)
 {
-	if (gSexyAppBase) gSexyAppBase->EraseFile(GetCheckpointName(theProfileId));
+	if (gSexyAppBase && RunCheckpointIO::Recover(GetCheckpointName(theProfileId),
+        GetAppDataFolder()+"userdata/user"+std::to_string(theProfileId)+".dat"))
+        gSexyAppBase->EraseFile(GetCheckpointName(theProfileId));
 }
 
 // @pvz-online: 探读（2026-10-10）：完整做一遍 Load 才回填，失败一律返回 false——
@@ -1066,7 +1070,7 @@ bool RunState::PeekCheckpoint(int theProfileId, int& theRunMode, int& theEndless
 	return true;
 }
 
-bool RunState::Save(int theProfileId) const
+std::vector<unsigned char> RunState::EncodeCheckpoint() const
 {
 	std::vector<unsigned char> aData;
 	AppendI32(aData, (int)RUN_CHECKPOINT_MAGIC);
@@ -1115,17 +1119,37 @@ bool RunState::Save(int theProfileId) const
     AppendU16(aData,(unsigned)mLoanBuffs.size());
     for(const auto& buff:mLoanBuffs){AppendU16(aData,buff.mId);AppendU16(aData,buff.mCount);}
 
-	MkDir(GetAppDataFolder() + "userdata");
-	if (!gSexyAppBase->WriteBytesToFile(GetCheckpointName(theProfileId), aData.data(), (unsigned long)aData.size()))
-	{
-		TodLog("[run] could not write the checkpoint file");
-		return false;
-	}
-	return true;
+    // @pvz-online: stage snapshots must preserve owed rewards, prices and candidate exclusion sets.
+    AppendI32(aData, mPendingPlantPicks); AppendI32(aData, mPendingBuffPicks);
+    for (int i=0;i<RUN_CHOICES;++i) { AppendI32(aData, (int)mPlantChoices[i]); AppendU16(aData, mBuffChoices[i]); }
+    AppendI32(aData, (int)mPickCounter); AppendI32(aData, (int)mPickSalt);
+    AppendU16(aData, mChoicesRolled ? 1 : 0); AppendI32(aData, mPaidRerollCount); AppendI32(aData, mCatchUpLevel);
+    auto writeSet=[&](const unsigned short* values,int count) {
+        AppendU16(aData,(unsigned)count); for(int i=0;i<count;++i)AppendU16(aData,values[i]);
+    };
+    writeSet(mPickSeenBuffs,mPickSeenBuffCount); writeSet(mPickCooldownBuffs,mPickCooldownBuffCount);
+    writeSet(mPickSeenPlants,mPickSeenPlantCount); writeSet(mPickCooldownPlants,mPickCooldownPlantCount);
+    return aData;
+}
+
+bool RunState::Save(int theProfileId) const
+{
+    MkDir(GetAppDataFolder() + "userdata");
+    const auto path=GetCheckpointName(theProfileId);
+    const auto user=GetAppDataFolder()+"userdata/user"+std::to_string(theProfileId)+".dat";
+    return RunCheckpointIO::Recover(path,user) && RunCheckpointIO::AtomicWrite(path,EncodeCheckpoint());
+}
+bool RunState::SaveWithPlayer(PlayerInfo& player) const
+{
+    MkDir(GetAppDataFolder() + "userdata");
+    return RunCheckpointIO::Commit(GetCheckpointName(player.mId),
+        GetAppDataFolder()+"userdata/user"+std::to_string(player.mId)+".dat",EncodeCheckpoint(),player.EncodeDetails());
 }
 
 bool RunState::Load(int theProfileId)
 {
+    if (!RunCheckpointIO::Recover(GetCheckpointName(theProfileId),
+        GetAppDataFolder()+"userdata/user"+std::to_string(theProfileId)+".dat")) return false;
 	Buffer aBuffer;
 	if (!gSexyAppBase->ReadBufferFromFile(GetCheckpointName(theProfileId), &aBuffer, false))
 	{
@@ -1152,7 +1176,7 @@ bool RunState::Load(int theProfileId)
 	// v13 才有关底 boss 开关；v14 才有僵尸强化字段（位包 bit7..11 与尾追加 8×u16+u16）。
 	int aMode = RUN_MODE_FULL;
 	int aDiff = RUN_DIFF_STD;
-	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 15 && aVersion != 14 && aVersion != 13 && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
+	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 16 && aVersion != 15 && aVersion != 14 && aVersion != 13 && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
 	{
 		TodLog("[run] checkpoint magic/version mismatch, ignored");
 		return false;
@@ -1358,6 +1382,31 @@ bool RunState::Load(int theProfileId)
             BuffStack b;b.mId=(unsigned short)id;b.mCount=(unsigned short)stacks;mLoanBuffs.push_back(b);}
         if(mLoanPlant<0 && (count || mLoanLevel>=0))return false;
     }
+    RunState picks;
+    if(aVersion>=17) {
+        int seed=0; unsigned value=0;
+        if(!aReader.ReadI32(picks.mPendingPlantPicks)||!aReader.ReadI32(picks.mPendingBuffPicks)||
+            picks.mPendingPlantPicks<0||picks.mPendingPlantPicks>10000||picks.mPendingBuffPicks<0||picks.mPendingBuffPicks>10000)return false;
+        for(int i=0;i<RUN_CHOICES;++i) {
+            if(!aReader.ReadI32(seed)||seed<(int)SEED_NONE||seed>=RUN_POOL_MAX||!aReader.ReadU16(value)||
+                (value!=RUN_BUFF_CHOICE_NONE&&value>=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT+RUN_PLANT_BUFF2_COUNT))return false;
+            picks.mPlantChoices[i]=(SeedType)seed; picks.mBuffChoices[i]=(unsigned short)value;
+        }
+        if(!aReader.ReadU32(picks.mPickCounter)||!aReader.ReadU32(picks.mPickSalt)||!aReader.ReadU16(value)||value>1)return false;
+        picks.mChoicesRolled=value!=0;
+        if(!aReader.ReadI32(picks.mPaidRerollCount)||picks.mPaidRerollCount<0||picks.mPaidRerollCount>1000000||
+            !aReader.ReadI32(picks.mCatchUpLevel)||picks.mCatchUpLevel < -1||picks.mCatchUpLevel>LevelCountForMode(aMode))return false;
+        auto readSet=[&](unsigned short* values,int& count,unsigned limit) {
+            unsigned n=0,id=0;if(!aReader.ReadU16(n)||n>RUN_CHOICES*2)return false;
+            count=(int)n;for(unsigned i=0;i<n;++i){if(!aReader.ReadU16(id)||id>=limit)return false;values[i]=(unsigned short)id;}return true;
+        };
+        const unsigned buffLimit=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT+RUN_PLANT_BUFF2_COUNT;
+        if(!readSet(picks.mPickSeenBuffs,picks.mPickSeenBuffCount,buffLimit)||
+            !readSet(picks.mPickCooldownBuffs,picks.mPickCooldownBuffCount,buffLimit)||
+            !readSet(picks.mPickSeenPlants,picks.mPickSeenPlantCount,RUN_POOL_MAX)||
+            !readSet(picks.mPickCooldownPlants,picks.mPickCooldownPlantCount,RUN_POOL_MAX))return false;
+    }
+
 	mRunSeed = aRunSeed;
 	mMode = aMode;
 	mDiff = aDiff;
@@ -1385,13 +1434,19 @@ bool RunState::Load(int theProfileId)
 	// 续档时一次补齐到与开新局同一口径（非无尽档不追溯，池子原样）。
 	if (mMode == RUN_MODE_ENDLESS) FillPoolWithAllPlants(mPool);
 	mBuffs = aBuffs;
-	// 检查点里没有"补发追赶"这回事（它只活在联机对齐的那一刻），读进来一律清掉。
-	mCatchUpLevel = -1;
-	// 读档也换一次盐（与 StartNew 同口径）：待选屏不进检查点，读档后重抽用新盐。
-	mPickSalt = (unsigned int)Sexy::Rand() ^ ((unsigned int)Sexy::Rand() << 16);
-	// 候选去重批的内存记账同样不进检查点，读档清零（与 StartNew 同口径）。
-	mPickSeenBuffCount = 0;
-	mPickCooldownBuffCount = 0;
+    mPendingPlantPicks=picks.mPendingPlantPicks; mPendingBuffPicks=picks.mPendingBuffPicks;
+    std::memcpy(mPlantChoices,picks.mPlantChoices,sizeof(mPlantChoices));
+    std::memcpy(mBuffChoices,picks.mBuffChoices,sizeof(mBuffChoices));
+    mPickCounter=picks.mPickCounter; mPickSalt=picks.mPickSalt; mChoicesRolled=picks.mChoicesRolled;
+    mPaidRerollCount=picks.mPaidRerollCount; mCatchUpLevel=picks.mCatchUpLevel;
+    auto copySet=[](unsigned short* dst,int& count,const unsigned short* src,int n) {
+        count=n;std::memcpy(dst,src,n*sizeof(*dst));
+    };
+    copySet(mPickSeenBuffs,mPickSeenBuffCount,picks.mPickSeenBuffs,picks.mPickSeenBuffCount);
+    copySet(mPickCooldownBuffs,mPickCooldownBuffCount,picks.mPickCooldownBuffs,picks.mPickCooldownBuffCount);
+    copySet(mPickSeenPlants,mPickSeenPlantCount,picks.mPickSeenPlants,picks.mPickSeenPlantCount);
+    copySet(mPickCooldownPlants,mPickCooldownPlantCount,picks.mPickCooldownPlants,picks.mPickCooldownPlantCount);
+
 	return true;
 }
 

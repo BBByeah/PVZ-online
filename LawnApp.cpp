@@ -1991,6 +1991,7 @@ void LawnApp::StartRun(int theRunMode, int theRunDiff, int theRunScale, int theR
 	// 手里的两株不够开局：先挑四株 + 两个增益（共六次三选一），选完 RunPickChosen 才进第 1 关。
 	// 无尽档不挑植物（StartNew 已给满卡池）：开屏是四个增益 + 原版选卡界面挑 10 株。
 	mRunState->BeginStartPicks();
+	mRunState->Save(mPlayerInfo->mId);
 }
 
 void LawnApp::ContinueRun()
@@ -2006,6 +2007,7 @@ void LawnApp::ContinueRun()
 		mRunState->StartNew(MakeRunSeed(mAppCounter));
 		// 这条"从头开一局"和 StartRun 是同一种新局：开局选卡不能漏（R2 加选卡体系时这里漏了）。
 		mRunState->BeginStartPicks();
+		mRunState->Save(mPlayerInfo->mId);
 		TodLog("[run] no usable checkpoint, a new run starts instead");
 	}
 	else
@@ -2188,6 +2190,7 @@ void LawnApp::AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode,
 			mRunState->StartNew(theRunSeed, theRunMode, theRunDiff,
 				RunState::RUN_SCALE_STD, RunState::RUN_TEMPO_STD, 0, theEndlessScene);
 			mRunState->BeginStartPicks();
+			mRunState->Save(mPlayerInfo->mId);
 			TodLog("[run] aligning to the host: a fresh run at seed %d (mode %d, diff %d, scene %d), catching up to index %d",
 				theRunSeed, theRunMode, theRunDiff, theEndlessScene, theTargetIndex);
 		}
@@ -2378,6 +2381,7 @@ void LawnApp::UpdateRunPick()
 			if (!mRunState->HasPendingPick()) return;
 			RunPickDialog* aDialog = new RunPickDialog(this, mRunState);
 			CenterDialog(aDialog, aDialog->mWidth, aDialog->mHeight);
+			mRunState->Save(mPlayerInfo->mId);
 			AddDialog(Dialogs::DIALOG_RUN_PICK, aDialog);
 			return;
 		}
@@ -2542,6 +2546,7 @@ void LawnApp::RunPickChosen(int theIndex)
 		}
 
 	}
+    aRun->Save(mPlayerInfo->mId);
 }
 
 // 玩家点了「放弃」（2026-10-03 用户定案：三条都不想要时也得能往前走）：这一屏不选
@@ -2553,6 +2558,7 @@ void LawnApp::RunPickSkipped()
 
 	KillDialog(Dialogs::DIALOG_RUN_PICK);
 	mRunState->SkipPendingPick();
+    mRunState->Save(mPlayerInfo->mId);
 }
 
 // ══ @pvz-online: 僵尸强化投票（MOD_BUILD 45，2026-10-14 用户令）════════════════════════
@@ -2893,19 +2899,23 @@ void LawnApp::UpdateZombieVote()
 // 守卫：金币不够当前价不扣不摇（按钮在那一档也置着灰，这是防误调的兜底）。
 void LawnApp::RunPickPaidReroll()
 {
-	if (mRunState == nullptr || mPlayerInfo == nullptr) return;
-	if (!mRunState->HasPendingPick() || !mRunState->mChoicesRolled) return;
-	int aCost = mRunState->GetPaidRerollCost();
-	if (mRunState->mRerollVouchers > 0) --mRunState->mRerollVouchers;
-	else
-	{
-		if (mPlayerInfo->mCoins < aCost) return;
-		mPlayerInfo->AddCoins(-aCost);
-	}
-	KillDialog(Dialogs::DIALOG_RUN_PICK);
-	mRunState->PaidReroll();
-	// @pvz-online: spending a voucher must survive quitting, just as spending coins does.
-	mRunState->Save(mPlayerInfo->mId);
+    if (!mRunState || !mPlayerInfo || !mRunState->HasPendingPick() || !mRunState->mChoicesRolled) return;
+    const RunState before = *mRunState;
+    const int coins = mPlayerInfo->mCoins;
+    const int cost = mRunState->GetPaidRerollCost();
+    if (mRunState->mRerollVouchers > 0) --mRunState->mRerollVouchers;
+    else { if (coins < cost) return; mPlayerInfo->AddCoins(-cost); }
+    mRunState->PaidReroll();
+    // @pvz-online: neither new choices nor a debit become visible before the joint commit.
+    if (!mRunState->SaveWithPlayer(*mPlayerInfo)) {
+        *mRunState = before;
+        mPlayerInfo->mCoins = coins;
+        LawnMessageBox(Dialogs::DIALOG_MESSAGE, ModText::Tr("保存失败", "Save failed"),
+            ModText::Tr("重摇未保存，未扣款；请检查可用空间。", "Reroll was not saved or charged. Check available storage."),
+            "OK", "", Sexy::Dialog::BUTTONS_FOOTER);
+        return;
+    }
+    KillDialog(Dialogs::DIALOG_RUN_PICK);
 }
 
 // R4：输一关就记账——失败次数进检查点（首版只存不用）。紧跟着写盘是刻意的：

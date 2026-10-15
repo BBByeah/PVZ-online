@@ -50,6 +50,7 @@ void LawnApp::StartRun(int mode, int buffMult, int difficulty, int scale, int te
     mRunState = std::make_unique<RunState>();
     mRunState->StartNew(Sexy::Rand(), mode, difficulty, scale, tempo, zombotany, endlessScene, bossFlag, buffMult, ladder, zombieBuff);
     mRunState->BeginStartPicks();
+    mRunState->Save(mPlayerInfo->mId);
     EnterRunLevel();
 }
 
@@ -82,6 +83,7 @@ void LawnApp::ShowRunPicks()
     KillRunFlowScreen();
     if (!mRunState || !mRunState->HasPendingPick() || !mBoard || !mRunIntroHeld) return;
     mRunFlowScreen = std::make_unique<RunFlowScreen>(this, false);
+    mRunState->Save(mPlayerInfo->mId);
     mWidgetManager->AddWidget(mRunFlowScreen.get());
     mWidgetManager->BringToFront(mRunFlowScreen.get());
     mWidgetManager->SetFocus(mRunFlowScreen.get());
@@ -114,11 +116,21 @@ void LawnApp::NoteRunFailure()
 void LawnApp::RunPickPaidReroll()
 {
     if (!mRunState || !mPlayerInfo || !mRunState->HasPendingPick() || !mRunState->mChoicesRolled) return;
-    int cost = mRunState->GetPaidRerollCost();
+    const RunState before = *mRunState;
+    const int coins = mPlayerInfo->mCoins;
+    const int cost = mRunState->GetPaidRerollCost();
     if (mRunState->mRerollVouchers > 0) --mRunState->mRerollVouchers;
-    else { if (mPlayerInfo->mCoins < cost) return; mPlayerInfo->AddCoins(-cost); }
+    else { if (coins < cost) return; mPlayerInfo->AddCoins(-cost); }
     mRunState->PaidReroll();
-    mRunState->Save(mPlayerInfo->mId);
+    // @pvz-online: neither new choices nor a debit become visible before the joint commit.
+    if (!mRunState->SaveWithPlayer(*mPlayerInfo)) {
+        *mRunState = before;
+        mPlayerInfo->mCoins = coins;
+        LawnMessageBox(Dialogs::DIALOG_MESSAGE, ModText::Tr("保存失败", "Save failed"),
+            ModText::Tr("重摇未保存，未扣款；请检查可用空间。", "Reroll was not saved or charged. Check available storage."),
+            "OK", "", Sexy::Dialog::BUTTONS_FOOTER);
+        return;
+    }
 }
 
 

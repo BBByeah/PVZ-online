@@ -18,9 +18,8 @@
 //
 // 检查点写在 userdata/run%d.dat，和 user%d.dat（本机档案进度）完全分开：
 // 闯关不推进 mLevel、不发奖杯，退出 / 换档案都不受影响。
-// 写入时机 = 每关的选卡做完、开场之前（LawnApp::UpdateRunPick 的 ①）：盘上的那一关
-// 永远是一关"手里牌齐了、能直接开打"的状态。中途退出再续就是从这一关重开——选卡
-// 已经进池，不会重抽、更不会丢；退在选卡屏里才回上一关重打（那一屏重新抽）。
+// v17保存当前选择阶段与开战检查点；在奖励页返回后可以接着选，已选成长不会丢失。
+// 付费重摇以同一份事务日志提交档案和检查点，进程中断后先恢复交易再读取。
 
 class PlayerInfo;
 class RunState
@@ -108,8 +107,7 @@ public:
 	};
 
 	// @pvz-online: "三选一"的待选状态（R2）。v17起完整保存选择阶段——
-	// 选了才写进卡池 / buff 表；检查点只在选卡做完的那一刻落盘（见头注释的写入时机）。
-	// 所以退在选卡屏里，这一屏的欠账不恢复：从上一关重打，回到这一关时重新抽。
+	// 选择后写入卡池 / buff 表；未选次数、当前候选和本屏价格一起保存。
 	// 候选由 runSeed + mPickSalt 推导（用户 2026-10-03 定案）：盐是本机自己随机的，
 	// 不随联机命令走——联机里每个玩家看到的候选各不相同，选什么更是各选各的。
 	int							mPendingPlantPicks;		// 还欠几株新植物（一屏只选一株，选完减一）
@@ -120,7 +118,7 @@ public:
 	unsigned int				mPickSalt;				// 本机随机盐：StartNew/Load 时各生成一次，进程内不变——
 														// 同一局里重开同关还是同一组三条（防刷），换进程/换机器就不同
 	// @pvz-online: 候选抽好没抽好的记账（2026-10-08 玩家反馈）。和上面一样纯内存态、
-	// 不落检查点：mChoicesRolled = 当前这一屏的三条候选已经抽好（打掉/放弃后复位，
+	// v17持久化：mChoicesRolled = 当前这一屏的三条候选已经抽好（打掉/放弃后复位，
 	// 下一屏才会重抽——也让重摇重开的那一屏不会被再抽一次）。
 	bool						mChoicesRolled;
 	// @pvz-online: 「重摇」阶梯价的记账（花园批 2026-10-13；2026-10-14 起第一次也花金币）：
@@ -324,6 +322,8 @@ public:
 	// 检查点读写。Load 失败（文件不在 / 版本不符 / 内容越界）返回 false，对象保持"空局"。
 	bool				Load(int theProfileId);
 	bool				Save(int theProfileId) const;
+    bool SaveWithPlayer(PlayerInfo& player) const;
+    std::vector<unsigned char> EncodeCheckpoint() const;
 	static bool			HasCheckpoint(int theProfileId);
 	// @pvz-online: 探读检查点（2026-10-10）：完整走一遍 Load（含全部校验），成功才回填
 	// 时长档与无尽场景，返回 true。两处「续不续」的问句先用它甄别——HasCheckpoint 只看

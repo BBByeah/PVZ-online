@@ -877,7 +877,9 @@ bool RunState::HasCheckpoint(int theProfileId)
 
 void RunState::DeleteCheckpoint(int theProfileId)
 {
-	if (gSexyAppBase) gSexyAppBase->EraseFile(GetCheckpointName(theProfileId));
+	if (gSexyAppBase && RunCheckpointIO::Recover(GetCheckpointName(theProfileId),
+        GetAppDataFolder()+"userdata/user"+std::to_string(theProfileId)+".dat"))
+        gSexyAppBase->EraseFile(GetCheckpointName(theProfileId));
 }
 
 // @pvz-online: 探读（2026-10-10）：完整做一遍 Load 才回填，失败一律返回 false——

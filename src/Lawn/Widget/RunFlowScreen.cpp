@@ -185,7 +185,14 @@ void RunFlowScreen::ButtonDepress(int id)
 {
     if(id==30){mApp->ShowCoopPlay();return;}
     if(mApp->mCoopPlay && mApp->mCoopPlay->Blocking())return;
-    if (id == 9) { mApp->ShowGameSelector(); return; }
+    if (id == 9) {
+        if (!mModePage && mApp->mRunState) {
+            if (!mApp->mRunState->SaveWithPlayer(*mApp->mPlayerInfo)) return;
+            if (mApp->mCoopPlay) mApp->mCoopPlay->Close();
+            mApp->DoBackToMain(true);
+        } else mApp->ShowGameSelector();
+        return;
+    }
     if (mModePage)
     {
         if(id==28){mAdvanced=!mAdvanced;RefreshModePage();return;}

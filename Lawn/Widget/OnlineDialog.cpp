@@ -1,4 +1,5 @@
 #include "OnlineDialog.h"
+#include "OnlineSeatDialog.h"
 #include "CjkStoneButton.h"
 #include "GameButton.h"
 #include "../LawnCommon.h"
@@ -133,141 +134,6 @@ namespace
 	}
 }
 
-namespace
-{
-	// @pvz-online: 大厅换位选人框（2026-10-15，docs/09 §六首版）：换位从「只跟环上后一位」
-	// 放开为任选上座队友——协议字节不动（SWAP_REQUEST 本就带 src/dst，COMMIT 是 (A,B)）。
-	// 每行给出换去那席的顺位预览：换位不改变上座席位集合，各席位号的乘数/阳光档不变，
-	// 直接查目标席位号的档（OnlineSeatMultiplierForSeat / OnlineStartSunBonusForSeat）。
-	// 对方同意才生效（确认流不变）、五秒没回音自动收起（NetSession 超时）；战斗中不开放
-	//（OnlineDialog 的换位键照旧只在开局前亮），关间整备换位涉波表/推车/借用重排，归后续批。
-	// 绘制仿协作页 CoopDialog：整屏石底 + 自绘石钮条 + 命中矩形，不挂子控件。
-	class OnlineSwapDialog : public LawnDialog
-	{
-	public:
-		explicit OnlineSwapDialog(LawnApp* theApp)
-			: LawnDialog(theApp, DIALOG_ONLINE_SWAP, true, "", "", "", Dialog::BUTTONS_NONE)
-			, mApp(theApp), mDownHit(-1)
-		{
-			Resize(0, 0, 800, 600);
-		}
-
-		static Rect SeatBox(int theSeat) { return Rect(45, 140 + (theSeat - 1) * 58, 300, 46); }
-		static Rect PreviewBox(int theSeat) { return Rect(360, 140 + (theSeat - 1) * 58 + 6, 395, 40); }
-
-		int Hit(int x, int y)
-		{
-			if (Rect(650, 515, 100, 46).Contains(x, y)) return 90;
-			NetSession* aSession = mApp->mOnlineSession;
-			if (aSession == nullptr) return -1;
-			for (int aSeat = 1; aSeat <= NetProto::MAX_PLAYERS; aSeat++)
-				if (aSeat != (int)aSession->GetLocalSeat() && aSession->IsSeatOccupied((uint8_t)aSeat)
-					&& SeatBox(aSeat).Contains(x, y))
-					return aSeat;
-			return -1;
-		}
-
-		void Draw(Graphics* g) override
-		{
-			LawnDialog::Draw(g);
-			g->SetFont(FONT_BRIANNETOD16);	// 英文档 OnlineDrawText 走位图基线；中文档走 ModText 宽绘
-
-			OnlineDrawText(g, ModText::Tr("换位 · 选择队友", "Swap · pick a teammate"), 45, 66,
-				Color(255, 255, 255, 255), 700);
-			OnlineDrawText(g, ModText::Tr("点一位队友发出换位请求：对方同意才换，五秒没回音自动收起。",
-				"Click a teammate to ask for a swap. It happens only if they accept; silent asks time out."),
-				45, 100, Color(170, 170, 170, 255), 700);
-
-			NetSession* aSession = mApp->mOnlineSession;
-			if (aSession == nullptr)
-			{
-				mApp->KillDialog(DIALOG_ONLINE_SWAP);
-				return;
-			}
-
-			uint8_t aMy = aSession->GetLocalSeat();
-			uint8_t aLast = 0;
-			for (uint8_t aSeat = 1; aSeat <= NetProto::MAX_PLAYERS; aSeat++)
-				if (aSession->IsSeatOccupied(aSeat)) aLast = aSeat;
-
-			for (int aSeat = 1; aSeat <= NetProto::MAX_PLAYERS; aSeat++)
-			{
-				std::string aName = aSession->GetSeatName((uint8_t)aSeat);
-				if (aName.empty()) aName = "P" + std::to_string(aSeat);
-				int aBoxY = SeatBox(aSeat).mY;
-
-				if (aSeat == (int)aMy)
-				{
-					OnlineDrawText(g, ModText::Tr("你自己（", "You (") + std::to_string(aSeat) + ModText::Tr(" 号位）", ")"),
-						52, aBoxY + 30, Color(140, 140, 140, 255), 300);
-					continue;
-				}
-				if (!aSession->IsSeatOccupied((uint8_t)aSeat))
-				{
-					OnlineDrawText(g, ModText::Tr("空席", "Empty"), 52, aBoxY + 30, Color(110, 110, 110, 255), 300);
-					continue;
-				}
-
-				OnlineDrawStoneStrip(g, SeatBox(aSeat),
-					ModText::Tr("跟 P", "Swap with P") + std::to_string(aSeat) + " " + aName, aBoxY + 30);
-
-				// 换后预览：乘数/阳光按目标席位号查档；末席归属只有我或对方踩在末席时才变
-				int aNewMult = mApp->OnlineSeatMultiplierForSeat((uint8_t)aSeat);
-				int aOldMult = mApp->OnlineSeatMultiplierForSeat(aMy);
-				int aNewSun = mApp->OnlineStartSunBonusForSeat((uint8_t)aSeat);
-				std::string aLine1 = ModText::Tr("换到 ", "Move to ") + std::to_string(aSeat) + ModText::Tr(" 号位：刷怪 x", ": spawn x")
-					+ std::to_string(aNewMult) + ModText::Tr("（现在 x", " (now x") + std::to_string(aOldMult) + "）"
-					+ ModText::Tr(" · 顺位阳光 +", " · start sun +") + std::to_string(aNewSun);
-				std::string aLine2;
-				if (aLast == (uint8_t)aSeat)
-					aLine2 = ModText::Tr("换后末席是你：漏怪到头直接判全队败。", "You would hold the last seat: a leak there loses the run.");
-				else if (aLast == aMy)
-					aLine2 = ModText::Tr("换后末席是 ", "The last seat would be ") + aName + ModText::Tr("。", ".");
-				else
-					aLine2 = ModText::Tr("末席不变（P", "Last seat unchanged (P") + std::to_string((unsigned)aLast) + "）";
-				OnlineDrawText(g, aLine1, PreviewBox(aSeat).mX, aBoxY + 20, Color(255, 230, 150, 255), 390);
-				OnlineDrawText(g, aLine2, PreviewBox(aSeat).mX, aBoxY + 40, Color(170, 170, 170, 255), 390);
-			}
-
-			OnlineDrawText(g, ModText::Tr("末位每行一台推车兜底（整局一次性）；换位不改变各席位的倍率档，只改变谁坐哪。",
-				"The last seat gets one mower per row (once per run). Swapping moves people, not the per-seat tiers."),
-				45, 540, Color(140, 140, 140, 255), 590);
-			OnlineDrawStoneStrip(g, Rect(650, 515, 100, 46), ModText::Tr("关闭", "Close"), 545);
-		}
-
-		void MouseDown(int x, int y, int clicks) override { mDownHit = clicks > 0 ? Hit(x, y) : -1; }
-		void MouseUp(int x, int y, int clicks) override
-		{
-			int anAction = Hit(x, y);
-			if (clicks <= 0 || mDownHit < 0 || anAction != mDownHit) { mDownHit = -1; return; }
-			mDownHit = -1;
-			if (anAction == 90) { mApp->KillDialog(DIALOG_ONLINE_SWAP); return; }
-			if (mApp->mOnlineSession != nullptr && mApp->mOnlineSession->SwapSeats((uint8_t)anAction))
-				mApp->KillDialog(DIALOG_ONLINE_SWAP);	// 请求出去了：回联机面板看「等待答复」状态行
-		}
-
-		void KeyDown(KeyCode key) override { if (key == KEYCODE_ESCAPE) mApp->KillDialog(DIALOG_ONLINE_SWAP); }
-
-	private:
-		// 石钮条：同协作页 CoopButton 的画法（左贴图 + 中段平铺 + 右贴图），标签走 OnlineDrawText
-		static void OnlineDrawStoneStrip(Graphics* g, const Rect& theRect, const std::string& theTextUtf8, int theBaseline)
-		{
-			Graphics aStone(*g);
-			aStone.SetColorizeImages(false);
-			Image* aL = IMAGE_BUTTON_LEFT;
-			Image* aM = IMAGE_BUTTON_MIDDLE;
-			Image* aR = IMAGE_BUTTON_RIGHT;
-			aStone.DrawImage(aL, Rect(theRect.mX, theRect.mY, aL->mWidth, theRect.mHeight), Rect(0, 0, aL->mWidth, aL->mHeight));
-			aStone.DrawImage(aM, Rect(theRect.mX + aL->mWidth, theRect.mY, theRect.mWidth - aL->mWidth - aR->mWidth, theRect.mHeight), Rect(0, 0, aM->mWidth, aM->mHeight));
-			aStone.DrawImage(aR, Rect(theRect.mX + theRect.mWidth - aR->mWidth, theRect.mY, aR->mWidth, theRect.mHeight), Rect(0, 0, aR->mWidth, aR->mHeight));
-			OnlineDrawText(g, theTextUtf8, theRect.mX + 12, theBaseline, Color(245, 230, 165, 255), theRect.mWidth - 24);
-		}
-
-		LawnApp* mApp;
-		int mDownHit;
-	};
-}
-
 OnlineDialog::OnlineDialog(LawnApp* theApp) :
 	LawnDialog(theApp, Dialogs::DIALOG_ONLINE, true,
 		ModText::IsChinese() ? _S("") : _S("CO-OP ONLINE"), _S(""), _S(""), Dialog::BUTTONS_NONE)
@@ -281,7 +147,7 @@ OnlineDialog::OnlineDialog(LawnApp* theApp) :
 	mJoinButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Join, this, ModText::Tr("加入", "Join"));
 	mCloseButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Close, this, ModText::Tr("关闭", "Close"));
 	mDisconnectButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Disconnect, this, ModText::Tr("断开", "Disconnect"));
-	mSwapButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Swap, this, ModText::Tr("换位", "Swap"));
+	mSwapButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Swap, this, ModText::Tr("席位", "Seats"));
 	mAcceptButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Accept, this, ModText::Tr("同意", "Accept"));
 	mRejectButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Reject, this, ModText::Tr("拒绝", "Reject"));
 	mCreateRoomButton = MakeOnlineButton(OnlineDialog::OnlineDialog_CreateRoom, this, ModText::Tr("创建房间", "Create Room"));
@@ -432,8 +298,8 @@ void OnlineDialog::Update()
 	// 面板是遥控器，不显示连接细节：状态行每帧跟着会话走
 	if (aSession)
 	{
-		mStatusLine = aSession->GetStatusText();
-		mHintLine = aSession->GetHintText();
+		mStatusLine = RoomPresentation::State(aSession);
+		mHintLine = aSession->GetState()==NetSession::State::DEAD?aSession->GetStatusText():aSession->GetHintText();
 	}
 	else
 	{
@@ -483,10 +349,7 @@ void OnlineDialog::Update()
 	// 换位置只在自己这局开局前有意义：棋盘一开（或主机已在等队友就位），
 	// 顺位就定下了，按钮灰掉免得中途换了位置两边都糊涂。
 	// 已经有一条请求在谈（我等的 / 等我的）时也不许再发——一次只谈一件事。
-	bool aCanSwap = aSession && aSession->IsConnected() && !anAsk
-		&& !aSession->IsSwapRequestPending()
-		&& mApp->mBoard == nullptr && !mApp->IsOnlineWaitingStartAck();
-	mSwapButton->SetDisabled(!aCanSwap);
+	mSwapButton->SetDisabled(!anActive);
 }
 
 void OnlineDialog::Draw(Graphics* g)
@@ -584,66 +447,12 @@ void OnlineDialog::DrawRoomBlock(Graphics* g)
 // （面板是模态的，盖着主菜单那个小条，看不见）。
 std::string OnlineDialog::GetRoomHeaderLine()
 {
-	NetSession* aSession = mApp->mOnlineSession;
-	std::string aText = ModText::Tr("房间 ----", "Room ----");	// 没会话 / 中继还没等到服务器点名，都是这一句
-	if (!aSession || !aSession->IsActive())
-		return aText;
-
-	uint8_t aSeat = aSession->GetLocalSeat();
-	if (aSeat == NetProto::SEAT_UNSET)
-		return aText;
-
-	if (aSession->IsRelay())
-	{
-		std::string aCode = aSession->GetRoomCode();
-		if (!aCode.empty())
-			aText = ModText::Tr("房间 ", "Room ") + aCode;
-	}
-	else
-	{
-		// 枚举网卡不是每帧该干的活：算一次存着（会话开着这段时间地址不会变）
-		if (!mLocalIpLoaded)
-		{
-			mLocalIpText = NetLink::GetLocalIPv4Text();
-			mLocalIpLoaded = true;
-		}
-		aText = ModText::Tr("直连", "Direct");
-		if (aSession->IsHostSeat() && !mLocalIpText.empty())
-			aText += " " + mLocalIpText;
-	}
-
-	aText += ModText::Tr("——你是 P", " - you are P") + std::to_string((int)aSeat);
-	if (aSession->IsHostSeat())
-		aText += ModText::Tr("（房主）", " (host)");
-	return aText;
+    return RoomPresentation::Identity(mApp->mOnlineSession);
 }
 
-// 名册的一行，和小状态条同一套说法：空位就是 --（别看名字那栏是空的就以为是没画出来），
-// 名字一个能画的字形都没有时直说 (no name)。多一个 (host)——面板上得看出房主是谁。
 std::string OnlineDialog::GetRoomSeatLine(int theSeat)
 {
-	NetSession* aSession = mApp->mOnlineSession;
-	std::string aText = "P" + std::to_string(theSeat);
-	if (!aSession) return aText + "  --";
-
-	bool aMine = (aSession->GetLocalSeat() == theSeat);
-	if (!aSession->IsSeatOccupied((uint8_t)theSeat))
-		return aText + "  --";
-
-	std::string aName = aSession->GetSeatName((uint8_t)theSeat);
-	if (aName.empty() && !aMine)
-		aName = ModText::Tr("（无名）", "(no name)");
-	if (!aName.empty())
-		aText += "  " + aName;
-
-	std::string aTag;
-	if (aSession->GetHostSeat() == theSeat && aSession->GetHostSeat() != NetProto::SEAT_UNSET)
-		aTag = ModText::Tr("房主", "host");
-	if (aMine)
-		aTag = aTag.empty() ? ModText::Tr("你", "you") : aTag + ModText::Tr("，你", ", you");
-	if (!aTag.empty())
-		aText += ModText::Tr("（", " (") + aTag + ModText::Tr("）", ")");
-	return aText;
+    return RoomPresentation::SeatName(mApp->mOnlineSession,theSeat);
 }
 
 // 标题栏下沿第一行正文的基线。LawnDialog::Draw 画完标题后正是用这套算式继续排正文的
@@ -697,10 +506,10 @@ void OnlineDialog::ButtonDepress(int theId)
 
 	case OnlineDialog::OnlineDialog_Swap:
 		// 2026-10-15：改开选人框——任选上座队友（含预览），原「只跟环上后一位」的直发退役。
-		// 请求的发出/答复/超时仍在 NetSession；战斗中这把键本来就灰着（aCanSwap 门）。
+		// 请求/答复/超时仍在 NetSession；战斗可查看，席位页禁止换位。
 		if (mApp->mOnlineSession != nullptr)
 		{
-			mApp->AddDialog(DIALOG_ONLINE_SWAP, new OnlineSwapDialog(mApp));
+			mApp->AddDialog(DIALOG_ONLINE_SWAP, new OnlineSeatDialog(mApp));
 		}
 		break;
 

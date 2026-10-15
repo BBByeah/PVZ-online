@@ -1,3 +1,4 @@
+#include "OnlineSeatDialog.h"
 #include "OnlineStatusWidget.h"
 #include "CjkStoneButton.h"
 #include "../ModText.h"
@@ -74,83 +75,21 @@ OnlineStatusWidget::~OnlineStatusWidget()
 
 void OnlineStatusWidget::Update()
 {
-	Widget::Update();
-
-	NetSession* aSession = mApp->mOnlineSession;
-	bool aShow = aSession != nullptr && aSession->IsActive();
-	if (aShow != mVisible)
-	{
-		mVisible = aShow;
-		MarkDirty();
-		// 刚开会话：顺手把本机 IP 取一次。它要枚举网卡，不是每帧该干的活，
-		// 而会话开着这段时间地址不会变。
-		if (aShow) mIpText = NetLink::GetLocalIPv4Text();
-	}
-	if (!aShow) return;
-
-	// 宽度按六行里最宽的那行量出来：状态行有长有短（"Hosting - waiting for player" 最长），
-	// 名字那行还看玩家自己叫什么，写死宽度不是勒着字就是留一大块空底。
-	// （语言批：量宽走 ChipTextWidth，中文档按宽字符量。）
-	int aWidth = ChipTextWidth(GetTitleLine());
-	std::string aTitleTag = GetTitleTagText();
-	if (!aTitleTag.empty())
-		aWidth += TITLE_GAP + ChipTextWidth(aTitleTag);
-	for (int aSeat = 1; aSeat <= NetProto::MAX_PLAYERS; aSeat++)
-	{
-		int aSeatWidth = ChipTextWidth(GetSeatLine(aSeat));
-		if (aSeatWidth > aWidth) aWidth = aSeatWidth;
-	}
-	int aStateWidth = ChipTextWidth(GetStateLine());
-	if (aStateWidth > aWidth) aWidth = aStateWidth;
-	aWidth += CHIP_PAD_X * 2;
-
-	int aHeight = CHIP_PAD_Y * 2 + ChipLineStep() * CHIP_LINES;
-	if (aWidth != mWidth || aHeight != mHeight)
-		Resize(mX, mY, aWidth, aHeight);
+    Widget::Update();auto* session=mApp->mOnlineSession;
+    bool show=session&&session->IsActive();
+    if(show&&!mVisible)mIpText=NetLink::GetLocalIPv4Text();
+    SetVisible(show);if(show){Resize(mX,mY,330,52);MarkDirty();}
 }
 
 void OnlineStatusWidget::Draw(Graphics* g)
 {
-	NetSession* aSession = mApp->mOnlineSession;
-	if (!aSession || !aSession->IsActive()) return;
-
-	// 半透明黑底 + 一圈细边：主菜单那一角是树和天空，不衬底白字根本读不出来
-	g->SetColor(Color(0, 0, 0, 140));
-	g->FillRect(0, 0, mWidth, mHeight);
-	g->SetColor(Color(255, 255, 255, 60));
-	g->DrawRect(0, 0, mWidth, mHeight);
-
-	int aLineY = ChipFirstBaseline();		// 首行基线（语言批：两种字体各自的基线口径）
-	int aLineHeight = ChipLineStep();
-
-	std::string aTitle = GetTitleLine();
-	ChipDrawText(g, aTitle, CHIP_PAD_X, aLineY, Color(255, 208, 80));
-
-	// 标题后面挂一串字：中继挂房间码（念给朋友 / 核对进对了没有），直连挂主机 IP
-	std::string aTitleTag = GetTitleTagText();
-	if (!aTitleTag.empty())
-	{
-		ChipDrawText(g, aTitleTag, CHIP_PAD_X + ChipTextWidth(aTitle) + TITLE_GAP, aLineY,
-			Color(160, 200, 255));
-	}
-
-	// 名册：位子全部画满，从上到下就是顺位。自己在最亮那行，空位压暗——
-	// 一眼看得出"我在几号位、后面还有没有人"。
-	for (int aSeat = 1; aSeat <= NetProto::MAX_PLAYERS; aSeat++)
-	{
-		aLineY += aLineHeight;
-		Color aColor;
-		if (aSession->GetLocalSeat() == aSeat)
-			aColor = Color(255, 255, 255);
-		else if (aSession->IsSeatOccupied((uint8_t)aSeat))
-			aColor = Color(205, 230, 255);
-		else
-			aColor = Color(150, 150, 150);
-		ChipDrawText(g, GetSeatLine(aSeat), CHIP_PAD_X, aLineY, aColor);
-	}
-
-	aLineY += aLineHeight;
-	ChipDrawText(g, GetStateLine(), CHIP_PAD_X, aLineY, Color(255, 255, 255));
+    auto* session=mApp->mOnlineSession;if(!session||!session->IsActive())return;
+    Graphics stone(*g);stone.SetColorizeImages(false);
+    stone.DrawImage(IMAGE_DIALOG_CENTERMIDDLE,Rect(0,0,mWidth,mHeight),Rect(0,0,IMAGE_DIALOG_CENTERMIDDLE->mWidth,IMAGE_DIALOG_CENTERMIDDLE->mHeight));
+    stone.SetColor(Color(175,160,120));stone.DrawRect(0,0,mWidth-1,mHeight-1);
+    std::string title=RoomPresentation::Summary(mApp);auto tag=GetTitleTagText();if(!tag.empty())title+=" · "+tag;
+    SeatUi::Text(g,title,8,22,mWidth-16,18,Color(245,230,165));
+    SeatUi::Text(g,RoomPresentation::CompactRoster(session),8,45,mWidth-16,18,Color(210,225,235));
 }
 
 void OnlineStatusWidget::MouseUp(int x, int y, int theClickCount)

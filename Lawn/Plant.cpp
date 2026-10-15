@@ -6336,6 +6336,15 @@ void Plant::PlayIdleAnim(float theRate)
     }
 }
 
+// @pvz-online: retained lawns use the same current health rule as freshly planted entities.
+void Plant::RefreshRunMaxHealth()
+{
+    const int maximum = CoopMaxHealth();
+    if (maximum == mPlantMaxHealth) return;
+    mPlantHealth = (int)((long long)std::max(0, mPlantHealth) * maximum / std::max(1, mPlantMaxHealth));
+    mPlantMaxHealth = maximum;
+}
+
 int Plant::CoopMaxHealth()
 {
     int base=300;

@@ -143,6 +143,7 @@ class Plant : public GameObject
 {
 public:
     int CoopMaxHealth();
+    void RefreshRunMaxHealth();
     float CoopAttackPeriod();
 
     SeedType                mSeedType;                      //+0x24

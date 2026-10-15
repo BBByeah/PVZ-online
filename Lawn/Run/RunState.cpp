@@ -180,6 +180,8 @@ void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theR
 	mPaidRerollCount = 0;		// 重摇阶梯价：新局从头起算（实际每屏还会在 RollChoices 清零）
 	mPickSeenBuffCount = 0;		// 候选去重批：新局无露脸/冷却
 	mPickCooldownBuffCount = 0;
+	mPickSeenPlantCount = 0;	// 植物屏跨屏冷却（2026-10-16 用户令）：新局同款清零
+	mPickCooldownPlantCount = 0;
 	mPickCounter = 0;
 	// 本机随机盐（用户 2026-10-03 定案：各玩家的候选不共用一套随机数）。不进检查点、
 	// 不随联机命令走——pending 屏本来就不落盘，读档/追赶时重抽的屏用什么盐都合法。
@@ -206,6 +208,8 @@ void RunState::BeginStartPicks()
 	// 候选去重批：冷却集只在一批屏内滚动（上一屏 → 下一屏），换批即清。
 	mPickSeenBuffCount = 0;
 	mPickCooldownBuffCount = 0;
+	mPickSeenPlantCount = 0;
+	mPickCooldownPlantCount = 0;
 	int aExtra = (mMode == RUN_MODE_QUICK || mMode == RUN_MODE_ENDLESS) ? 2 : 0;
 	mPendingPlantPicks = CanOfferPlantPick() ? 4 + aExtra : 0;
 	// 增益倍选（2026-10-13 用户令）：发放的 buff 屏数按倍率翻倍（只乘 buff 屏，植物屏不动）。
@@ -220,6 +224,8 @@ void RunState::BeginLevelEndPicks()
 	// 候选去重批：冷却集只在一批屏内滚动（上一屏 → 下一屏），换批即清（同 BeginStartPicks）。
 	mPickSeenBuffCount = 0;
 	mPickCooldownBuffCount = 0;
+	mPickSeenPlantCount = 0;
+	mPickCooldownPlantCount = 0;
 
 	// 每关后的植物奖励数（2026-10-09 定案）：完整 2 株/关不变、普通 6→3、快速 10→4——
 	// 大幅收紧让植物保持稀缺（一局拿不满 48 株），单株增益候选池不被一口气铺宽。
@@ -347,18 +353,30 @@ void RunState::RollChoices(bool theReroll)
 		}
 
 		// 候选去重批（2026-10-10）：「重摇」把本屏刚摆的三株从候选摘掉——池子够时重抽
-		// 必出全新三株；保底口径与增益屏一致（摘到只剩 min(池子, 3) 条为止，别让屏变秃）。
-		// 植物屏没有跨屏冷却：植物一次性入池，没"刷掉的株反复来"这回事。
-		if (theReroll)
+		// 必出全新三株。2026-10-16 用户令起植物屏也有跨屏冷却（口径同增益屏）：上一屏
+		// 露过脸没拿的（mPickCooldownPlants，含上一屏被刷掉的那批）每屏抽前整体摘掉；
+		// 拿走的株已入卡池、上方 owned 过滤天然挡住，冷却里减它无意义但无害（照抄增益屏）。
+		// 保底口径与增益屏一致（摘到只剩 min(池子, 3) 条为止，别让屏变秃）。
 		{
-			int aFloor = (aCount < RUN_CHOICES) ? aCount : RUN_CHOICES;
-			for (int i = 0; i < RUN_CHOICES && aCount > aFloor; i++)
+			SeedType aExclude[RUN_CHOICES * 3];
+			int aExcludeCount = 0;
+			if (theReroll)
 			{
-				SeedType aOld = mPlantChoices[i];
-				if (aOld == SeedType::SEED_NONE) continue;
+				for (int i = 0; i < RUN_CHOICES; i++)
+				{
+					if (mPlantChoices[i] != SeedType::SEED_NONE) aExclude[aExcludeCount++] = mPlantChoices[i];
+				}
+			}
+			for (int i = 0; i < mPickCooldownPlantCount; i++)
+			{
+				aExclude[aExcludeCount++] = (SeedType)mPickCooldownPlants[i];
+			}
+			int aFloor = (aCount < RUN_CHOICES) ? aCount : RUN_CHOICES;
+			for (int aE = 0; aE < aExcludeCount && aCount > aFloor; aE++)
+			{
 				for (int j = 0; j < aCount; j++)
 				{
-					if (aCandidates[j] == aOld)
+					if (aCandidates[j] == aExclude[aE])
 					{
 						aTotalW -= aWeights[j];
 						aCandidates[j] = aCandidates[aCount - 1];
@@ -389,6 +407,24 @@ void RunState::RollChoices(bool theReroll)
 			aTotalW -= aWeights[aPick];
 			aCandidates[aPick] = aCandidates[--aCount];		// 抽走的换到队尾，保证三条互不重复
 			aWeights[aPick] = aWeights[aCount];
+		}
+
+		// 候选去重批的记账（植物屏同款，2026-10-16 用户令）：本屏露过脸的全部（含「重摇」
+		// 刷掉的那批；theReroll 时不清零）抽的当下就记，消费时由 NotePlantScreenConsumed
+		// 生成下一屏冷却集。
+		if (!theReroll) mPickSeenPlantCount = 0;
+		for (int i = 0; i < RUN_CHOICES; i++)
+		{
+			if (mPlantChoices[i] == SeedType::SEED_NONE) continue;
+			bool aDup = false;
+			for (int j = 0; j < mPickSeenPlantCount; j++)
+			{
+				if (mPickSeenPlants[j] == (unsigned short)mPlantChoices[i]) { aDup = true; break; }
+			}
+			if (!aDup && mPickSeenPlantCount < RUN_CHOICES * 2)
+			{
+				mPickSeenPlants[mPickSeenPlantCount++] = (unsigned short)mPlantChoices[i];
+			}
 		}
 	}
 	else
@@ -588,6 +624,7 @@ void RunState::TakePlantChoice(int theIndex)
 	mPendingPlantPicks--;
 	// 这一屏消费掉了：下一屏（还有欠的话）得重新抽——见 LawnApp::UpdateRunPick 的"还没抽才抽"守卫。
 	mChoicesRolled = false;
+	NotePlantScreenConsumed(aSeed);	// 去重批（2026-10-16 植物屏同款）：本屏露过脸没拿的进下一屏冷却
 	// 刚拿到最后一株没到手的植物：本次欠的植物屏到此为止（再选就没候选了）。
 	if (mPendingPlantPicks > 0 && !CanOfferPlantPick()) mPendingPlantPicks = 0;
 }
@@ -628,6 +665,7 @@ void RunState::SkipPendingPick()
 	{
 		mPendingPlantPicks--;
 		mChoicesRolled = false;		// 这一屏消费掉了，下一屏重新抽（同 TakePlantChoice）
+		NotePlantScreenConsumed(SeedType::SEED_NONE);	// 去重批：放弃 = 本屏露过脸的全部进冷却
 		TodLog("[run] a plant pick was skipped (%d still owed)", mPendingPlantPicks);
 	}
 	else if (mPendingBuffPicks > 0)
@@ -650,6 +688,19 @@ void RunState::NoteBuffScreenConsumed(unsigned short theTakenId)
 		if (mPickSeenBuffs[i] != theTakenId) mPickCooldownBuffs[aCount++] = mPickSeenBuffs[i];
 	}
 	mPickCooldownBuffCount = aCount;
+}
+
+// @pvz-online: 植物屏同款回执（2026-10-16 用户令）：「本屏露过脸的全部」减去拿走的那株 =
+// 下一屏的冷却集。拿走的株已入卡池、候选 owned 过滤天然挡住（冷却里减不减无行为差，
+// 照抄增益屏口径）；放弃（theTakenSeed = SEED_NONE）则整批进冷却。
+void RunState::NotePlantScreenConsumed(SeedType theTakenSeed)
+{
+	int aCount = 0;
+	for (int i = 0; i < mPickSeenPlantCount; i++)
+	{
+		if (mPickSeenPlants[i] != (unsigned short)theTakenSeed) mPickCooldownPlants[aCount++] = mPickSeenPlants[i];
+	}
+	mPickCooldownPlantCount = aCount;
 }
 
 int RunState::GetBuffCount(int theBuffId) const

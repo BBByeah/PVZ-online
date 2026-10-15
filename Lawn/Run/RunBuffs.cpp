@@ -115,11 +115,11 @@ static const RunBuffDef gRunBuffDefs[RUN_BUFF_COUNT] =
 	// 全局批同日调整：扎根/爆破/精准降 1★；质变口径批 2026-10-09 深夜：火力/丰饶/急袭
 	// 3★→2★——全局 3★ 清空）：
 	// 3★ 排山倒海（批 A 2026-10-09 追加） · 2★ 火力/丰饶/急袭/速种 · 1★ 扎根/天降/爆破/精准
-	{ "Firepower", "火力",    "所有子弹伤害 +20%",      "All projectile damage +20%",       0.20f,  0, 0, false, 2 },
+	{ "Firepower", "火力",    "所有子弹伤害 +25%",      "All projectile damage +25%",       0.25f,  0, 0, false, 2 },
 	{ "Deep Roots", "扎根",   "所有植物血量 +75%",      "All plant health +75%",            0.75f,  0, 0, false, 1 },
 	{ "Abundance", "丰饶",    "产阳光间隔逐层 ×0.75",   "Sun production interval ×0.75/stack", -0.25f, 0, 4, true, 2 },
-	{ "Swift Strikes", "急袭","植物攻击间隔逐层 ×0.75", "Plant attack interval ×0.75/stack",-0.25f,  0, 4, true, 2 },
-	{ "Quick Seeds", "速种",  "种植冷却逐层 ×0.8",      "Planting cooldown ×0.8/stack",    -0.20f,  0, 0, true, 2 },
+	{ "Swift Strikes", "急袭","植物攻击间隔逐层 ×0.8", "Plant attack interval ×0.8/stack", -0.20f,  0, 4, true, 2 },
+	{ "Quick Seeds", "速种",  "种植冷却逐层 ×0.85",    "Planting cooldown ×0.85/stack",   -0.15f,  0, 0, true, 2 },
 	{ "Skyfall", "天降",      "夜晚也降阳光，降阳光速率 ×2", "Sky sun also falls at night, 2x drop rate", -0.5f, 0, 1, false, 1 },
 	{ "Demolition", "爆破",   "一次性植物伤害 +60%",    "Instant plant damage +60%",        0.60f,  0, 0, false, 1 },
 	{ "Precision", "精准",    "所有伤害 +15%",          "All damage +15%",                  0.15f,  0, 0, false, 1 },

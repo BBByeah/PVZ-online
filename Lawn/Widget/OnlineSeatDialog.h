@@ -61,7 +61,7 @@ public:
     void Update() override {LawnDialog::Update();MarkDirty();}
     void Draw(Graphics* g) override {
 #ifdef __ANDROID__
-        DrawMobilePanel(g,Rect(20,20,760,560));
+        DrawMobilePanel(g,Rect(0,0,800,600));
 #else
         LawnDialog::Draw(g);
 #endif

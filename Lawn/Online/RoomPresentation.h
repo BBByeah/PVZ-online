@@ -63,7 +63,8 @@ inline std::string Order(const NetSession* s) {
     for(int seat=1;seat<=NetProto::MAX_PLAYERS;++seat)if(s->IsSeatOccupied((uint8_t)seat)) {
         if(count++)line+=ModText::Tr(" → "," -> ");line+="P"+std::to_string(seat);
     }
-    if(count<2)return ModText::Tr("目前单人；队友加入后形成接力链","Solo for now; relay starts when teammates join");
+    if(count==0)return ModText::Tr("席位分配后显示接力顺序","Relay order appears once seats are assigned");
+    if(count==1)return ModText::Tr("目前单人；队友加入后形成接力链","Solo for now; relay starts when teammates join");
     return line+ModText::Tr("（末席漏怪，全队失败）"," (last-seat leak loses the run)");
 }
 inline bool CanSwap(LawnApp* app,int seat) {

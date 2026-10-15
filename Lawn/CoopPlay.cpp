@@ -118,7 +118,7 @@ public:
                 if(valid)label+=coop->requests.count(token)?ModText::Tr(" · 赠送90阳光"," · send 90 sun"):ModText::Tr(" · 申请借用"," · borrow");
                 CoopButton(g,Box(i),label,valid&&token);
             }
-            CoopButton(g,Rect(240,450,320,48),ModText::Tr("请求一份阳光","Request one sun gift"),coop->requestCooldown==0);
+            CoopButton(g,Rect(240,450,320,48),ModText::Tr("请求一份阳光","Request one sun gift"),coop->requestCooldown==0 && coop->app->mGameScene==SCENE_PLAYING);
         }
         CoopButton(g,Rect(45,515,160,46),ModText::Tr("返回列表","Team list"));
         CoopButton(g,Rect(650,515,100,46),ModText::Tr("关闭","Close"));
@@ -160,7 +160,7 @@ bool CoopPlay::Send(CoopWire::Event event,uint64_t target) {
     return session->SendCoop(event);
 }
 bool CoopPlay::RequestSun() {
-    auto* b=CoopBoard(app);if(!b||app->mGameScene!=SCENE_PLAYING || requestCooldown>0)return false;
+    auto* b=CoopBoard(app);if(!b||app->mGameScene!=SCENE_PLAYING || requestCooldown>0){notice=ModText::Tr("战斗中可求援；请等待请求冷却结束","Request sun during battle after its cooldown");return false;}
     auto e=Message(CoopWire::SUN_REQUEST);if(!Send(e)){notice=ModText::Tr("求援未发送","Request could not be sent");return false;}
     requestId=e.serial;requestGrace=0;requestTicks=1000;requestCooldown=1500;notice=ModText::Tr("已求援：十秒内可响应一份阳光","Sun requested for 10 seconds");return true;
 }
@@ -180,7 +180,7 @@ void CoopPlay::SunReceived() {
 }
 bool CoopPlay::Ask(uint64_t token,SeedType plant) {
     auto* run=app->GetRunState();
-    if(!Preparing()||!run||loanWaiting||run->mLoanLevel==run->mLevelIndex)return false;
+    if(!Preparing()||!run||loanWaiting||run->mLoanLevel==run->mLevelIndex){notice=ModText::Tr("请在准备阶段申请，每关限借入一株","Borrow during preparation; one plant per level");return false;}
     auto e=Message(CoopWire::ASK);e.plant=(uint8_t)plant;e.target=token;
     if(!Send(e,token))return false;
     pendingLoan=e;loanWaiting=true;loanTicks=1200;notice=ModText::Tr("借用申请已发出，等待队友确认","Loan requested; waiting for approval");return true;
@@ -264,9 +264,10 @@ void CoopPlay::Handle(const CoopWire::Event& e) {
         if(it!=receipts.end()){Send(it->second,e.sender);return;}
         auto reply=Message(CoopWire::SUN_RESULT);reply.request=e.serial;
         reply.result=run&&board&&app->mGameScene==SCENE_PLAYING&&e.run==(uint32_t)run->mRunSeed&&e.level==(uint32_t)run->mLevelIndex&&e.request==requestId && (requestTicks>0 || requestGrace>0);
-        if(receipts.size()>=128)receipts.erase(receipts.begin());receipts[key]=reply;
+        if(receipts.size()>=128)receipts.erase(receipts.begin());
         if(giftHigh[e.sender]>=e.serial)reply.result=1;
         else if(reply.result){giftHigh[e.sender]=e.serial;board->GiveSunGift(90,e.src);}
+        receipts[key]=reply;
         Send(reply,e.sender);return;
     }
     if(!run||e.run!=(uint32_t)run->mRunSeed||e.level!=(uint32_t)run->mLevelIndex)return;

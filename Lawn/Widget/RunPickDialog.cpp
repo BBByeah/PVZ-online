@@ -403,7 +403,7 @@ void RunPickDialog::ButtonDepress(int theId)
 // 一次点击，不给键盘顺手带过的机会），键盘在这儿什么也别做。
 void RunPickDialog::KeyDown(KeyCode theKey)
 {
-	if(theKey=='B'||theKey=='b')mApp->ShowCoopPlay();
+	if(theKey=='B')mApp->ShowCoopPlay();
 }
 
 void RunPickDialog::MouseDown(int x,int y,int clicks)

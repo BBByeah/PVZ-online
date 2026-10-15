@@ -5910,7 +5910,7 @@ bool Board::HandleSunGiftKey(KeyCode theKey)
 	if (mApp->mOnlineSession == nullptr) return false;
 	bool aSelecting = mSunGiftSelectFrames > 0;
 
-	if (theKey == 'G' || theKey == 'g')
+	if (theKey == 'G')
 	{
 		if (aSelecting)
 		{
@@ -8963,7 +8963,7 @@ bool Board::HandleQuickChatKey(KeyCode theKey)
 			CloseQuickChatPanel();
 			return true;
 		}
-		if (theKey == 'T' || theKey == 't')
+		if (theKey == 'T')
 		{
 			if (mChatEmotePage)
 			{
@@ -8976,7 +8976,7 @@ bool Board::HandleQuickChatKey(KeyCode theKey)
 			}
 			return true;
 		}
-		if (theKey == 'E' || theKey == 'e')
+		if (theKey == 'E')
 		{
 			if (!mChatEmotePage)
 			{
@@ -9011,11 +9011,11 @@ bool Board::HandleQuickChatKey(KeyCode theKey)
 	}
 
 	// 面板关着：只认 T / E，其余原样放回（RETURN/SPACE/ESC 那条链不受影响）
-	if (theKey != 'T' && theKey != 't' && theKey != 'E' && theKey != 'e') return false;
+	if (theKey != 'T' && theKey != 'E') return false;
 	if (mChatInputCooldown > 0) return true;	// 冷却中吞掉，防自动重复把面板弹回去
 	if (!QuickChatAvailable()) return false;	// 单机 / 过场 / 选卡：不响应（焦点本就不在棋盘）
 	mChatPanelOpen = true;
-	mChatEmotePage = (theKey == 'E' || theKey == 'e');
+	mChatEmotePage = (theKey == 'E');
 	mChatPanelTimer = QUICK_CHAT_PANEL_TIMEOUT;
 	mChatInputCooldown = QUICK_CHAT_KEY_COOLDOWN;
 	return true;
@@ -9529,7 +9529,7 @@ bool Board::HandleBoardWatchKey(KeyCode theKey)
 {
 	NetSession* aSession = mApp->mOnlineSession;
 
-	if (theKey == 'V' || theKey == 'v')
+	if (theKey == 'V')
 	{
 		// 自动重复的 V：按住的幂等吞掉；ESC 退场后压到真松手，别把观看立刻拉回来
 		if (mWatchRearmBlocked) return true;
@@ -9838,12 +9838,14 @@ void Board::DrawKeyboardHint(Graphics* g, int theSlot, int theX, int theY)
 //0x41B820
 void Board::KeyDown(KeyCode theKey)
 {
-    if((theKey=='B'||theKey=='b') && mApp->IsOnlineGame()){mApp->ShowCoopPlay();return;}
+    // @pvz-online: KeyCode is a VK, not a character: lowercase 't' is F5 and 'b' is NUMPAD2.
+    // Win32 and SDL both normalize physical letter keys to uppercase; KeyChar handles text separately.
+    if((theKey=='B') && mApp->IsOnlineGame()){mApp->ShowCoopPlay();return;}
 	// @pvz-online: normalize keypad digits before contextual panels consume their seat/item keys.
 	if (theKey >= KEYCODE_NUMPAD0 && theKey <= KEYCODE_NUMPAD9)
 		theKey = (KeyCode)('0' + theKey - KEYCODE_NUMPAD0);
 	if (mWidgetManager->mIsKeyRepeat && ((theKey >= '0' && theKey <= '9') || theKey == 'Q' ||
-		theKey == KEYCODE_F5 || theKey == KEYCODE_F6)) return;
+		theKey == 'H' || theKey == 'J')) return;
 	DoTypingCheck(theKey);
 
 	// @pvz-online: 联机局内 T/E 唤出快捷聊天；面板开着时吞掉一切键（含 ESC/SPACE）
@@ -9858,10 +9860,12 @@ void Board::KeyDown(KeyCode theKey)
 	if (HandleBoardWatchKey(theKey)) return;
 	if (HandlePlantKeyboardKey(theKey)) return;
 
-	// @pvz-online: free the number row for plants; health remains a purely local display option.
-	if (theKey == KEYCODE_F5 || theKey == KEYCODE_F6)
+	// @pvz-online: free the number row for plants; H/J health toggles remain a purely local display option.
+	if ((theKey == 'H' || theKey == 'J') && mApp->mGameScene == GameScenes::SCENE_PLAYING &&
+        mApp->mGameMode != GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN &&
+        mApp->mGameMode != GameMode::GAMEMODE_TREE_OF_WISDOM)
 	{
-		if (theKey == KEYCODE_F5)
+		if (theKey == 'H')
 		{
 			gShowZombieHealthNumbers = !gShowZombieHealthNumbers;
 		}
@@ -9911,7 +9915,7 @@ void Board::KeyDown(KeyCode theKey)
 // 失焦时收不到 KeyUp，由 UpdateBoardWatch 的 mKeyDown 轮询兜底。
 void Board::KeyUp(KeyCode theKey)
 {
-	if ((theKey == 'V' || theKey == 'v') && (mWatchKeyHeld || mWatchRearmBlocked))
+	if ((theKey == 'V') && (mWatchKeyHeld || mWatchRearmBlocked))
 	{
 		mWatchKeyHeld = false;
 		mWatchRearmBlocked = false;
@@ -9930,6 +9934,11 @@ static void TodCrash()
 //0x41B950（原版中废弃）
 void Board::KeyChar(SexyChar theChar)
 {
+    // @pvz-online: H/J are display keys, including with -tod; do not also spawn debug zombies.
+    if ((theChar == _S('h') || theChar == _S('H') || theChar == _S('j') || theChar == _S('J')) &&
+        mApp->mGameScene == GameScenes::SCENE_PLAYING &&
+        mApp->mGameMode != GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN &&
+        mApp->mGameMode != GameMode::GAMEMODE_TREE_OF_WISDOM) return;
 	// @pvz-online: WM_CHAR follows WM_KEYDOWN; selecting 6/7/8/Q must never also execute a debug cheat.
 	if (HasPlantKeyboardControls() && ((theChar >= _S('0') && theChar <= _S('9')) ||
 		theChar == _S('q') || theChar == _S('Q'))) return;

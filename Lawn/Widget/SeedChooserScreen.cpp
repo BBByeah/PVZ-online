@@ -1181,7 +1181,7 @@ void SeedChooserScreen::CloseSeedChooser()
 //0x486E80
 void SeedChooserScreen::KeyDown(KeyCode theKey)
 {
-    if(theKey=='B'||theKey=='b'){mApp->ShowCoopPlay();return;}
+    if(theKey=='B'){mApp->ShowCoopPlay();return;}
 	mBoard->DoTypingCheck(theKey);
 }
 

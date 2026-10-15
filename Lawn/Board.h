@@ -114,6 +114,7 @@ public:
     std::unordered_set<unsigned int> mRelayedZombieIds;
     void MarkRelayedZombie(Zombie* zombie);
     bool IsRelayedZombie(Zombie* zombie);
+    void DrawRelayedZombieMarkers(Graphics* g);
 
 	LawnApp*						mApp;													//+0x8C
 	DataArray<Zombie>				mZombies;												//+0x90

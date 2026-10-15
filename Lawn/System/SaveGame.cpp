@@ -14,6 +14,8 @@
 #include "../../Sexy.TodLib/Reanimator.h"
 #include "../../Sexy.TodLib/TodParticle.h"
 #include "../../Sexy.TodLib/EffectSystem.h"
+#include <algorithm>
+#include <vector>
 
 static const char* FILE_COMPILE_TIME_STRING = "Feb 16 200923:03:38";
 static const unsigned int SAVE_FILE_MAGIC_NUMBER = 0xFEEDDEAD;
@@ -364,6 +366,7 @@ template <typename T> inline static void SyncDataArray(SaveGameContext& theConte
 //0x4819D0
 void SyncBoard(SaveGameContext& theContext, Board* theBoard)
 {
+	if (theContext.mReading) theBoard->mRelayedZombieIds.clear();
 	// TODO test if gives sane results
 	size_t offset = size_t(&theBoard->mPaused) - size_t(theBoard);
 	theContext.SyncBytes(&theBoard->mPaused, sizeof(Board) - offset);
@@ -425,6 +428,35 @@ void SyncBoard(SaveGameContext& theContext, Board* theBoard)
 	else
 	{
 		theContext.mBuffer.WriteLong(SAVE_FILE_MAGIC_NUMBER);
+	}
+
+	// @pvz-online: optional tail preserves relay identity without changing raw entity layouts.
+	// Old saves end at the preceding magic; old readers ignore this appended tail.
+	const unsigned int aRelayTag = 0x31594c52; // RLY1
+	if (theContext.mReading)
+	{
+		if (theContext.mFailed || theContext.ByteLeftToRead() == 0) return;
+		if (theContext.ByteLeftToRead() < 8 || (unsigned int)theContext.mBuffer.ReadLong() != aRelayTag)
+		{ theContext.mFailed = true; return; }
+		unsigned int aCount = (unsigned int)theContext.mBuffer.ReadLong();
+		if (aCount > 1024 || aCount > (unsigned int)theContext.ByteLeftToRead() / 4)
+		{ theContext.mFailed = true; return; }
+		for (unsigned int i = 0; i < aCount; ++i)
+		{
+			unsigned int aId = (unsigned int)theContext.mBuffer.ReadLong();
+			if (!theBoard->mZombies.DataArrayTryToGet(aId) || !theBoard->mRelayedZombieIds.insert(aId).second)
+			{ theContext.mFailed = true; return; }
+		}
+	}
+	else
+	{
+		std::vector<unsigned int> aIds;
+		for (auto aId : theBoard->mRelayedZombieIds)
+			if (theBoard->mZombies.DataArrayTryToGet(aId)) aIds.push_back(aId);
+		std::sort(aIds.begin(), aIds.end());
+		theContext.mBuffer.WriteLong(aRelayTag);
+		theContext.mBuffer.WriteLong((int)aIds.size());
+		for (auto aId : aIds) theContext.mBuffer.WriteLong(aId);
 	}
 }
 

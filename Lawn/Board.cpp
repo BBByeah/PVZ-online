@@ -7653,6 +7653,7 @@ void Board::DrawGameObjects(Graphics* g)
 		}
 	}
 
+	DrawRelayedZombieMarkers(g);
 	TodHesitationTrace("end draw");
 }
 
@@ -9734,8 +9735,7 @@ void Board::DrawBoardWatch(Graphics* g)
 			g->SetColor(Color(140, 200, 255, 220));	// 淡蓝小点 = 有甲（头盔/门板）
 			g->FillRect(aZ.mX - 31, (int)aDrawY + 3, 4, 4);
 		}
-		// @pvz-online: 接力小箭头——与 Zombie::Draw 的本机标记同款同位（本机坐标系里
-		// 箭头画在 (38,-9) 起 18×18；观看端的原点 = (mX, 行y-30)，气球再抬 30 已算进 aOriginY）
+		// @pvz-online: 观看端按缓存图原点定位；本机叠加层使用实时实体矩形。
 		if (aZ.mFlags & NetProto::SNAPSHOT_ZFLAG_RELAYED)
 		{
 			int aAX = aZ.mX + 38;
@@ -12155,4 +12155,28 @@ void Board::MarkRelayedZombie(Zombie* zombie)
 bool Board::IsRelayedZombie(Zombie* zombie)
 {
     return zombie && mRelayedZombieIds.count((unsigned int)mZombies.DataArrayGetID(zombie)) != 0;
+}
+
+// @pvz-online: markers belong to the final overlay, not behind the zombie's reanimation.
+// Use its live body rectangle so jumping, balloon and giant units keep the marker attached.
+void Board::DrawRelayedZombieMarkers(Graphics* g)
+{
+    Graphics marker(*g);
+    Zombie* zombie = nullptr;
+    while (IterateZombies(zombie))
+    {
+        if (!zombie->mVisible || zombie->mDead || zombie->IsDeadOrDying() ||
+            zombie->mZombieHeight == ZombieHeight::HEIGHT_GETTING_BUNGEE_DROPPED ||
+            !IsRelayedZombie(zombie)) continue;
+        Rect body = zombie->GetZombieRect();
+        int x = body.mX + body.mWidth / 2 - 9;
+        int y = body.mY - 24;
+        if (x + 18 <= 0 || x >= BOARD_WIDTH || y + 18 <= 0 || y >= BOARD_HEIGHT) continue;
+        marker.SetColor(Color(35, 30, 20, 230)); marker.FillRect(x, y, 18, 18);
+        marker.SetColor(Color(255, 215, 70));
+        marker.FillRect(x + 7, y + 2, 4, 8);
+        marker.FillRect(x + 3, y + 8, 12, 3);
+        marker.FillRect(x + 5, y + 11, 8, 3);
+        marker.FillRect(x + 7, y + 14, 4, 2);
+    }
 }

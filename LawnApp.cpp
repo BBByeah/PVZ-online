@@ -1,3 +1,5 @@
+#include "Lawn/CoopPlay.h"
+#include "Lawn/CoopPlay.h"
 #include <corecrt.h>
 #include <time.h>
 #include "LawnApp.h"
@@ -1149,6 +1151,7 @@ bool LawnApp::TryHoldSeedChooserForTeammates()
 // 等的人不会来了，后面本来就是单机收场，别把选卡界面锁死在"等待队友"上。
 void LawnApp::UpdateOnlineSeeds()
 {
+    if(mCoopPlay && mCoopPlay->Blocking())return;
 	if (!mOnlineSeedsHeld) return;
 
 	// @pvz-online MOD_BUILD 39：重连期断的是我自己的线，不是"队友没了"——放行条件
@@ -1565,7 +1568,8 @@ void LawnApp::UpdateOnlineEnd()
 			{
 				TodLog("[net] every lawn is clear - the run moves on");
 				AwardRunRerollVoucher();
-				mRunState->AdvanceLevel();
+				ExpireCoopLoan();
+        mRunState->AdvanceLevel();
 				if (mRunState->IsComplete())
 				{
 					TodLog("[run] the run is complete");
@@ -2239,7 +2243,8 @@ void LawnApp::UpdateRunEnd()
 	{
 		if (mRunIntroHeld || mRunState->HasPendingPick()) return;
 		AwardRunRerollVoucher();
-		mRunState->AdvanceLevel();
+		ExpireCoopLoan();
+        mRunState->AdvanceLevel();
 		mBoardResult = BoardResult::BOARDRESULT_NONE;
 		mGameScene = GameScenes::SCENE_LEVEL_INTRO;
 		mBoard->mBoardFadeOutCounter = -1;	// 过关白幕到头了：草坪不换，幕先撤，别盖着三选一
@@ -2252,7 +2257,8 @@ void LawnApp::UpdateRunEnd()
 
 	AwardRunRerollVoucher();
 	KillBoard();
-	mRunState->AdvanceLevel();
+	ExpireCoopLoan();
+        mRunState->AdvanceLevel();
 
 	if (mRunState->IsComplete())
 	{
@@ -2492,6 +2498,7 @@ void LawnApp::UpdateRunPick()
 // 什么时候进关卡，都由 UpdateRunPick 下一帧看着办。
 void LawnApp::RunPickChosen(int theIndex)
 {
+    if(mCoopPlay && mCoopPlay->Blocking())return;
 	RunState* aRun = mRunState;
 	if (aRun == nullptr) return;
 
@@ -2503,7 +2510,7 @@ void LawnApp::RunPickChosen(int theIndex)
 	else
 	{
 		int aId = theIndex >= 0 && theIndex < RunState::RUN_CHOICES ? aRun->mBuffChoices[theIndex] : -1;
-		int aBefore = aRun->GetBuffCount(aId);
+		int aBefore = aRun->GetEffectiveBuffCount(aId);
 		aRun->TakeBuffChoice(theIndex);
 		if (mBoard && aBefore == 0 && aRun->GetBuffCount(aId) > 0)
 		{
@@ -2534,6 +2541,7 @@ void LawnApp::RunPickChosen(int theIndex)
 // 也不要——只把欠的屏数消掉，屏关掉。后续与选了一张卡完全同路（UpdateRunPick 看着办）。
 void LawnApp::RunPickSkipped()
 {
+    if(mCoopPlay && mCoopPlay->Blocking())return;
 	if (mRunState == nullptr) return;
 
 	KillDialog(Dialogs::DIALOG_RUN_PICK);
@@ -3011,7 +3019,7 @@ float LawnApp::RunPlantUpgradeMul(SeedType thePlant) const
 	if (aIndex < 0) return 1.0f;
 
 	const RunPlantUpgradeDef& aDef = GetRunPlantUpgradeDef(aIndex);
-	int aStacks = mRunState->GetBuffCount(RUN_BUFF_COUNT + aIndex);
+	int aStacks = mRunState->GetEffectiveBuffCount(RUN_BUFF_COUNT + aIndex);
 	float aMul = 1.0f;
 	if (aDef.mMultiplicative)
 	{
@@ -3030,7 +3038,7 @@ int LawnApp::RunPlantUpgradeCount(SeedType thePlant) const
 
 	int aIndex = RunPlantUpgradeIndexFor(thePlant);
 	if (aIndex < 0) return 0;
-	return mRunState->GetBuffCount(RUN_BUFF_COUNT + aIndex);
+	return mRunState->GetEffectiveBuffCount(RUN_BUFF_COUNT + aIndex);
 }
 
 // @pvz-online: 修正批（2026-10-03）：Kind 闸门版取用口——血量/射速节奏/多发/种植冷却
@@ -3046,7 +3054,7 @@ float LawnApp::RunPlantUpgradeMulKind(SeedType thePlant, RunPlantUpgradeKind the
 	if (aIndex < 0) return 1.0f;
 	const RunPlantUpgradeDef& aDef = GetRunPlantUpgradeDef(aIndex);
 	if (aDef.mKind != theKind) return 1.0f;
-	int aStacks = mRunState->GetBuffCount(RUN_BUFF_COUNT + aIndex);
+	int aStacks = mRunState->GetEffectiveBuffCount(RUN_BUFF_COUNT + aIndex);
 	if (aDef.mMaxStacks > 0 && aStacks > aDef.mMaxStacks) aStacks = aDef.mMaxStacks;
 	float aMul = 1.0f;
 	if (aDef.mMultiplicative)
@@ -3067,7 +3075,7 @@ int LawnApp::RunPlantUpgradeCountKind(SeedType thePlant, RunPlantUpgradeKind the
 	if (aIndex < 0) return 0;
 	const RunPlantUpgradeDef& aDef = GetRunPlantUpgradeDef(aIndex);
 	if (aDef.mKind != theKind) return 0;
-	int aStacks = mRunState->GetBuffCount(RUN_BUFF_COUNT + aIndex);
+	int aStacks = mRunState->GetEffectiveBuffCount(RUN_BUFF_COUNT + aIndex);
 	if (aDef.mMaxStacks > 0 && aStacks > aDef.mMaxStacks) aStacks = aDef.mMaxStacks;
 	return aStacks;
 }
@@ -3081,7 +3089,7 @@ float LawnApp::RunPlantBuff2Mul(SeedType thePlant) const
 	int aIndex = RunPlantBuff2IndexFor(thePlant);
 	if (aIndex < 0) return 1.0f;
 	const RunPlantUpgradeDef& aDef = GetRunPlantBuff2Def(aIndex);
-	int aStacks = mRunState->GetBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + aIndex);
+	int aStacks = mRunState->GetEffectiveBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + aIndex);
 	float aMul = 1.0f;
 	if (aDef.mMultiplicative)
 	{
@@ -3098,7 +3106,7 @@ float LawnApp::RunPlantBuff2Mul(SeedType thePlant) const
 int LawnApp::RunExtraBuffCount(RunPlantBuff2Id theBuff) const
 {
 	if (theBuff < RUN_BUFF2_DISPATCH || theBuff >= RUN_PLANT_BUFF2_COUNT) return 0;
-	return mRunState ? mRunState->GetBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + theBuff) : 0;
+	return mRunState ? mRunState->GetEffectiveBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + theBuff) : 0;
 }
 
 int LawnApp::RunPlantBuff2Count(SeedType thePlant) const
@@ -3106,7 +3114,7 @@ int LawnApp::RunPlantBuff2Count(SeedType thePlant) const
 	if (mRunState == nullptr) return 0;
 	int aIndex = RunPlantBuff2IndexFor(thePlant);
 	if (aIndex < 0) return 0;
-	return mRunState->GetBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + aIndex);
+	return mRunState->GetEffectiveBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + aIndex);
 }
 
 float LawnApp::RunPlantBuff2MulKind(SeedType thePlant, RunPlantUpgradeKind theKind) const
@@ -3116,7 +3124,7 @@ float LawnApp::RunPlantBuff2MulKind(SeedType thePlant, RunPlantUpgradeKind theKi
 	if (aIndex < 0) return 1.0f;
 	const RunPlantUpgradeDef& aDef = GetRunPlantBuff2Def(aIndex);
 	if (aDef.mKind != theKind) return 1.0f;
-	int aStacks = mRunState->GetBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + aIndex);
+	int aStacks = mRunState->GetEffectiveBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + aIndex);
 	if (aDef.mMaxStacks > 0 && aStacks > aDef.mMaxStacks) aStacks = aDef.mMaxStacks;
 	float aMul = 1.0f;
 	if (aDef.mMultiplicative)
@@ -3137,7 +3145,7 @@ int LawnApp::RunPlantBuff2CountKind(SeedType thePlant, RunPlantUpgradeKind theKi
 	if (aIndex < 0) return 0;
 	const RunPlantUpgradeDef& aDef = GetRunPlantBuff2Def(aIndex);
 	if (aDef.mKind != theKind) return 0;
-	int aStacks = mRunState->GetBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + aIndex);
+	int aStacks = mRunState->GetEffectiveBuffCount(RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + aIndex);
 	if (aDef.mMaxStacks > 0 && aStacks > aDef.mMaxStacks) aStacks = aDef.mMaxStacks;
 	return aStacks;
 }
@@ -4544,6 +4552,7 @@ void LawnApp::UpdateFrames()
 		// 注入，注入后再 Update（状态行每帧在 Update 末尾重算，改语言下一帧就生效）。
 		mOnlineSession->SetTextChinese(ModText::IsChinese());
 		mOnlineSession->Update();
+        UpdateCoopPlay();
 
 		// @pvz-online: 组队成功就把联机面板收起来。面板是模态对话框，它在的时候后面
 		// 所有牌子一个都点不着，而"组队成功后还要回主菜单点关卡牌开局"是必经的一步——
@@ -5443,7 +5452,7 @@ bool LawnApp::SeedTypeAvailable(SeedType theSeedType)
 	// 里每一处"画不画、点不点"的判定都走这里，一处收口；局中的图鉴也跟着只显示卡池。
 	if (IsRunMode())
 	{
-		return mRunState->HasPlant(theSeedType);
+		return mRunState->HasUsablePlant(theSeedType);
 	}
 
 	return (theSeedType == SeedType::SEED_GATLINGPEA && mPlayerInfo->mPurchases[StoreItem::STORE_ITEM_PLANT_GATLINGPEA]) || HasSeedType(theSeedType);
@@ -6580,3 +6589,7 @@ void LawnApp::UpdateRegisterInfo()
 }
 
 
+
+void LawnApp::UpdateCoopPlay(){if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->Update();}
+void LawnApp::ShowCoopPlay(){if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->Show();}
+void LawnApp::ExpireCoopLoan(){if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->ExpireLoan();}

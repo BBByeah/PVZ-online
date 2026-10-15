@@ -1,3 +1,4 @@
+#include "../CoopPlay.h"
 #include "../Board.h"
 #include "../Zombie.h"
 #include "GameButton.h"
@@ -450,6 +451,7 @@ void SeedChooserScreen::Draw(Graphics* g)
 	aBoardFrameG.mTransY -= mY;
 	mMenuButton->Draw(&aBoardFrameG);
 	mToolTip->Draw(g);
+    if(mApp->mCoopPlay)mApp->mCoopPlay->DrawEntry(g,640,70);
 }
 
 //0x484C30
@@ -738,7 +740,7 @@ void SeedChooserScreen::PickRandomSeeds()
 		if (mApp->IsRunMode())
 		{
 			RunState* aRun = mApp->GetRunState();
-			do aSeedType = aRun->mPool[Rand((int)aRun->mPool.size())];
+			do aSeedType = aRun->GetUsablePool()[Rand((int)aRun->GetUsablePool().size())];
 			while (mChosenSeeds[aSeedType].mSeedState != SEED_IN_CHOOSER);
 		}
 		else
@@ -799,7 +801,7 @@ void SeedChooserScreen::ButtonDepress(int theId)
 	}
 	// @pvz-online: 闸门也要认卡池——原版拿档案解锁数挡"开始/随机"，而闯关的卡池是
 	// 三选一攒的、和档案进度无关（低进度档案配闯关会卡在"选满了也点不动开始"）。
-	else if ((mApp->IsRunMode() ? (int)mApp->GetRunState()->mPool.size() : mApp->GetSeedsAvailable()) >= mBoard->mSeedBank->mNumPackets)
+	else if ((mApp->IsRunMode() ? (int)mApp->GetRunState()->GetUsablePool().size() : mApp->GetSeedsAvailable()) >= mBoard->mSeedBank->mNumPackets)
 	{
 		if (theId == SeedChooserScreen::SeedChooserScreen_Start)
 			OnStartButton();
@@ -1031,6 +1033,7 @@ void SeedChooserScreen::UpdateImitaterButton()
 //0x486770
 void SeedChooserScreen::MouseDown(int x, int y, int theClickCount)
 {
+    if(theClickCount>0 && Rect(640,70,140,40).Contains(x,y) && mApp->IsOnlineGame()){mApp->ShowCoopPlay();return;}
 	Widget::MouseDown(x, y, theClickCount);
 
 	if (mSeedsInFlight > 0)
@@ -1148,6 +1151,7 @@ bool SeedChooserScreen::PickedPlantType(SeedType theSeedType)
 //0x486D20
 void SeedChooserScreen::CloseSeedChooser()
 {
+    if(mApp->mCoopPlay && mApp->mCoopPlay->Blocking())return;
 	// @pvz-online: 选卡等队友（SEEDS_READY）。联机局里按了 Let's Rock 不能一个人先开打——
 	// 本机"选好了"要等所有上座席位也选好，没齐就把这次关屏拦下来（挂等待框），
 	// 齐了由 LawnApp::UpdateOnlineSeeds 撤框、重新走一遍这里。单机 / 掉了线直接放行。
@@ -1164,7 +1168,9 @@ void SeedChooserScreen::CloseSeedChooser()
 		if (aChosenSeed.mRefreshing)
 		{
 			aSeedPacket.mRefreshCounter = aChosenSeed.mRefreshCounter;
-			aSeedPacket.mRefreshTime = Plant::GetRefreshTime(aSeedPacket.mPacketType, aSeedPacket.mImitaterType);
+			aSeedPacket.mRefreshTime = (int)(Plant::GetRefreshTime(aSeedPacket.mPacketType, aSeedPacket.mImitaterType) *
+                mApp->RunBuffMul(RUN_BUFF_FASTSEED)*mApp->RunPlantUpgradeMulKind(aSeedPacket.mPacketType,RUN_UPGRADE_KIND_COOLDOWN)*
+                mApp->RunCoffeeBeanRefreshMul(aSeedPacket.mPacketType,aSeedPacket.mImitaterType));
 			aSeedPacket.mRefreshing = true;
 			aSeedPacket.mActive = false;
 		}
@@ -1175,6 +1181,7 @@ void SeedChooserScreen::CloseSeedChooser()
 //0x486E80
 void SeedChooserScreen::KeyDown(KeyCode theKey)
 {
+    if(theKey=='B'||theKey=='b'){mApp->ShowCoopPlay();return;}
 	mBoard->DoTypingCheck(theKey);
 }
 

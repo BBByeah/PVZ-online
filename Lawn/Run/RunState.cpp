@@ -55,7 +55,7 @@
 //     v13 及更老的档读不到，按"没强过、没投过"续。载荷长度从 v14 起 +18 字节。
 
 static const unsigned int RUN_CHECKPOINT_MAGIC = 0x314E5552;	// 'RUN1'
-static const unsigned short RUN_CHECKPOINT_VERSION = 15;
+static const unsigned short RUN_CHECKPOINT_VERSION = 16;
 
 static std::vector<unsigned char>& AppendU16(std::vector<unsigned char>& theData, unsigned int theValue)
 {
@@ -155,6 +155,7 @@ void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theR
 	memset(mZombieBuffStacks, 0, sizeof(mZombieBuffStacks));
 	mZombieVotedLevel = RUN_ZOMBIE_VOTED_NONE;
 	mLevelIndex = 0;
+    mLoanPlant=mLoanLevel=mLentLevel=-1; mLoanBuffs.clear();
 	mRerollVouchers = 0;
 	mRerollAwardedLevel = -1;
 	mPool.clear();
@@ -1059,6 +1060,9 @@ bool RunState::Save(int theProfileId) const
 	AppendU16(aData, (unsigned int)mZombieVotedLevel);
 	AppendU16(aData, (unsigned int)mRerollVouchers);
 	AppendI32(aData, mRerollAwardedLevel);
+    AppendI32(aData,mLoanPlant);AppendI32(aData,mLoanLevel);AppendI32(aData,mLentLevel);
+    AppendU16(aData,(unsigned)mLoanBuffs.size());
+    for(const auto& buff:mLoanBuffs){AppendU16(aData,buff.mId);AppendU16(aData,buff.mCount);}
 
 	MkDir(GetAppDataFolder() + "userdata");
 	if (!gSexyAppBase->WriteBytesToFile(GetCheckpointName(theProfileId), aData.data(), (unsigned long)aData.size()))
@@ -1097,7 +1101,7 @@ bool RunState::Load(int theProfileId)
 	// v13 才有关底 boss 开关；v14 才有僵尸强化字段（位包 bit7..11 与尾追加 8×u16+u16）。
 	int aMode = RUN_MODE_FULL;
 	int aDiff = RUN_DIFF_STD;
-	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 14 && aVersion != 13 && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
+	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 15 && aVersion != 14 && aVersion != 13 && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
 	{
 		TodLog("[run] checkpoint magic/version mismatch, ignored");
 		return false;
@@ -1290,6 +1294,19 @@ bool RunState::Load(int theProfileId)
 		!aReader.ReadI32(aAwardedLevel) || aAwardedLevel < -1 || aAwardedLevel > aLevelIndex)) return false;
 	mRerollVouchers = (int)aVouchers;
 	mRerollAwardedLevel = aAwardedLevel;
+
+    mLoanPlant=mLoanLevel=mLentLevel=-1; mLoanBuffs.clear();
+    if(aVersion>=16) {
+        unsigned count=0;
+        if(!aReader.ReadI32(mLoanPlant)||!aReader.ReadI32(mLoanLevel)||!aReader.ReadI32(mLentLevel)||
+            !aReader.ReadU16(count)||count>16||mLoanPlant < -1 || mLoanPlant>=48 ||
+            mLoanLevel < -1 || mLoanLevel>aLevelIndex || mLentLevel < -1 || mLentLevel>aLevelIndex)return false;
+        for(unsigned i=0;i<count;++i){unsigned id=0,stacks=0;if(!aReader.ReadU16(id)||!aReader.ReadU16(stacks)||!stacks)return false;
+            if(id<RUN_BUFF_COUNT || id>=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT+RUN_PLANT_BUFF2_COUNT || GetRunChoicePlant((int)id)!=(SeedType)mLoanPlant)return false;
+            for(const auto& b:mLoanBuffs)if(b.mId==id)return false;
+            BuffStack b;b.mId=(unsigned short)id;b.mCount=(unsigned short)stacks;mLoanBuffs.push_back(b);}
+        if(mLoanPlant<0 && (count || mLoanLevel>=0))return false;
+    }
 	mRunSeed = aRunSeed;
 	mMode = aMode;
 	mDiff = aDiff;
@@ -1325,4 +1342,48 @@ bool RunState::Load(int theProfileId)
 	mPickSeenBuffCount = 0;
 	mPickCooldownBuffCount = 0;
 	return true;
+}
+
+int RunState::GetEffectiveBuffCount(int id) const
+{
+    int value=GetBuffCount(id);
+    int base=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT;
+    if(id==RUN_BUFF_COUNT+RUN_UPGRADE_SNOWPEA && GetBuffCount(base+RUN_BUFF2_FROSTPIERCE)>0)return value;
+    if(id==base+RUN_BUFF2_FROSTPIERCE && GetBuffCount(RUN_BUFF_COUNT+RUN_UPGRADE_SNOWPEA)>0)return value;
+    if(id==RUN_BUFF_COUNT+RUN_UPGRADE_KERNELPULT && (GetBuffCount(base+RUN_BUFF2_BUTTERFEAST)>0 || GetBuffCount(base+RUN_BUFF2_BUTTER_SPLASH)>0))return value;
+    if((id==base+RUN_BUFF2_BUTTERFEAST || id==base+RUN_BUFF2_BUTTER_SPLASH) && GetBuffCount(RUN_BUFF_COUNT+RUN_UPGRADE_KERNELPULT)>0)return value;
+    if((id==RUN_BUFF_COUNT+RUN_UPGRADE_WALLNUT || id==base+RUN_BUFF2_THORNS) && GetBuffCount(base+RUN_BUFF2_NUT_BOWLING)>0)return value;
+    if(id==base+RUN_BUFF2_NUT_BOWLING && (GetBuffCount(RUN_BUFF_COUNT+RUN_UPGRADE_WALLNUT)>0 || GetBuffCount(base+RUN_BUFF2_THORNS)>0))return value;
+
+    if(mLoanLevel==mLevelIndex && mLoanPlant>=0 && id>=RUN_BUFF_COUNT && GetRunChoicePlant(id)==(SeedType)mLoanPlant)
+        for(const auto& b:mLoanBuffs)if(b.mId==id)value=std::max(value,(int)b.mCount);
+    return value;
+}
+bool RunState::HasUsablePlant(SeedType plant) const
+{
+    return HasPlant(plant) || (mLoanLevel==mLevelIndex && mLoanPlant==(int)plant);
+}
+std::vector<SeedType> RunState::GetUsablePool() const
+{
+    auto result=mPool;
+    if(mLoanLevel==mLevelIndex && mLoanPlant>=0 && !HasPlant((SeedType)mLoanPlant))result.push_back((SeedType)mLoanPlant);
+    return result;
+}
+bool RunState::ValidateLoan(SeedType plant,const std::vector<BuffStack>& buffs) const
+{
+    if(plant<SEED_PEASHOOTER || plant>SEED_COBCANNON || buffs.size()>16)return false;
+    for(size_t i=0;i<buffs.size();++i) {
+        const auto& b=buffs[i];
+        if(b.mId<RUN_BUFF_COUNT || b.mId>=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT+RUN_PLANT_BUFF2_COUNT ||
+            !b.mCount || GetRunChoicePlant(b.mId)!=plant)return false;
+        for(size_t j=0;j<i;++j)if(buffs[j].mId==b.mId)return false;
+    }
+    auto has=[&](int id){int count=GetBuffCount(id);for(const auto& b:buffs)if(b.mId==id)count=std::max(count,(int)b.mCount);return count>0;};
+    int base=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT;
+    if(plant==SEED_SNOWPEA && has(RUN_BUFF_COUNT+RUN_UPGRADE_SNOWPEA) && has(base+RUN_BUFF2_FROSTPIERCE))return false;
+    if(plant==SEED_KERNELPULT && has(RUN_BUFF_COUNT+RUN_UPGRADE_KERNELPULT) &&
+        (has(base+RUN_BUFF2_BUTTERFEAST)||has(base+RUN_BUFF2_BUTTER_SPLASH)))return false;
+    if(plant==SEED_WALLNUT && has(base+RUN_BUFF2_NUT_BOWLING) &&
+        (has(RUN_BUFF_COUNT+RUN_UPGRADE_WALLNUT)||has(base+RUN_BUFF2_THORNS)))return false;
+    return true;
 }

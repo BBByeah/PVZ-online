@@ -1,3 +1,5 @@
+#include <chrono>
+#include <atomic>
 #include "NetSession.h"
 
 #include <cstring>
@@ -101,6 +103,10 @@ bool ParseViewSnapshot(const uint8_t* theBody, int theSize, NetSession::ViewSnap
 
 NetSession::NetSession()
 {
+    static std::atomic<uint64_t> counter{0};
+    mCoopToken=(uint64_t)std::chrono::steady_clock::now().time_since_epoch().count() ^ (++counter);
+    if(!mCoopToken)mCoopToken=++counter;
+
 	mRole = Role::NONE;
 	mTransport = Transport::DIRECT;
 	mState = State::OFF;
@@ -1047,6 +1053,7 @@ void NetSession::ApplySeatSwap(uint8_t theSeatA, uint8_t theSeatB)
 	// 两格的内容对调：谁坐在几号位变了，人和他这一局记的状态（名字/构建/判胜/选卡）
 	// 一起跟着走——「我报过什么」是我这个人的事，不是我原先那个座位的事。
 	std::swap(mSeats[theSeatA], mSeats[theSeatB]);
+    std::swap(mCoopPeers[theSeatA], mCoopPeers[theSeatB]);
 	if (mLocalSeat == theSeatA) mLocalSeat = theSeatB;
 	else if (mLocalSeat == theSeatB) mLocalSeat = theSeatA;
 	// 观众表同一条道理："谁在看我"跟着人走——他换到几号位，快照就得发给几号位。
@@ -1484,6 +1491,12 @@ bool NetSession::SendBoardSnapshot(uint8_t theViewerSeat, const uint8_t* theBody
 
 void NetSession::ResetToOff()
 {
+    static std::atomic<uint64_t> coopEpoch{0};
+    mCoopToken=(uint64_t)std::chrono::steady_clock::now().time_since_epoch().count() ^ (++coopEpoch);
+    if(!mCoopToken)mCoopToken=++coopEpoch;
+
+    mCoopInbox.clear(); for(auto& token:mCoopPeers)token=0;
+
 	// 收摊要把传输层一起收干净。NetLink 只认"上一个收包线程还在，就不给开新的"，
 	// 而"对面拔线 / 心跳超时"判死这条路谁都没关过它——只有玩家按 Disconnect 才走 Close()。
 	// 不收的话，掉线之后直接再点 Host/Join 会当场失败，而且状态行还挂着上一条死因，
@@ -1732,6 +1745,17 @@ void NetSession::HandlePacket(const NetLink::Packet& thePacket)
 
 	switch (aType)
 	{
+    case NetProto::MSG_COOP_EVENT: {
+        CoopWire::Event event;
+        if(!CoopWire::Decode(aPayload,aPayloadSize,event) || event.src<1 || event.src>NetProto::MAX_PLAYERS ||
+            event.dst!=mLocalSeat || event.src==mLocalSeat || !IsSeatOccupied(event.src) ||
+            (event.target && event.target!=mCoopToken)) break;
+        if(event.op==CoopWire::HELLO) mCoopPeers[event.src]=event.sender;
+        else if(mCoopPeers[event.src]!=event.sender) break;
+        if(mCoopInbox.size()<32) mCoopInbox.push_back(event);
+        break;
+    }
+
 	case NetProto::MSG_HELLO:
 		{
 			// 中继下身份是服务器点的：HELLO 这套"自己报家门"既用不上也不认（坑 7）。
@@ -3143,4 +3167,23 @@ void NetSession::SendBye(uint8_t theReason)
 	uint8_t aPayload[NetProto::MAX_PAYLOAD];
 	int aSize = NetProto::EncodeBye(aPayload, (int)sizeof(aPayload), aMsg);
 	if (aSize > 0) Dispatch(NetProto::MSG_BYE, aPayload, aSize);
+}
+
+bool NetSession::SendCoop(CoopWire::Event event,uint8_t target)
+{
+    if(!IsConnected())return false;
+    event.src=mLocalSeat;event.sender=mCoopToken;
+    uint8_t bytes[NetProto::MAX_PAYLOAD];int size=CoopWire::Encode(bytes,event);
+    return size && Dispatch(NetProto::MSG_COOP_EVENT,bytes,size,target);
+}
+bool NetSession::TakeCoop(CoopWire::Event& event)
+{
+    if(mCoopInbox.empty())return false;
+    event=mCoopInbox.front();mCoopInbox.erase(mCoopInbox.begin());return true;
+}
+uint8_t NetSession::FindCoopSeat(uint64_t token) const
+{
+    for(uint8_t seat=1;seat<=NetProto::MAX_PLAYERS;++seat)
+        if(IsSeatOccupied(seat) && mCoopPeers[seat]==token)return seat;
+    return NetProto::SEAT_UNSET;
 }

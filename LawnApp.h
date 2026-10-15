@@ -1,3 +1,5 @@
+#include <memory>
+class CoopPlay;
 #ifndef __LAWNAPP_H__
 #define __LAWNAPP_H__
 
@@ -61,6 +63,10 @@ public:
 class LawnApp : public SexyApp
 {
 public:
+    std::unique_ptr<CoopPlay> mCoopPlay;
+    bool SendCoopQuickChat(uint8_t id);
+    void UpdateCoopPlay();void ShowCoopPlay();void ExpireCoopLoan();
+
 	Board*							mBoard;											//+0x768
 	TitleScreen*					mTitleScreen;									//+0x76C
 	GameSelector*					mGameSelector;									//+0x770

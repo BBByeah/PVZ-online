@@ -1,3 +1,5 @@
+#include "CoopPlay.h"
+#include "CoopPlay.h"
 #include <time.h>
 #include "Run/RunMath.h"
 #include "ZenGarden.h"
@@ -1953,7 +1955,7 @@ bool Board::ChooseSeedsOnCurrentLevel()
 	// @pvz-online: 闯关的卡槽按卡池填：装得下（≤10 格）就全带上、直接开打，
 	// 装不下才轮到玩家自己挑 10 株（原版选卡界面，R2 里把候选改成卡池）。
 	if (mApp->IsRunMode())
-		return (int)mApp->GetRunState()->mPool.size() > RunState::RUN_SEED_SLOTS;
+		return (int)mApp->GetRunState()->GetUsablePool().size() > RunState::RUN_SEED_SLOTS;
 
 	if (mApp->IsChallengeWithoutSeedBank() || HasConveyorBeltSeedBank())
 		return false;
@@ -1980,7 +1982,7 @@ void Board::FillSeedBankFromRunPool()
 	mSeedBank->mNumPackets = GetNumSeedsInBank();
 	for (int i = 0; i < mSeedBank->mNumPackets; i++)
 	{
-		mSeedBank->mSeedPackets[i].SetPacketType(aRun->mPool[i]);
+		mSeedBank->mSeedPackets[i].SetPacketType(aRun->GetUsablePool()[i]);
 	}
 	mSeedBank->UpdateWidth();
 }
@@ -5964,6 +5966,7 @@ bool Board::HandleSunGiftKey(KeyCode theKey)
 void Board::GiveSunGift(int theAmount, uint8_t theFromSeat)
 {
 	mSunMoney = std::min(mSunMoney + theAmount, 9990);
+    if(theAmount>0 && mApp->mCoopPlay)mApp->mCoopPlay->SunReceived();
 	// @pvz-online: 收方横幅带发送者名字（2026-10-13 用户令「显示 XXX 送你阳光」）；
 	// 席位名口径同聊天/掉线横幅，空名兜底 P<席位>。
 	std::string aNameUtf8;
@@ -8992,7 +8995,7 @@ bool Board::HandleQuickChatKey(KeyCode theKey)
 			{
 				uint8_t anId = (uint8_t)(anIndex + 1 + (mChatEmotePage ? QuickChat::PHRASE_COUNT : 0));
 				CloseQuickChatPanel();
-				if (mApp->mOnlineSession->SendQuickChat(anId))
+				if (mApp->SendCoopQuickChat(anId))
 				{
 					PushQuickChatBanner(mApp->mOnlineSession->GetLocalSeat(), anId);	// 本地回显（我：…）
 				}
@@ -9107,6 +9110,7 @@ void Board::UpdateQuickChat()
 
 void Board::DrawQuickChat(Graphics* g)
 {
+    if(mApp->mCoopPlay)mApp->mCoopPlay->DrawEntry(g,4,330,140,40);
 	ModText::Font* aFont = ModText::GetFont(12, false);
 	const int anAscent = ModText::Ascent(aFont);	// 原 DrawString 是基线口径，转 ModText 顶对齐
 
@@ -9759,6 +9763,7 @@ void Board::DrawKeyboardHint(Graphics* g, int theSlot, int theX, int theY)
 //0x41B820
 void Board::KeyDown(KeyCode theKey)
 {
+    if((theKey=='B'||theKey=='b') && mApp->IsOnlineGame()){mApp->ShowCoopPlay();return;}
 	// @pvz-online: normalize keypad digits before contextual panels consume their seat/item keys.
 	if (theKey >= KEYCODE_NUMPAD0 && theKey <= KEYCODE_NUMPAD9)
 		theKey = (KeyCode)('0' + theKey - KEYCODE_NUMPAD0);
@@ -10801,7 +10806,7 @@ int Board::GetNumSeedsInBank()
 	// 一概不算——闯关的卡池由这一局的三选一决定，和本机解锁到哪儿无关。
 	if (mApp->IsRunMode())
 	{
-		int aCount = (int)mApp->GetRunState()->mPool.size();
+		int aCount = (int)mApp->GetRunState()->GetUsablePool().size();
 		return aCount > RunState::RUN_SEED_SLOTS ? RunState::RUN_SEED_SLOTS : aCount;
 	}
 

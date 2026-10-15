@@ -191,7 +191,7 @@ const uint16_t	PROTOCOL_VERSION	= 1;
 // 50 → 51：快捷短语表 8→9 条（2026-10-15 用户定案）：短语占 id 1..9，植物表情整体后移为
 //        10..17（分界 = PHRASE_COUNT）——旧构建把 9 号解成「土豆雷」表情、新构建是第 9 句
 //        短语，表情 10..17 也各错一位，混搭必须两边同版本。
-const uint16_t	MOD_BUILD			= 51;
+const uint16_t	MOD_BUILD			= 52;
 
 const uint16_t	DEFAULT_PORT		= 27777;
 
@@ -239,6 +239,7 @@ enum MessageType : uint16_t
 	MSG_SEND_SUN		= 19,	// 双向：发阳光给队友（单 100 档、税 10、5s 冷却；载荷见 MsgSendSun）
 	MSG_ZOMBIE_VOTE_OPEN	= 20,	// H→C：本场景僵尸强化开票（房主抽 3 个候选；载荷见 MsgZombieVoteOpen）
 	MSG_ZOMBIE_VOTE		= 21,	// C→H：我对本场景强化的投票（0..2 = 候选下标、3 = 弃权）
+	MSG_COOP_EVENT = 23, // bounded, session-identified cooperation events
 	MSG_ZOMBIE_VOTE_RESULT	= 22	// H→C：计票结果（只驱动 UI；层数权威在随后的 START_LEVEL 快照）
 };
 

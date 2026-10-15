@@ -6335,3 +6335,27 @@ void Plant::PlayIdleAnim(float theRate)
         }
     }
 }
+
+int Plant::CoopMaxHealth()
+{
+    int base=300;
+    if(mSeedType==SEED_WALLNUT || mSeedType==SEED_PUMPKINSHELL)base=4000;
+    else if(mSeedType==SEED_TALLNUT)base=8000;
+    else if(mSeedType==SEED_GARLIC)base=400;
+    else if(mSeedType==SEED_SPIKEROCK)base=450;
+    else if(mSeedType==SEED_CHOMPER && mApp->RunExtraBuffCount(RUN_BUFF2_DIGEST_HEAL)>0)base=3000;
+    double value=base*(double)mApp->RunBuffMul(RUN_BUFF_ROOTED)*mApp->RunPlantUpgradeMulKind(mSeedType,RUN_UPGRADE_KIND_HEALTH);
+    value=std::max(1.0,std::min((double)2147483647,value+0.5));
+    if(mApp->RunPlantBuff2Count(mSeedType)>0) {
+        if(mSeedType==SEED_SCAREDYSHROOM)value=4000;
+        else if(mSeedType==SEED_GLOOMSHROOM)value=1000;
+        else if(mSeedType==SEED_GARLIC)value=20;
+    }
+    if(mSeedType==SEED_PUMPKINSHELL && mApp->RunExtraBuffCount(RUN_BUFF2_STEEL_PUMPKIN)>0)value=std::max(1.0,value/2);
+    return (int)value;
+}
+float Plant::CoopAttackPeriod()
+{
+    if(mSeedType==SEED_FUMESHROOM && mApp->RunPlantUpgradeCount(mSeedType)>0)return 20.0f;
+    return std::max(1,mLaunchRate)/PlantShootSpeed(mApp,mSeedType,this);
+}

@@ -50,6 +50,7 @@ public:
 	virtual void		RemovedFromManager(WidgetManager* theWidgetManager);
 	virtual void		ButtonDepress(int theId);
 	virtual void		KeyDown(KeyCode theKey);
+    void MouseDown(int x,int y,int clicks) override;
 };
 
 #endif

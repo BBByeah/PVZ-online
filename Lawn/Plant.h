@@ -142,6 +142,9 @@ class TodParticleSystem;
 class Plant : public GameObject
 {
 public:
+    int CoopMaxHealth();
+    float CoopAttackPeriod();
+
     SeedType                mSeedType;                      //+0x24
     int                     mPlantCol;                      //+0x28
     int                     mAnimCounter;                   //+0x2C

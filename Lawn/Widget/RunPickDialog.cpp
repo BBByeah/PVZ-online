@@ -1,3 +1,4 @@
+#include "../CoopPlay.h"
 #include "RunPickDialog.h"
 #include "GameButton.h"
 #include "../Plant.h"
@@ -265,6 +266,7 @@ void RunPickDialog::RemovedFromManager(WidgetManager* theWidgetManager)
 void RunPickDialog::Draw(Graphics* g)
 {
 	LawnDialog::Draw(g);
+    if(mApp->mCoopPlay)mApp->mCoopPlay->DrawEntry(g,20,16,140,40);
 
 	// 标题下面那行说明。这一屏的三张卡是画上去的（种子包 / 效果说明），不是文本，
 	// 所以 Dialog 自己的正文留空，排版在这里现算——和 LawnDialog::Draw 用同一套边距。
@@ -401,5 +403,11 @@ void RunPickDialog::ButtonDepress(int theId)
 // 一次点击，不给键盘顺手带过的机会），键盘在这儿什么也别做。
 void RunPickDialog::KeyDown(KeyCode theKey)
 {
-	(void)theKey;
+	if(theKey=='B'||theKey=='b')mApp->ShowCoopPlay();
+}
+
+void RunPickDialog::MouseDown(int x,int y,int clicks)
+{
+    if(clicks>0 && Rect(20,16,140,40).Contains(x,y) && mApp->IsOnlineGame()){mApp->ShowCoopPlay();return;}
+    LawnDialog::MouseDown(x,y,clicks);
 }

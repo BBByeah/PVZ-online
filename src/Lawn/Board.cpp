@@ -8155,7 +8155,7 @@ void Board::DoTypingCheck(KeyCode theKey)
 
 void Board::KeyDown(KeyCode theKey)
 {
-    if((theKey=='B'||theKey=='b') && mApp->IsOnlineGame()){mApp->ShowCoopPlay();return;}
+    if((theKey=='B'||theKey=='b') && mApp->IsOnlineGame()){mCoopToolsOpen=false;mApp->ShowCoopPlay();return;}
     // Cooperation gets first choice of normalized digits.
     if (theKey >= KEYCODE_NUMPAD0 && theKey <= KEYCODE_NUMPAD9)
         theKey = static_cast<KeyCode>('0' + theKey - KEYCODE_NUMPAD0);
@@ -8168,6 +8168,7 @@ void Board::KeyDown(KeyCode theKey)
     }
     if (theKey == 'v' || theKey == 'V') { if (QuickChatAvailable()) { CycleMobileWatch(); return; } }
     if (HandleQuickChatKey(theKey) || HandleSunGiftKey(theKey)) return;
+    if (mCoopToolsOpen) { if(theKey==KEYCODE_ESCAPE)mCoopToolsOpen=false; return; }
     if (HandlePlantKeyboardKey(theKey)) return;
 	DoTypingCheck(theKey);
 

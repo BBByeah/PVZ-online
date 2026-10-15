@@ -4,6 +4,8 @@
 #include "../../Resources.h"
 #include "../Online/NetSession.h"
 #include "../ModText.h"
+#include "../LawnCommon.h"
+#include "../../PvzpLib/PvzpStringFile.h"
 #include "widget/EditWidget.h"
 #include "widget/ButtonWidget.h"
 #include "widget/WidgetManager.h"
@@ -39,10 +41,10 @@ namespace
             g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT24, 30));
             g->SetColor(Sexy::Color(245, 230, 165));
             g->DrawString(ModText::Tr("换位 · 选择队友", "Swap - pick a teammate"), 40, 66);
-            g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 17));
+            g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 20));
             g->SetColor(Sexy::Color(205, 205, 205));
-            g->DrawString(ModText::Tr("点一位队友发出换位请求：对方同意才换，五秒没回音自动收起。",
-                "Click a teammate to ask for a swap. It happens only if they accept; silent asks time out."), 40, 96);
+            g->DrawString(ModText::Tr("点队友申请换位；对方同意后生效，5秒无回应自动取消。",
+                "Pick a teammate. Swaps need approval; requests expire in 5s."), 40, 96);
 
             uint8_t aMy = s->GetLocalSeat(), aLast = 0;
             for (uint8_t seat = 1; seat <= NetProto::MAX_PLAYERS; ++seat)
@@ -69,23 +71,24 @@ namespace
                 DrawMobileStone(g, box, ModText::Format("跟 {}", "With {}", name), false, true);
                 int newMult = mApp->OnlineSeatMultiplierForSeat(seat), oldMult = mApp->OnlineSeatMultiplierForSeat(aMy),
                     newSun = mApp->OnlineStartSunBonusForSeat(seat);
-                g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 17));
+                g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 20));
                 g->SetColor(Sexy::Color(255, 230, 150));
-                g->DrawString(ModText::Format("换到 {}号位：刷怪 x{}（现在 x{}）· 顺位阳光 +{}",
-                    "Seat {}: spawn x{} (now x{}) - start sun +{}", seat, newMult, oldMult, newSun), 320, box.mY + 18);
+                g->DrawString(ModText::Format("P{}：刷怪 x{} → x{} · 阳光 +{}",
+                    "P{}: spawn x{} -> x{} / sun +{}", seat, oldMult, newMult, newSun), 320, box.mY + 18);
                 g->SetColor(Sexy::Color(180, 180, 180));
                 if (aLast == seat)
-                    g->DrawString(ModText::Tr("换后末席是你：漏怪到头直接判全队败。",
-                        "You would hold the last seat - a leak there loses the run."), 320, box.mY + 40);
+                    g->DrawString(ModText::Tr("换后你是末席：漏怪将全队失败。",
+                        "Last seat: a leak loses the run."), 320, box.mY + 40);
                 else if (aLast == aMy)
-                    g->DrawString(ModText::Format("换后末席是 {}。", "Last seat would be {}.", name), 320, box.mY + 40);
+                    g->DrawString(MobileTextLine(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18,20),ModText::Format("换后末席是 {}。", "Last seat: {}.", name),420), 320, box.mY + 40);
                 else
                     g->DrawString(ModText::Format("末席不变（P{}）。", "Last seat unchanged (P{}).", (unsigned)aLast), 320, box.mY + 40);
             }
-            g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 17));
+            g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 20));
             g->SetColor(Sexy::Color(160, 160, 160));
-            g->DrawString(ModText::Tr("末位每行一台推车兜底（整局一次性）；换位不改变各席位的倍率档，只改变谁坐哪。",
-                "The last seat gets one mower per row (once per run). Swapping moves people, not the per-seat tiers."), 40, 545);
+            PvzpDrawStringWrapped(g,ModText::Tr("末席每行一台推车（整局一次性）。\n换位只交换玩家，席位倍率不变。",
+                "Last seat: one mower per row per run.\nSeat tiers stay fixed when players swap."),Sexy::Rect(40,510,550,60),
+                ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18,20),Sexy::Color(205,205,190),DS_ALIGN_LEFT);
             DrawMobileStone(g, Sexy::Rect(620, 520, 130, 46), ModText::Tr("返回", "Back"), false, true);
         }
         void MouseDown(int x, int y, int clicks) override { mDown = clicks > 0 ? Hit(x, y) : -1; }
@@ -117,28 +120,29 @@ OnlineDialog::OnlineDialog(LawnApp* app)
     auto edit = [&](int id, int x, int y, int width, const std::string& text, int max) {
         auto e = std::make_unique<Sexy::EditWidget>(id, this);
         e->SetFont(ModText::FontFor(Sexy::FONT_BRIANNETOD16, 22));
+        e->SetColors({Sexy::Color(0,0,0,0), Sexy::Color(0,0,0,0), Sexy::Color(240,240,255), Sexy::Color::White, Sexy::Color::Black});
         e->mMaxChars = max; e->SetText(text); e->Resize(x, y, width, 36);
         AddWidget(e.get()); return e;
     };
     // Match PC: direct host and relay server are independent; session defaults
     // select their respective ports instead of sharing an editable direct port.
-    mAddress = edit(30, 110, 290, 595, app->mOnlineAddress, 253);
-    mServer = edit(31, 110, 340, 385, app->mOnlineServer, 253);
-    mCode = edit(32, 580, 340, 125, app->mOnlineRoomCode, NetProto::ROOM_CODE_LEN);
+    mAddress = edit(30, 128, 282, 574, app->mOnlineAddress, 253);
+    mServer = edit(31, 128, 346, 340, app->mOnlineServer, 253);
+    mCode = edit(32, 570, 346, 132, app->mOnlineRoomCode, NetProto::ROOM_CODE_LEN);
     auto button = [&](int id, const char* text, int x, int y, int width) {
         auto b = std::make_unique<MobileStoneButton>(id, this);
         b->mLabel = text; b->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 24));
         b->SetLabelColor(Sexy::Color(245, 230, 165)); b->SetLabelHiliteColor(Sexy::Color::White); b->SetBkgColor(Sexy::Color(37, 83, 55));
         b->Resize(x, y, width, 46); AddWidget(b.get()); mButtons.push_back(std::move(b));
     };
-    button(1, ModText::Tr("直连建房", "Host direct"), 35, 394, 155);
-    button(2, ModText::Tr("直连加入", "Join direct"), 210, 394, 155);
-    button(3, ModText::Tr("创建房间", "Create room"), 385, 394, 155);
-    button(4, ModText::Tr("加入房间", "Join room"), 560, 394, 155);
-    button(5, ModText::Tr("断开连接", "Disconnect"), 35, 475, 150);
-    button(8, ModText::Tr("换位", "Swap"), 195, 475, 120);
-    button(6, ModText::Tr("关闭面板", "Close panel"), 325, 475, 170);
-    button(7, ModText::Tr("房主开始", "Host starts"), 505, 475, 210);
+    button(1, ModText::Tr("直连建房", "Host direct"), 40, 475, 150);
+    button(2, ModText::Tr("直连加入", "Join direct"), 200, 475, 150);
+    button(3, ModText::Tr("创建房间", "Create room"), 40, 405, 320);
+    button(4, ModText::Tr("加入房间", "Join room"), 390, 405, 320);
+    button(5, ModText::Tr("断开连接", "Disconnect"), 40, 475, 150);
+    button(8, ModText::Tr("换位", "Swap"), 200, 475, 150);
+    button(6, ModText::Tr("关闭面板", "Close panel"), 360, 475, 150);
+    button(7, ModText::Tr("房主开始", "Host starts"), 520, 475, 190);
 }
 OnlineDialog::~OnlineDialog()
 {
@@ -152,6 +156,9 @@ void OnlineDialog::Update()
     for (auto& b : mButtons)
     {
         if (b->mId <= 4) b->SetDisabled(active);
+        if (b->mId == 1 || b->mId == 2) b->SetVisible(!active);
+        if (b->mId == 5 || b->mId == 8) b->SetVisible(active);
+        if (b->mId == 7) b->SetVisible(session.IsConnected());
         if (b->mId == 5) b->SetDisabled(!active);
         if (b->mId == 7) b->SetDisabled(!session.IsConnected() || !session.IsHostSeat() || mApp->mBoard != nullptr);
         if (b->mId == 8) b->SetDisabled(!session.IsConnected() || mApp->mBoard != nullptr || session.GetOccupiedSeatCount() < 2);
@@ -161,25 +168,40 @@ void OnlineDialog::Update()
 void OnlineDialog::Draw(Sexy::Graphics* g)
 {
     DrawMobilePanel(g, Sexy::Rect(0,0,mWidth,mHeight));
-    g->SetColor(Sexy::Color(245, 230, 165));
-    g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT24, 32));
-    g->DrawString(ModText::Tr("联机房间", "Online room"), 30, 42);
-    g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 20));
-    const auto& s = *mApp->mOnlineSession;
-    g->DrawString(!mInputError.empty() ? mInputError : s.GetState() == NetSession::State::OFF ? ModText::Tr("未连接。", "Not connected.") : s.GetStatusText(), 30, 73);
-    g->DrawString(s.IsRelay() ? ModText::Format("房间码：{}", "Room code: {}", s.GetRoomCode()) :
-        ModText::Format("本机地址：{}", "Local IP: {}", mLocalIp), 30, 101);
-    for (int seat = 1; seat <= NetProto::MAX_PLAYERS; ++seat)
-    {
-        if (!s.IsSeatOccupied(seat)) continue;
-        const int x = seat <= 3 ? 35 : 390, y = 140 + ((seat - 1) % 3) * 28;
-        g->DrawString(ModText::Format("{}号：{}{}", "Seat {}: {}{}", seat, s.GetSeatName(seat),
-            seat == s.GetHostSeat() ? ModText::Tr("（房主）", " (host)") : ""), x, y);
+    auto* titleFont=ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT24,30);
+    g->SetColor(Sexy::Color(245,230,165)); g->SetFont(titleFont);
+    const std::string title=ModText::Tr("联机合作","Online co-op");
+    g->DrawString(title,(mWidth-titleFont->StringWidth(title))/2,70);
+    auto* font=ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18,20);
+    g->SetFont(font);
+    const auto& s=*mApp->mOnlineSession;
+    const std::string status=!mInputError.empty()?mInputError:s.GetState()==NetSession::State::OFF?
+        ModText::Tr("未连接。填写服务器创建或加入房间。","Not connected. Enter a server to create or join a room."):s.GetStatusText();
+    PvzpDrawStringWrapped(g,status,Sexy::Rect(40,90,670,48),font,Sexy::Color(245,230,165),DS_ALIGN_LEFT);
+    g->DrawString(MobileTextLine(font,s.IsRelay()?ModText::Format("房间码：{}","Room code: {}",s.GetRoomCode()):
+        ModText::Format("本机地址：{}","Local IP: {}",mLocalIp),670),40,158);
+    if(s.GetOccupiedSeatCount()>0) {
+        for(int seat=1;seat<=NetProto::MAX_PLAYERS;++seat) {
+            if(!s.IsSeatOccupied(seat))continue;
+            const int x=seat<=3?40:390,y=190+((seat-1)%3)*28;
+            std::string label="P"+std::to_string(seat)+(seat==s.GetHostSeat()?ModText::Tr(" 房主："," Host: "):": ")+s.GetSeatName(seat);
+            g->DrawString(MobileTextLine(font,label,320),x,y);
+        }
+    } else {
+        PvzpDrawStringWrapped(g,ModText::Tr("远程联机：填写服务器和房间码。\n同一局域网：填写主机 IP，使用下方直连按钮。",
+            "Remote play: enter server and room code.\nLAN: enter the host IP and use the direct buttons below."),
+            Sexy::Rect(40,180,670,76),font,Sexy::Color(225,220,195),DS_ALIGN_LEFT);
     }
-    g->DrawString(ModText::Tr("主机 IP", "Host IP"), 30, 316);
-    g->DrawString(ModText::Tr("服务器", "Server"), 30, 366);
-    g->DrawString(ModText::Tr("房间码", "Code"), 510, 366);
-    g->DrawString(ModText::Tr("关闭面板保留连接；进入闯关由房主发起。", "Closing the panel keeps the connection; the host starts the run."), 35, 461);
+    DrawEditBox(g,mAddress.get()); DrawEditBox(g,mServer.get()); DrawEditBox(g,mCode.get());
+    for(auto* edit:{mAddress.get(),mServer.get(),mCode.get()})if(edit->mHasFocus) {
+        g->SetColor(Sexy::Color(245,230,165)); g->DrawRect(edit->mX-9,edit->mY-5,edit->mWidth+18,edit->mHeight+10);
+    }
+    g->SetColor(Sexy::Color(245,230,165));
+    g->DrawString(ModText::Tr("主机 IP","Host IP"),40,310);
+    g->DrawString(ModText::Tr("服务器","Server"),40,374);
+    g->DrawString(ModText::Tr("房间码","Code"),480,374);
+    g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18,18));
+    g->DrawString(ModText::Tr("关闭保留连接；闯关由房主发起。","Closing keeps the connection; the host starts the run."),40,466);
 }
 void OnlineDialog::ButtonDepress(int id)
 {

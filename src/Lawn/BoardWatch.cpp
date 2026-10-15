@@ -161,7 +161,7 @@ void Board::CycleMobileWatch()
         if (session->IsWatching()) session->EndWatch(true);
         mHasRemoteSnapshot = false;
         mMobileWatchOpen = session->BeginWatch(seat);
-        CloseQuickChatPanel(); mSunGiftSelectFrames = 0;
+        CloseQuickChatPanel(); mSunGiftSelectFrames = 0; mCoopToolsOpen=false;
         return;
     }
     PushCustomBanner(ModText::Tr("没有可观看的队友", "No teammate to watch"));
@@ -221,7 +221,7 @@ void Board::DrawMobileWatch(Graphics* g)
             }
         }
     }
-    DrawMobilePanel(g,Rect(0,0,800,64));
+    DrawMobileStrip(g,Rect(0,0,800,64));
     auto* session=mApp->mOnlineSession.get();
     std::string title=ModText::Tr("正在观看：", "Watching: ")+session->GetSeatName(session->GetWatchTargetSeat());
     if(mHasRemoteSnapshot) title += "  " + std::to_string(snap.mWave)+"/"+std::to_string(snap.mWaveTotal);

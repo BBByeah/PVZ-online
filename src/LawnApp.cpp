@@ -320,6 +320,7 @@ void LawnApp::LostFocus()
     {
         mBoard->CloseQuickChatPanel();
         mBoard->mSunGiftSelectFrames = 0;
+        mBoard->mCoopToolsOpen = false;
         mBoard->mCoopTouchCaptured = false;
         mBoard->mCoopTouchAction = -1;
     }

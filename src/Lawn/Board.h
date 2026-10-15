@@ -171,6 +171,7 @@ public:
     void UpdateRelayBatches();
     RelayBatchNotice mRelayBatches[RELAY_BATCH_MAX];
     int mRelayBatchCount=0;
+    bool mCoopToolsOpen=false; // Transient touch UI; outside the saved Board range.
     bool mCoopTouchCaptured=false;
     int mCoopTouchAction=-1;
     void FillSeedBankFromRunPool();

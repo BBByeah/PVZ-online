@@ -1,6 +1,7 @@
 #pragma once
 #include "widget/Widget.h"
 #include "widget/ButtonListener.h"
+#include <vector>
 
 class LawnApp;
 namespace Sexy { class ButtonWidget; }
@@ -8,6 +9,9 @@ class RunFlowScreen : public Sexy::Widget, public Sexy::ButtonListener
 {
     LawnApp* mApp;
     bool mModePage;
+    bool mAdvanced = false;
+    std::vector<Sexy::ButtonWidget*> mModeButtons;
+    void RefreshModePage();
     int mBuffMult = 0;
     Sexy::ButtonWidget* mBuffMultButton = nullptr;
     Sexy::ButtonWidget* mLadderButton = nullptr;

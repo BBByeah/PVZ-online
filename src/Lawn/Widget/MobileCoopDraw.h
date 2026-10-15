@@ -8,15 +8,28 @@
 #include "graphics/Image.h"
 #include "widget/ButtonWidget.h"
 
-// Native stone art with a separate UTF-8 label, shared by touch and vote UI.
+inline std::string MobileTextLine(Sexy::_Font* font, std::string text, int width)
+{
+    if (font->StringWidth(text) <= width) return text;
+    while (!text.empty() && font->StringWidth(text + "...") > width) {
+        size_t end = text.size() - 1;
+        while (end > 0 && (static_cast<unsigned char>(text[end]) & 0xc0) == 0x80) --end;
+        text.resize(end);
+    }
+    return text + "...";
+}
+
+// Same stone/down art as PC; keep state and UTF-8 layout local to this draw.
 inline void DrawMobileStone(Sexy::Graphics *g, const Sexy::Rect &rect, const std::string &label,
-                            bool down = false, bool enabled = true, int size = 22)
+                            bool down = false, bool enabled = true, int size = 22,
+                            bool selected = false, Sexy::_Font* labelFont = nullptr)
 {
     Sexy::Graphics stone(*g);
-    stone.SetColorizeImages(false);
-    auto* left = down ? Sexy::IMAGE_BUTTON_DOWN_LEFT : Sexy::IMAGE_BUTTON_LEFT;
-    auto* middle = down ? Sexy::IMAGE_BUTTON_DOWN_MIDDLE : Sexy::IMAGE_BUTTON_MIDDLE;
-    auto* right = down ? Sexy::IMAGE_BUTTON_DOWN_RIGHT : Sexy::IMAGE_BUTTON_RIGHT;
+    stone.SetColorizeImages(!enabled);
+    stone.SetColor(Sexy::Color(145,145,145));
+    auto* left = (down || selected) ? Sexy::IMAGE_BUTTON_DOWN_LEFT : Sexy::IMAGE_BUTTON_LEFT;
+    auto* middle = (down || selected) ? Sexy::IMAGE_BUTTON_DOWN_MIDDLE : Sexy::IMAGE_BUTTON_MIDDLE;
+    auto* right = (down || selected) ? Sexy::IMAGE_BUTTON_DOWN_RIGHT : Sexy::IMAGE_BUTTON_RIGHT;
     stone.DrawImage(left, Sexy::Rect(rect.mX, rect.mY, left->mWidth, rect.mHeight),
         Sexy::Rect(0, 0, left->mWidth, left->mHeight));
     stone.DrawImage(middle, Sexy::Rect(rect.mX + left->mWidth, rect.mY,
@@ -24,13 +37,19 @@ inline void DrawMobileStone(Sexy::Graphics *g, const Sexy::Rect &rect, const std
         Sexy::Rect(0, 0, middle->mWidth, middle->mHeight));
     stone.DrawImage(right, Sexy::Rect(rect.mX + rect.mWidth - right->mWidth, rect.mY,
         right->mWidth, rect.mHeight), Sexy::Rect(0, 0, right->mWidth, right->mHeight));
-    auto *font = ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, size);
-    while(size > 16 && font->StringWidth(label) > rect.mWidth - 16)
+    auto *font = labelFont ? labelFont : ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, size);
+    while(size > 20 && font->StringWidth(label) > rect.mWidth - 24)
         font = ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, --size);
-    g->SetFont(font);
-    g->SetColor(enabled ? Sexy::Color(30, 75, 15) : Sexy::Color(115, 115, 115));
-    g->DrawString(label, rect.mX + (rect.mWidth - font->StringWidth(label)) / 2,
-                  rect.mY + (rect.mHeight + font->GetAscent()) / 2 - 3);
+    const auto line = MobileTextLine(font, label, rect.mWidth - 24);
+    Sexy::Graphics text(*g);
+    text.ClipRect(rect.mX+10,rect.mY,rect.mWidth-20,rect.mHeight);
+    text.SetFont(font);
+    int x=rect.mX+(rect.mWidth-font->StringWidth(line))/2;
+    int y=rect.mY+(rect.mHeight+font->GetAscent())/2-3;
+    text.SetColor(Sexy::Color(25,24,35)); text.DrawString(line,x+1,y+1);
+    text.SetColor(!enabled ? Sexy::Color(205,200,180) : down || selected ?
+        Sexy::Color(255,246,210) : Sexy::Color(245,230,165));
+    text.DrawString(line,x,y);
 }
 
 class MobileStoneButton : public Sexy::ButtonWidget
@@ -41,7 +60,8 @@ class MobileStoneButton : public Sexy::ButtonWidget
     }
     void Draw(Sexy::Graphics *g) override
     {
-        DrawMobileStone(g, Sexy::Rect(0, 0, mWidth, mHeight), mLabel, mIsDown && mIsOver, !mDisabled);
+        DrawMobileStone(g, Sexy::Rect(0, 0, mWidth, mHeight), mLabel, mIsDown && mIsOver,
+            !mDisabled, 24, mInverted, mFont.get());
     }
 };
 
@@ -71,4 +91,14 @@ inline void DrawMobilePanel(Sexy::Graphics *g, const Sexy::Rect &rect)
         }
         y+=heights[row];
     }
+}
+
+// Compact HUD uses the same dialog stone without squeezing its large outer frame.
+inline void DrawMobileStrip(Sexy::Graphics* g, const Sexy::Rect& rect)
+{
+    Sexy::Graphics strip(*g); strip.SetColorizeImages(false);
+    auto* image=Sexy::IMAGE_DIALOG_CENTERMIDDLE;
+    strip.DrawImage(image,rect,Sexy::Rect(0,0,image->mWidth,image->mHeight));
+    strip.SetColor(Sexy::Color(175,160,120));
+    strip.DrawRect(rect.mX,rect.mY,rect.mWidth-1,rect.mHeight-1);
 }

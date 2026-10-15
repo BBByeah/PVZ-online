@@ -216,7 +216,9 @@ public:
 	// 默认 0（单关局与非闯关路径不传）。
 	// theRunLadder（MOD_BUILD 45）= 场景难度阶梯档（RunState::RUN_LADDER_*，0 = 现状 ×1.33）；
 	// theRunZombieBuff（MOD_BUILD 45）= 僵尸 buff 档 0/1/2；theZombieStacks（MOD_BUILD 45）
-	// = 8 条强化层数快照（nullptr = 全 0，单关局与非闯关路径不传）。
+	// = 8 条强化层数快照（nullptr = 全 0，单关局与非闯关路径不传）；theRunBossFlag
+	// （2026-10-16 起三档：0 关 / 1 仅末关 / 2 末关+场景 3）；theRunSpeedTier（2026-10-16）
+	// = 僵尸移速成长档 0/1/2（默认 0 = 无）。
 	// theTargetSeat 默认 SEAT_UNSET = 发给所有队友；中途拉一个人进关必须点名单发——
 	// 扇出会把已经在打的人重新点名一遍（那会重建棋盘）。
 	bool			SendStartLevel(uint8_t theGameMode, uint32_t theLevel, int32_t theLevelSeed,
@@ -226,7 +228,8 @@ public:
 						uint8_t theRunTempo = 1, uint8_t theRunZombotany = 0,
 						uint8_t theRunEndlessScene = 0, uint8_t theRunBossFlag = 0,
 						uint8_t theRunBuffMult = 0, uint8_t theRunLadder = 0,
-						uint8_t theRunZombieBuff = 0, const uint8_t* theZombieStacks = nullptr);
+						uint8_t theRunZombieBuff = 0, const uint8_t* theZombieStacks = nullptr,
+						uint8_t theRunSpeedTier = 0);
 
 	// 客户端侧：取出主机发来的开局命令（同时清掉）。没有就返回 false。
 	// 单槽而不是队列：开局命令只有"最新那条"有意义，堆着旧的开局命令没有用处。

@@ -2964,6 +2964,14 @@ ZombieType Board::PickZombieType(int theZombiePoints, int theWaveIndex, ZombiePi
 		else if (mApp->IsRunMode())
 		{
 			aPickWeight = RunZombieWeight((ZombieType)aZombieType);
+			// @pvz-online: 场景 1-2 气球/蹦极再降半档（2026-10-16 用户令）：气球平铺档本就
+			// 是 1/4（250，批六），一二场景再折半 = 125；蹦极平铺档折半 = 500。场景 3 起恢复
+			// 原档。GetSceneIndex 无尽档 = 锁定场景，锁一二场景的卡同口径。
+			if ((aZombieType == ZombieType::ZOMBIE_BALLOON || aZombieType == ZombieType::ZOMBIE_BUNGEE)
+				&& mApp->GetRunState() != nullptr && mApp->GetRunState()->GetSceneIndex() <= 1)
+			{
+				aPickWeight /= 2;
+			}
 		}
 		aZombieWeightArray[aPickCount].mItem = aZombieType;
 		aZombieWeightArray[aPickCount].mWeight = aPickWeight;
@@ -5685,8 +5693,9 @@ void Board::SpawnZombieWave()
 	{
 		mFlagRaiseCounter = FLAG_RAISE_TIME;
 		// @pvz-online: 关底巨型 boss 随旗波出场（MOD_BUILD 39 批，2026-10-11 用户定案
-		// 「出在第一旗=第一次大波」）；只在最后一关的第一次旗波真正刷出，其余旗波/关卡
-		// 由 SpawnRunBoss 内部自判早退（含 mRunBossZombieID 只刷一次守卫）。
+		// 「出在第一旗=第一次大波」）；只在末关/场景 3 末关（档 2，2026-10-16 用户令）的
+		// 第一次旗波真正刷出，其余旗波/关卡由 SpawnRunBoss 内部自判早退（含
+		// mRunBossZombieID 只刷一次守卫）。
 		SpawnRunBoss();
 	}
 	mCurrentWave++;
@@ -5791,7 +5800,9 @@ void Board::PuzzleSaveStreak()
 
 // @pvz-online: 关底巨型 boss（MOD_BUILD 38，2026-10-10 用户定案；MOD_BUILD 39 批改版，
 // 2026-10-11 用户定案）——闯关最后一关的**第一次大波（旗波）**时在第一席棋盘刷一只
-// 巨型 boss：红眼巨人与橄榄球僵尸随机出一只，慢慢走过全场当关底。可调值都在这一处：
+// 巨型 boss：红眼巨人与橄榄球僵尸随机出一只，慢慢走过全场当关底。2026-10-16 用户令
+// 升级高级选项三档（mBossFlag 0/1/2）：0 关、1 仅末关、2 末关+场景 3 末关（完整第 15/
+// 普通第 6 关；快速档场景 3 跳过）——两处同一套血量/体尺口径，各关只刷一次。可调值都在这一处：
 //   体尺 2.0（视觉×2；碰撞矩形不随之放大，同原版迷你僵尸口径——小僵尸也没缩矩形）；
 //   血量 = 原血量 × 顺位乘数和 × 关卡基数 × 3，其中关卡基数（难度千分比）在
 //   ZombieInitialize 的闯关插桩段已经乘过，这里只补乘数和与 ×3 因子；橄榄球连头盔
@@ -5812,9 +5823,15 @@ static const int	kRunBossHpFactor = 3;
 void Board::SpawnRunBoss()
 {
 	RunState* aRun = mApp->GetRunState();
-	if (aRun == nullptr || aRun->mBossFlag == 0) return;
+	if (aRun == nullptr) return;
+	int aBossTier = (aRun->mBossFlag > 0 && aRun->mBossFlag <= 2) ? aRun->mBossFlag : 0;	// 消费端钳（2026-10-16 起三档）
+	if (aBossTier <= 0) return;
 	if (aRun->mMode == RunState::RUN_MODE_ENDLESS) return;		// 无尽档没有关底
-	if (aRun->GetPlayingLevelIndex() + 1 < aRun->GetLevelCount()) return;	// 只在最后一关
+	// 末关（档 1/2 都出）或场景 3 末关（仅档 2，2026-10-16 用户令；快速档不加）。
+	bool aFinalLevel = aRun->GetPlayingLevelIndex() + 1 >= aRun->GetLevelCount();
+	bool aScene3Final = aBossTier >= 2 && aRun->mMode != RunState::RUN_MODE_QUICK
+		&& aRun->GetPlayingLevelIndex() + 1 == RunState::LevelsPerScene(aRun->mMode) * 3;
+	if (!aFinalLevel && !aScene3Final) return;
 	if (mRunBossZombieID != ZombieID::ZOMBIEID_NULL) return;	// 一关一只（旗波钩子每旗都会来问）
 	// 仅一号位：联机恒出在 1 号位玩家的棋盘（2026-10-12 用户令由「房主棋盘」改为
 	// 「一号位棋盘」——换位后房主可能不在 1 号位，boss 固定跟席位 1 走，不跟房主；

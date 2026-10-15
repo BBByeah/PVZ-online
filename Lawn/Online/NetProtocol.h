@@ -191,7 +191,15 @@ const uint16_t	PROTOCOL_VERSION	= 1;
 // 50 → 51：快捷短语表 8→9 条（2026-10-15 用户定案）：短语占 id 1..9，植物表情整体后移为
 //        10..17（分界 = PHRASE_COUNT）——旧构建把 9 号解成「土豆雷」表情、新构建是第 9 句
 //        短语，表情 10..17 也各错一位，混搭必须两边同版本。
-const uint16_t	MOD_BUILD			= 53; // @pvz-online: campaign-independent garden and battle isolation.
+// 53 → 54：难度批（2026-10-16 用户定案五项）：①「巨型 Boss」升三档 0 关/1 仅末关/
+//        2 末关+场景 3 末关（默认 2；快速档场景 3 跳过）——runBossFlag 字节语义从 0/1
+//        开关放宽为 0/1/2 档位；②START_LEVEL 闯关变体尾部（8 字节层数快照之前）再带
+//        runSpeedTier 字节 = 僵尸移速成长档（0 无/×1.03/×1.05，每进一个新场景复利一档，
+//        载荷 36→37）：移速乘子进 ZombieInitialize 两端各算，混搭必岔；③场景 1-2 气球/
+//        蹦极出怪权重折半——波表两端各算，混搭必岔。旧长度（36 字节）的 START_LEVEL
+//        被新端按串包拒掉。检查点不抬版本：位包 bit12..13 = 移速档（老档读 0 = 无成长、
+//        安全降级），v13 的 boss u16 原样放宽 0/1/2（老档 0/1 读作档 0/1）。
+const uint16_t	MOD_BUILD			= 54; // @pvz-online: campaign-independent garden and battle isolation.
 
 const uint16_t	DEFAULT_PORT		= 27777;
 
@@ -421,7 +429,8 @@ struct MsgHelloAck
 // START_LEVEL：{ srcSeat, dstSeat, u8 gameMode, u32 level, i32 levelSeed,
 //                u8 isRun, i32 runSeed, u16 runLevelIndex, u8 runMode, u8 runDiff,
 //                u8 runScale, u8 runTempo, u8 runZombotany, u8 runEndlessScene,
-//                u8 runBossFlag, u8 runBuffMult }
+//                u8 runBossFlag, u8 runBuffMult, u8 runLadder, u8 runZombieBuff,
+//                u8 runSpeedTier, u8 zombieStacks[8] }
 // levelSeed 是主机 GetLevelRandSeed() 的完整返回值（它含主机存档 ID，客户端必须整体覆盖）。
 // 闯关局（isRun=1）多带"这一局是谁的局、打到第几关"：队友拿它对上自己的检查点，
 // 没检查点 / 对不上就从这一局的起点摆起、把欠下的三选一补回来（补做的屏和真打过的一模一样，
@@ -443,6 +452,9 @@ struct MsgHelloAck
 // mZombieStacks[8]（MOD_BUILD 45）= 8 条强化的当前层数快照（下标 = RunState 池子枚举，
 // 0..255）——权威值在主机，队友一律按这条快照覆盖自己的层数（投票结果只驱动 UI，
 // 层数不信投票帧、只信本快照，防乱序）；重连补发（mLastStartLevel）自动带上。
+// mRunSpeedTier（2026-10-16）= 僵尸移速成长档 0/1/2（无/×1.03/×1.05，每进一个新场景
+// 复利一档，消费在 ZombieInitialize）；runBossFlag 同日起是三档 0 关/1 仅末关/
+// 2 末关+场景 3（旧语义的"开"= 档 1）。
 // 单关局 isRun=0：runSeed/runLevelIndex/runMode 全是 0，runDiff 记标准档（1，单关局
 // 不参与难度缩放），高级选项三格记 标准/标准/关，场景记 0，阶梯记现状 0、僵尸 buff
 // 记关 0、8 层数记 0，其余语义一字不变。
@@ -466,6 +478,7 @@ struct MsgStartLevel
 	uint8_t			mRunBuffMult;
 	uint8_t			mRunLadder;
 	uint8_t			mRunZombieBuff;
+	uint8_t			mRunSpeedTier;
 	uint8_t			mZombieStacks[8];
 };
 
@@ -878,6 +891,7 @@ inline int EncodeStartLevel(uint8_t* theBuffer, int theCapacity, const MsgStartL
 	aWriter.U8(theMsg.mRunBuffMult);
 	aWriter.U8(theMsg.mRunLadder);
 	aWriter.U8(theMsg.mRunZombieBuff);
+	aWriter.U8(theMsg.mRunSpeedTier);
 	for (int i = 0; i < 8; i++) aWriter.U8(theMsg.mZombieStacks[i]);
 	return aWriter.Overflowed() ? -1 : aWriter.Size();
 }
@@ -903,6 +917,7 @@ inline bool DecodeStartLevel(const uint8_t* theData, int theSize, MsgStartLevel&
 	theMsg.mRunBuffMult = aReader.U8();
 	theMsg.mRunLadder = aReader.U8();
 	theMsg.mRunZombieBuff = aReader.U8();
+	theMsg.mRunSpeedTier = aReader.U8();
 	for (int i = 0; i < 8; i++) theMsg.mZombieStacks[i] = aReader.U8();
 	return !aReader.Overflowed();
 }

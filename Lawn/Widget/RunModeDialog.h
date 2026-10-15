@@ -51,10 +51,11 @@ public:
 	int					mScaleSel;			// RunState::RUN_SCALE_*（默认标准）
 	int					mTempoSel;			// RunState::RUN_TEMPO_*（默认标准）
 	int					mZombotanySel;		// 植物僵尸混入开关（0 关 1 开，默认关）
-	int					mBossSel;			// 巨型 boss 开关（0 关 1 开，默认关；无尽档恒按关处理）
+	int					mBossSel;			// 巨型 boss 档（0 关 / 1 仅末关 / 2 末关+场景3，默认 2；无尽档恒按关处理）
 	int					mBuffMultSel;		// 增益倍选档（RunState::RUN_BUFFMULT_*，默认 ×1；MOD_BUILD 43）
 	int					mLadderSel;			// 场景难度阶梯档（RunState::RUN_LADDER_*，默认现状 STD；MOD_BUILD 45）
-	int					mZombieBuffSel;		// 僵尸 buff 档（0 关 / 1 / 2，默认关；MOD_BUILD 45）
+	int					mZombieBuffSel;		// 僵尸 buff 档（0 关 / 1 / 2，默认 1 条；MOD_BUILD 45）
+	int					mSpeedSel;			// 僵尸移速成长档（0 无 / 1 ×1.03 / 2 ×1.05，默认无；2026-10-16）
 	CjkStoneButton*	mCancelButton;		// 取消 = 关弹窗不开局
 	CjkStoneButton*	mStartButton;		// 无尽变体的「开始」（普通页 nullptr）
 	ButtonWidget*		mOptionsButton;		// 「高级选项…」（mShowDiff 为假时 nullptr）

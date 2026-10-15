@@ -16,15 +16,15 @@
 static const int kGapX = 12;
 static const int kBottomGapX = 20;
 
-// 八行的行数表（构造/摆位/注册/绘制共用；行序 = 槽位序 = 页序：
+// 九行的行数表（构造/摆位/注册/绘制共用；行序 = 槽位序 = 页序：
 // 第 1 页「规模/节奏/植物僵尸」、第 2 页「滑动收阳光/巨型Boss/增益倍选」、
-// 第 3 页「僵尸 buff/场景难度」）。
-static const int kRowCounts[RunOptionsDialog::RUN_OPTIONS_ROW_COUNT] = { 4, 3, 2, 2, 2, 3, 3, 5 };
+// 第 3 页「移速成长/僵尸 buff/场景难度」）。
+static const int kRowCounts[RunOptionsDialog::RUN_OPTIONS_ROW_COUNT] = { 4, 3, 2, 2, 3, 3, 3, 3, 5 };
 
 // 「场景难度」行的槽位号（行序末位）。无尽档不吃阶梯，该行整行不摆（2026-10-14 用户
 // 裁决）——mShowLadderRow 为假时它永远不上场（Resize 去屏外，画不着、点不着）。
-// 摆在末位还有个好处：无尽档末页只剩僵尸 buff 一行贴顶，不留空槽。
-static const int kRowLadder = 7;
+// 摆在末位的好处：无尽档末页还剩移速成长+僵尸 buff 两行，不留空槽。
+static const int kRowLadder = 8;
 
 // 「场景难度」行的按钮顺序与枚举顺序不同：UI 按倍率从小到大摆（用户 2026-10-14 令
 // 「做 1 1.2 1.33 1.5 2 五档」），枚举里 RUN_LADDER_STD（= 现状 ×1.33）是 0（sentinel
@@ -57,7 +57,7 @@ static std::string MakePageText(int thePage)
 		+ std::to_string(RunOptionsDialog::RUN_OPTIONS_PAGE_COUNT) + ModText::Tr(" 页", "");
 }
 
-RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTempoSel, int theZombotanySel, int theSlideSel, int theBossSel, int theBuffMultSel, int theLadderSel, int theZombieBuffSel, bool theEndless)
+RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTempoSel, int theZombotanySel, int theSlideSel, int theBossSel, int theBuffMultSel, int theLadderSel, int theZombieBuffSel, int theSpeedSel, bool theEndless)
 	: LawnDialog(theApp, Dialogs::DIALOG_RUN_OPTIONS, true, _S(""), _S(""), _S(""), Dialog::BUTTONS_NONE)
 {
 	mTitle = ModText::Tr("高级选项", "Advanced Options");
@@ -72,11 +72,13 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 	mSlideSel = theSlideSel;
 	if (mSlideSel != 0 && mSlideSel != 1) mSlideSel = 1;	// 非法档归开（同"默认开"口径）
 	mBossSel = theBossSel;
-	if (mBossSel != 0 && mBossSel != 1) mBossSel = 0;
+	if (mBossSel < 0 || mBossSel > 2) mBossSel = 0;	// 非法档归关（2026-10-16 起三档）
 	mBuffMultSel = theBuffMultSel;
 	if (mBuffMultSel < RunState::RUN_BUFFMULT_X1 || mBuffMultSel > RunState::RUN_BUFFMULT_X3) mBuffMultSel = RunState::RUN_BUFFMULT_X1;
 	mZombieBuffSel = theZombieBuffSel;
 	if (mZombieBuffSel < 0 || mZombieBuffSel > 2) mZombieBuffSel = 0;
+	mSpeedSel = theSpeedSel;
+	if (mSpeedSel < 0 || mSpeedSel > 2) mSpeedSel = 0;	// 移速成长：非法档归无（2026-10-16）
 	mLadderSel = theLadderSel;
 	if (mLadderSel < RunState::RUN_LADDER_STD || mLadderSel > RunState::RUN_LADDER_X2) mLadderSel = RunState::RUN_LADDER_STD;
 	mShowLadderRow = !theEndless;	// 无尽档不吃阶梯 → 整行不摆（2026-10-14 用户裁决）
@@ -100,9 +102,10 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 	mSlideLabels[0] = ModText::Tr("关闭", "Off");
 	mSlideLabels[1] = ModText::Tr("开启", "On");
 
-	mBossCaption = ModText::Tr("巨型 Boss（闯关关底）", "Giant Boss (run finale)");
+	mBossCaption = ModText::Tr("巨型 Boss（出场点）", "Giant Boss (spawn points)");
 	mBossLabels[0] = ModText::Tr("关闭", "Off");
-	mBossLabels[1] = ModText::Tr("开启", "On");
+	mBossLabels[1] = ModText::Tr("仅末关", "Final only");
+	mBossLabels[2] = ModText::Tr("末关+场景3", "Final + Scene 3");
 
 	// 第六行「增益倍选」（2026-10-13 用户令，MOD_BUILD 43）：×1/×2/×3——每屏照旧三选一
 	// 拿 1 条，但发放的三选一屏数乘倍（拿到的总数翻倍，代价是连点更多屏）。
@@ -111,14 +114,22 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 	mBuffMultLabels[1] = ModText::Tr("×2", "×2");
 	mBuffMultLabels[2] = ModText::Tr("×3", "×3");
 
-	// 第七行「僵尸 buff」（2026-10-14 用户令，MOD_BUILD 45）：0/1/2 = 每进一个新场景给
+	// 第七行「移速成长」（2026-10-16 用户令）：0/×1.03/×1.05——僵尸移速每进一个新场景
+	// 复利一档（场景 1 恒 ×1，场景 5 ≈ ×1.12/×1.21）。0 = 无成长。消费在 ZombieInitialize
+	//（与迅捷 buff 独立叠乘）。
+	mSpeedCaption = ModText::Tr("僵尸移速成长（每新场景）", "Zombie speed growth (per scene)");
+	mSpeedLabels[0] = ModText::Tr("关闭", "Off");
+	mSpeedLabels[1] = ModText::Tr("×1.03", "×1.03");
+	mSpeedLabels[2] = ModText::Tr("×1.05", "×1.05");
+
+	// 第八行「僵尸 buff」（2026-10-14 用户令，MOD_BUILD 45）：0/1/2 = 每进一个新场景给
 	// 僵尸叠几条强化（全队投票选具体哪几条；无尽档五关一选）。0 = 整条机制不开。
 	mZombieBuffCaption = ModText::Tr("僵尸 buff（每新场景）", "Zombie buffs (per new scene)");
 	mZombieBuffLabels[0] = ModText::Tr("关闭", "Off");
 	mZombieBuffLabels[1] = ModText::Tr("1 条", "1 buff");
 	mZombieBuffLabels[2] = ModText::Tr("2 条", "2 buffs");
 
-	// 第八行「场景难度」（2026-10-14 用户令，MOD_BUILD 45）：阶梯倍率乘在僵尸血量与
+	// 第九行「场景难度」（2026-10-14 用户令，MOD_BUILD 45）：阶梯倍率乘在僵尸血量与
 	// 出怪点数上；×1.33 = 现状（老档/默认；枚举值是 sentinel 0）。无尽档不吃阶梯，
 	// 该行整行不摆（mShowLadderRow，构造参数 theEndless）。
 	mLadderCaption = ModText::Tr("场景难度阶梯（血量+出怪）", "Scene difficulty ladder (HP+spawns)");
@@ -136,26 +147,26 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 	ModText::Font* aLabelFont = ModText::GetFont(CjkPointSize(CJK_BUTTON_LABEL_PX), false);
 	const std::string* aLabelSets[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleLabels, mTempoLabels, mZombotanyLabels, mSlideLabels, mBossLabels, mBuffMultLabels,
-		mZombieBuffLabels, mLadderLabels
+		mSpeedLabels, mZombieBuffLabels, mLadderLabels
 	};
 	ButtonWidget** aSlots[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons,
-		mZombieBuffButtons, mLadderButtons
+		mSpeedButtons, mZombieBuffButtons, mLadderButtons
 	};
 	int* aWidthSets[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleWidths, mTempoWidths, mZombotanyWidths, mSlideWidths, mBossWidths, mBuffMultWidths,
-		mZombieBuffWidths, mLadderWidths
+		mSpeedWidths, mZombieBuffWidths, mLadderWidths
 	};
 	static const int kRowIdBase[RUN_OPTIONS_ROW_COUNT] = {
 		RunOptionsDialog_Scale0, RunOptionsDialog_Tempo0, RunOptionsDialog_Zombotany0,
 		RunOptionsDialog_Slide0, RunOptionsDialog_Boss0, RunOptionsDialog_BuffMult0,
-		RunOptionsDialog_ZombieBuff0, RunOptionsDialog_Ladder0
+		RunOptionsDialog_Speed0, RunOptionsDialog_ZombieBuff0, RunOptionsDialog_Ladder0
 	};
 	// 每行"选中槽位号"：多数行 = 值本身（枚举顺序 = 按钮顺序）；「场景难度」行例外
 	// （UI 顺序与枚举顺序不同，走 kLadderUiValues 映射）。
 	const int aSelIndex[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleSel, mTempoSel, mZombotanySel, mSlideSel, mBossSel, mBuffMultSel,
-		mZombieBuffSel, LadderUiIndex(mLadderSel)
+		mSpeedSel, mZombieBuffSel, LadderUiIndex(mLadderSel)
 	};
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
 	{
@@ -258,7 +269,7 @@ RunOptionsDialog::~RunOptionsDialog()
 {
 	ButtonWidget** aSlots[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons,
-		mZombieBuffButtons, mLadderButtons
+		mSpeedButtons, mZombieBuffButtons, mLadderButtons
 	};
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
 	{
@@ -282,11 +293,11 @@ void RunOptionsDialog::PlaceRows()
 
 	ButtonWidget** aSlots[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons,
-		mZombieBuffButtons, mLadderButtons
+		mSpeedButtons, mZombieBuffButtons, mLadderButtons
 	};
 	int* aWidthSets[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleWidths, mTempoWidths, mZombotanyWidths, mSlideWidths, mBossWidths, mBuffMultWidths,
-		mZombieBuffWidths, mLadderWidths
+		mSpeedWidths, mZombieBuffWidths, mLadderWidths
 	};
 
 	int aTitleTop = mContentInsets.mTop + mBackgroundInsets.mTop + DIALOG_HEADER_OFFSET;
@@ -345,7 +356,7 @@ void RunOptionsDialog::AddedToManager(WidgetManager* theWidgetManager)
 	LawnDialog::AddedToManager(theWidgetManager);
 	ButtonWidget** aSlots[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons,
-		mZombieBuffButtons, mLadderButtons
+		mSpeedButtons, mZombieBuffButtons, mLadderButtons
 	};
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
 	{
@@ -362,7 +373,7 @@ void RunOptionsDialog::RemovedFromManager(WidgetManager* theWidgetManager)
 	LawnDialog::RemovedFromManager(theWidgetManager);
 	ButtonWidget** aSlots[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons,
-		mZombieBuffButtons, mLadderButtons
+		mSpeedButtons, mZombieBuffButtons, mLadderButtons
 	};
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
 	{
@@ -391,7 +402,7 @@ void RunOptionsDialog::Draw(Graphics* g)
 	ModText::Font* aCaptionFont = ModText::GetFont(12, false);
 	const std::string* aCaptions[RUN_OPTIONS_ROW_COUNT] = {
 		&mScaleCaption, &mTempoCaption, &mZombotanyCaption, &mSlideCaption, &mBossCaption, &mBuffMultCaption,
-		&mZombieBuffCaption, &mLadderCaption
+		&mSpeedCaption, &mZombieBuffCaption, &mLadderCaption
 	};
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
 	{
@@ -447,16 +458,22 @@ void RunOptionsDialog::ButtonDepress(int theId)
 		for (int i = 0; i < 2; i++) mSlideButtons[i]->mInverted = (i == mSlideSel);
 		return;
 	}
-	if (theId >= RunOptionsDialog_Boss0 && theId <= RunOptionsDialog_Boss0 + 1)
+	if (theId >= RunOptionsDialog_Boss0 && theId <= RunOptionsDialog_Boss0 + 2)
 	{
 		mBossSel = theId - RunOptionsDialog_Boss0;
-		for (int i = 0; i < 2; i++) mBossButtons[i]->mInverted = (i == mBossSel);
+		for (int i = 0; i < 3; i++) mBossButtons[i]->mInverted = (i == mBossSel);
 		return;
 	}
 	if (theId >= RunOptionsDialog_BuffMult0 && theId <= RunOptionsDialog_BuffMult0 + 2)
 	{
 		mBuffMultSel = theId - RunOptionsDialog_BuffMult0;
 		for (int i = 0; i < 3; i++) mBuffMultButtons[i]->mInverted = (i == mBuffMultSel);
+		return;
+	}
+	if (theId >= RunOptionsDialog_Speed0 && theId <= RunOptionsDialog_Speed0 + 2)
+	{
+		mSpeedSel = theId - RunOptionsDialog_Speed0;
+		for (int i = 0; i < 3; i++) mSpeedButtons[i]->mInverted = (i == mSpeedSel);
 		return;
 	}
 	if (theId >= RunOptionsDialog_ZombieBuff0 && theId <= RunOptionsDialog_ZombieBuff0 + 2)

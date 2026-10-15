@@ -910,7 +910,7 @@ void LawnApp::UpdateOnlineStart()
 		AlignRunToHost((int)aStart.mRunSeed, (int)aStart.mRunLevelIndex, (int)aStart.mRunMode, (int)aStart.mRunDiff,
 			(int)aStart.mRunScale, (int)aStart.mRunTempo, (int)aStart.mRunZombotany,
 			(int)aStart.mRunEndlessScene, (int)aStart.mRunBossFlag, (int)aStart.mRunBuffMult,
-			(int)aStart.mRunLadder, (int)aStart.mRunZombieBuff, aStart.mZombieStacks);
+			(int)aStart.mRunLadder, (int)aStart.mRunZombieBuff, aStart.mZombieStacks, (int)aStart.mRunSpeedTier);
 		mOnlineRunStartHeld = true;
 		mOnlineRunGo = false;		// 这条是新命令：上一次的放行作废
 		mOnlineSession->SendStartAck();
@@ -1040,7 +1040,7 @@ void LawnApp::OnlineStartPromptAnswer(bool theAccepted)
 		AlignRunToHost((int)aMsg.mRunSeed, (int)aMsg.mRunLevelIndex, (int)aMsg.mRunMode, (int)aMsg.mRunDiff,
 			(int)aMsg.mRunScale, (int)aMsg.mRunTempo, (int)aMsg.mRunZombotany,
 			(int)aMsg.mRunEndlessScene, (int)aMsg.mRunBossFlag, (int)aMsg.mRunBuffMult,
-			(int)aMsg.mRunLadder, (int)aMsg.mRunZombieBuff, aMsg.mZombieStacks);
+			(int)aMsg.mRunLadder, (int)aMsg.mRunZombieBuff, aMsg.mZombieStacks, (int)aMsg.mRunSpeedTier);
 		mOnlineRunStartHeld = true;
 		mOnlineRunGo = false;
 		mOnlineSession->SendStartAck();
@@ -1376,7 +1376,7 @@ void LawnApp::UpdateOnlineEvents()
 					(uint8_t)mRunState->mScale, (uint8_t)mRunState->mTempo, (uint8_t)mRunState->mZombotany,
 					(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag,
 					(uint8_t)mRunState->mBuffMult, (uint8_t)mRunState->mLadder,
-					(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks);
+					(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks, (uint8_t)mRunState->mSpeedTier);
 			}
 			break;
 
@@ -1443,7 +1443,7 @@ void LawnApp::UpdateOnlineEvents()
 					(uint8_t)mRunState->mScale, (uint8_t)mRunState->mTempo, (uint8_t)mRunState->mZombotany,
 					(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag,
 					(uint8_t)mRunState->mBuffMult, (uint8_t)mRunState->mLadder,
-					(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks);
+					(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks, (uint8_t)mRunState->mSpeedTier);
 			}
 			break;
 
@@ -1666,7 +1666,7 @@ void LawnApp::RetryOnlineLevel()
 			(uint8_t)mRunState->mScale, (uint8_t)mRunState->mTempo, (uint8_t)mRunState->mZombotany,
 			(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag,
 			(uint8_t)mRunState->mBuffMult, (uint8_t)mRunState->mLadder,
-			(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks);
+			(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks, (uint8_t)mRunState->mSpeedTier);
 		return;
 	}
 
@@ -1869,7 +1869,7 @@ void LawnApp::UpdateAdventureRequest()
 		StartRun(RunState::RUN_MODE_ENDLESS, aModeDialog->mDiffSel,
 			aModeDialog->mScaleSel, aModeDialog->mTempoSel, aModeDialog->mZombotanySel, aEndlessScene,
 			aModeDialog->mBossSel, aModeDialog->mBuffMultSel,
-			aModeDialog->mLadderSel, aModeDialog->mZombieBuffSel);
+			aModeDialog->mLadderSel, aModeDialog->mZombieBuffSel, aModeDialog->mSpeedSel);
 		return;
 	}
 
@@ -1915,7 +1915,7 @@ void LawnApp::UpdateAdventureRequest()
 	StartRun(aModeResult - RunModeDialog::RunModeDialog_Mode0, aModeDialog->mDiffSel,
 		aModeDialog->mScaleSel, aModeDialog->mTempoSel, aModeDialog->mZombotanySel, 0,
 		aModeDialog->mBossSel, aModeDialog->mBuffMultSel,
-		aModeDialog->mLadderSel, aModeDialog->mZombieBuffSel);
+		aModeDialog->mLadderSel, aModeDialog->mZombieBuffSel, aModeDialog->mSpeedSel);
 }
 
 // @pvz-online: 进入游戏后的玩法公告（2026-10-03 用户要的）：启动后第一次落到主菜单时弹一次，
@@ -1978,16 +1978,16 @@ void LawnApp::UpdateStartupAnnounce()
 	aDialog->WaitForResult();
 }
 
-void LawnApp::StartRun(int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag, int theBuffMult, int theLadder, int theZombieBuff)
+void LawnApp::StartRun(int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag, int theBuffMult, int theLadder, int theZombieBuff, int theSpeedTier)
 {
 	ResetZombieVote();
 	delete mRunState;
 	mRunState = new RunState();
-	mRunState->StartNew(MakeRunSeed(mAppCounter), theRunMode, theRunDiff, theRunScale, theRunTempo, theZombotany, theEndlessScene, theBossFlag, theBuffMult, theLadder, theZombieBuff);
-	TodLog("[run] a new run starts (seed %d, mode %d, diff %d, scale %d, tempo %d, zombotany %d, endless scene %d, boss %d, buff mult %d, ladder %d, zombie buff %d)",
+	mRunState->StartNew(MakeRunSeed(mAppCounter), theRunMode, theRunDiff, theRunScale, theRunTempo, theZombotany, theEndlessScene, theBossFlag, theBuffMult, theLadder, theZombieBuff, theSpeedTier);
+	TodLog("[run] a new run starts (seed %d, mode %d, diff %d, scale %d, tempo %d, zombotany %d, endless scene %d, boss %d, buff mult %d, ladder %d, zombie buff %d, speed tier %d)",
 		mRunState->mRunSeed, mRunState->mMode, mRunState->mDiff,
 		mRunState->mScale, mRunState->mTempo, mRunState->mZombotany, mRunState->mEndlessScene, mRunState->mBossFlag,
-		mRunState->mBuffMult, mRunState->mLadder, mRunState->mZombieBuffMode);
+		mRunState->mBuffMult, mRunState->mLadder, mRunState->mZombieBuffMode, mRunState->mSpeedTier);
 	// 手里的两株不够开局：先挑四株 + 两个增益（共六次三选一），选完 RunPickChosen 才进第 1 关。
 	// 无尽档不挑植物（StartNew 已给满卡池）：开屏是四个增益 + 原版选卡界面挑 10 株。
 	mRunState->BeginStartPicks();
@@ -2004,7 +2004,11 @@ void LawnApp::ContinueRun()
 	// 玩家选的是续，但给出去的东西必须永远是一条能走的路。
 	if (!mRunState->Load(mPlayerInfo->mId) || mRunState->IsComplete())
 	{
-		mRunState->StartNew(MakeRunSeed(mAppCounter));
+		// 从头开一局也按新默认档摆全（2026-10-16：boss 三档默认 2、僵尸 buff 默认 1、
+		// 移速成长默认无）——StartNew 里的默认参同样对齐，这里写全图个眼见为实。
+		mRunState->StartNew(MakeRunSeed(mAppCounter), RunState::RUN_MODE_FULL, RunState::RUN_DIFF_STD,
+			RunState::RUN_SCALE_STD, RunState::RUN_TEMPO_STD, 0, 0, 2, 0,
+			RunState::RUN_LADDER_STD, 1, RunState::RUN_SPEED_NONE);
 		// 这条"从头开一局"和 StartRun 是同一种新局：开局选卡不能漏（R2 加选卡体系时这里漏了）。
 		mRunState->BeginStartPicks();
 		mRunState->Save(mPlayerInfo->mId);
@@ -2046,7 +2050,7 @@ void LawnApp::EnterRunLevel()
 			(uint8_t)mRunState->mScale, (uint8_t)mRunState->mTempo, (uint8_t)mRunState->mZombotany,
 			(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag,
 			(uint8_t)mRunState->mBuffMult, (uint8_t)mRunState->mLadder,
-			(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks);
+			(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks, (uint8_t)mRunState->mSpeedTier);
 		return;
 	}
 
@@ -2085,7 +2089,8 @@ void LawnApp::EnterRunLevel()
 // （theEndlessScene）：同一局种子换张卡就是另一个场景的无尽，对不上同样按重建处理。
 void LawnApp::AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode, int theRunDiff,
 	int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag,
-	int theBuffMult, int theLadder, int theZombieBuff, const uint8_t* theZombieStacks)
+	int theBuffMult, int theLadder, int theZombieBuff, const uint8_t* theZombieStacks,
+	int theSpeedTier)
 {
 	// 时长档来自对端（构建代次不同只提示、不拒连）：非法值按完整版处理，别让它把
 	// 越界模式一路带进关卡表。无尽档（3）是合法档，得放行——钳成完整版会让客户端
@@ -2205,15 +2210,18 @@ void LawnApp::AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode,
 	// 房主的值覆盖（不参与上面的重建判等——改这三样不该把队友手里的整局作废）。
 	// 增益倍选（MOD_BUILD 43）同口径：房间级设置、只覆盖不参与重建判等。
 	// 场景难度阶梯 + 僵尸 buff 档（MOD_BUILD 45）同理（前者也无尽档不生效，照存）。
+	// 巨型 boss 同日起三档（2026-10-16）：0 关 / 1 仅末关 / 2 末关+场景 3，原样覆盖，
+	// 消费端钳（SpawnRunBoss）兜非法值；无尽档恒按关处理。移速成长档同口径照存。
 	// 8 条强化层数是"本局进度"而非设置：权威快照在主机（投票结果只驱动 UI、层数只信
 	// START_LEVEL），一律按这条命令的 8 字节覆盖——中途加入/追赶/重试不走样。
 	mRunState->mScale = theRunScale;
 	mRunState->mTempo = theRunTempo;
 	mRunState->mZombotany = theZombotany;
-	mRunState->mBossFlag = (theBossFlag != 0 && mRunState->mMode != RunState::RUN_MODE_ENDLESS) ? 1 : 0;
+	mRunState->mBossFlag = (mRunState->mMode != RunState::RUN_MODE_ENDLESS) ? theBossFlag : 0;
 	mRunState->mBuffMult = theBuffMult;
 	mRunState->mLadder = theLadder;
 	mRunState->mZombieBuffMode = theZombieBuff;
+	mRunState->mSpeedTier = theSpeedTier;
 	for (int i = 0; i < RunState::RUN_ZOMBIE_BUFF_COUNT; i++)
 		mRunState->mZombieBuffStacks[i] = theZombieStacks ? theZombieStacks[i] : 0;
 
@@ -2523,23 +2531,13 @@ void LawnApp::RunPickChosen(int theIndex)
 		int aId = theIndex >= 0 && theIndex < RunState::RUN_CHOICES ? aRun->mBuffChoices[theIndex] : -1;
 		int aBefore = aRun->GetEffectiveBuffCount(aId);
 		aRun->TakeBuffChoice(theIndex);
-		if (mBoard && aBefore == 0 && aRun->GetBuffCount(aId) > 0)
+		if (mBoard && aRun->GetBuffCount(aId) > 0)
 		{
-			const int aBase = RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT;
 			Plant* aPlant = nullptr;
 			while (mBoard->IteratePlants(aPlant))
 			{
-				int aNewMax = aPlant->mPlantMaxHealth;
-				if (aId == aBase + RUN_BUFF2_DIGEST_HEAL && aPlant->mSeedType == SeedType::SEED_CHOMPER)
-					aNewMax = (int)std::min((long long)INT_MAX, (long long)aPlant->mPlantMaxHealth * 10);
-				else if (aId == aBase + RUN_BUFF2_STEEL_PUMPKIN && aPlant->mSeedType == SeedType::SEED_PUMPKINSHELL)
-					aNewMax = std::max(1, aPlant->mPlantMaxHealth / 2);
-				if (aNewMax != aPlant->mPlantMaxHealth)
-				{
-					aPlant->mPlantHealth = (int)((long long)std::max(0, aPlant->mPlantHealth) * aNewMax / std::max(1, aPlant->mPlantMaxHealth));
-					aPlant->mPlantMaxHealth = aNewMax;
-				}
-				if (aId == RUN_BUFF_COUNT + RUN_UPGRADE_POTATOMINE && aPlant->mSeedType == SeedType::SEED_POTATOMINE &&
+				aPlant->RefreshRunMaxHealth();
+				if (aBefore == 0 && aId == RUN_BUFF_COUNT + RUN_UPGRADE_POTATOMINE && aPlant->mSeedType == SeedType::SEED_POTATOMINE &&
 					aPlant->mState == PlantState::STATE_NOTREADY)
 					aPlant->mStateCountdown = std::min(aPlant->mStateCountdown, 375);
 			}

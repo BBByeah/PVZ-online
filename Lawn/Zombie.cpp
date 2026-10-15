@@ -1394,6 +1394,14 @@ void Zombie::PickRandomSpeed()
         {
             mVelX = mVelX * aSwiftPermille / 1000.0f;
         }
+        // @pvz-online: 僵尸移速成长（2026-10-16 用户令）：高级选项档 ×1.03/×1.05，每进一个
+        // 新场景复利一次（场景 1 恒 ×1）——乘在迅捷之后、独立叠乘；档 0/非法时千分比恰为
+        // 1000、零改动。乘数只由 RunState 档与场景序号推导，两端各算逐位一致。
+        int aGrowthPermille = mApp->GetRunState()->ZombieSpeedGrowthPermille();
+        if (aGrowthPermille != 1000)
+        {
+            mVelX = mVelX * aGrowthPermille / 1000.0f;
+        }
     }
 
     UpdateAnimSpeed();

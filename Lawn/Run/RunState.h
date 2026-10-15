@@ -54,6 +54,11 @@ public:
 	// 千分比表见 LadderPermilleFor；**无尽档不吃阶梯**（上批定案的无尽专属曲线保持独立，
 	// 高级选项在无尽档也不摆「场景难度」行）。
 	enum	{ RUN_LADDER_STD = 0, RUN_LADDER_X1 = 1, RUN_LADDER_X12 = 2, RUN_LADDER_X15 = 3, RUN_LADDER_X2 = 4 };
+	// @pvz-online: 僵尸移速成长档（2026-10-16 用户令「移速成长做成可选项放到高级选项，默认无，
+	// 有 1.03 1.05 两挡」+「每场景」复利）：乘在 ZombieInitialize 的移速上（迅捷之后、独立
+	// 叠乘），每进一个新场景复利一次（场景 1 恒 ×1）——千分比表见 SpeedGrowthPermilleFor，
+	// 两端各算、逐位一致。位包 bit12..13 持久（老档读 0 = 无成长，安全降级不抬版本）。
+	enum	{ RUN_SPEED_NONE = 0, RUN_SPEED_X103 = 1, RUN_SPEED_X105 = 2 };
 	// @pvz-online: 僵尸强化（2026-10-14 用户令「到下一场景选给僵尸 0/1/2 个 buff；作用在
 	// 无尽则五关一选」）：独立于植物词条表的第二条强化线——每进一个新场景全队投票叠层，
 	// 层数累积、无总上限（255 封顶防溢出，各效果数值饱和）。池子 8 条固定 id（即
@@ -185,9 +190,11 @@ public:
 	int							mScale;			// RUN_SCALE_*：出怪规模倍率档
 	int							mTempo;			// RUN_TEMPO_*：波间隔倍率档
 	int							mZombotany;		// 植物僵尸混入开关
-	// @pvz-online: 关底巨型 boss 开关（MOD_BUILD 38，2026-10-10 用户定案）：1 = 闯关最后一关
-	// 关底刷巨型 boss（仅第一席；无尽档没有关底、恒不刷）。房间级设置，随 START_LEVEL 广播、
-	// 随检查点 v13 持久；联机各端无条件按房主的值对齐（不参与重建判等）。
+	// @pvz-online: 关底巨型 boss 档（MOD_BUILD 38，2026-10-10 用户定案；2026-10-16 用户令升
+	// 三档）：0 = 关 / 1 = 仅末关 / 2 = 末关 + 场景 3 末关（快速档场景 3 跳过；无尽档没有
+	// 关底、恒不刷）。旧语义的"开"= 档 1（老检查点/老协议读 0/1 自然成立）。房间级设置，
+	// 随 START_LEVEL 广播、随检查点 v13 u16 持久（原样放宽 0/1/2，不抬版本）；联机各端
+	// 无条件按房主的值对齐（不参与重建判等）。消费端钳在 SpawnRunBoss。
 	int							mBossFlag;
 	// @pvz-online: 增益倍选（2026-10-13 用户令）：1/2/3 倍的索引（RUN_BUFFMULT_*）。房间级
 	// 设置，随 START_LEVEL 广播（MOD_BUILD 43）、随检查点 v10 位包 bit5..6 持久（老档读 0
@@ -198,6 +205,11 @@ public:
 	// LadderPermilleFor。房间级设置，随 START_LEVEL 广播、随检查点位包 bit7..9 持久（v14
 	// 前的老档读 0 = 现状标准档，安全降级、不抬版本）；联机各端无条件按房主的值对齐。
 	int							mLadder;
+	// @pvz-online: 僵尸移速成长档（2026-10-16 用户令）：RUN_SPEED_*，千分比表见
+	// SpeedGrowthPermilleFor（每进一个新场景复利一次）。房间级设置，随 START_LEVEL 广播、
+	// 随检查点位包 bit12..13 持久（老档读 0 = 无成长，安全降级不抬版本）；联机各端无条件
+	// 按房主的值对齐。消费端钳（档非法按无成长）。
+	int							mSpeedTier;
 	// @pvz-online: 僵尸强化的两个字段（2026-10-14 用户令）：mZombieBuffMode = 高级选项
 	// 「僵尸 buff」档 0/1/2（每进一个新场景投票叠几条，0 = 不开）；mZombieBuffStacks[8] =
 	// 池子 8 条的当前层数（投中 +1、255 封顶，累积不重置）。房间级，随 START_LEVEL 广播
@@ -221,10 +233,13 @@ public:
 	// theBuffMult（2026-10-13）：增益倍选索引（RUN_BUFFMULT_*，非法按 ×1——消费端钳）。
 	// theLadder（2026-10-14）：场景难度阶梯档（RUN_LADDER_*，非法按现状档）。
 	// theZombieBuff（2026-10-14）：僵尸 buff 档 0/1/2（每场景投票叠几条；层数表跟随本局清零）。
+	// theSpeedTier（2026-10-16）：僵尸移速成长档（RUN_SPEED_*，非法按无成长——消费端钳）。
+	// theBossFlag 同日起三档 0 关 / 1 仅末关 / 2 末关+场景 3（默认 2）。
 	void				StartNew(int theRunSeed, int theRunMode = RUN_MODE_FULL, int theRunDiff = RUN_DIFF_STD,
 							int theRunScale = RUN_SCALE_STD, int theRunTempo = RUN_TEMPO_STD, int theZombotany = 0,
-							int theEndlessScene = 0, int theBossFlag = 0, int theBuffMult = 0,
-							int theLadder = RUN_LADDER_STD, int theZombieBuff = 0);
+							int theEndlessScene = 0, int theBossFlag = 2, int theBuffMult = 0,
+							int theLadder = RUN_LADDER_STD, int theZombieBuff = 1,
+							int theSpeedTier = RUN_SPEED_NONE);
 
 	// 时长档的关数口径：每场景关数（5/2/1）与总关数（25/10/5）。模式非法按完整版。
 	// 无尽档的 LevelCountForMode = RUN_ENDLESS_LEVEL_COUNT（软上限）；LevelsPerScene 对
@@ -249,6 +264,17 @@ public:
 	// （两端逐位一致，不用运行时浮点）。STD 档表 = 2026-10-05 定案的现状表一字不差。
 	// 档位/场景非法按 STD/场景 0——与上面同一套纪律，消费点不用再操心合法性。
 	static int			LadderPermilleFor(int theLadder, int theScene);
+
+	// 僵尸移速成长档的千分比（2026-10-16 用户令）：按"进过的场景数"复利——场景序号 0..4
+	// 对应 ×1 / ×1.03 / ×1.03² / ×1.03³ / ×1.03⁴（×1.05 档同理，≈×1.12 / ≈×1.21 收尾），
+	// 整数迭代截尾、两端逐位一致；档非法按无成长（1000）。消费点 = ZombieInitialize
+	// （乘在迅捷之后、独立叠乘）。
+	static int			SpeedGrowthPermilleFor(int theSpeedTier, int theSceneIndex);
+	// 本局现取：档 × 当前场景一次算齐（Zombie.cpp 只问这一句）。
+	int					ZombieSpeedGrowthPermille() const
+	{
+		return SpeedGrowthPermilleFor(mSpeedTier, GetSceneIndex());
+	}
 
 	// @pvz-online: 僵尸强化的三个取数口（2026-10-14 用户令）。每场景发放档 0/1/2 非法按 0
 	// （= 不开）；层数与叠层口（投票投中 +1、255 封顶）。全部走"消费端钳"纪律：消费点

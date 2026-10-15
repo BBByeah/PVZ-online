@@ -344,7 +344,9 @@ public:
 	// theLadder/theZombieBuff（MOD_BUILD 45）：场景难度阶梯档（RunState::RUN_LADDER_*，
 	// 0 = 现状 ×1.33）与僵尸 buff 档（0/1/2，每新场景叠几条）；非法档在实现里钳——
 	// 消费端 LadderPermilleFor / GetZombieBuffPerScene 再兜一道。
-	void							StartRun(int theRunMode, int theRunDiff, int theRunScale = 1, int theRunTempo = 1, int theZombotany = 0, int theEndlessScene = 0, int theBossFlag = 0, int theBuffMult = 0, int theLadder = 0, int theZombieBuff = 0);	// theRunMode = RunState::RUN_MODE_*（时长档）、theRunDiff = RunState::RUN_DIFF_*（出怪难度档）
+	// theSpeedTier（2026-10-16）：僵尸移速成长档 0/1/2（无/×1.03/×1.05，每新场景复利）；
+	// 同日起 theBossFlag 升三档 0 关 / 1 仅末关 / 2 末关+场景 3（默认 2）。
+	void							StartRun(int theRunMode, int theRunDiff, int theRunScale = 1, int theRunTempo = 1, int theZombotany = 0, int theEndlessScene = 0, int theBossFlag = 2, int theBuffMult = 0, int theLadder = 0, int theZombieBuff = 1, int theSpeedTier = 0);	// theRunMode = RunState::RUN_MODE_*（时长档）、theRunDiff = RunState::RUN_DIFF_*（出怪难度档）
 	void							ContinueRun();
 	void							EnterRunLevel();
 	// @pvz-online: 联机闯关（R5）：把本机进度对齐到主机点名的这一关。同一局种子就接着走
@@ -354,16 +356,19 @@ public:
 	// 无条件按房主的值覆盖（房间级设置、不参与重建判等）；非法档在实现里钳回标准。
 	// theEndlessScene（MOD_BUILD 37）：无尽档锁定的场景 0..4——参与重建判等（同种子换卡
 	// = 另一个场景的无尽，续了就是错的局）；非无尽档一律归 0。
-	// theBossFlag（MOD_BUILD 38）：关底巨型 boss 开关——房间级设置，只覆盖、不参与重建判等。
+	// theBossFlag（MOD_BUILD 38，2026-10-16 起三档 0 关 / 1 仅末关 / 2 末关+场景 3）：
+	// 关底巨型 boss 出场点——房间级设置，只覆盖、不参与重建判等。
 	// theBuffMult（MOD_BUILD 43）：增益倍选档——同口径，房间级设置，只覆盖、不参与重建判等。
 	// theLadder / theZombieBuff / theZombieStacks（MOD_BUILD 45）：场景难度阶梯档 / 僵尸
 	// buff 档 / 8 条强化层数快照——前者与档是房间级设置（只覆盖），层数是本局进度快照
 	// （权威在主机，一律按快照覆盖）；非法档在实现里钳回现状档/关。
+	// theSpeedTier（2026-10-16）：僵尸移速成长档 0/1/2——房间级设置（只覆盖）。
 	// （默认参用字面量：头里对 RunState 只有前置声明。）
 	void							AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode, int theRunDiff,
 							int theRunScale = 1, int theRunTempo = 1, int theZombotany = 0,
 							int theEndlessScene = 0, int theBossFlag = 0, int theBuffMult = 0,
-							int theLadder = 0, int theZombieBuff = 0, const uint8_t* theZombieStacks = nullptr);
+							int theLadder = 0, int theZombieBuff = 0, const uint8_t* theZombieStacks = nullptr,
+							int theSpeedTier = 0);
 	void							UpdateRunEnd();
 	// @pvz-online: 无尽局原地续关（无尽续草坪批）的两个分叉口：建新草坪前先问一句"这块
 	// 草坪能不能留着"（无尽局过关不清草坪，留则连波次重排一起安排）；放开开场（三选一

@@ -200,7 +200,7 @@ SeedChooserScreen::SeedChooserScreen()
 		aStarFruit.mSeedIndexInBank = 0;
 		mSeedsInBank++;
 	}
-	if (mApp->IsAdventureMode() && !mApp->IsFirstTimeAdventureMode())
+	if (mApp->IsAdventureMode() && !mApp->IsFirstTimeAdventureMode() && !mApp->IsRunMode())
 		CrazyDavePickSeeds();
 	UpdateImitaterButton();
 }
@@ -276,6 +276,7 @@ void SeedChooserScreen::CrazyDavePickSeeds()
 
 bool SeedChooserScreen::Has7Rows()
 {
+    if (mApp->IsOnlineGame() || mApp->IsRunMode()) return true;
 	// PlayerInfo* aPlayer = mApp->mPlayerInfo; // unused
 	if (mApp->HasFinishedAdventure() || mApp->mPlayerInfo->mPurchases[STORE_ITEM_PLANT_GATLINGPEA]) return true;
 	for (SeedType aSeedType = SEED_TWINSUNFLOWER; aSeedType < SEED_COBCANNON; aSeedType = (SeedType)(aSeedType + 1))

@@ -88,7 +88,7 @@ StoreScreen::StoreScreen(LawnApp* theApp) : Dialog(nullptr, nullptr, DIALOG_STOR
 	mBubbleClickToContinue = false;
 	mAmbientSpeechCountDown = 200;
 	mPreviousAmbientSpeechIndex = -1;
-	mPage = STORE_PAGE_SLOT_UPGRADES;
+	mPage = STORE_PAGE_ZEN1;
 	mMouseOverItem = STORE_ITEM_INVALID;
 	mHatchTimer = 0;
 	mShakeX = 0;
@@ -200,7 +200,7 @@ bool StoreScreen::IsComingSoon(StoreItem theStoreItem)
 	else if (theStoreItem == STORE_ITEM_WHEEL_BARROW)
 		return !mApp->mPlayerInfo->mPurchases[STORE_ITEM_MUSHROOM_GARDEN] && !mApp->mPlayerInfo->mPurchases[STORE_ITEM_AQUARIUM_GARDEN];
 	else if (IsPottedPlant(theStoreItem))
-		return !mApp->HasFinishedAdventure();
+        return !mApp->CanShowZenGarden(); // @pvz-online: keep purchase/capacity rules, not campaign gates.
 	else if (theStoreItem == STORE_ITEM_TREE_FOOD)
 		return !mApp->mPlayerInfo->mPurchases[STORE_ITEM_TREE_OF_WISDOM] || mApp->mPlayerInfo->mPurchases[STORE_ITEM_TREE_FOOD] < PURCHASE_COUNT_OFFSET;
 	return false;
@@ -513,15 +513,17 @@ void StoreScreen::Draw(Graphics* g)
 	if (!mPrevButton->mDisabled)
 	{
 		int aNumPages = 0;
+        int aVisiblePage = 0;
 		for (StorePages aPage = STORE_PAGE_SLOT_UPGRADES; aPage < NUM_STORE_PAGES; aPage = (StorePages)(aPage + 1))
 		{
 			if (IsPageShown(aPage))
 			{
 				aNumPages++;
+                if (aPage == mPage) aVisiblePage = aNumPages;
 			}
 		}
 
-		std::string aPageString = PvzpReplaceNumberString(PvzpReplaceNumberString("[STORE_PAGE]", "{PAGE}", mPage + 1), "{NUM_PAGES}", aNumPages);
+		std::string aPageString = PvzpReplaceNumberString(PvzpReplaceNumberString("[STORE_PAGE]", "{PAGE}", aVisiblePage), "{NUM_PAGES}", aNumPages);
 		PvzpDrawString(g, aPageString, STORESCREEN_PAGESTRING_X, STORESCREEN_PAGESTRING_Y, Sexy::FONT_BRIANNETOD12, Color(80, 80, 80), DS_ALIGN_CENTER);
 	}
 }
@@ -613,6 +615,7 @@ void StoreScreen::UpdateMouse()
 
 void StoreScreen::StorePreload()
 {
+    Plant::PreloadPlantResources(SeedType::SEED_MARIGOLD);
 	ReanimatorEnsureDefinitionLoaded(REANIM_CRAZY_DAVE, true);
 	ReanimatorEnsureDefinitionLoaded(REANIM_ZENGARDEN_FERTILIZER, true);
 	mApp->CrazyDaveEnter();
@@ -817,6 +820,8 @@ void StoreScreen::ButtonPress(int theId)
 
 bool StoreScreen::IsPageShown(StorePages thePage)
 {
+	// @pvz-online: expose shared garden pages; retain optional original pages.
+    if (thePage == STORE_PAGE_ZEN1 || thePage == STORE_PAGE_ZEN2) return true;
 	// trial mode only shows the default page
 	if (mApp->IsTrialStageLocked()) return thePage == STORE_PAGE_SLOT_UPGRADES;
 	// finishing adventure unlocks all pages

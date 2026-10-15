@@ -54,3 +54,6 @@ PC 固定来源：`d30f30a5e75f6b9f65471882a0505ae21a277f61`，主实现提交 `
 - SHA256：`B25AFE2CD0F560455A2FF5764F4F94B841685704F102CAAA37CA81423AFD9318`。
 - 最终Native与Gradle通过，v2签名及zipalign 16KB检查通过，已覆盖安装MuMu 2；安装后未启动，保留恢复好的原用户档。
 - 本轮无服务器修改、无推送/公开发布；本批借用/求援实现完成，完整双端实战边界仍以上文为准。
+
+
+2026-10-15 Build53：两端共同功能解除冒险进度依赖、花园交易保存与本地场景网络隔离，Android完整图鉴和闯关隔离已对齐。PC固定来源ae489ee；完整联机实战未重跑，onlineGameReady仍false。见[实施结果](ADVENTURE-DECOUPLING-PLAN.md#build53执行结果2026-10-15)。Android额外玩法/商店页保留，原版70波掉落停止规则保留。当前APK为android-artifacts/pvz-online-build53-arm64.apk。

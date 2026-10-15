@@ -481,6 +481,7 @@ static void EnsureOnlineReconnectDialog(LawnApp* theApp)
 
 bool LawnApp::TryHoldSeedChooserForTeammates()
 {
+    if (IsLocalOnlyMode(mGameMode)) return false;
 	if (!IsOnlineGame()) return false;			// 单机 / 掉了线：原版节奏，不等
 
 	if (mOnlineSeedsHeld) return true;			// 已经拦下过一次：继续等（放行走 UpdateOnlineSeeds）
@@ -502,6 +503,7 @@ bool LawnApp::TryHoldSeedChooserForTeammates()
 
 void LawnApp::UpdateOnlineSeeds()
 {
+    if (mBoard && IsLocalOnlyMode(mGameMode)) return; // @pvz-online: local garden/tree only.
     if(mCoopPlay && mCoopPlay->Blocking())return;
 	if (!mOnlineSeedsHeld) return;
 
@@ -554,6 +556,7 @@ void LawnApp::UpdateOnlineSeeds()
 
 void LawnApp::UpdateOnlineRelay()
 {
+    if (mBoard && IsLocalOnlyMode(mGameMode)) return; // @pvz-online: local garden/tree only.
 	if (!mOnlineSession) return;
 
 	NetProto::MsgEscapedZombie aMsg;
@@ -605,6 +608,7 @@ void LawnApp::UpdateOnlineLevelExit()
 
 	NetProto::MsgLevelExit aMsg;
 	if (!mOnlineSession->TakePendingLevelExit(aMsg)) return;
+    if (mBoard && IsLocalOnlyMode(mGameMode)) return; // @pvz-online: consume, do not eject local garden.
 
 	if (mBoard != nullptr)
 	{
@@ -624,6 +628,7 @@ void LawnApp::UpdateOnlineLevelExit()
 
 void LawnApp::UpdateOnlinePause()
 {
+    if (mBoard && IsLocalOnlyMode(mGameMode)) return; // @pvz-online: local garden/tree only.
 	if (!mOnlineSession) return;
 
 	// ① 队友按了暂停 / 继续
@@ -839,6 +844,7 @@ void LawnApp::UpdateOnlineEvents()
 
 void LawnApp::UpdateOnlineEnd()
 {
+    if (mBoard && IsLocalOnlyMode(mGameMode)) return; // @pvz-online: local garden/tree only.
 	if (!mOnlineSession) return;
 
 	// ①

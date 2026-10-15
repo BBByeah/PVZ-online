@@ -1272,8 +1272,7 @@ void GameSelector::ButtonDepress(int theId)
 	case GameSelector::GameSelector_ZenGarden:
 		mApp->KillGameSelector();
 		mApp->PreNewGame(GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN, false);
-		if (ShouldDoZenTuturialBeforeAdventure())
-			mApp->mZenGarden->SetupForZenTutorial();
+		// @pvz-online: manual garden access must not trigger the campaign tutorial.
 		break;
 	case GameSelector::GameSelector_Zombatar:
 		ShowZombatarScreen();

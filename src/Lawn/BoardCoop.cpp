@@ -14,6 +14,7 @@ static const int kSunGiftAmount = 100, kSunGiftTax = 10, kSunGiftSelectFrames = 
 
 bool Board::QuickChatAvailable()
 {
+    if (mApp->IsLocalOnlyMode(mApp->mGameMode)) return false;
     // 观看队友场地时不开面板：观看层盖住全屏，面板看不见却还在吞键（T/E 会被这里先接走）
     return mApp->IsOnlineGame() && mApp->mOnlineSession != nullptr && mApp->mOnlineSession->IsConnected() &&
            mApp->mGameScene == GameScenes::SCENE_PLAYING;

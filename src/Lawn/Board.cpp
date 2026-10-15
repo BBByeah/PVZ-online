@@ -3123,7 +3123,7 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 	}
 	// 南瓜头的种植条件
 	// @pvz-online: 档案买的"急救"（坚果包扎术）不进联机/闯关局（§5.9），按未购买算。
-	bool aAidPurchased = !false && !mApp->IsRunMode() &&
+	bool aAidPurchased = !mApp->IsOnlineGame() && !mApp->IsRunMode() &&
 		mApp->mPlayerInfo->mPurchases[StoreItem::STORE_ITEM_FIRSTAID] > 0;
 	if (theSeedType == SeedType::SEED_PUMPKINSHELL)
 	{
@@ -9669,7 +9669,7 @@ void Board::DropLootPiece(int thePosX, int thePosY, int theDropFactor)
 	}
 	else if (aDropHit < aDiamondChance * theDropFactor)
 	{
-		aCoinType = mApp->mPlayerInfo->mPurchases[StoreItem::STORE_ITEM_PACKET_UPGRADE] < 1 ? CoinType::COIN_GOLD : CoinType::COIN_DIAMOND;
+		aCoinType = (mApp->IsOnlineGame() || mApp->IsRunMode() || mApp->mPlayerInfo->mPurchases[StoreItem::STORE_ITEM_PACKET_UPGRADE] < 1) ? CoinType::COIN_GOLD : CoinType::COIN_DIAMOND;
 	}
 	else if (aDropHit < aGoldChance * theDropFactor)
 	{
@@ -9680,9 +9680,6 @@ void Board::DropLootPiece(int thePosX, int thePosY, int theDropFactor)
 		aCoinType = CoinType::COIN_SILVER;
 	}
 	else return;
-	// Runs do not grant garden plants/chocolate to the player's adventure profile.
-	if (mApp->mRunState && (aCoinType == CoinType::COIN_PRESENT_PLANT || aCoinType == CoinType::COIN_CHOCOLATE))
-		aCoinType = CoinType::COIN_GOLD;
 
 	if (mApp->IsWallnutBowlingLevel() && Coin::IsMoney(aCoinType))
 		return;
@@ -9973,7 +9970,7 @@ bool Board::CanUseGameObject(GameObjectType theGameObject)
 	case GameObjectType::OBJECT_TYPE_GLOVE:
 		return mApp->mPlayerInfo->mPurchases[StoreItem::STORE_ITEM_GARDENING_GLOVE] > 0;
 	case GameObjectType::OBJECT_TYPE_MONEY_SIGN:
-		return mApp->HasFinishedAdventure();
+		return mApp->CanShowZenGarden(); // @pvz-online: selling is part of the garden economy.
 	case GameObjectType::OBJECT_TYPE_TREE_FOOD:
 		return false;
 	default:

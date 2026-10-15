@@ -534,7 +534,7 @@ void LawnApp::NewGame()
 	// 可能过很久才轮到选卡，中间这段不能让对面以为"他早就选好了"（那会直接放行、白等一场）。
 	// 真选好了（按 Let's Rock / 这一关不用选卡）再报 1，见 TryHoldSeedChooserForTeammates
 	// 与 ShowSeedChooserScreen。
-	if (IsOnlineGame()) mOnlineSession->SendSeedsReady(false);
+	if (IsOnlineGame() && !IsLocalOnlyMode(mGameMode)) mOnlineSession->SendSeedsReady(false);
 
 	// @pvz-online: 联机闯关（R6）：草坪先建、选项后做——这一关还欠着三选一（含补发追赶）
 	// 的时候，把"选卡 + 开场"压住：人先站在自己的新草坪上，选项屏盖在草坪上做完，
@@ -675,7 +675,7 @@ void LawnApp::ShowSeedChooserScreen()
 	PVZP_ASSERT(mSeedChooserScreen == nullptr);
 
 	mOnlineSeedsHeld = false;
-	if (IsOnlineGame() && mBoard) mOnlineSession->SendSeedsReady(!mBoard->ChooseSeedsOnCurrentLevel());
+	if (IsOnlineGame() && !IsLocalOnlyMode(mGameMode) && mBoard) mOnlineSession->SendSeedsReady(!mBoard->ChooseSeedsOnCurrentLevel());
 	mSeedChooserScreen = std::make_unique<SeedChooserScreen>();
 	mSeedChooserScreen->Resize(0, 0, mWidth, mHeight);
 	mWidgetManager->AddWidget(mSeedChooserScreen.get());
@@ -712,7 +712,7 @@ void LawnApp::EndLevel()
 void LawnApp::DoBackToMain(bool notifyOnline)
 {
 	KillDialog(DIALOG_GAME_OVER);
-	if (notifyOnline && IsOnlineGame()) mOnlineSession->SendLevelExit();
+	if (notifyOnline && IsOnlineGame() && !IsLocalOnlyMode(mGameMode)) mOnlineSession->SendLevelExit();
 	mMusic->StopAllMusic();
 	mSoundSystem->CancelPausedFoley();
 	WriteCurrentUserConfig();
@@ -2606,7 +2606,7 @@ bool LawnApp::CanShowAlmanac()
 	if (mPlayerInfo == nullptr)
 		return false;
 
-	return mRunState || HasFinishedAdventure() || mPlayerInfo->mLevel >= 15;
+	return true; // @pvz-online: shared features do not require the campaign.
 }
 
 bool LawnApp::CanShowStore()
@@ -2617,7 +2617,7 @@ bool LawnApp::CanShowStore()
 	if (mPlayerInfo == nullptr)
 		return false;
 
-	return HasFinishedAdventure() || mPlayerInfo->mHasSeenUpsell || mPlayerInfo->mLevel >= 25;
+	return true; // @pvz-online: shared features do not require the campaign.
 }
 
 bool LawnApp::CanShowZenGarden()
@@ -2628,7 +2628,7 @@ bool LawnApp::CanShowZenGarden()
 	if (IsTrialStageLocked())
 		return false;
 
-	return HasFinishedAdventure() || mPlayerInfo->mLevel >= 45;
+	return true; // @pvz-online: shared features do not require the campaign.
 }
 
 bool LawnApp::CanSpawnYetis()

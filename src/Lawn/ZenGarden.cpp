@@ -342,7 +342,8 @@ bool ZenGarden::IsZenGardenFull(bool theIncludeDroppedPresents)
 
 bool ZenGarden::CanDropPottedPlantLoot()
 {
-	return mApp->HasFinishedAdventure() && !IsZenGardenFull(true);
+	// @pvz-online: garden access is independent of campaign completion.
+    return mApp->CanShowZenGarden() && !IsZenGardenFull(true);
 }
 
 void ZenGarden::FindOpenZenGardenSpot(int& theSpotX, int& theSpotY)
@@ -523,6 +524,8 @@ void ZenGarden::MouseDownWithMoneySign(Plant* thePlant)
 		mApp->PlayFoley(FoleyType::FOLEY_USE_SHOVEL);
 		//mApp->PlaySample(SOUND_PLANT2);
 		RemovePottedPlant(aSellPlant);
+        mApp->WriteCurrentUserConfig(); // @pvz-online: save the completed sale.
+
 	}
 }
 

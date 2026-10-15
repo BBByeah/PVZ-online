@@ -115,7 +115,7 @@ static const RunBuffDef gRunBuffDefs[RUN_BUFF_COUNT] =
 	// 全局批同日调整：扎根/爆破/精准降 1★；质变口径批 2026-10-09 深夜：火力/丰饶/急袭
 	// 3★→2★——全局 3★ 清空）：
 	// 3★ 排山倒海（批 A 2026-10-09 追加） · 2★ 火力/丰饶/急袭/速种 · 1★ 扎根/天降/爆破/精准
-	{ "Firepower", "火力",    "所有子弹伤害 +30%",      "All projectile damage +30%",       0.30f,  0, 0, false, 2 },
+	{ "Firepower", "火力",    "所有子弹伤害 +20%",      "All projectile damage +20%",       0.20f,  0, 0, false, 2 },
 	{ "Deep Roots", "扎根",   "所有植物血量 +75%",      "All plant health +75%",            0.75f,  0, 0, false, 1 },
 	{ "Abundance", "丰饶",    "产阳光间隔逐层 ×0.75",   "Sun production interval ×0.75/stack", -0.25f, 0, 4, true, 2 },
 	{ "Swift Strikes", "急袭","植物攻击间隔逐层 ×0.75", "Plant attack interval ×0.75/stack",-0.25f,  0, 4, true, 2 },
@@ -206,7 +206,7 @@ const RunBuffDef& GetRunBuffDef(int theId)
 //   Plant::StarFruitFire（批 12 香蒲多目标同款的距离口径，逐颗排除已锁定目标）。
 // 批 18 2026-10-04（用户指令，见 docs/07 同日条目；本批 11 项，9 条行整条替换 + 1 条全局 + 1 项非表）：
 //   新增全局「Precision 所有伤害 +15%」（无限；挂点 Zombie::TakeDamage 总入口——总量放大后
-//   再走各分支，乘性叠在「火力」基数之上，1.30×1.15≈1.495）；
+//   再走各分支，乘性叠在「火力」基数之上，1.20×1.15≈1.38）；
 //   寒冰射手 Frostbite→Blizzard：发射冰西瓜（1 层；Fire 出口弹种换成 PROJECTILE_WINTERMELON，
 //   80 伤 + 冰冻 + 溅射，直线飞行走 UpdateNormalMotion 的兜底速度，无需设初速）；
 //   双发 Quick Rhythm→Pea Barrage：每次射击多发 2 颗/层（无上限；SHOTCOUNT 通挂点——

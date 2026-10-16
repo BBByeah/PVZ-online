@@ -9,36 +9,10 @@
 #include "MobileCoopDraw.h"
 #endif
 
-// @pvz-online: the same six-card layout and hit regions on PC and touch devices.
-namespace SeatUi {
-inline void Text(Graphics* g,std::string text,int x,int baseline,int width,int size,Color color,bool center=false) {
-    Graphics line(*g);line.ClipRect(x,baseline-size-3,width,size+10);
-#ifdef __ANDROID__
-    auto* font=ModText::FontFor(FONT_DWARVENTODCRAFT18,size);
-    text=MobileTextLine(font,text,width);line.SetFont(font);line.SetColor(color);
-    line.DrawString(text,x+(center?(width-font->StringWidth(text))/2:0),baseline);
-#else
-    auto* font=ModText::GetFont((size*3+2)/4,false);
-    auto wide=ModText::WideFromUtf8(text.c_str());
-    while(!wide.empty()&&ModText::TextWidth(font,wide)>width) {wide.pop_back();if(wide.size()>3) {auto test=wide+L"...";if(ModText::TextWidth(font,test)<=width){wide=test;break;}}}
-    ModText::DrawTextWide(&line,font,x+(center?(width-ModText::TextWidth(font,wide))/2:0),baseline-ModText::Ascent(font),wide,color,line.mClipRect);
-#endif
-}
-inline void Button(Graphics* g,Rect r,const char* label,bool enabled,bool down=false) {
-#ifdef __ANDROID__
-    DrawMobileStone(g,r,label,down,enabled,22);
-#else
-    Graphics stone(*g);stone.SetColorizeImages(!enabled);stone.SetColor(Color(145,145,145));
-    Image* left=down?IMAGE_BUTTON_DOWN_LEFT:IMAGE_BUTTON_LEFT;Image* mid=down?IMAGE_BUTTON_DOWN_MIDDLE:IMAGE_BUTTON_MIDDLE;Image* right=down?IMAGE_BUTTON_DOWN_RIGHT:IMAGE_BUTTON_RIGHT;
-    stone.DrawImage(left,Rect(r.mX,r.mY,left->mWidth,r.mHeight),Rect(0,0,left->mWidth,left->mHeight));
-    stone.DrawImage(mid,Rect(r.mX+left->mWidth,r.mY,r.mWidth-left->mWidth-right->mWidth,r.mHeight),Rect(0,0,mid->mWidth,mid->mHeight));
-    stone.DrawImage(right,Rect(r.mX+r.mWidth-right->mWidth,r.mY,right->mWidth,r.mHeight),Rect(0,0,right->mWidth,right->mHeight));
-    Text(g,label,r.mX+10,r.mY+31,r.mWidth-20,22,enabled?Color(245,230,165):Color(170,170,160),true);
-#endif
-}
-}
+#include "OnlineUiDraw.h"
+
 class OnlineSeatDialog : public LawnDialog {
-    LawnApp* app;int selected=0,down=-1;
+    LawnApp* app;int selected=0,down=-1;bool fromWaiting=false;
     static Rect Card(int i){return Rect(48+(i%2)*360,182+(i/2)*100,344,90);}
     static Rect Back(){return Rect(48,528,160,46);}
     static Rect Apply(){return Rect(590,528,160,46);}
@@ -55,19 +29,23 @@ class OnlineSeatDialog : public LawnDialog {
         return -1;
     }
 public:
-    explicit OnlineSeatDialog(LawnApp* a):LawnDialog(a,DIALOG_ONLINE_SWAP,true,"","","",Dialog::BUTTONS_NONE),app(a) {
+    explicit OnlineSeatDialog(LawnApp* a,bool waiting=false):LawnDialog(a,DIALOG_ONLINE_SWAP,true,"","","",Dialog::BUTTONS_NONE),app(a),fromWaiting(waiting) {
         Resize(0,0,800,600);auto* s=RoomPresentation::Session(app);if(s)selected=s->GetLocalSeat();
     }
-    void Update() override {LawnDialog::Update();MarkDirty();}
+    void Update() override {
+        LawnDialog::Update();
+        // The detail page must not keep the board modal after the ready gate releases.
+        auto* session=RoomPresentation::Session(app);
+        if(fromWaiting&&(!app->mOnlineSeedsHeld||!app->mBoard||!session||session->IsReconnecting())) {
+            app->KillDialog(DIALOG_ONLINE_SWAP);return;
+        }
+        MarkDirty();
+    }
     void Draw(Graphics* g) override {
-#ifdef __ANDROID__
-        DrawMobilePanel(g,Rect(0,0,800,600));
-#else
-        LawnDialog::Draw(g);
-#endif
+        SeatUi::Panel(g,Rect(0,0,800,600));
         auto* s=RoomPresentation::Session(app);bool active=RoomPresentation::Active(s);
         SeatUi::Text(g,ModText::Tr("席位与接力","Seats & relay"),48,78,704,28,Color(245,230,165),true);
-        SeatUi::Text(g,RoomPresentation::State(s),48,107,704,20,s&&s->IsConnected()&&!s->IsBuildDifferent()?Color(180,235,165):Color(230,190,140),true);
+        SeatUi::Text(g,RoomPresentation::ShowingPreparation(app)?RoomPresentation::ReadySummary(s):RoomPresentation::State(s),48,107,704,20,s&&s->IsConnected()&&!s->IsBuildDifferent()?Color(180,235,165):Color(230,190,140),true);
         SeatUi::Text(g,RoomPresentation::Identity(s),48,132,704,20,Color(210,225,235),true);
         SeatUi::Text(g,RoomPresentation::Order(s),48,160,704,19,Color(245,230,165),true);
         for(int i=0;i<NetProto::MAX_PLAYERS;++i) {
@@ -90,17 +68,19 @@ public:
             std::string flow=offline?ModText::Tr("断线保留 · 等待重连","Seat held · awaiting reconnect"):
                 s->GetOccupiedSeatCount()<2?ModText::Tr("单人席位 · 尚无接力队友","Solo seat · no relay teammate"):
                 next?ModText::Tr("漏怪送往 P","Leaks go to P")+std::to_string(next):ModText::Tr("末席 · 每行1车，整局一次","Last · one mower per row per run");
-            SeatUi::Text(g,flow,box.mX+12,box.mY+77,320,18,offline?Color(255,175,120):Color(190,210,225));
+            if(RoomPresentation::ShowingPreparation(app)||app->mOnlineWaitingStartAck)
+                flow=RoomPresentation::SeatProgress(app,seat);
+            SeatUi::Text(g,flow,box.mX+12,box.mY+77,320,18,offline?Color(255,175,120):s->IsSeatSeedsReady((uint8_t)seat)?Color(180,235,165):Color(190,210,225));
         }
         std::string preview=ModText::Tr("点击队友席位，查看换位预览。","Select a teammate to preview a swap.");
         if(active&&selected>0&&s->IsSeatOccupied((uint8_t)selected)) {
             preview=RoomPresentation::SeatName(s,selected);
-            if(selected!=s->GetLocalSeat()&&s->IsConnected())preview+=ModText::Tr("  换入后：×","  After swap: x")+std::to_string(app->OnlineSeatMultiplierForSeat((uint8_t)selected))+
+            if(RoomPresentation::CanSwap(app,selected))preview+=ModText::Tr("  换入后：×","  After swap: x")+std::to_string(app->OnlineSeatMultiplierForSeat((uint8_t)selected))+
                 ModText::Tr(" / 额外阳光 +"," / sun bonus +")+std::to_string(app->OnlineStartSunBonusForSeat((uint8_t)selected));
         }
         if(s&&!s->GetNoticeText().empty())preview=s->GetNoticeText();
-        SeatUi::Text(g,preview,48,506,704,20,Color(245,230,165));
-        SeatUi::Button(g,Back(),ModText::Tr("返回房间","Back to room"),true,down==100);
+        SeatUi::Text(g,preview,48,492,704,20,Color(245,230,165));
+        SeatUi::Button(g,Back(),fromWaiting?ModText::Tr("返回等待","Back to waiting"):app->mBoard?ModText::Tr("返回游戏","Back to game"):ModText::Tr("返回房间","Back to room"),true,down==100);
         if(s&&s->HasIncomingSwapRequest()) {
             SeatUi::Button(g,Accept(),ModText::Tr("同意换位","Accept"),!app->mBoard&&!app->mOnlineWaitingStartAck,down==102);
             SeatUi::Button(g,Apply(),ModText::Tr("拒绝","Decline"),true,down==103);

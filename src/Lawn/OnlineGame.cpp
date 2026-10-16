@@ -12,6 +12,7 @@
 #include "Widget/OnlineDialog.h"
 #include "Widget/ZombieVoteDialog.h"
 #include "Widget/OnlineStartDialog.h"
+#include "Widget/OnlineReadyDialog.h"
 #include "Widget/GameSelector.h"
 #include "Widget/SeedChooserScreen.h"
 #include "Widget/RunFlowScreen.h"
@@ -435,48 +436,16 @@ void LawnApp::DismissOnlineStartPrompt(bool theSendAck)
 
 static void EnsureSeedsWaitDialog(LawnApp* theApp)
 {
-	if (theApp->GetDialog(Dialogs::DIALOG_ONLINE_START) != nullptr) return;
-
-	OnlineStartDialog* aDialog = new OnlineStartDialog(theApp,
-		ModText::Tr("等待队友选卡", "Waiting for teammates"),
-		ModText::Tr("你已经选好植物了，队友选完就开打。", "You picked your plants. The battle starts when everyone is ready."),
-		nullptr, nullptr,
-		OnlineStartDialog::NOTIFY_NONE);
-	theApp->CenterDialog(aDialog, aDialog->mWidth, aDialog->mHeight);
-	theApp->AddDialog(Dialogs::DIALOG_ONLINE_START, aDialog);
+    if (theApp->GetDialog(Dialogs::DIALOG_ONLINE_START) != nullptr) return;
+    // @pvz-online: compact live roster; the existing UpdateOnlineSeeds owns release.
+    theApp->AddDialog(Dialogs::DIALOG_ONLINE_START, new OnlineReadyDialog(theApp));
 }
 
 static void EnsureOnlineReconnectDialog(LawnApp* theApp)
 {
-	NetSession* aSession = theApp->mOnlineSession.get();
-
-	// 固定 3 行（正文热替换的行数不变，框尺寸不重算）。宽度由最长的一行——房间那行——
-	// 顶着走，"第 10 次/剩 9 秒"这种位数变化都在同一张框里，不会顶宽。
-	std::string aBody = ModText::Tr("正在重连……", "Reconnecting...");
-	aBody += "\n";
-	aBody += ModText::Tr("第 ", "Attempt ") + std::to_string(aSession->GetReconnectAttempt())
-		+ ModText::Tr(" 次尝试，还剩 ", ", ") + std::to_string(aSession->GetReconnectSecondsLeft())
-		+ ModText::Tr(" 秒", " s left");
-	aBody += "\n";
-	aBody += ModText::Tr("房间 ", "Room ") + aSession->GetRoomCode()
-		+ ModText::Tr("——你的席位保留着，连上就能继续。", " - your seat is held; you can continue once reconnected.");
-
-	OnlineStartDialog* aDialog = (OnlineStartDialog*)theApp->GetDialog(Dialogs::DIALOG_ONLINE_RECONNECT);
-	if (aDialog == nullptr)
-	{
-		// 单按钮走"否"槽（theYes 传空）：槽位逻辑本来就支持单按钮，框体零改动。
-		aDialog = new OnlineStartDialog(theApp,
-			ModText::Tr("掉线了", "Lost the link"), aBody.c_str(),
-			nullptr, ModText::Tr("取消并退出", "Cancel & leave"),
-			OnlineStartDialog::NOTIFY_RECONNECT_CANCEL, false,
-			Dialogs::DIALOG_ONLINE_RECONNECT);
-		theApp->CenterDialog(aDialog, aDialog->mWidth, aDialog->mHeight);
-		theApp->AddDialog(Dialogs::DIALOG_ONLINE_RECONNECT, aDialog);
-	}
-	else
-	{
-		aDialog->SetBody(aBody.c_str());
-	}
+    if(theApp->GetDialog(Dialogs::DIALOG_ONLINE_RECONNECT))return;
+    // @pvz-online: display live reconnect progress without rebuilding or enlarging the dialog.
+    theApp->AddDialog(Dialogs::DIALOG_ONLINE_RECONNECT,new OnlineReconnectDialog(theApp));
 }
 
 bool LawnApp::TryHoldSeedChooserForTeammates()

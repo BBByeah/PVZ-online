@@ -21,4 +21,5 @@ private:
     std::vector<std::unique_ptr<Sexy::ButtonWidget>> mButtons;
     std::string mInputError;
     std::string mLocalIp;
+    std::string mShownRoomCode;
 };

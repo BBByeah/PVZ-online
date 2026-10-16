@@ -1,6 +1,7 @@
 #include "MobileCoopDraw.h"
 #include "OnlineDialog.h"
 #include "OnlineSeatDialog.h"
+#include "OnlineRoomLayout.h"
 #include "../../LawnApp.h"
 #include "../../Resources.h"
 #include "../Online/NetSession.h"
@@ -15,7 +16,7 @@
 OnlineDialog::OnlineDialog(LawnApp* app)
     : Dialog(nullptr, nullptr, DIALOG_ONLINE, true, "", "", "", BUTTONS_NONE), mApp(app)
 {
-    Resize(0, 0, 750, 550);
+    Resize(0, 0, 760, 560);
     mLocalIp = NetLink::GetLocalIPv4Text();
     auto edit = [&](int id, int x, int y, int width, const std::string& text, int max) {
         auto e = std::make_unique<Sexy::EditWidget>(id, this);
@@ -26,23 +27,25 @@ OnlineDialog::OnlineDialog(LawnApp* app)
     };
     // Match PC: direct host and relay server are independent; session defaults
     // select their respective ports instead of sharing an editable direct port.
-    mAddress = edit(30, 128, 282, 574, app->mOnlineAddress, 253);
-    mServer = edit(31, 128, 346, 340, app->mOnlineServer, 253);
-    mCode = edit(32, 570, 346, 132, app->mOnlineRoomCode, NetProto::ROOM_CODE_LEN);
+    mAddress = edit(30, 148, 382, 292, app->mOnlineAddress, 253);
+    mServer = edit(31, 148, 228, 292, app->mOnlineServer, 253);
+    mCode = edit(32, 580, 228, 128, app->mOnlineRoomCode, NetProto::ROOM_CODE_LEN);
     auto button = [&](int id, const char* text, int x, int y, int width) {
         auto b = std::make_unique<MobileStoneButton>(id, this);
         b->mLabel = text; b->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 24));
         b->SetLabelColor(Sexy::Color(245, 230, 165)); b->SetLabelHiliteColor(Sexy::Color::White); b->SetBkgColor(Sexy::Color(37, 83, 55));
         b->Resize(x, y, width, 46); AddWidget(b.get()); mButtons.push_back(std::move(b));
     };
-    button(1, ModText::Tr("直连建房", "Host direct"), 40, 475, 150);
-    button(2, ModText::Tr("直连加入", "Join direct"), 200, 475, 150);
-    button(3, ModText::Tr("创建房间", "Create room"), 40, 405, 320);
-    button(4, ModText::Tr("加入房间", "Join room"), 390, 405, 320);
-    button(5, ModText::Tr("断开连接", "Disconnect"), 40, 475, 150);
-    button(8, ModText::Tr("席位", "Seats"), 200, 475, 150);
-    button(6, ModText::Tr("关闭面板", "Close panel"), 360, 475, 150);
-    button(7, ModText::Tr("房主开始", "Host starts"), 520, 475, 190);
+    auto place=[&](int id,const char* label,Sexy::Rect r){button(id,label,r.mX,r.mY,r.mWidth);mButtons.back()->Resize(r);};
+    using namespace OnlineRoomLayout;
+    place(1,ModText::Tr("建房","Host"),DirectHost());
+    place(2,ModText::Tr("加入","Join"),DirectJoin());
+    place(3,ModText::Tr("创建房间","Create room"),Create());
+    place(4,ModText::Tr("加入房间","Join room"),Join());
+    place(5,ModText::Tr("断开连接","Disconnect"),Disconnect());
+    place(8,ModText::Tr("席位","Seats"),Seats());
+    place(6,ModText::Tr("返回","Back"),Close());
+    place(7,ModText::Tr("房主开始","Start run"),Start());
 }
 OnlineDialog::~OnlineDialog()
 {
@@ -53,62 +56,48 @@ void OnlineDialog::Update()
 {
     Dialog::Update(); const auto& session = *mApp->mOnlineSession;
     const bool active = session.IsActive() && session.GetState() != NetSession::State::DEAD;
-    for (auto& b : mButtons)
-    {
-        if (b->mId <= 4) b->SetDisabled(active);
-        if (b->mId == 1 || b->mId == 2) b->SetVisible(!active);
-        if (b->mId == 5 || b->mId == 8) b->SetVisible(active);
-        if (b->mId == 7) b->SetVisible(session.IsConnected());
-        if (b->mId == 5) b->SetDisabled(!active);
-        if (b->mId == 7) b->SetDisabled(!session.IsConnected() || !session.IsHostSeat() || mApp->mBoard != nullptr);
-        if (b->mId == 8) b->SetDisabled(!active);
+    for (auto& b : mButtons) {
+        if(b->mId<=4){b->SetVisible(!active);b->SetDisabled(active);}
+        if(b->mId==5||b->mId==8||b->mId==7)b->SetVisible(active);
+        if(b->mId==6)b->Resize(active?OnlineRoomLayout::Close():OnlineRoomLayout::Start());
+        if(b->mId==7)b->SetDisabled(!(session.IsConnected()||session.GetState()==NetSession::State::LISTENING)
+            ||!session.IsHostSeat()||mApp->mBoard||mApp->mOnlineWaitingStartAck);
     }
+    for(auto* edit:{mAddress.get(),mServer.get(),mCode.get()}) {
+        if(active&&edit->mHasFocus)mApp->mWidgetManager->SetFocus(this);
+        edit->SetDisabled(active);edit->SetVisible(!active);
+    }
+    const auto& code=session.GetRoomCode();
+    if(session.IsRelay()&&!code.empty()&&code!=mShownRoomCode){mCode->SetText(code);mShownRoomCode=code;}
     MarkDirty();
 }
 void OnlineDialog::Draw(Sexy::Graphics* g)
 {
-    DrawMobilePanel(g, Sexy::Rect(0,0,mWidth,mHeight));
-    auto* titleFont=ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT24,30);
-    g->SetColor(Sexy::Color(245,230,165)); g->SetFont(titleFont);
-    const std::string title=ModText::Tr("联机合作","Online co-op");
-    g->DrawString(title,(mWidth-titleFont->StringWidth(title))/2,70);
-    auto* font=ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18,20);
-    g->SetFont(font);
-    const auto& s=*mApp->mOnlineSession;
-    const std::string status=!mInputError.empty()?mInputError:RoomPresentation::State(&s)+"  |  "+s.GetStatusText();
-    PvzpDrawStringWrapped(g,status,Sexy::Rect(40,90,670,48),font,Sexy::Color(245,230,165),DS_ALIGN_LEFT);
-    g->DrawString(MobileTextLine(font,s.IsRelay()?RoomPresentation::Identity(&s):
-        ModText::Format("本机地址：{}","Local IP: {}",mLocalIp),670),40,158);
-    if(s.GetOccupiedSeatCount()>0) {
-        for(int seat=1;seat<=NetProto::MAX_PLAYERS;++seat) {
-            if(!s.IsSeatOccupied(seat))continue;
-            const int x=seat<=3?40:390,y=190+((seat-1)%3)*28;
-            std::string label=RoomPresentation::SeatName(&s,seat);
-            g->DrawString(MobileTextLine(font,label,320),x,y);
+    auto* s=mApp->mOnlineSession.get();
+    std::string detail=!mInputError.empty()?mInputError:s->GetStatusText();
+    if(s->HasIncomingSwapRequest())detail=ModText::Tr("收到换位申请；打开席位查看并答复。","Swap request received; open Seats to reply.");
+    else if(mApp->mOnlineWaitingStartAck)detail=RoomPresentation::WaitingSeats(s,true);
+    else if(s->IsConnected()&&!s->IsHostSeat())detail=ModText::Tr("等待房主选择模式并开始；可先查看席位。","Waiting for the host to choose a mode; you can view Seats.");
+    OnlineRoomLayout::Draw(g,mApp,detail,mLocalIp);
+    if(!RoomPresentation::Active(s)) {
+        for(auto* edit:{mAddress.get(),mServer.get(),mCode.get()}) {
+            DrawEditBox(g,edit);
+            if(edit->mHasFocus){g->SetColor(Sexy::Color(245,230,165));g->DrawRect(edit->mX-9,edit->mY-5,edit->mWidth+18,edit->mHeight+10);}
         }
-    } else {
-        PvzpDrawStringWrapped(g,ModText::Tr("远程联机：填写服务器和房间码。\n同一局域网：填写主机 IP，使用下方直连按钮。",
-            "Remote play: enter server and room code.\nLAN: enter the host IP and use the direct buttons below."),
-            Sexy::Rect(40,180,670,76),font,Sexy::Color(225,220,195),DS_ALIGN_LEFT);
     }
-    DrawEditBox(g,mAddress.get()); DrawEditBox(g,mServer.get()); DrawEditBox(g,mCode.get());
-    for(auto* edit:{mAddress.get(),mServer.get(),mCode.get()})if(edit->mHasFocus) {
-        g->SetColor(Sexy::Color(245,230,165)); g->DrawRect(edit->mX-9,edit->mY-5,edit->mWidth+18,edit->mHeight+10);
-    }
-    g->SetColor(Sexy::Color(245,230,165));
-    g->DrawString(ModText::Tr("主机 IP","Host IP"),40,310);
-    g->DrawString(ModText::Tr("服务器","Server"),40,374);
-    g->DrawString(ModText::Tr("房间码","Code"),480,374);
-    g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18,18));
-    g->DrawString(ModText::Tr("席位页可看接力与倍率；关闭保留连接。","Seats shows relay order and tiers; closing keeps the connection."),40,466);
 }
+
 void OnlineDialog::ButtonDepress(int id)
 {
     // Remember editable fields between openings, including after a failed connection.
     mApp->mOnlineAddress = mAddress->mString; mApp->mOnlineServer = mServer->mString; mApp->mOnlineRoomCode = mCode->mString;
     auto* app = mApp;
     if (id == 6) { app->KillDialog(DIALOG_ONLINE); return; }
-    if (id == 7) { app->KillDialog(DIALOG_ONLINE); app->ShowRunMenu(); return; }
+    if (id == 7) {
+        const auto& s=*app->mOnlineSession;
+        if(!(s.IsConnected()||s.GetState()==NetSession::State::LISTENING)||!s.IsHostSeat()||app->mBoard||app->mOnlineWaitingStartAck)return;
+        app->KillDialog(DIALOG_ONLINE);app->ShowRunMenu();return;
+    }
     if (id == 5) { app->DisconnectOnline(); return; }
     if (id == 8)
     {

@@ -68,7 +68,7 @@ public:
 	{
 		ZOMBIE_BUFF_SWIFT = 0,		// 迅捷：移速 +30%/层
 		ZOMBIE_BUFF_IRON = 1,		// 铁壁：生命 ×1.5/层
-		ZOMBIE_BUFF_HEARTGUARD = 2,	// 护心（47 改版）：首次大额伤害封顶 200−50×(层−1)、底 50；只挡一次
+		ZOMBIE_BUFF_HEARTGUARD = 2,	// 护心（56 改版：最高一层）：首次大额伤害封顶 200；只挡一次
 		ZOMBIE_BUFF_RAVENOUS = 3,	// 狂食：每口啃咬 ×2/层
 		ZOMBIE_BUFF_REGEN = 4,		// 再生：每秒回 0.5% 上限血/层
 		ZOMBIE_BUFF_STEADFAST = 5,	// 免控：免疫减速/冰冻/黄油/击退/换道/魅惑（≥1 层即全免）
@@ -298,7 +298,7 @@ public:
 	// 数值出处与调整史见 docs/07。
 	int					ZombieBuffSpeedPermille() const;		// 迅捷：1000+300×层，封顶 4000（×4）
 	int					ZombieBuffHealthPermille() const;		// 铁壁：1.5^层 千分比（逐层截尾），封顶 100000（×100）
-	int					ZombieBuffSingleHitCap() const;			// 护心：max(50, 250−50×层)；0 = 不封顶
+	int					ZombieBuffSingleHitCap() const;			// 护心（56 最高一层）：≥1 层恒 200；0 = 不封顶
 	int					ZombieBuffBitePermille() const;			// 狂食：2^层 千分比，封顶 32000（×32）
 	int					ZombieBuffRegenPermillePerSec() const;	// 再生：5×层（每秒回血的千分比），封顶 250
 

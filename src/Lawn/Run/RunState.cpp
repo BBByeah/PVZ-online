@@ -1344,10 +1344,12 @@ int RunState::ZombieBuffHealthPermille() const
 
 int RunState::ZombieBuffSingleHitCap() const
 {
+	// 护心（MOD_BUILD 56 改版，2026-10-16 用户令「最高一层」，与 PC 同批同口径）：投 ≥1 层
+	// 恒 200 封顶，多层不再递减——原 250−50×层、底 50 的递减在高层数下把「只挡一次」的
+	// 一次性盾叠成常驻低盾，层数收益只剩数字。层数照记（协议/检查点字段不动），效果按一层封。
 	int aLayers = ZombieBuffCount(ZOMBIE_BUFF_HEARTGUARD);
 	if (aLayers <= 0) return 0;					// 0 = 不封顶
-	int aCap = 250 - 50 * aLayers;				// 层1=200、层2=150、层3=100
-	return (aCap > 50) ? aCap : 50;				// 底 50（层 4 起）
+	return 200;
 }
 
 int RunState::ZombieBuffBitePermille() const
@@ -1402,7 +1404,7 @@ struct ZombieBuffText
 static const ZombieBuffText kZombieBuffTexts[RunState::RUN_ZOMBIE_BUFF_COUNT] = {
 	{ "Swift", "迅捷", "僵尸移动速度 +30%/层（至多 ×4）", "Zombie walk speed +30% per stack (up to x4)" },
 	{ "Iron", "铁壁", "僵尸生命值 ×1.5/层（至多 ×100）", "Zombie health x1.5 per stack (up to x100)" },
-	{ "Heartguard", "护心", "首次受到的大额伤害封顶 200，每层 -50（最低 50）；只挡一次", "First big hit capped at 200, -50 per stack (min 50); blocks once" },
+	{ "Heartguard", "护心", "首次受到的大额伤害封顶 200；只挡一次（多层不再递减）", "First big hit capped at 200; blocks once (extra stacks don't lower the cap)" },
 	{ "Ravenous", "狂食", "每口啃咬伤害 ×2/层（至多 ×32）", "Bite damage x2 per stack (up to x32)" },
 	{ "Regen", "再生", "每秒回复 0.5% 最大生命/层（至多 25%）", "Regen 0.5% max HP per second per stack (up to 25%)" },
 	{ "Steadfast", "免控", "免疫减速、冰冻、黄油、击退、换道与魅惑", "Immune to slow, freeze, butter, knockback, lane change and charm" },

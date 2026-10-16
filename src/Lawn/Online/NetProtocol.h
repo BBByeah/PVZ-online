@@ -200,7 +200,9 @@ const uint16_t	PROTOCOL_VERSION	= 1;
 //        被新端按串包拒掉。检查点不抬版本：位包 bit12..13 = 移速档（老档读 0 = 无成长、
 //        安全降级），v13 的 boss u16 原样放宽 0/1/2（老档 0/1 读作档 0/1）。
 // Build55: generation-scoped readiness, receipted proactive gifts and safe loan cancellation.
-const uint16_t	MOD_BUILD			= 55; // @pvz-online: campaign-independent garden and battle isolation.
+// Build56: zombie-boost vote rounds (tier 2 = two ballots of one) and Heartguard capped at one stack;
+//          vote data consumption changed — mixed builds must not share a run (47 precedent).
+const uint16_t	MOD_BUILD			= 56; // @pvz-online: campaign-independent garden and battle isolation.
 
 const uint16_t	DEFAULT_PORT		= 27777;
 

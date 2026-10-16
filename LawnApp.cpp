@@ -200,6 +200,10 @@ LawnApp::LawnApp()
 	mZombieVoteAbstains = 0;
 	mZombieVoteVotedSeats = 0;
 	mZombieVoteSeatMask = 0;
+	mZombieVoteRoundsDone = 0;
+	mZombieVoteBannerCount = 0;
+	mZombieVoteBannerIds[0] = 0;
+	mZombieVoteBannerIds[1] = 0;
 	for (int i = 0; i < RunState::RUN_ZOMBIE_VOTE_CHOICES; i++)
 	{
 		mZombieVoteCandidates[i] = 0;
@@ -2532,6 +2536,8 @@ void LawnApp::RunPickSkipped()
 // 每进一个新场景全队各投一票，给僵尸叠 0/1/2 条强化（条数 = 高级选项「僵尸 buff」；
 // 无尽档 LevelsPerScene 越界回落 5 = 五关一选）。全流程就是下面这几个函数：
 //   TryOpenZombieVote    —「该进新场景」的三个路口上的门（真 = 票在开、调用方先别往下走）；
+//                          两屏制（MOD_BUILD 56）下档位 = 每场景票数：档 2 由 Resolve 收口
+//                          后原地再调本函数连开第二屏（每屏三选一取 1 条、候选剔除已入条目）。
 //   ZombieVoteOpenLocal  — 开票记账 + 弹框（房主 / 单机 / 客户端收 OPEN 后共用它）；
 //   ZombieVoteRegister   — 记一席的票（一席一票，位图去重）；
 //   ZombieVoteResolve    — 计票结算 + 广播 RESULT + 存横幅 + 关框；
@@ -2579,11 +2585,54 @@ bool LawnApp::TryOpenZombieVote()
 	int aLevel = mRunState->GetPlayingLevelIndex();
 	int aPerScene = RunState::LevelsPerScene(mRunState->mMode);
 	if (aLevel <= 0 || aPerScene <= 0 || aLevel % aPerScene != 0) return false;
-	// 这一关已经投过（重试同一关 / 输掉重来）：不重开票——一场景一票，投过的作数。
-	if (mRunState->mZombieVotedLevel == aLevel) return false;
+	// 两屏制（MOD_BUILD 56）：档位 = 本场景票数。mZombieVotedLevel == aLevel 时分三种态：
+	// roundsDone <= 0 → 检查点/重开恢复，本场景已投完，不重投；roundsDone >= 档位 → 全结；
+	// 中间态 → 还差屏，继续开下一屏。mZombieVotedLevel != aLevel = 新场景首票，轮次与
+	// 横幅累积归零。
+	if ((int)mRunState->mZombieVotedLevel == aLevel)
+	{
+		if (mZombieVoteRoundsDone <= 0 || mZombieVoteRoundsDone >= mRunState->GetZombieBuffPerScene())
+			return false;
+	}
+	else
+	{
+		mZombieVoteRoundsDone = 0;
+		mZombieVoteBannerCount = 0;
+		mZombieVoteBannerIds[0] = 0;
+		mZombieVoteBannerIds[1] = 0;
+	}
 
 	unsigned char aCandidates[RunState::RUN_ZOMBIE_VOTE_CHOICES];
 	mRunState->RollZombieVoteChoices(aLevel, aCandidates);
+	// 两屏制第二屏：候选剔除本场景已入的条目（延续单屏「取前 N 个不同候选」的语义——
+	// 档 2 = 两条不同强化，不叠同条）。替换从"全池减已入"里按固定顺位取，不再开 RNG：
+	// 候选本就随 OPEN 广播，两端不需要各自复算这一步。
+	if (mZombieVoteBannerCount > 0)
+	{
+		unsigned char aLeft[RunState::RUN_ZOMBIE_BUFF_COUNT];
+		int aLeftCount = 0;
+		for (int i = 0; i < RunState::RUN_ZOMBIE_BUFF_COUNT; i++)
+		{
+			bool aIn = false;
+			for (int b = 0; b < mZombieVoteBannerCount; b++)
+				if (mZombieVoteBannerIds[b] == (unsigned char)i) { aIn = true; break; }
+			if (!aIn) aLeft[aLeftCount++] = (unsigned char)i;
+		}
+		for (int c = 0; c < RunState::RUN_ZOMBIE_VOTE_CHOICES; c++)
+		{
+			bool aDup = false;
+			for (int b = 0; b < mZombieVoteBannerCount; b++)
+				if (mZombieVoteBannerIds[b] == aCandidates[c]) { aDup = true; break; }
+			if (!aDup) continue;
+			for (int l = 0; l < aLeftCount; l++)
+			{
+				bool aTaken = false;
+				for (int c2 = 0; c2 < RunState::RUN_ZOMBIE_VOTE_CHOICES; c2++)
+					if (c2 != c && aCandidates[c2] == aLeft[l]) { aTaken = true; break; }
+				if (!aTaken) { aCandidates[c] = aLeft[l]; break; }
+			}
+		}
+	}
 	// 房主广播 OPEN（候选以房主这份为准——两端同种子同算法本可以各推各的，但广播一下就
 	// 不再要求"算法逐位一致"）；单机跳过协议直接弹框。
 	if (IsOnlineGame() && mOnlineSession->GetRole() == NetSession::Role::HOST)
@@ -2660,7 +2709,8 @@ void LawnApp::ZombieVoteResolve()
 {
 	if (!mZombieVoteActive || mRunState == nullptr) return;
 
-	int aWant = mRunState->GetZombieBuffPerScene();
+	// 两屏制（MOD_BUILD 56）：每屏一票一条件——原「按票数取前 aWant 个不同候选」的档位
+	// 拆到屏上：档 1 一屏一条、档 2 同场景两屏各一条。
 	unsigned char aPicked[RunState::RUN_ZOMBIE_VOTE_CHOICES];
 	int aPickedCount = 0;
 	int aTotalVotes = 0;
@@ -2668,53 +2718,55 @@ void LawnApp::ZombieVoteResolve()
 
 	if (aTotalVotes > 0)
 	{
-		// 有票：按票数取前 aWant 个不同候选；票数相同按候选序（候选本就是种子洗过的，
-		// "种子序"就是下标序）。
-		bool aUsed[RunState::RUN_ZOMBIE_VOTE_CHOICES] = { false, false, false };
-		for (int n = 0; n < aWant; n++)
+		// 有票：票数最多的候选 1 条；票数相同按候选序（候选本就是种子洗过的，"种子序"
+		// 就是下标序）。
+		int aBest = -1;
+		for (int i = 0; i < RunState::RUN_ZOMBIE_VOTE_CHOICES; i++)
 		{
-			int aBest = -1;
-			for (int i = 0; i < RunState::RUN_ZOMBIE_VOTE_CHOICES; i++)
-			{
-				if (aUsed[i] || mZombieVoteVotes[i] <= 0) continue;
-				if (aBest < 0 || mZombieVoteVotes[i] > mZombieVoteVotes[aBest]) aBest = i;
-			}
-			if (aBest < 0) break;
-			aUsed[aBest] = true;
-			aPicked[aPickedCount++] = mZombieVoteCandidates[aBest];
+			if (mZombieVoteVotes[i] <= 0) continue;
+			if (aBest < 0 || mZombieVoteVotes[i] > mZombieVoteVotes[aBest]) aBest = i;
 		}
+		if (aBest >= 0) aPicked[aPickedCount++] = mZombieVoteCandidates[aBest];
 	}
-	else if (mZombieVoteAbstains > 0)
+	if (aPickedCount <= 0 && mZombieVoteAbstains > 0)
 	{
-		// @pvz-online: 47 改版（2026-10-14 用户令）：全弃权也随机拿 1 条候选——弃权是
-		//「不选哪条」的表态，不是「整关裸奔」的表态；僵尸增强不拿白不拿。只在房主/单机端
-		// 结算，随机不分叉。固定 1 条（不按 aWant）：全队明确弃权仍强塞满档太越权。
+		// @pvz-online: 47 改版（2026-10-14 用户令）per 屏沿用：全弃权也随机拿 1 条候选——
+		// 弃权是「不选哪条」的表态，不是「整屏裸奔」的表态。两屏制下每屏独立结算：
+		// 档 2 全弃权 = 两屏各随机 1 条。
 		aPicked[aPickedCount++] = mZombieVoteCandidates[Rand(RunState::RUN_ZOMBIE_VOTE_CHOICES)];
 	}
-	else
+	if (aPickedCount <= 0)
 	{
-		// 全队一个人都没表态（纯超时）：种子兜底取前 aWant——票开了就得有结果，
-		// 不能因为没人理这事儿把全队钉住（等待必须有出路）。
-		for (int n = 0; n < aWant; n++) aPicked[aPickedCount++] = mZombieVoteCandidates[n];
+		// 全队一个人都没表态（纯超时）：种子兜底取候选首位——票开了就得有结果，不能因为
+		// 没人理这事儿把全队钉住（等待必须有出路）。
+		aPicked[aPickedCount++] = mZombieVoteCandidates[0];
 	}
 
-	for (int i = 0; i < aPickedCount; i++) mRunState->AddZombieBuffStack(aPicked[i]);
+	mRunState->AddZombieBuffStack(aPicked[0]);
+	// 结果入横幅累积（两屏两条合一推一条）；轮数推进 + 记已投关号（重试同关不重开）。
+	if (mZombieVoteBannerCount < 2) mZombieVoteBannerIds[mZombieVoteBannerCount++] = aPicked[0];
+	mZombieVoteRoundsDone++;
 	mRunState->mZombieVotedLevel = (unsigned short)mZombieVoteLevel;
 
-	// RESULT 广播（房主）：先于同一次的 START_LEVEL 发——公示与层数快照不拧巴。
+	// RESULT 广播（房主）：先于下一张 OPEN / START_LEVEL 发——公示与层数快照不拧巴。
 	if (IsOnlineGame() && mOnlineSession->GetRole() == NetSession::Role::HOST)
 	{
 		uint8_t aIds[2] = { 0, 0 };
-		for (int i = 0; i < aPickedCount && i < 2; i++) aIds[i] = aPicked[i];
+		aIds[0] = aPicked[0];
 		mOnlineSession->SendZombieVoteResult((uint16_t)mZombieVoteLevel, (uint8_t)aPickedCount, aIds);
 	}
 
-	// 结果横幅：结算发生在"上一关刚完、下一关还没开打"的空档，当场推会被随后的换场盖掉——
-	// 先存着，等草坪真的开打（UpdateZombieVote 每帧看）再推。
-	mZombieVotePendingBanner = ZombieVoteBannerText(aPickedCount, aPicked);
-	TodLog("[vote] resolved for scene %d: %d boost(s) - %s", mZombieVoteLevel, aPickedCount,
+	// 结果横幅：每屏结算都重设为累积文本（第二屏结算后自然含两条）；横幅仍在草坪开打后
+	// 才推（UpdateZombieVote 每帧看）——投票期间 mZombieVoteActive 挡着，不会提前出。
+	mZombieVotePendingBanner = ZombieVoteBannerText(mZombieVoteBannerCount, mZombieVoteBannerIds);
+	TodLog("[vote] resolved round %d/%d for scene %d: %d boost(s) - %s", mZombieVoteRoundsDone,
+		mRunState->GetZombieBuffPerScene(), mZombieVoteLevel, aPickedCount,
 		mZombieVotePendingBanner.c_str());
 	ZombieVoteCloseUI();
+
+	// 两屏制：还有没结的屏就在同一空档连开（房主/单机；客户端等下一张 OPEN）。
+	if (mZombieVoteRoundsDone < mRunState->GetZombieBuffPerScene())
+		TryOpenZombieVote();
 }
 
 void LawnApp::ZombieVoteCloseUI()
@@ -2733,6 +2785,10 @@ void LawnApp::ResetZombieVote()
 	mZombieVoteAbstains = 0;
 	mZombieVoteVotedSeats = 0;
 	mZombieVoteSeatMask = 0;
+	mZombieVoteRoundsDone = 0;
+	mZombieVoteBannerCount = 0;
+	mZombieVoteBannerIds[0] = 0;
+	mZombieVoteBannerIds[1] = 0;
 	for (int i = 0; i < RunState::RUN_ZOMBIE_VOTE_CHOICES; i++)
 	{
 		mZombieVoteCandidates[i] = 0;
@@ -2794,20 +2850,36 @@ void LawnApp::UpdateZombieVote()
 		NetProto::MsgZombieVoteOpen aOpen;
 		while (mOnlineSession->TakePendingZombieVoteOpen(aOpen))
 		{
-			// 已经在投的票 / 已经投过的关：迟到或重发的 OPEN 不重开框（重开会把已经投过的
-			// 那一票从框上"解锁"，第二下点击又是一票——房主只认第一条，白折腾玩家）。
-			if (!mZombieVoteActive && mRunState != nullptr
-				&& mRunState->mZombieVotedLevel != (unsigned short)aOpen.mSceneIndex)
+			// 已经在投的票不重开框（重开会把已经投过的那一票从框上"解锁"）。两屏制（56）：
+			// 客户端同样按轮次走——OPEN 的场景号换新 = 新场景首票，轮次与横幅累积归零；
+			// 同场景再来一张 OPEN = 第二屏，只要本场景结算轮数没满档位就开；全结后迟到的
+			// OPEN 挡住。
+			if (!mZombieVoteActive && mRunState != nullptr)
 			{
-				ZombieVoteOpenLocal((int)aOpen.mSceneIndex, aOpen.mCandidates);
+				if ((int)mRunState->mZombieVotedLevel != (int)aOpen.mSceneIndex)
+				{
+					mZombieVoteRoundsDone = 0;
+					mZombieVoteBannerCount = 0;
+					mZombieVoteBannerIds[0] = 0;
+					mZombieVoteBannerIds[1] = 0;
+				}
+				if (mZombieVoteRoundsDone < mRunState->GetZombieBuffPerScene())
+					ZombieVoteOpenLocal((int)aOpen.mSceneIndex, aOpen.mCandidates);
 			}
 		}
 		NetProto::MsgZombieVoteResult aResult;
 		while (mOnlineSession->TakePendingZombieVoteResult(aResult))
 		{
 			if (mRunState != nullptr) mRunState->mZombieVotedLevel = (unsigned short)aResult.mSceneIndex;
-			mZombieVotePendingBanner = ZombieVoteBannerText((int)aResult.mCount, aResult.mIds);
-			if (mZombieVoteActive) ZombieVoteCloseUI();
+			// 横幅累积（两屏两条合一；老房主混搭单发 count=2 的旧版结果也照装）。
+			for (unsigned int i = 0; i < aResult.mCount && mZombieVoteBannerCount < 2; i++)
+				mZombieVoteBannerIds[mZombieVoteBannerCount++] = aResult.mIds[i];
+			mZombieVotePendingBanner = ZombieVoteBannerText(mZombieVoteBannerCount, mZombieVoteBannerIds);
+			if (mZombieVoteActive)
+			{
+				mZombieVoteRoundsDone++;	// 框还开着 = 这是一次正常结算；迟到的重发不虚增轮数
+				ZombieVoteCloseUI();
+			}
 		}
 	}
 	// 房主：收队友的票记账（本机这一票在 ZombieVoteChosen 里直接记，不走网络）。

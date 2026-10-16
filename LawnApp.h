@@ -203,11 +203,13 @@ public:
 	// 每轮选卡开始时清（ShowSeedChooserScreen），回主菜单时清（ShowGameSelector）。
 	bool							mOnlineSeedsHeld;
 	// @pvz-online: 僵尸强化投票（MOD_BUILD 45，2026-10-14 用户令）：每进一个新场景
-	// （无尽五关一选）全队各投一票，给僵尸叠 0/1/2 条强化。画面归 ZombieVoteDialog，
-	// 流程全在这几个字段上：房主/单机开票（TryOpenZombieVote）→ 各家表态
-	// （ZombieVoteChosen / MSG_ZOMBIE_VOTE）→ 计票、超时、结算在 UpdateZombieVote 每帧收口。
-	// 客户端不自己开票也不自己计票，只跟房主的 OPEN/RESULT 走；层数以随后的 START_LEVEL
-	// 快照为准（结果消息只驱动 UI——乱序也不伤数值）。
+	// （无尽五关一选）全队各投一票，给僵尸叠强化。MOD_BUILD 56 起（2026-10-16 用户令
+	// 「档 2 两屏」）档位 = 每场景票数：档 1 开一屏、档 2 同一场景**连开两屏**、每屏
+	// 三选一取 1 条（原档 2 = 单屏一次取 2）。画面归 ZombieVoteDialog，流程全在这几个
+	// 字段上：房主/单机开票（TryOpenZombieVote）→ 各家表态（ZombieVoteChosen /
+	// MSG_ZOMBIE_VOTE）→ 计票、超时、结算在 UpdateZombieVote 每帧收口。客户端不自己
+	// 开票也不自己计票，只跟房主的 OPEN/RESULT 走；层数以随后的 START_LEVEL 快照为准
+	// （结果消息只驱动 UI——乱序也不伤数值）。
 	bool							mZombieVoteActive;			// 本端有一张票在进行（投票框该在）
 	int								mZombieVoteLevel;			// 这张票对应的关序号（= 这一票为哪一关投）
 	unsigned char					mZombieVoteCandidates[RunState::RUN_ZOMBIE_VOTE_CHOICES];	// 候选（房主抽、随 OPEN 广播；客户端收包回填）
@@ -217,6 +219,9 @@ public:
 	int								mZombieVoteAbstains;		// 房主计票：弃权几票（区分"明确弃权"与"纯超时"）
 	int								mZombieVoteVotedSeats;		// 房主计票：已表态席位数
 	unsigned int					mZombieVoteSeatMask;		// 房主计票：已表态席位位图（一席一票，重发/重开框不重计）
+	int								mZombieVoteRoundsDone;		// 本场景已结的票数（两屏制：档 2 结第一票后仍 <2，路口再开第二屏；重开游戏归 0——配合 mZombieVotedLevel 区分"恢复"与"待第二屏"）
+	unsigned char					mZombieVoteBannerIds[2];	// 本场景结果横幅累积（每屏各记 1 条，全结后合成一条横幅推）
+	int								mZombieVoteBannerCount;		// 横幅累积条数（0..2）
 	std::string						mZombieVotePendingBanner;	// 待推的结果横幅（等草坪真开打再 PushCustomBanner）
 
 public:

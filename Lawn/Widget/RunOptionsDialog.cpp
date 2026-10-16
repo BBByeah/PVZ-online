@@ -124,6 +124,7 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 
 	// 第八行「僵尸 buff」（2026-10-14 用户令，MOD_BUILD 45）：0/1/2 = 每进一个新场景给
 	// 僵尸叠几条强化（全队投票选具体哪几条；无尽档五关一选）。0 = 整条机制不开。
+	// MOD_BUILD 56 起档 2 = 同一场景连开两屏、每屏三选一取 1 条（两屏制，见 LawnApp）。
 	mZombieBuffCaption = ModText::Tr("僵尸 buff（每新场景）", "Zombie buffs (per new scene)");
 	mZombieBuffLabels[0] = ModText::Tr("关闭", "Off");
 	mZombieBuffLabels[1] = ModText::Tr("1 条", "1 buff");

@@ -37,4 +37,16 @@
 
 MuMu Android15已安装UI候选，版本42/`0.1-online55.153712b7`。手机通过云中继加入五个真实PC会话组成的房间，实际显示P6/6人/房主P1；触摸打开席位页成功。截图`android-room.png`、`android-connected-room.png`、`android-seats.png`及`layout-measurements.json`在证据目录。画布为800×600，1920×1080呈现时等比1.8、左右各240黑边，不依赖黑边操作。
 
-实际加入发现旧的“连接成功自动关闭房间”仍在：已有房主开局/席位按钮后，这会增加一次重新打开操作。双端已移除此自动关闭，接受开局时原有收框保留；同时把初始未连接状态的英文默认提示改为当前语言说明。该小修需重新构建并安装，最终来源以收尾记录为准。手机未做完整选卡/等待/战斗组合或人为断网测试，六席准备与自动收框目前由PC隔离会话和共享源码验证。
+实际加入发现旧的“连接成功自动关闭房间”仍在：已有房主开局/席位按钮后，这会增加一次重新打开操作。双端已移除此自动关闭，接受开局时原有收框保留；同时把初始未连接状态的英文默认提示改为当前语言说明。该小修已重新构建、安装并验证，最终来源见下方收尾记录。手机未做完整选卡/等待/战斗组合或人为断网测试，六席准备与自动收框目前由PC隔离会话和共享源码验证。
+
+## 第一批收尾（已完成）
+
+- 最终PC代码：`cb89fc68bf29e25dd15f57748844054e1eb1930d`；Android代码：`e0e0523a088f08c8a6fbba4660ed48e9cc16c698`。后续仅文档提交不改变这份包的来源。双端仍55/Protocol1，onlineGameReady=false。
+- PC：`../android-artifacts/pvz-online-build55-ui1-pc.exe`，4,987,904字节，SHA256 `edd80ed518dfe794a5eaf1b6863c76a263c80f719e9a444e77206ce900da46cc`。确认没有运行中的PC游戏后，已更新`../runtime/SexyAppFramework.exe`；更新前备份为证据目录`pc-before-ui1.exe`。
+- APK：`../android-artifacts/pvz-online-build55-ui1-arm64.apk`，28,411,064字节，SHA256 `b70ca485fd19c9ff47567c1159f42825f5cf9f8ee10a0ce3123cd5b9f73bae49`。最终Release打包、APK v2签名和16KB zipalign通过；已覆盖安装MuMu Android15实例2，ADB为`127.0.0.1:16448`，设备base.apk哈希与产物一致。
+- 最终设备版本：`versionCode=43 minSdk=24 targetSdk=36;     versionName=0.1-online55.e0e0523a`。
+- 最终包再次通过云中继加入六人测试房，房间页保持打开，显示你P6、房主P1及六席。`android-final-room.png`是最终版本画面；前面的`android-room.png`等是小修前候选。没有为了补图重跑完整关卡。
+- 5个userdata文件及registry.regemu已逐个恢复并核对SHA256，文件集合也相同，见`device-data-check.json`。临时fixture已按PID和路径核对后停止；应用已停止，模拟器保留运行。没有新增ADB转发、修改云服务器或推送GitHub。
+- PC资源渲染及六席准备验证、手机实际房间/触摸入口均有证据；PC隔离窗口不是标准玩家完整对局，其初始捕获还有DPI缩放，不能当1:1草坪验收。未验证手机完整选卡等待/重连/战斗、全部英文长字、房主开局完整链或六名真人长局。
+
+第一批完成；第二批协作快捷操作与同页借用尚待实施。本交接作为接续断点，不能将后续批次标成完成。

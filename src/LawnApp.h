@@ -93,6 +93,7 @@ public:
 	std::unique_ptr<RunFlowScreen> mRunFlowScreen;
 
     std::unique_ptr<NetSession> mOnlineSession;
+    bool mSlideCollect = true;
     bool mHasOnlineStart = false, mOnlineWasConnected = false, mOnlineWaitingStartAck = false;
     int mOnlineStartLevel = 0, mOnlineStartSeed = 0, mOnlineStartWaitFrames = 0;
     bool mOnlineRunStartHeld = false, mOnlineRunGo = false, mRunIntroHeld = false;
@@ -107,6 +108,9 @@ public:
     unsigned char mZombieVoteCandidates[3]{};
     int mZombieVoteVotes[3]{}, mZombieVoteAbstains = 0, mZombieVoteVotedSeats = 0;
     unsigned int mZombieVoteSeatMask = 0;
+    int mZombieVoteRoundsDone = 0;   // 本场景已结的票数（两屏制 MOD_BUILD 56：档 2 结第一票后仍 <2，路口再开第二屏；重开游戏归 0——配合 mZombieVotedLevel 区分"恢复"与"待第二屏"）
+    unsigned char mZombieVoteBannerIds[2]{};  // 本场景结果横幅累积（每屏各记 1 条，全结后合成一条横幅推）
+    int mZombieVoteBannerCount = 0;
     std::string mZombieVotePendingBanner;
     bool TryOpenZombieVote();
     void UpdateZombieVote();

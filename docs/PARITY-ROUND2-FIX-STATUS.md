@@ -8,7 +8,7 @@
 - 付费/券重摇使用单份`.txn`日志提交完整档案与检查点。原子替换前刷新文件，日志落盘为提交点；两个最终文件间进程中断时，下次读取/写入先幂等补完。不确定的已提交交易不回滚；日志写失败则恢复内存金币、券和候选。
 - 普通档案和闯关检查点改为临时文件＋原子替换；不直接截断原文件。档案加载先恢复未完成交易，避免钱包和选择阶段错配。
 - 新局、奖励显示/消费保存选择进度；移动端奖励页返回先保存，再走DoBackToMain(true)通知队友。开战后的续档仍是本关重开，未实现全场景实时云存档。
-- 验证：PC Release和Android Native构建通过；隔离档案975的8项检查通过，覆盖v17完整往返、扣款落盘、发布失败后恢复、日志写失败保持旧数据、v16读取。日志：仓库外`android-artifacts/parity-audit-round2/fix-persistence-*.log`。未对用户存档做破坏性实验，没有截图或安装包验收。
+- 验证：PC Release和Android Native构建通过；隔离档案975的8项检查通过，覆盖v17完整往返、扣款落盘、发布失败后恢复、日志写失败保持旧数据、v16读取。日志：仓库外`android-artifacts/parity-audit-round2/fix-persistence-*.log`。未对用户存档做破坏性实验，该阶段没有截图或安装包验收；最终安装见下。
 
 ## F15：无尽保留植物
 
@@ -38,6 +38,15 @@ START_LEVEL尾加u32 readyEpoch（含PC54移速字段后41字节），SEEDS_READ
 - `fix-persistence-result.log`：8项通过，最后以当前PC54/55结构重新编译，包含首领档2和移速档2的v17往返、中断恢复与旧档读取，进程退出0。
 - `fix-gameplay-result.log`：18项通过，使用真实加载资源的PC棋盘、两个生产NetSession和第三个原始席位，覆盖受伤植物叠生命、100/90及重复消息、拒收单次退款、取消保存/确认保护/旧请求/回执、新轮次/同关重试/同轮定向重发/早到/迟到报告，以及断线保留席位不扣款。
 - 测试是受控棋盘/会话检查，未完整游玩双PC或PC/Android整局；同轮定向重发已运行，整条系统后台/掉线自动归队仍非实机验收。12项关键函数/协议的双端归一化比较全部一致，见`fix-source-parity.json`。
-- Probe使用独立产品PvZParityFix55Probe及证据目录内data，未修改玩家userdata。本机59055临时中继已按PID/路径检查后关闭，未部署云中继；没有截图。MuMu当前ADB无设备，127.0.0.1:7555连接被拒绝，因此不声称已安装或运行新APK。
-- Gradle/APK签名与产物记录在完成打包后追加；不能以Native通过代替APK或设备验收。
+- Probe使用独立产品PvZParityFix55Probe及证据目录内data，未修改玩家userdata。本机59055临时中继已按PID/路径检查后关闭，未部署云中继；没有截图。收尾时先发现MuMu实例未启动，随后通过官方管理器启动并覆盖安装；手机玩法运行仍未验收，见下。
+- Gradle/签名/实际安装结果见下；实际安装不等于完整手机玩法或双端实战验收。
 
+## 最终产物与安装
+
+- PC代码来源`b690bc64ca3833c86bfe874275a95d419969c273`；Android代码来源`4df6a3ddc2a8ef456aa7e5ea10ac7d9dfc6cf12a`（以下是这份包的来源，不因后续仅文档提交改变）。
+- PC候选`../android-artifacts/pvz-online-build55-pc.exe`，4,964,864字节，SHA256 `CA3AAA760EE8460D5B9E38FBBE89814E9C41C86EEBC17ED5A97CB92EF33465D5`。确认PC游戏未运行后已更新`../runtime/SexyAppFramework.exe`，原exe备份在证据目录`pc-before-build55.exe`，没有结束玩家对局。
+- APK `../android-artifacts/pvz-online-build55-parity-fixes-arm64.apk`，28,385,508字节，SHA256 `21874BBC0D6F1C8372F7D7DE4274A6D4C1F56276D9B3DBDCA3287B900A455FDF`。versionCode37，versionName `0.1-online55.4df6a3dd`。
+- Gradle成功，APK v2签名及16KB zipalign检查通过；包内libmain.so与本次Gradle剥离符号输出哈希一致。JNI输入和包内剥离后库哈希不同属于剥离步骤，不能因此误判装入旧库，也不凭固定来源常量未被使用时在二进制中找不到字符串就判包错误。
+- MuMu官方管理器确认实例2/Android15已关闭后，本轮启动原实例；动态ADB端口为`127.0.0.1:16448`，不是旧7555。覆盖安装成功，设备实际base.apk SHA256与上述APK完全一致，包管理器确认37/online55。
+- 安装前后5个原用户文件逐一SHA256相同，备份`device-before/`、安装后副本`device-after/`和核验`fix-device-data-check.json`在证据目录。没有清数据或选择游戏关卡；本轮没有启动新包做手机玩法实测，模拟器保留运行供用户使用。
+- 汇总清单`fix-artifacts.json`、安装`fix-device-install.log`、版本`fix-device-version.log`、设备包哈希`fix-device-base-sha256.log`均在证据目录。未推送GitHub或公开发布。

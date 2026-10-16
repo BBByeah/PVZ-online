@@ -49,7 +49,7 @@
   ],
   "compiledOnly": [],
   "next": [
-    "build53-full-game-wallet-and-loan-check",
+    "build55-full-game-wallet-and-loan-check",
     "seat-swap-full-game-phase-check",
     "mobile-spectator-runtime-check",
     "mobile-ui-finish"

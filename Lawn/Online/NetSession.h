@@ -272,6 +272,16 @@ public:
 	// 单对端（直连）时就是"对面那一个"，语义与 M2 完全一致。
 	bool			IsPeerSeedsReady();
 
+	// @pvz-online: UI observes the current round without consuming start/ready events.
+	bool HasReadyRound() const { return mReadyEpoch != 0; }
+	bool IsSeatSeedsReady(uint8_t seat) const {
+		return IsSeatOccupied(seat) && !IsSeatOffline(seat) && mReadyEpoch != 0
+			&& mSeats[seat].mSeedsReadyEpoch == mReadyEpoch && mSeats[seat].mSeedsReady;
+	}
+	bool IsSeatAwaitingStartAck(uint8_t seat) const {
+		return IsHostSeat() && IsSeatOccupied(seat) && mSeats[seat].mAwaitingAck;
+	}
+
 	// 我离开这一局了（回主菜单）。对面收到会跟着退——不然一边在关卡里、一边在菜单上，
 	// 退的那边再点关卡开局时还会撞上"对面不在菜单、开局命令被丢掉"的卡死。
 	bool			SendLevelExit(uint8_t theReason = NetProto::EXIT_QUIT_TO_MENU);

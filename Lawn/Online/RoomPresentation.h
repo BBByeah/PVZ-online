@@ -34,10 +34,43 @@ inline std::string Identity(const NetSession* s) {
     if(s->GetHostSeat())text+=ModText::Tr("  |  房主 P","  |  Host P")+std::to_string(s->GetHostSeat());
     return text;
 }
+inline std::string ReadySummary(const NetSession* s) {
+    int ready=0,total=0;
+    if(s)for(int seat=1;seat<=NetProto::MAX_PLAYERS;++seat)if(s->IsSeatOccupied((uint8_t)seat)) {
+        ++total;if(s->IsSeatSeedsReady((uint8_t)seat))++ready;
+    }
+    return ModText::Tr("已准备 ","Ready ")+std::to_string(ready)+"/"+std::to_string(total);
+}
+inline std::string WaitingSeats(const NetSession* s,bool ack=false) {
+    std::string seats;
+    if(s)for(int seat=1;seat<=NetProto::MAX_PLAYERS;++seat) {
+        if(!s->IsSeatOccupied((uint8_t)seat))continue;
+        if(ack?!s->IsSeatAwaitingStartAck((uint8_t)seat):s->IsSeatSeedsReady((uint8_t)seat))continue;
+        if(!seats.empty())seats+=", ";seats+="P"+std::to_string(seat);
+        if(s->IsSeatOffline((uint8_t)seat))seats+=ModText::Tr("(断线)","(offline)");
+    }
+    return seats.empty()?ModText::Tr("等待同步","Synchronizing"):
+        ModText::Tr("等待 ","Waiting: ")+seats;
+}
+inline bool ShowingPreparation(LawnApp* app) {
+    return app->mBoard && (app->mOnlineSeedsHeld || app->mRunIntroHeld);
+}
+inline std::string SeatProgress(LawnApp* app,int seat) {
+    auto* s=Session(app);
+    if(!s||!s->IsSeatOccupied((uint8_t)seat))return ModText::Tr("空席","Empty");
+    if(s->IsSeatOffline((uint8_t)seat))return ModText::Tr("断线保留","Held offline");
+    if(s->GetState()==NetSession::State::RECONNECTING)return ModText::Tr("重新连接中","Reconnecting");
+    if(app->mOnlineWaitingStartAck && s->IsHostSeat())
+        return s->IsSeatAwaitingStartAck((uint8_t)seat)?ModText::Tr("等待接受开局","Awaiting start reply"):ModText::Tr("已在房间","In room");
+    if(ShowingPreparation(app))return s->IsSeatSeedsReady((uint8_t)seat)?
+        ModText::Tr("已准备","Ready"):ModText::Tr("尚未准备","Not ready");
+    return ModText::Tr("在线","Online");
+}
 inline std::string Summary(LawnApp* app) {
     auto* s=Session(app);
     if(!s||!s->IsConnected())return State(s);
     if(s->IsBuildDifferent())return State(s);
+    if(app->mOnlineSeedsHeld)return ReadySummary(s)+" · "+WaitingSeats(s);
     if(app->mOnlineWaitingStartAck)return ModText::Tr("开局中 · 等待队友","Starting · waiting for players");
     if(s->HasIncomingSwapRequest())return ModText::Tr("收到换位申请 · 打开房间","Swap request · open room");
     if(s->IsSwapRequestPending())return ModText::Tr("换位申请已发出 · 等待答复","Swap sent · awaiting approval");

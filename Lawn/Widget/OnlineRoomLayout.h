@@ -21,7 +21,9 @@ inline void Draw(Graphics* g,LawnApp* app,const std::string& detail,const std::s
     SeatUi::Text(g,ModText::Tr("联机合作","Online co-op"),40,74,680,30,Color(245,230,165),true);
     SeatUi::Strip(g,Rect(40,92,680,84));
     SeatUi::Text(g,RoomPresentation::Summary(app),56,121,648,23,Color(245,230,165));
-    SeatUi::Paragraph(g,detail,Rect(56,130,648,42),17,Color(210,220,225));
+    const std::string explanation=(!s||s->GetState()==NetSession::State::OFF)?
+        ModText::Tr("创建房间，或填写房间码加入队友。","Create a room, or enter a room code to join your team."):detail;
+    SeatUi::Paragraph(g,explanation,Rect(56,130,648,42),17,Color(210,220,225));
     if(active) {
         SeatUi::Strip(g,Rect(40,188,680,54));
         SeatUi::Text(g,RoomPresentation::Identity(s),54,222,652,21,Color(245,230,165));

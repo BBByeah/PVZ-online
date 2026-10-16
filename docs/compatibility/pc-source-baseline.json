@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "pcRepository": "https://github.com/Not-a-Different-Name/PVZ-online",
-  "pcCommit": "cb89fc68bf29e25dd15f57748844054e1eb1930d",
+  "pcCommit": "2e3b72e83f2421664ca4bd8c302bfcfab661e7ff",
   "pcModBuild": 55,
   "pcProtocolVersion": 1,
   "portableCommit": "141c1476dd462ac3526f796e303177616f4de6bc",
@@ -46,13 +46,14 @@
     "build54-shared-difficulty-rules",
     "sun-gift-receipts-build55",
     "readiness-generations-build55",
-    "shared-room-and-compact-ready-ui-build55"
+    "shared-room-and-compact-ready-ui-build55",
+    "shared-coop-hud-and-single-page-loans-build55"
   ],
   "compiledOnly": [],
   "next": [
     "build55-full-game-wallet-and-loan-check",
     "seat-swap-full-game-phase-check",
     "mobile-spectator-runtime-check",
-    "ui-second-batch-coop-and-quick-actions"
+    "ui-third-batch-buffs-almanac-settings"
   ]
 }

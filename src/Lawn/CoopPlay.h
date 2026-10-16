@@ -25,7 +25,7 @@ public:
     std::string notice;
     std::string mLoanLenderName;	// 借入来源显示名（内存态；借出者席位换人不追，docs/09 §三.8）
     int observedRun=0,observedLevel=-1;
-    void Update();void Show();void Close();void DrawEntry(Sexy::Graphics* g,int x,int y,int w=140,int h=40,bool theFlat=false);bool Preparing() const;bool Blocking() const;
+    void Update();void Show();void Close();void Hide();void DrawEntry(Sexy::Graphics* g,int x,int y,int w=140,int h=40,bool theFlat=false);bool Preparing() const;bool Blocking() const;
     bool RequestSun();bool Aid(uint64_t token);void SunReceived();
     bool GiveSun(uint8_t seat);
     bool SendGift(uint64_t token,uint32_t request,bool proactive);

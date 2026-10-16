@@ -1,4 +1,5 @@
 #include "CoopPlay.h"
+#include "Widget/CoopHud.h"
 // PC Build 46 cooperation rules, with native touch and UTF-8 drawing.
 #include "../LawnApp.h"
 #include "../PvzpLib/PvzpCommon.h"
@@ -35,6 +36,7 @@ bool Board::HandleQuickChatKey(KeyCode theKey)
         // 面板开着：所有键一律吞掉（不落到 ESC 取消光标 / SPACE 暂停那条链），冷却中不产生动作
         if (mChatInputCooldown > 0)
             return true;
+        if(theKey=='G'&&mApp->IsRunMode()){CloseQuickChatPanel();HandleSunGiftKey(theKey);return true;}
         mChatPanelTimer = QUICK_CHAT_PANEL_TIMEOUT; // 任意键都算"有人操作"，重置超时
 
         if (theKey == KeyCode::KEYCODE_ESCAPE)
@@ -92,6 +94,7 @@ bool Board::HandleQuickChatKey(KeyCode theKey)
     if (!QuickChatAvailable())
         return false; // 单机 / 过场 / 选卡：不响应（焦点本就不在棋盘）
     mCoopToolsOpen = false;
+    mSunGiftSelectFrames=0;
     mChatPanelOpen = true;
     mChatEmotePage = (theKey == 'E');
     mChatPanelTimer = QUICK_CHAT_PANEL_TIMEOUT;
@@ -151,6 +154,8 @@ void Board::UpdateQuickChat()
 
     if (!QuickChatAvailable())
     {
+        if(!CoopHud::Watching(this)){mCoopTouchCaptured=false;mCoopTouchAction=-1;mCoopTouchPeerLow=mCoopTouchPeerHigh=0;}
+
         // 掉线/收摊/不在局里：横幅与冷却一并清掉，别让上一局的话漂进新局面
         // （会话层收包队列由 DiscardLevelPackets/会话复位负责）
         if (mChatPanelOpen)
@@ -168,6 +173,7 @@ void Board::UpdateQuickChat()
         mSunGiftCooldownFrames--;
     if (mPaused || !mApp->mActive || mApp->mMinimized) {
         mCoopToolsOpen = false;
+        mCoopTouchCaptured=false;mCoopTouchAction=-1;mCoopTouchPeerLow=mCoopTouchPeerHigh=0;
         mSunGiftSelectFrames = 0;
     }
 
@@ -231,22 +237,6 @@ bool Board::HandleSunGiftKey(KeyCode theKey)
             PushCustomBanner(ModText::Tr("已取消发阳光", "Sun gift cancelled"));
             return true;
         }
-        if (mApp->mOnlineSession->GetOccupiedSeatCount() <= 1)
-        {
-            PushCustomBanner(ModText::Tr("没有可发阳光的队友", "No teammate to send sun to"));
-            return true;
-        }
-        if (mSunGiftCooldownFrames > 0)
-        {
-            PushCustomBanner(ModText::Tr("发阳光冷却中", "Sun gift is on cooldown"));
-            return true;
-        }
-        if (mSunMoney < kSunGiftAmount)
-        {
-            PushCustomBanner(ModText::Tr("阳光不足", "Not enough sun"));
-            return true;
-        }
-        mCoopToolsOpen = false;
         mSunGiftSelectFrames = kSunGiftSelectFrames;
         PushCustomBanner(
             ModText::Tr("发阳光：按 1-6 选队友（100，到账 90）", "Sun gift: press 1-6 to pick a teammate"));
@@ -305,218 +295,31 @@ void Board::GiveSunGift(int theAmount, uint8_t theFromSeat)
     if (aCoin != nullptr)
         aCoin->mVisualOnly = true;
 }
-namespace
-{
-Sexy::Rect CoopButtonRect(int i)
-{
-    return Sexy::Rect(106+(i%3)*142, 154+(i/3)*58, 132, 48);
-}
-Sexy::Rect CoopChoiceRect(int i, bool emote, bool sun)
-{
-    if (emote)
-        return Sexy::Rect(154 + (i % 4) * 124, 220 + (i / 4) * 124, 118, 115);
-    if (!sun) return Sexy::Rect(154, 145 + i * 44, 492, 40);
-    return Sexy::Rect(154 + (i % 2) * 248, 230 + (i / 2) * 68, 240, 54);
-}
-void CoopEmote(Sexy::Graphics *g, int x, int y, SeedType seed, float scale)
-{
-    Sexy::Graphics icon(*g);
-    icon.mTransX += x * icon.mScaleX;
-    icon.mTransY += y * icon.mScaleY;
-    icon.mScaleX *= scale;
-    icon.mScaleY *= scale;
-    SeedPacketDrawSeed(&icon, 0, 0, seed, SEED_NONE, 0, 0, 1);
-}
-} // namespace
-int Board::CoopHit(int x, int y)
-{
-    if (mMobileWatchOpen) {
-        if (Sexy::Rect(530,8,125,46).Contains(x,y)) return 5;
-        if (Sexy::Rect(665,8,125,46).Contains(x,y)) return 6;
-        return 0; // consume every lawn tap while viewing a remote snapshot
+int Board::CoopHit(int x,int y){return CoopHud::Hit(this,x,y);}
+bool Board::CoopMouseDown(int x,int y,int clicks) {
+    if((!QuickChatAvailable()&&!CoopHud::Watching(this))||mPaused||!mApp->mActive||mApp->mMinimized||clicks<=0)return false;
+    int hit=CoopHit(x,y);if(hit<0)return false;
+    // Keep a late release out of lawn input even if focus loss clears HUD capture first.
+    mIgnoreMouseUp=true;
+    mCoopTouchCaptured=true;mCoopTouchAction=hit;mCoopTouchPeerLow=mCoopTouchPeerHigh=0;
+    if((hit>=101&&hit<=106)||(hit>=301&&hit<=306)) {
+        auto* s=RoomPresentation::Session(mApp);int seat=hit-(hit>=301?300:100);auto token=s->mCoopPeers[seat];mCoopTouchPeerLow=(uint32_t)token;mCoopTouchPeerHigh=(uint32_t)(token>>32);
     }
-    if (Sexy::Rect(4,94,76,44).Contains(x,y)) return 8;
-    if (mCoopToolsOpen) {
-        const int actions[]={1,2,3,5,7};
-        for(int i=0;i<5;++i)if(CoopButtonRect(i).Contains(x,y))return actions[i];
-        return 0;
-    }
-    if (!(mChatPanelOpen || mSunGiftSelectFrames > 0))
-        return -1;
-    if (Sexy::Rect(604, (mChatPanelOpen && !mChatEmotePage) ? 99 : 143, 42, 40).Contains(x, y))
-        return 4;
-    if (mSunGiftSelectFrames > 0)
-    {
-        for (int i = 0; i < 6; ++i)
-            if (CoopChoiceRect(i, false, true).Contains(x, y))
-                return 101 + i;
-    }
-    else
-    {
-        for (int i = 0; i < (mChatEmotePage ? QuickChat::EMOTE_COUNT : QuickChat::PHRASE_COUNT); ++i)
-            if (CoopChoiceRect(i, mChatEmotePage, false).Contains(x, y))
-                return 201 + i + (mChatEmotePage ? QuickChat::PHRASE_COUNT : 0);
-    }
-    return 0; // Dismissal is consumed and never lands on the lawn.
-}
-bool Board::CoopMouseDown(int x, int y, int clicks)
-{
-    if (!QuickChatAvailable() || mPaused || !mApp->mActive || mApp->mMinimized || clicks <= 0)
-        return false;
-    int hit = CoopHit(x, y);
-    if (hit < 0)
-        return false;
-    mCoopTouchCaptured = true;
-    mCoopTouchAction = hit;
+#ifdef __ANDROID__
+    mTouchSeedDrag=false;mTouchSeedDragMoved=false;
+#endif
     return true;
 }
-bool Board::CoopMouseUp(int x, int y, int clicks)
-{
-    if (!mCoopTouchCaptured)
-        return false;
-    mCoopTouchCaptured = false;
-    int down = mCoopTouchAction;
-    mCoopTouchAction = -1;
-    if (clicks > 0 && QuickChatAvailable() && !mPaused && mApp->mActive && !mApp->mMinimized &&
-        CoopHit(x, y) == down)
-        CoopAction(down);
-    return true;
+bool Board::CoopMouseUp(int x,int y,int clicks) {
+    if(!mCoopTouchCaptured)return false;
+    int action=mCoopTouchAction;uint64_t peer=((uint64_t)mCoopTouchPeerHigh<<32)|mCoopTouchPeerLow;
+    mCoopTouchCaptured=false;mCoopTouchAction=-1;mCoopTouchPeerLow=mCoopTouchPeerHigh=0;
+    if(clicks<=0||mPaused||!mApp->mActive||mApp->mMinimized||(!QuickChatAvailable()&&!CoopHud::Watching(this))||CoopHit(x,y)!=action)return true;
+    if((action>=101&&action<=106)||(action>=301&&action<=306)) {
+        auto* s=RoomPresentation::Session(mApp);int seat=action-(action>=301?300:100);
+        if(!peer||s->mCoopPeers[seat]!=peer)return true;
+    }
+    CoopAction(action);return true;
 }
-void Board::CoopAction(int action)
-{
-    if (action == 8) {
-        mCoopToolsOpen=!mCoopToolsOpen;
-        CloseQuickChatPanel(); mSunGiftSelectFrames=0; return;
-    }
-    mCoopToolsOpen=false;
-    if (action == 7) { CloseQuickChatPanel(); mSunGiftSelectFrames=0; mApp->ShowCoopPlay(); return; }
-    if (action == 5) { CycleMobileWatch(); return; }
-    if (action == 6) { StopMobileWatch(); return; }
-    if (mMobileWatchOpen) return;
-    if (action == 0 || action == 4)
-    {
-        CloseQuickChatPanel();
-        mSunGiftSelectFrames = 0;
-        return;
-    }
-    if (action == 1 || action == 2)
-    {
-        mSunGiftSelectFrames = 0;
-        HandleQuickChatKey(static_cast<KeyCode>(action == 1 ? 'T' : 'E'));
-        return;
-    }
-    if (action == 3)
-    {
-        CloseQuickChatPanel();
-        HandleSunGiftKey(static_cast<KeyCode>('G'));
-        if (mSunGiftSelectFrames > 0 && mChatBannerCount > 0)
-            snprintf(mChatBanners[mChatBannerCount-1].mCustom, sizeof(mChatBanners[0].mCustom), "%s", ModText::Tr("点击队友：扣 100，到账 90", "Tap a teammate: pay 100, receive 90"));
-        return;
-    }
-    if (action >= 101 && action <= 106 && mSunGiftSelectFrames > 0)
-    {
-        HandleSunGiftKey(static_cast<KeyCode>('0' + action - 100));
-        return;
-    }
-    if (action >= 201 && action <= 200 + QuickChat::TOTAL_COUNT && mChatPanelOpen && mChatInputCooldown == 0)
-    {
-        uint8_t id = static_cast<uint8_t>(action - 200);
-        CloseQuickChatPanel();
-        if (mApp->SendCoopQuickChat(id))
-            PushQuickChatBanner(mApp->mOnlineSession->GetLocalSeat(), id);
-    }
-}
-void Board::DrawCoopUI(Sexy::Graphics *g)
-{
-    if (!QuickChatAvailable() || mMobileWatchOpen)
-        return;
-    auto *session = mApp->mOnlineSession.get();
-    bool interactive = !mPaused && mApp->mActive && !mApp->mMinimized;
-    const char *labels[] = {ModText::Tr("消息", "Chat"), ModText::Tr("表情", "Emote"),
-                            ModText::Tr("阳光", "Sun"), ModText::Tr("观战", "Watch"), ModText::Tr("协作", "Team")};
-    DrawMobileStone(g,Sexy::Rect(4,94,76,44),ModText::Tr("协作","Team"),mCoopToolsOpen,interactive,22);
-    if(interactive && mCoopToolsOpen) {
-        DrawMobilePanel(g,Sexy::Rect(88,104,448,180));
-        const int actions[]={1,2,3,5,7};
-        for(int i=0;i<5;++i)
-            DrawMobileStone(g,CoopButtonRect(i),labels[i],mCoopTouchCaptured&&mCoopTouchAction==actions[i],
-                i!=2||mApp->IsRunMode(),22);
-    }
-    if (interactive && (mChatPanelOpen || mSunGiftSelectFrames > 0))
-    {
-        bool sun = mSunGiftSelectFrames > 0;
-        bool phrase = !sun && !mChatEmotePage;
-        DrawMobilePanel(g, Sexy::Rect(140, phrase ? 86 : 130, 520, phrase ? 468 : 390));
-        g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT24, 28));
-        g->SetColor(Sexy::Color(245, 230, 165));
-        g->DrawString(sun              ? ModText::Tr("送阳光", "Send sun")
-                      : mChatEmotePage ? ModText::Tr("植物表情", "Plant emotes")
-                                       : ModText::Tr("快捷消息", "Quick messages"),
-                      158, phrase ? 126 : 176);
-        DrawMobileStone(g, Sexy::Rect(604, phrase ? 99 : 143, 42, 40), "X", false, true, 20);
-        if (sun)
-        {
-            g->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 21));
-            g->DrawString(ModText::Tr("选择队友：扣 100，到账 90", "Pick a teammate: pay 100, receive 90"),
-                          158, 208);
-            for (int i = 0; i < 6; ++i)
-            {
-                uint8_t seat = static_cast<uint8_t>(i + 1);
-                bool available = session->IsSeatOccupied(seat) && !session->IsSeatOffline(seat) && seat != session->GetLocalSeat();
-                std::string name =
-                    session->IsSeatOccupied(seat) ? session->GetSeatName(seat) : ModText::Tr("空位", "Empty");
-                DrawMobileStone(g, CoopChoiceRect(i, false, true), std::to_string(seat) + ": " + name, false,
-                                available, 21);
-            }
-        }
-        else
-            for (int i = 0; i < (mChatEmotePage ? QuickChat::EMOTE_COUNT : QuickChat::PHRASE_COUNT); ++i)
-            {
-                Sexy::Rect tile = CoopChoiceRect(i, mChatEmotePage, false);
-                if (mChatEmotePage)
-                {
-                    DrawMobilePanel(g, tile);
-                    CoopEmote(g, tile.mX + 25, tile.mY + 3, QuickChat::EMOTE_SEEDS[i], 0.68f);
-                    auto *font = ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 18);
-                    const char *name = ModText::Tr(QuickChat::EMOTE_NAMES[i], QuickChat::EMOTE_NAMES_EN[i]);
-                    g->SetFont(font);
-                    g->SetColor(Sexy::Color(245, 230, 165));
-                    g->DrawString(name, tile.mX + (tile.mWidth - font->StringWidth(name)) / 2, tile.mY + 101);
-                }
-                else
-                    DrawMobileStone(g, tile, ModText::Tr(QuickChat::PHRASES[i], QuickChat::PHRASES_EN[i]),
-                                    false, true, 18);
-            }
-    }
-    if (mChatBannerCount <= 0 || mCoopToolsOpen)
-        return;
-    const bool panelOpen = interactive && (mChatPanelOpen || mSunGiftSelectFrames > 0);
-    int y = panelOpen ? 92 : 95;
-    const int first = panelOpen ? mChatBannerCount - 1 : 0;
-    for (int i = mChatBannerCount - 1; i >= first; --i)
-    {
-        const auto &b = mChatBanners[i];
-        bool emote = QuickChat::IsEmoteId(b.mId);
-        int height = panelOpen ? 36 : emote ? 54 : 38;
-        DrawMobileStrip(g, Sexy::Rect(280, y, 505, height));
-        std::string text;
-        if (b.mId == 0)
-            text = b.mCustom;
-        else
-        {
-            text =
-                b.mSeat == session->GetLocalSeat() ? ModText::Tr("我", "Me") : session->GetSeatName(b.mSeat);
-            if (text.empty())
-                text = "P" + std::to_string(b.mSeat);
-            text += " [" + std::to_string(b.mSeat) + "] ";
-            if (!emote)
-                text += ModText::Tr(QuickChat::PHRASES[b.mId - 1], QuickChat::PHRASES_EN[b.mId - 1]);
-        }
-        PvzpDrawStringWrapped(g, text, Sexy::Rect(290, y + 5, emote ? 410 : 485, height - 7),
-                              ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 19), Sexy::Color(245, 230, 165),
-                              DrawStringJustification::DS_ALIGN_LEFT);
-        if (emote)
-            CoopEmote(g, 719, y + 1, QuickChat::EMOTE_SEEDS[b.mId - QuickChat::PHRASE_COUNT - 1], panelOpen ? 0.32f : 0.42f);
-        y += height + 3;
-    }
-}
+void Board::CoopAction(int action){CoopHud::Action(this,action);}
+void Board::DrawCoopUI(Graphics* g){CoopHud::Draw(this,g);}

@@ -1,4 +1,5 @@
 #include "CoopPlay.h"
+#include "Widget/CoopHud.h"
 /*
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
@@ -1422,6 +1423,8 @@ Rect Board::GetShovelButtonRect()
 	{
 		aRect.mX = 600;
 	}
+    if(mApp->IsOnlineGame()&&!mApp->IsLocalOnlyMode(mApp->mGameMode))
+        aRect=Rect(604,0,48,Sexy::IMAGE_SEEDBANK->GetHeight());
 	return aRect;
 }
 
@@ -7402,7 +7405,7 @@ void Board::DrawShovel(Graphics* g)
 		if (mShowShovel)
 		{
 			Rect aShovelRect = GetShovelButtonRect();
-			g->DrawImage(Sexy::IMAGE_SHOVELBANK, aShovelRect.mX, aShovelRect.mY);
+			g->DrawImage(Sexy::IMAGE_SHOVELBANK,aShovelRect,Rect(0,0,Sexy::IMAGE_SHOVELBANK->mWidth,Sexy::IMAGE_SHOVELBANK->mHeight));
 
 			if (mCursorObject->mCursorType != CursorType::CURSOR_TYPE_SHOVEL)
 			{
@@ -7411,7 +7414,11 @@ void Board::DrawShovel(Graphics* g)
 					g->SetColorizeImages(true);
 					g->SetColor(GetFlashingColor(mMainCounter, 75));
 				}
-				g->DrawImage(Sexy::IMAGE_SHOVEL, aShovelRect.mX - 7, aShovelRect.mY - 3);
+				if(aShovelRect.mWidth==48) {
+                    auto* image=Sexy::IMAGE_SHOVEL;float scale=std::min(48.0f/image->mWidth,70.0f/image->mHeight);
+                    int width=(int)(image->mWidth*scale),height=(int)(image->mHeight*scale);
+                    g->DrawImage(image,Rect(aShovelRect.mX+(48-width)/2,aShovelRect.mY+4,width,height),Rect(0,0,image->mWidth,image->mHeight));
+                } else g->DrawImage(Sexy::IMAGE_SHOVEL,aShovelRect.mX-7,aShovelRect.mY-3);
 				g->SetColorizeImages(false);
 			}
 			DrawKeyboardHint(g, -1, aShovelRect.mX + 5, aShovelRect.mY + 14);
@@ -8188,7 +8195,7 @@ void Board::DoTypingCheck(KeyCode theKey)
 void Board::KeyDown(KeyCode theKey)
 {
     // @pvz-online: use uppercase VK letters; lowercase ASCII aliases collide with F5/F7/NUMPAD2.
-    if((theKey=='B') && mApp->IsOnlineGame()){mCoopToolsOpen=false;mApp->ShowCoopPlay();return;}
+    if((theKey=='B') && mApp->IsOnlineGame()){mCoopToolsOpen=false;CloseQuickChatPanel();mSunGiftSelectFrames=0;mApp->ShowCoopPlay();return;}
     // Cooperation gets first choice of normalized digits.
     if (theKey >= KEYCODE_NUMPAD0 && theKey <= KEYCODE_NUMPAD9)
         theKey = static_cast<KeyCode>('0' + theKey - KEYCODE_NUMPAD0);

@@ -32,183 +32,7 @@ static NetSession* CoopSession(LawnApp* app) {
     return app->mOnlineSession;
 #endif
 }
-static void CoopText(Graphics* g,const std::string& text,int x,int y,int w,int h,int size=18) {
-#ifdef __ANDROID__
-    PvzpDrawStringWrapped(g,text,Rect(x,y,w,h),ModText::FontFor(FONT_DWARVENTODCRAFT18,size),Color(245,230,165),DS_ALIGN_LEFT);
-#else
-    auto* font=ModText::GetFont(size*3/4,false);auto wide=ModText::WideFromUtf8(text.c_str());
-    int row=y;std::wstring line;
-    for(wchar_t ch:wide) {
-        if(ch=='\n' || (!line.empty() && ModText::TextWidth(font,line+ch)>w)) {
-            if(row+size>y+h)break;
-            ModText::DrawTextWide(g,font,x,row,line,Color(245,230,165),g->mClipRect);line.clear();row+=size+3;
-            if(ch=='\n')continue;
-        }
-        line+=ch;
-    }
-    if(row+size<=y+h)ModText::DrawTextWide(g,font,x,row,line,Color(245,230,165),g->mClipRect);
-#endif
-}
-static void CoopButton(Graphics* g,Rect rect,const std::string& text,bool enabled=true) {
-#ifdef __ANDROID__
-    DrawMobileStone(g,rect,text,false,enabled,22);
-#else
-    Graphics stone(*g);stone.SetColorizeImages(false);
-    Image* left=IMAGE_BUTTON_LEFT;Image* middle=IMAGE_BUTTON_MIDDLE;Image* right=IMAGE_BUTTON_RIGHT;
-    stone.DrawImage(left,Rect(rect.mX,rect.mY,left->mWidth,rect.mHeight),Rect(0,0,left->mWidth,left->mHeight));
-    stone.DrawImage(middle,Rect(rect.mX+left->mWidth,rect.mY,rect.mWidth-left->mWidth-right->mWidth,rect.mHeight),Rect(0,0,middle->mWidth,middle->mHeight));
-    stone.DrawImage(right,Rect(rect.mX+rect.mWidth-right->mWidth,rect.mY,right->mWidth,rect.mHeight),Rect(0,0,right->mWidth,right->mHeight));
-    CoopText(g,text,rect.mX+10,rect.mY+10,rect.mWidth-20,rect.mHeight-10,18);
-#endif
-}
-
-class CoopDialog : public LawnDialog {
-    CoopPlay* coop; int page=0,plantPage=0,detailPage=0,down=-1; uint64_t peer=0;
-    bool LoanActive() const {
-        auto* run=coop->app->GetRunState();
-        return run && run->mLoanLevel==run->mLevelIndex && run->mLoanPlant>=0;
-    }
-    int SeatAt(int index) const {
-        auto* s=CoopSession(coop->app); if(!s)return 0;
-        for(int seat=1;seat<=NetProto::MAX_PLAYERS;++seat)
-            if(s->IsSeatOccupied(seat)&&seat!=s->GetLocalSeat()&&s->mCoopPeers[seat])
-                if(index--==0)return seat;
-        return 0;
-    }
-    bool CanAct(int seat) const {
-        auto* s=CoopSession(coop->app); if(!s||!seat)return false;
-        if(coop->requests.count(s->mCoopPeers[seat])) {
-            auto* b=CoopBoard(coop->app);
-            return b && coop->app->mGameScene==SCENE_PLAYING && !coop->giftWaiting &&
-                coop->sunCooldown==0 && b->mSunGiftCooldownFrames==0 && b->mSunMoney>=100;
-        }
-        return coop->Preparing()&&!coop->loanWaiting&&!LoanActive();
-    }
-    Rect Box(int i) const {
-        return page==1?Rect(48+(i%4)*180,180+(i/4)*126,164,114):Rect(48+(i%2)*360,180+(i/2)*88,344,76);
-    }
-    std::vector<std::string> Traits(bool incoming) const {
-        std::vector<std::string> lines; auto* run=coop->app->GetRunState(); if(!run)return lines;
-        const auto& buffs=incoming?run->mBuffs:run->mLoanBuffs;
-        for(const auto& b:buffs) {
-            if(incoming && GetRunChoicePlant(b.mId)!=(SeedType)coop->incoming.plant)continue;
-            std::string line=GetRunChoiceDisplayName(b.mId);
-            if(incoming)line+=" x"+std::to_string(b.mCount);
-            else line+=ModText::Format("：自己 {} → 生效 {}"," : own {} -> active {}",run->GetBuffCount(b.mId),run->GetEffectiveBuffCount(b.mId));
-            lines.push_back(line);
-        }
-        return lines;
-    }
-    int Hit(int x,int y) {
-        if(Rect(650,515,100,46).Contains(x,y))return 90;
-        if(Rect(45,515,160,46).Contains(x,y))return 91;
-        if(coop->hasIncoming) {
-            if(Rect(210,450,170,48).Contains(x,y))return 80;
-            if(Rect(420,450,170,48).Contains(x,y))return 81;
-            if(Rect(580,400,80,42).Contains(x,y))return 82;
-            if(Rect(670,400,80,42).Contains(x,y))return 83;
-            return -1;
-        }
-        if(page==1 || page==2) {
-            if(page==1 && coop->Preparing()&&!coop->loanWaiting&&!LoanActive())
-                for(int i=0;i<8;++i)if(Box(i).Contains(x,y))return i;
-            if(Rect(240,450,140,48).Contains(x,y))return 82;
-            if(Rect(420,450,140,48).Contains(x,y))return 83;
-        } else {
-            for(int i=0;i<NetProto::MAX_PLAYERS;++i)if(CanAct(SeatAt(i))&&Box(i).Contains(x,y))return i;
-            if(coop->app->mGameScene==SCENE_PLAYING && coop->requestCooldown==0 && Rect(240,450,320,48).Contains(x,y))return 84;
-        }
-        if(LoanActive()&&Rect(240,515,320,46).Contains(x,y))return 92;
-        return -1;
-    }
-    void DrawTraits(Graphics* g,bool incoming) {
-        auto lines=Traits(incoming); int pages=std::max(1,((int)lines.size()+4)/5);
-        detailPage=std::clamp(detailPage,0,pages-1);
-        if(lines.empty())CoopText(g,ModText::Tr("没有专属词条","No plant-specific traits"),55,250,690,48,22);
-        for(int i=detailPage*5;i<(int)lines.size()&&i<(detailPage+1)*5;++i)
-            CoopText(g,lines[i],55,242+(i%5)*31,690,31,20);
-        CoopText(g,std::to_string(detailPage+1)+" / "+std::to_string(pages),350,410,200,30,20);
-        CoopButton(g,incoming?Rect(580,400,80,42):Rect(240,450,140,48),ModText::Tr("上页","Prev"),detailPage>0);
-        CoopButton(g,incoming?Rect(670,400,80,42):Rect(420,450,140,48),ModText::Tr("下页","Next"),detailPage+1<pages);
-    }
-public:
-    explicit CoopDialog(CoopPlay* c):LawnDialog(c->app,DIALOG_COOP_PLAY,true,"","","",Dialog::BUTTONS_NONE),coop(c){Resize(0,0,800,600);}
-    void Draw(Graphics* g) override {
-#ifdef __ANDROID__
-        DrawMobilePanel(g,Rect(20,20,760,560));
-#else
-        LawnDialog::Draw(g);
-#endif
-        auto* session=CoopSession(coop->app); auto* run=coop->app->GetRunState();
-        CoopText(g,ModText::Tr("队友协作 · 借用与求援","Teamwork · loans and sun"),70,68,660,40,26);
-        std::string info=coop->notice;
-        if(LoanActive()) {
-            info+=std::string("\n")+ModText::Tr("本关借入：","Borrowed this level: ")+GetRunPlantName((SeedType)run->mLoanPlant);
-            if(!coop->mLoanLenderName.empty())info+=ModText::Tr(" 来自 "," from ")+coop->mLoanLenderName;
-        }
-        CoopText(g,info,48,112,704,62,20);
-        if(coop->hasIncoming) {
-            const auto& e=coop->incoming;
-            CoopText(g,session->GetSeatName(e.src)+ModText::Tr("申请借用："," asks to borrow: ")+GetRunPlantName((SeedType)e.plant),55,180,690,54,22);
-            DrawTraits(g,true);
-            CoopButton(g,Rect(210,450,170,48),ModText::Tr("同意借出","Accept"));
-            CoopButton(g,Rect(420,450,170,48),ModText::Tr("拒绝","Decline"));
-        } else if(page==2) {
-            CoopText(g,ModText::Tr("本关有效；过关后恢复自己的词条。","Valid this level; your own traits return next level."),55,180,690,55,22);
-            DrawTraits(g,false);
-        } else if(page==1) {
-            for(int i=0;i<8;++i) {
-                Rect box=Box(i); SeedType plant=(SeedType)(plantPage*8+i);
-                DrawSeedPacket(g,box.mX+(box.mWidth-50)/2,box.mY,plant,SEED_NONE,0,255,true,false);
-                CoopButton(g,Rect(box.mX,box.mY+68,box.mWidth,46),GetRunPlantName(plant),coop->Preparing()&&!coop->loanWaiting&&!LoanActive());
-            }
-            CoopButton(g,Rect(240,450,140,48),ModText::Tr("上一页","Previous"));
-            CoopButton(g,Rect(420,450,140,48),ModText::Tr("下一页","Next"));
-            CoopText(g,ModText::Tr("申请清单，非队友卡池；须由拥有该植物的队友确认。","Request list; your teammate must own the plant and approve."),48,420,704,28,18);
-        } else {
-            for(int i=0;i<NetProto::MAX_PLAYERS;++i) {
-                int seat=SeatAt(i);if(!seat)break;
-                auto box=Box(i);auto token=session->mCoopPeers[seat];
-                bool request=coop->requests.count(token)>0;
-                CoopText(g,"P"+std::to_string(seat)+": "+session->GetSeatName(seat),box.mX+8,box.mY,box.mWidth-16,30,21);
-                std::string label=request?ModText::Tr("响应求援：赠送90阳光","Answer: send 90 sun"):
-                    coop->Preparing()?ModText::Tr("申请借用植物","Request a plant"):ModText::Tr("借用需等待准备阶段","Borrow during preparation");
-                if(request&&!CanAct(seat))label=ModText::Tr("求援中：余额不足或冷却中","Sun requested: funds / cooldown");
-                else if(!request&&coop->loanWaiting)label=ModText::Tr("等待借用答复","Awaiting loan approval");
-                else if(!request&&LoanActive())label=ModText::Tr("本关已借入植物","Already borrowed this level");
-                CoopButton(g,Rect(box.mX,box.mY+30,box.mWidth,46),label,CanAct(seat));
-            }
-            if(!SeatAt(0))CoopText(g,ModText::Tr("暂无可协作的队友","No teammate available"),55,220,690,60,24);
-            if(coop->app->mGameScene==SCENE_PLAYING)
-                CoopButton(g,Rect(240,450,320,48),coop->requestCooldown>0?ModText::Tr("求援冷却中","Request cooling down"):ModText::Tr("请求一份阳光","Request one sun gift"),coop->requestCooldown==0);
-        }
-        CoopButton(g,Rect(45,515,160,46),ModText::Tr("返回列表","Team list"));
-        if(LoanActive()&&!coop->hasIncoming)CoopButton(g,Rect(240,515,320,46),ModText::Tr("借用详情","Borrowed traits"));
-        CoopButton(g,Rect(650,515,100,46),ModText::Tr("关闭","Close"));
-    }
-    void MouseDown(int x,int y,int clicks) override {down=clicks>0?Hit(x,y):-1;}
-    void MouseUp(int x,int y,int clicks) override {
-        int action=Hit(x,y);if(clicks<=0 || down<0 || action!=down){down=-1;return;}down=-1;
-        if(action==90){coop->Close();return;}
-        if(action==91){page=0;detailPage=0;return;}
-        if(action==92){page=2;detailPage=0;return;}
-        if(action==80 || action==81){coop->Answer(action==80);detailPage=0;return;}
-        if(action==82 || action==83) {
-            int delta=action==82?-1:1;
-            if(coop->hasIncoming || page==2){int pages=std::max(1,((int)Traits(coop->hasIncoming).size()+4)/5);detailPage=std::clamp(detailPage+delta,0,pages-1);}
-            else plantPage=(plantPage+6+delta)%6;
-            return;
-        }
-        if(action==84){coop->RequestSun();return;}
-        auto* session=CoopSession(coop->app);if(!session)return;
-        if(page==1){if(coop->Ask(peer,(SeedType)(plantPage*8+action)))page=0;return;}
-        int seat=SeatAt(action);if(!CanAct(seat))return;
-        peer=session->mCoopPeers[seat];
-        if(coop->requests.count(peer)){coop->Aid(peer);return;}
-        page=1;plantPage=0;
-    }
-    void KeyDown(KeyCode key) override {if(key==KEYCODE_ESCAPE)coop->Close();}
-};
+#include "Widget/CoopPlayDialog.h"
 
 bool CoopPlay::Preparing() const {
     auto* run=app->GetRunState();
@@ -271,7 +95,7 @@ bool CoopPlay::Ask(uint64_t token,SeedType plant) {
     auto* run=app->GetRunState();
     if(!Preparing()||!run||loanWaiting||!pendingCancels.empty()||run->mLoanLevel==run->mLevelIndex){notice=ModText::Tr("请在准备阶段申请，每关限借入一株","Borrow during preparation; one plant per level");return false;}
     auto e=Message(CoopWire::ASK);e.plant=(uint8_t)plant;e.target=token;
-    if(!Send(e,token))return false;
+    if(!Send(e,token)){notice=ModText::Tr("借用申请未发送，请检查队友连接","Loan request not sent; check the teammate connection");return false;}
     pendingLoan=e;loanWaiting=true;loanTicks=1200;notice=ModText::Tr("借用申请已发出，等待队友确认","Loan requested; waiting for approval");return true;
 }
 void CoopPlay::Answer(bool accept) {
@@ -285,8 +109,9 @@ void CoopPlay::Answer(bool accept) {
             e.ids[e.count]=buff.mId;e.stacks[e.count++]=buff.mCount;
         }
     }
-    if(Send(e,request.sender)&&valid){lentPeer=request.sender;lentRequest=request.serial;lentCommitted=false;run->mLentLevel=run->mLevelIndex;run->Save(app->mPlayerInfo->mId);}
-    notice=valid?ModText::Tr("已同意，本关仍可正常使用自己的植物","Approved; your own plant remains usable"):ModText::Tr("已拒绝或当前不能借出","Declined or unavailable");
+    bool sent=Send(e,request.sender);
+    if(sent&&valid){lentPeer=request.sender;lentRequest=request.serial;lentCommitted=false;run->mLentLevel=run->mLevelIndex;run->Save(app->mPlayerInfo->mId);}
+    notice=!sent?ModText::Tr("答复未送达，请检查连接","Reply not delivered; check the connection"):valid?ModText::Tr("已同意，本关仍可正常使用自己的植物","Approved; your own plant remains usable"):ModText::Tr("已拒绝或当前不能借出","Declined or unavailable");
 }
 // @pvz-online: cancellation only releases an uncommitted matching offer; never a confirmed loan.
 bool CoopPlay::ReleasePendingLend(uint64_t peer,uint32_t request) {
@@ -301,7 +126,7 @@ void CoopPlay::CancelLoanRequest() {
     auto e=Message(CoopWire::CANCEL);e.request=pendingLoan.serial;e.target=pendingLoan.target;
     e.run=pendingLoan.run;e.level=pendingLoan.level;
     pendingCancels[{e.target,e.request}]=e;
-    Send(e,e.target);loanWaiting=false;
+    Send(e,e.target);loanWaiting=false;notice=ModText::Tr("正在确认取消借用","Confirming loan cancellation");
 }
 
 void CoopPlay::Capture(std::vector<int>& health,std::vector<float>& attack,std::vector<int>& refresh) {
@@ -397,10 +222,10 @@ void CoopPlay::Handle(const CoopWire::Event& e) {
             loanWaiting=false;ApplyLoan(e);
         } else {auto reply=Message(CoopWire::DECLINE);reply.request=e.request;Send(reply,e.sender);}
     } else if(e.op==CoopWire::ACCEPT) {
-        pendingCancels.erase({e.sender,e.request});
+        if(pendingCancels.erase({e.sender,e.request}))notice=ModText::Tr("申请已确认，请查看本关借用状态","Request was committed; check this level's loan state");
         if(e.sender==lentPeer && e.request==lentRequest){lentCommitted=true;notice=ModText::Tr("队友已确认借入","Teammate confirmed the loan");}
     } else if(e.op==CoopWire::DECLINE) {
-        pendingCancels.erase({e.sender,e.request});
+        if(pendingCancels.erase({e.sender,e.request}))notice=ModText::Tr("取消借用已确认","Loan cancellation confirmed");
         ReleasePendingLend(e.sender,e.request);
         if(loanWaiting&&e.sender==pendingLoan.target&&e.request==pendingLoan.serial){loanWaiting=false;notice=ModText::Tr("队友拒绝或当前无法借出","Teammate declined or cannot lend now");}
     } else if(e.op==CoopWire::CANCEL) {
@@ -442,23 +267,18 @@ void CoopPlay::Update() {
     CoopWire::Event event;while(session->TakeCoop(event))Handle(event);
 }
 
-void CoopPlay::DrawEntry(Graphics* g,int x,int y,int w,int h,bool theFlat)
+void CoopPlay::DrawEntry(Graphics* g,int x,int y,int w,int h,bool flat)
 {
-    auto* session=CoopSession(app);
-    if(session && session->IsConnected() && app->GetRunState()) {
-        // 2026-10-15 用户令：局内的协作入口不用石头框，跟横幅/面板同款黑底细边精简样式
-        //（奖励/选卡页仍用石钮，与所在页面的按钮风格一致）；两端共享本分支。
-        if(theFlat) {
-            g->SetColor(Color(0,0,0,150));
-            g->FillRect(x,y,w,h);
-            g->SetColor(Color(255,255,255,255));
-            g->DrawRect(x,y,w-1,h-1);
-            CoopText(g,ModText::Tr("协作 / 借用 B","Teamwork B"),x+10,y+10,w-20,h-10,18);
-        } else {
-            CoopButton(g,Rect(x,y,w,h),ModText::Tr("协作 / 借用 B","Teamwork B"));
-        }
-    }
+    auto* s=CoopSession(app);if(!s||!s->IsConnected()||!app->GetRunState())return;
+    // Pending requests remain discoverable after Hide; hiding is not network cancellation.
+    const char* label=hasIncoming?ModText::Tr("借用申请","Loan request"):
+        !pendingCancels.empty()?ModText::Tr("取消待确认","Cancelling"):
+        loanWaiting?ModText::Tr("借用待答复","Loan pending"):
+        giftWaiting?ModText::Tr("阳光待确认","Gift pending"):ModText::Tr("协作 / 借用 B","Teamwork B");
+    if(flat)SeatUi::Strip(g,Rect(x,y,w,h));else SeatUi::Button(g,Rect(x,y,w,h),"",true);
+    SeatUi::Text(g,label,x+6,y+(h+17)/2-2,w-12,17,Color(245,230,165),true);
 }
+
 bool LawnApp::SendCoopQuickChat(uint8_t id)
 {
     if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);
@@ -474,3 +294,5 @@ void CoopPlay::Close()
     if(loanWaiting){CancelLoanRequest();}
     app->KillDialog(DIALOG_COOP_PLAY);
 }
+
+void CoopPlay::Hide(){app->KillDialog(DIALOG_COOP_PLAY);}

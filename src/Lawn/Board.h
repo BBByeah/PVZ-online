@@ -175,6 +175,8 @@ public:
     bool mCoopToolsOpen=false; // Transient touch UI; outside the saved Board range.
     bool mCoopTouchCaptured=false;
     int mCoopTouchAction=-1;
+    // Keep the PC raw-save suffix alignment unchanged; this token is transient.
+    uint32_t mCoopTouchPeerLow=0,mCoopTouchPeerHigh=0;
     void FillSeedBankFromRunPool();
     bool TryRelayEscapedZombie(Zombie* zombie);
     Zombie* AddRelayedZombie(int row, ZombieType type, int body, int helm, int shield, int flying, uint8_t flags, int bodyMax, int helmMax, int shieldMax, int flyingMax, int srcSeat=0);

@@ -1,5 +1,5 @@
 #include "CoopPlay.h"
-#include "CoopPlay.h"
+#include "Widget/CoopHud.h"
 #include <time.h>
 #include "Run/RunMath.h"
 #include "ZenGarden.h"
@@ -1555,6 +1555,8 @@ Rect Board::GetShovelButtonRect()
 	{
 		aRect.mX = 600;
 	}
+    if(mApp->IsOnlineGame()&&!mApp->IsLocalOnlyMode(mApp->mGameMode))
+        aRect=Rect(604,0,48,Sexy::IMAGE_SEEDBANK->GetHeight());
 	return aRect;
 }
 
@@ -3617,6 +3619,7 @@ void Board::MouseMove(int x, int y)
 //0x40E760
 void Board::MouseDrag(int x, int y)
 {
+    if(mCoopTouchCaptured||CoopHud::Watching(this))return;
 	Widget::MouseDrag(x, y);
 	mChallenge->MouseMove(x, y);
 	// @pvz-online: 滑动收阳光（2026-10-10 用户定案"全局生效"）。MouseDrag = 左键按住移动
@@ -5095,6 +5098,7 @@ void Board::PickUpTool(GameObjectType theObjectType)
 //0x411F20
 void Board::MouseDown(int x, int y, int theClickCount)
 {
+    if(CoopMouseDown(x,y,theClickCount))return;
 	Widget::MouseDown(x, y, theClickCount);
 	mIgnoreMouseUp = !CanInteractWithBoardButtons();
 	if (mTimeStopCounter > 0)
@@ -5310,6 +5314,7 @@ bool Board::CanInteractWithBoardButtons()
 //0x412540
 void Board::MouseUp(int x, int y, int theClickCount)
 {
+    if(CoopMouseUp(x,y,theClickCount))return;
 	Widget::MouseUp(x, y, theClickCount);
 	if (mIgnoreMouseUp)
 	{
@@ -5908,21 +5913,6 @@ bool Board::HandleSunGiftKey(KeyCode theKey)
 		{
 			mSunGiftSelectFrames = 0;
 			PushCustomBanner(ModText::Tr("已取消发阳光", "Sun gift cancelled"));
-			return true;
-		}
-		if (mApp->mOnlineSession->GetOccupiedSeatCount() <= 1)
-		{
-			PushCustomBanner(ModText::Tr("没有可发阳光的队友", "No teammate to send sun to"));
-			return true;
-		}
-		if (mSunGiftCooldownFrames > 0)
-		{
-			PushCustomBanner(ModText::Tr("发阳光冷却中", "Sun gift is on cooldown"));
-			return true;
-		}
-		if (mSunMoney < kSunGiftAmount)
-		{
-			PushCustomBanner(ModText::Tr("阳光不足", "Not enough sun"));
 			return true;
 		}
 		mSunGiftSelectFrames = kSunGiftSelectFrames;
@@ -8078,7 +8068,7 @@ void Board::DrawShovel(Graphics* g)
 		if (mShowShovel)
 		{
 			Rect aShovelRect = GetShovelButtonRect();
-			g->DrawImage(Sexy::IMAGE_SHOVELBANK, aShovelRect.mX, aShovelRect.mY);
+			g->DrawImage(Sexy::IMAGE_SHOVELBANK,aShovelRect,Rect(0,0,Sexy::IMAGE_SHOVELBANK->mWidth,Sexy::IMAGE_SHOVELBANK->mHeight));
 
 			if (mCursorObject->mCursorType != CursorType::CURSOR_TYPE_SHOVEL)
 			{
@@ -8087,7 +8077,11 @@ void Board::DrawShovel(Graphics* g)
 					g->SetColorizeImages(true);
 					g->SetColor(GetFlashingColor(mMainCounter, 75));
 				}
-				g->DrawImage(Sexy::IMAGE_SHOVEL, aShovelRect.mX - 7, aShovelRect.mY - 3);
+				if(aShovelRect.mWidth==48) {
+                    auto* image=Sexy::IMAGE_SHOVEL;float scale=std::min(48.0f/image->mWidth,70.0f/image->mHeight);
+                    int width=(int)(image->mWidth*scale),height=(int)(image->mHeight*scale);
+                    g->DrawImage(image,Rect(aShovelRect.mX+(48-width)/2,aShovelRect.mY+4,width,height),Rect(0,0,image->mWidth,image->mHeight));
+                } else g->DrawImage(Sexy::IMAGE_SHOVEL,aShovelRect.mX-7,aShovelRect.mY-3);
 				g->SetColorizeImages(false);
 			}
 			DrawKeyboardHint(g, -1, aShovelRect.mX + 5, aShovelRect.mY + 14);
@@ -8693,10 +8687,7 @@ void Board::DrawUITop(Graphics* g)
 	}
 
 	// @pvz-online: 快捷聊天面板与横幅（非模态，压在 advice 之上、鼠标光标之下）
-	if (mChatPanelOpen || mChatBannerCount > 0)
-	{
-		DrawQuickChat(g);
-	}
+    DrawCoopUI(g);
 
 	// @pvz-online: 观战结束提示（超时/对方离开）——结束后残留 ~2 秒，观看中不画
 	if (mWatchNoticeTimer > 0)
@@ -8726,6 +8717,7 @@ void Board::Draw(Graphics* g)
 	if (IsWatchingView())
 	{
 		DrawBoardWatch(g);
+        CoopHud::WatchControls(g);
 		return;
 	}
 
@@ -8948,7 +8940,8 @@ bool Board::HandleQuickChatKey(KeyCode theKey)
 	{
 		// 面板开着：所有键一律吞掉（不落到 ESC 取消光标 / SPACE 暂停那条链），冷却中不产生动作
 		if (mChatInputCooldown > 0) return true;
-		mChatPanelTimer = QUICK_CHAT_PANEL_TIMEOUT;		// 任意键都算"有人操作"，重置超时
+		if(theKey=='G'&&mApp->IsRunMode()){CloseQuickChatPanel();HandleSunGiftKey(theKey);return true;}
+        mChatPanelTimer = QUICK_CHAT_PANEL_TIMEOUT;		// 任意键都算"有人操作"，重置超时
 
 		if (theKey == KeyCode::KEYCODE_ESCAPE)
 		{
@@ -9006,7 +8999,8 @@ bool Board::HandleQuickChatKey(KeyCode theKey)
 	if (theKey != 'T' && theKey != 'E') return false;
 	if (mChatInputCooldown > 0) return true;	// 冷却中吞掉，防自动重复把面板弹回去
 	if (!QuickChatAvailable()) return false;	// 单机 / 过场 / 选卡：不响应（焦点本就不在棋盘）
-	mChatPanelOpen = true;
+	mSunGiftSelectFrames=0;
+    mChatPanelOpen = true;
 	mChatEmotePage = (theKey == 'E');
 	mChatPanelTimer = QUICK_CHAT_PANEL_TIMEOUT;
 	mChatInputCooldown = QUICK_CHAT_KEY_COOLDOWN;
@@ -9119,6 +9113,8 @@ void Board::UpdateQuickChat()
 
 	if (!QuickChatAvailable())
 	{
+        if(!CoopHud::Watching(this)){mCoopTouchCaptured=false;mCoopTouchAction=-1;mCoopTouchPeerLow=mCoopTouchPeerHigh=0;}
+
 		// 掉线/收摊/不在局里：横幅与冷却一并清掉，别让上一局的话漂进新局面
 		//（会话层收包队列由 DiscardLevelPackets/会话复位负责）
 		if (mChatPanelOpen) CloseQuickChatPanel();
@@ -9130,6 +9126,9 @@ void Board::UpdateQuickChat()
 	if (mChatInputCooldown > 0) mChatInputCooldown--;
 	if (mSunGiftCooldownFrames > 0) mSunGiftCooldownFrames--;	// @pvz-online: 发阳光冷却（MOD_BUILD 38）
 
+    if(mPaused||!mApp->mActive||mApp->mMinimized) {
+        CloseQuickChatPanel();mSunGiftSelectFrames=0;mCoopTouchCaptured=false;mCoopTouchAction=-1;mCoopTouchPeerLow=mCoopTouchPeerHigh=0;
+    }
 	if (mChatPanelOpen)
 	{
 		if (mPaused)
@@ -9161,67 +9160,36 @@ void Board::UpdateQuickChat()
 	}
 }
 
-void Board::DrawQuickChat(Graphics* g)
-{
-    if(mApp->mCoopPlay)mApp->mCoopPlay->DrawEntry(g,4,330,140,40,true);
-	ModText::Font* aFont = ModText::GetFont(12, false);
-	const int anAscent = ModText::Ascent(aFont);	// 原 DrawString 是基线口径，转 ModText 顶对齐
+void Board::DrawQuickChat(Graphics* g){DrawCoopUI(g);}
 
-	if (mChatPanelOpen)
-	{
-		const int PANEL_X = 240, PANEL_Y = 130, PANEL_W = 320, PANEL_H = 246;	// 246 = 28 头 + 9 行×22 + 底部提示
-		g->SetColor(Color(0, 0, 0, 180));
-		g->FillRect(PANEL_X, PANEL_Y, PANEL_W, PANEL_H);
-		g->SetColor(Color(255, 255, 255, 255));
-		g->DrawRect(PANEL_X, PANEL_Y, PANEL_W - 1, PANEL_H - 1);
-
-		std::wstring aTitle = ModText::WideFromUtf8(mChatEmotePage
-			? ModText::Tr("表情 (E)", "Emotes (E)") : ModText::Tr("快捷短语 (T)", "Phrases (T)"));
-		std::wstring aHint = ModText::WideFromUtf8(mChatEmotePage
-			? ModText::Tr("按 1-8 发送 · T/E 切页 · Esc 关闭", "1-8 to send · T/E to switch · Esc to close")
-			: ModText::Tr("按 1-9 发送 · T/E 切页 · Esc 关闭", "1-9 to send · T/E to switch · Esc to close"));
-
-		ModText::DrawTextWide(g, aFont, PANEL_X + 12, PANEL_Y + 6 - anAscent,
-			aTitle, Color(255, 255, 255, 255), g->mClipRect);
-		ModText::DrawTextWide(g, aFont, PANEL_X + 12, PANEL_Y + PANEL_H - 18 - anAscent,
-			aHint, Color(170, 170, 170, 255), g->mClipRect);
-
-		// 条目行：短语页 = "n  文案"；表情页 = "n  卡图 + 中文名"（行高 22）。
-		// 行数按当前页取——表情页别跟着 PHRASE_COUNT 走，短语加条后那会越界读表情表
-		const int aRowCount = mChatEmotePage ? QuickChat::EMOTE_COUNT : QuickChat::PHRASE_COUNT;
-		for (int i = 0; i < aRowCount; i++)
-		{
-			int aRowY = PANEL_Y + 28 + i * 22;
-			std::wstring aNum = ModText::WideFromUtf8(std::to_string(i + 1).c_str());
-			ModText::DrawTextWide(g, aFont, PANEL_X + 12, aRowY + 3 - anAscent,
-				aNum, Color(255, 220, 120, 255), g->mClipRect);
-
-			if (!mChatEmotePage)
-			{
-				std::wstring aText = ModText::WideFromUtf8(ModText::Tr(QuickChat::PHRASES[i], QuickChat::PHRASES_EN[i]));
-				ModText::DrawTextWide(g, aFont, PANEL_X + 34, aRowY + 3 - anAscent,
-					aText, Color(255, 255, 255, 255), g->mClipRect);
-			}
-			else
-			{
-				QuickChatDrawEmote(g, (float)(PANEL_X + 30), (float)aRowY, QuickChat::EMOTE_SEEDS[i], 0.32f);
-				std::wstring aText = ModText::WideFromUtf8(ModText::Tr(QuickChat::EMOTE_NAMES[i], QuickChat::EMOTE_NAMES_EN[i]));
-				ModText::DrawTextWide(g, aFont, PANEL_X + 54, aRowY + 3 - anAscent,
-					aText, Color(255, 255, 255, 255), g->mClipRect);
-			}
-		}
-	}
-
-	if (mChatBannerCount > 0)
-	{
-		// 最近三条同屏、最新在最上（2026-10-11）：倒序画 + 光标下行，行高各行自算
-		int aCursorY = 84;	// 原单条的位置不变（种子栏底下、避开进度条与 mAdvice 带）
-		for (int i = mChatBannerCount - 1; i >= 0; i--)
-		{
-			aCursorY += DrawQuickChatBannerRow(g, aFont, anAscent, mChatBanners[i], aCursorY) + 4;
-		}
-	}
+int Board::CoopHit(int x,int y){return CoopHud::Hit(this,x,y);}
+bool Board::CoopMouseDown(int x,int y,int clicks) {
+    if((!QuickChatAvailable()&&!CoopHud::Watching(this))||mPaused||!mApp->mActive||mApp->mMinimized||clicks<=0)return false;
+    int hit=CoopHit(x,y);if(hit<0)return false;
+    // Keep a late release out of lawn input even if focus loss clears HUD capture first.
+    mIgnoreMouseUp=true;
+    mCoopTouchCaptured=true;mCoopTouchAction=hit;mCoopTouchPeerLow=mCoopTouchPeerHigh=0;
+    if((hit>=101&&hit<=106)||(hit>=301&&hit<=306)) {
+        auto* s=RoomPresentation::Session(mApp);int seat=hit-(hit>=301?300:100);auto token=s->mCoopPeers[seat];mCoopTouchPeerLow=(uint32_t)token;mCoopTouchPeerHigh=(uint32_t)(token>>32);
+    }
+#ifdef __ANDROID__
+    mTouchSeedDrag=false;mTouchSeedDragMoved=false;
+#endif
+    return true;
 }
+bool Board::CoopMouseUp(int x,int y,int clicks) {
+    if(!mCoopTouchCaptured)return false;
+    int action=mCoopTouchAction;uint64_t peer=((uint64_t)mCoopTouchPeerHigh<<32)|mCoopTouchPeerLow;
+    mCoopTouchCaptured=false;mCoopTouchAction=-1;mCoopTouchPeerLow=mCoopTouchPeerHigh=0;
+    if(clicks<=0||mPaused||!mApp->mActive||mApp->mMinimized||(!QuickChatAvailable()&&!CoopHud::Watching(this))||CoopHit(x,y)!=action)return true;
+    if((action>=101&&action<=106)||(action>=301&&action<=306)) {
+        auto* s=RoomPresentation::Session(mApp);int seat=action-(action>=301?300:100);
+        if(!peer||s->mCoopPeers[seat]!=peer)return true;
+    }
+    CoopAction(action);return true;
+}
+void Board::CoopAction(int action){CoopHud::Action(this,action);}
+void Board::DrawCoopUI(Graphics* g){CoopHud::Draw(this,g);}
 
 // @pvz-online: 画一条横幅（名字解析 / 黑底盒 / 白字黑描边 / 表情卡图），返回行高
 //（表情 44 / 文本 26）。三条同屏批（2026-10-11）从 DrawQuickChat 里抽出来。
@@ -9411,6 +9379,7 @@ int Board::BuildBoardSnapshot(uint8_t* theBuffer, int theCapacity)
 
 void Board::UpdateBoardWatch()
 {
+    if(mCoopWatchLatched&&(!mApp->mActive||mApp->mMinimized||mPaused))CoopHud::StopWatch(this);
 	NetSession* aSession = mApp->mOnlineSession;
 	if (!mApp->IsOnlineGame() || aSession == nullptr || !aSession->IsConnected())
 	{
@@ -9421,6 +9390,7 @@ void Board::UpdateBoardWatch()
 		mWatchNoticeTimer = 0;
 		mWatchKeyHeld = false;
 		mWatchRearmBlocked = false;
+		mCoopWatchLatched = false;
 		return;
 	}
 
@@ -9448,7 +9418,7 @@ void Board::UpdateBoardWatch()
 	// 失焦/KeyUp 丢失兜底：本机键状态已经不认为 V 按着了 → 按松手收场（还在看就发 END，
 	// 对面立刻停推）。正常松手路径在 Board::KeyUp；这里兜住窗口失焦（ClearKeysDown 会
 	// 清 mKeyDown）、场景切换把 KeyUp 收给别的 widget 等情形。幂等：没按/没看只清标志。
-	if (mWatchKeyHeld && !mWidgetManager->mKeyDown['V'])
+	if (mWatchKeyHeld && !mCoopWatchLatched && !mWidgetManager->mKeyDown['V'])
 	{
 		mWatchKeyHeld = false;
 		if (aSession->IsWatching()) aSession->EndWatch(true);
@@ -9547,6 +9517,7 @@ bool Board::HandleBoardWatchKey(KeyCode theKey)
 	if (theKey == KeyCode::KEYCODE_ESCAPE)
 	{
 		if (aSession != nullptr && aSession->IsWatching()) aSession->EndWatch(true);
+		mCoopWatchLatched=false;
 		mWatchKeyHeld = false;		// 与松手同语义：要再看得松手重按
 		mWatchRearmBlocked = true;	// 压住 V 自动重复，等真松手（KeyUp/轮询兜底）再解锁
 		return true;
@@ -9832,7 +9803,7 @@ void Board::KeyDown(KeyCode theKey)
 {
     // @pvz-online: KeyCode is a VK, not a character: lowercase 't' is F5 and 'b' is NUMPAD2.
     // Win32 and SDL both normalize physical letter keys to uppercase; KeyChar handles text separately.
-    if((theKey=='B') && mApp->IsOnlineGame()){mApp->ShowCoopPlay();return;}
+    if((theKey=='B') && mApp->IsOnlineGame()){CloseQuickChatPanel();mSunGiftSelectFrames=0;mApp->ShowCoopPlay();return;}
 	// @pvz-online: normalize keypad digits before contextual panels consume their seat/item keys.
 	if (theKey >= KEYCODE_NUMPAD0 && theKey <= KEYCODE_NUMPAD9)
 		theKey = (KeyCode)('0' + theKey - KEYCODE_NUMPAD0);
@@ -9909,6 +9880,7 @@ void Board::KeyUp(KeyCode theKey)
 {
 	if ((theKey == 'V') && (mWatchKeyHeld || mWatchRearmBlocked))
 	{
+        mCoopWatchLatched=false;
 		mWatchKeyHeld = false;
 		mWatchRearmBlocked = false;
 		if (mApp->mOnlineSession != nullptr && mApp->mOnlineSession->IsWatching())

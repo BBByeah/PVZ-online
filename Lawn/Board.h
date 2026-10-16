@@ -112,6 +112,15 @@ class Board : public Widget, public ButtonListener
 public:
     // @pvz-online: online-only presentation metadata avoids changing native zombie save layout.
     std::unordered_set<unsigned int> mRelayedZombieIds;
+    bool mCoopTouchCaptured=false,mCoopWatchLatched=false;
+    int mCoopTouchAction=-1;
+    // Keep the PC raw-save suffix alignment unchanged; this token is transient.
+    uint32_t mCoopTouchPeerLow=0,mCoopTouchPeerHigh=0;
+    int CoopHit(int x,int y);
+    bool CoopMouseDown(int x,int y,int clicks);
+    bool CoopMouseUp(int x,int y,int clicks);
+    void CoopAction(int action);
+    void DrawCoopUI(Graphics* g);
     void MarkRelayedZombie(Zombie* zombie);
     bool IsRelayedZombie(Zombie* zombie);
     void DrawRelayedZombieMarkers(Graphics* g);

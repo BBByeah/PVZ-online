@@ -89,9 +89,11 @@ inline void Button(Graphics* g,Rect r,const char* label,bool enabled,bool down=f
     Image* left=down?IMAGE_BUTTON_DOWN_LEFT:IMAGE_BUTTON_LEFT;
     Image* mid=down?IMAGE_BUTTON_DOWN_MIDDLE:IMAGE_BUTTON_MIDDLE;
     Image* right=down?IMAGE_BUTTON_DOWN_RIGHT:IMAGE_BUTTON_RIGHT;
-    stone.DrawImage(left,Rect(r.mX,r.mY,left->mWidth,r.mHeight),Rect(0,0,left->mWidth,left->mHeight));
-    stone.DrawImage(mid,Rect(r.mX+left->mWidth,r.mY,r.mWidth-left->mWidth-right->mWidth,r.mHeight),Rect(0,0,mid->mWidth,mid->mHeight));
-    stone.DrawImage(right,Rect(r.mX+r.mWidth-right->mWidth,r.mY,right->mWidth,r.mHeight),Rect(0,0,right->mWidth,right->mHeight));
+    // Compact HUD buttons must fit the stone end caps inside their hit rectangle.
+    int leftWidth=std::min(left->mWidth,r.mWidth/3),rightWidth=std::min(right->mWidth,r.mWidth/3);
+    stone.DrawImage(left,Rect(r.mX,r.mY,leftWidth,r.mHeight),Rect(0,0,left->mWidth,left->mHeight));
+    stone.DrawImage(mid,Rect(r.mX+leftWidth,r.mY,r.mWidth-leftWidth-rightWidth,r.mHeight),Rect(0,0,mid->mWidth,mid->mHeight));
+    stone.DrawImage(right,Rect(r.mX+r.mWidth-rightWidth,r.mY,rightWidth,r.mHeight),Rect(0,0,right->mWidth,right->mHeight));
     Text(g,label,r.mX+10,r.mY+(r.mHeight+22)/2-3,r.mWidth-20,22,enabled?Color(245,230,165):Color(170,170,160),true);
 }
 }

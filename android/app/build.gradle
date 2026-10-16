@@ -35,6 +35,13 @@ def gitVersionCode = {
     }
 }()
 
+// @pvz-online: Android's package screen must distinguish incompatible multiplayer builds.
+def onlineBuild = (file('../../src/Lawn/Online/NetProtocol.h').text =~ /MOD_BUILD\s*=\s*(\d+)\s*;/)[0][1]
+def sourceRevision = 'unknown'
+try {
+    sourceRevision = providers.exec { commandLine 'git', 'rev-parse', '--short=8', 'HEAD' }.standardOutput.asText.get().trim()
+} catch (Exception ignored) { }
+
 android {
     // @pvz-online: keep Gradle aligned with the native build instead of downloading its default NDK.
     ndkVersion '28.2.13676358'
@@ -47,7 +54,7 @@ android {
         minSdk 24
         targetSdk 36
         versionCode gitVersionCode
-        versionName gitVersionName
+        versionName "${gitVersionName}-online${onlineBuild}.${sourceRevision}"
 
         ndk {
             abiFilters 'arm64-v8a'

@@ -1452,6 +1452,8 @@ void Zombie::PickRandomSpeed()
         {
             mVelX = mVelX * aSwiftPermille / 1000.0f;
         }
+        int growth=mApp->GetRunState()->ZombieSpeedGrowthPermille();
+        if(growth!=1000)mVelX=mVelX*growth/1000.0f;
     }
 
     UpdateAnimSpeed();

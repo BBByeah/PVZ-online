@@ -226,7 +226,8 @@ public:
 						uint8_t theRunTempo = 1, uint8_t theRunZombotany = 0,
 						uint8_t theRunEndlessScene = 0, uint8_t theRunBossFlag = 0,
 						uint8_t theRunBuffMult = 0, uint8_t theRunLadder = 0,
-						uint8_t theRunZombieBuff = 0, const uint8_t* theZombieStacks = nullptr);
+						uint8_t theRunZombieBuff = 0, const uint8_t* theZombieStacks = nullptr,
+						uint8_t theRunSpeedTier = 0);
 
 	// 客户端侧：取出主机发来的开局命令（同时清掉）。没有就返回 false。
 	// 单槽而不是队列：开局命令只有"最新那条"有意义，堆着旧的开局命令没有用处。
@@ -421,6 +422,7 @@ public:
 
 	// 对端的构建代次（握手时报的，连上才有效）。
 	uint16_t		GetPeerBuild() const;
+    uint16_t GetSeatBuild(uint8_t seat) const { return seat>=1 && seat<=NetProto::MAX_PLAYERS ? mSeats[seat].mBuild : 0; }
 	// 有席位的构建代次和本机不一样：包还是同一套，但行为可能不配套（比如漏怪在某代才真的
 	// 落地）。**从 MOD_BUILD 12 起这不再拒绝握手**——照常连、UI 上挂一句提醒，
 	// 玩家真撞上不对劲自己会去更新，比"整场连不上"实用（用户 2026-10-02 拍板）。
@@ -456,7 +458,8 @@ private:
 		uint16_t		mBuild;			// 他报的构建代次（0 = 还不知道）
 		std::string		mName;
 		bool			mLevelDone;		// 报的"草坪清完了"
-		bool			mSeedsReady;	// 报的"这一轮选卡选好了"
+		uint32_t mSeedsReadyEpoch;
+        bool			mSeedsReady;	// 报的"这一轮选卡选好了"
 		uint8_t			mAckState;		// 主机侧收到的开局回答：0 还没 / 1 进场 / 2 现在不行
 		bool			mAwaitingAck;	// 主机侧：正在等他这一条
 	};
@@ -468,6 +471,9 @@ private:
 	void			HandlePacket(const NetLink::Packet& thePacket);
 	void			PushEvent(EventType theType, uint8_t theSeat = NetProto::SEAT_UNSET);
 	void			ClearSeatTable();
+    void AdoptReadyEpoch(uint32_t epoch);
+    uint32_t mReadyEpoch=0;
+    bool mSeedsReadySent=false;
 	// 服务器控制帧（type ≥ 0xF000）整段收在这儿：只有中继模式会收到，管的是名册和路由，
 	// 不碰游戏状态（名册变动走事件队列通知主循环）。
 	void			HandleControlFrame(uint16_t theType, const uint8_t* thePayload, int theSize);

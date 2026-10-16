@@ -16,7 +16,9 @@ class RunFlowScreen : public Sexy::Widget, public Sexy::ButtonListener
     Sexy::ButtonWidget* mBuffMultButton = nullptr;
     Sexy::ButtonWidget* mLadderButton = nullptr;
     Sexy::ButtonWidget* mZombieBuffButton = nullptr;
-    int mDifficulty = 1, mScale = 1, mTempo = 1, mZombotany = 0, mEndlessScene = 0, mBossFlag = 0, mLadder = 0, mZombieBuff = 0;
+    Sexy::ButtonWidget* mSpeedButton=nullptr;
+    int mSpeedTier=0;
+    int mDifficulty = 1, mScale = 1, mTempo = 1, mZombotany = 0, mEndlessScene = 0, mBossFlag = 2, mLadder = 0, mZombieBuff = 1;
     Sexy::ButtonWidget* mOptionButtons[6]{};
     void RefreshOptionLabels();
 public:

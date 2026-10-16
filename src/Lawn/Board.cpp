@@ -2742,6 +2742,8 @@ ZombieType Board::PickZombieType(int theZombiePoints, int theWaveIndex, ZombiePi
 		else if (mApp->IsRunMode())
 		{
 			aPickWeight = RunZombieWeight((ZombieType)aZombieType);
+            if ((aZombieType==ZombieType::ZOMBIE_BALLOON || aZombieType==ZombieType::ZOMBIE_BUNGEE) &&
+                mApp->GetRunState() && mApp->GetRunState()->GetSceneIndex()<=1) aPickWeight/=2;
 		}
 		aZombieWeightArray[aPickCount].mItem = aZombieType;
 		aZombieWeightArray[aPickCount].mWeight = aPickWeight;
@@ -10102,9 +10104,15 @@ bool Board::IsZombieTypeSpawnedOnly(ZombieType theZombieType)
 void Board::SpawnRunBoss()
 {
 	RunState* aRun = mApp->GetRunState();
-	if (aRun == nullptr || aRun->mBossFlag == 0) return;
+	if (aRun == nullptr) return;
+	int aBossTier = (aRun->mBossFlag > 0 && aRun->mBossFlag <= 2) ? aRun->mBossFlag : 0;	// 消费端钳（2026-10-16 起三档）
+	if (aBossTier <= 0) return;
 	if (aRun->mMode == RunState::RUN_MODE_ENDLESS) return;		// 无尽档没有关底
-	if (aRun->GetPlayingLevelIndex() + 1 < aRun->GetLevelCount()) return;	// 只在最后一关
+	// 末关（档 1/2 都出）或场景 3 末关（仅档 2，2026-10-16 用户令；快速档不加）。
+	bool aFinalLevel = aRun->GetPlayingLevelIndex() + 1 >= aRun->GetLevelCount();
+	bool aScene3Final = aBossTier >= 2 && aRun->mMode != RunState::RUN_MODE_QUICK
+		&& aRun->GetPlayingLevelIndex() + 1 == RunState::LevelsPerScene(aRun->mMode) * 3;
+	if (!aFinalLevel && !aScene3Final) return;
 	if (mRunBossZombieID != ZombieID::ZOMBIEID_NULL) return;	// 一关一只（旗波钩子每旗都会来问）
 	// 仅一号位：联机恒出在 1 号位玩家的棋盘（2026-10-12 用户令由「房主棋盘」改为
 	// 「一号位棋盘」——换位后房主可能不在 1 号位，boss 固定跟席位 1 走，不跟房主；

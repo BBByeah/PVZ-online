@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "pcRepository": "https://github.com/Not-a-Different-Name/PVZ-online",
-  "pcCommit": "1d341ab287281bebc16d59994d26e5bb8202cdfa",
-  "pcModBuild": 53,
+  "pcCommit": "b690bc64ca3833c86bfe874275a95d419969c273",
+  "pcModBuild": 55,
   "pcProtocolVersion": 1,
   "portableCommit": "141c1476dd462ac3526f796e303177616f4de6bc",
   "onlineGameReady": false,
@@ -40,7 +40,12 @@
     "campaign-independent-shared-features",
     "garden-economy-without-campaign",
     "local-garden-network-isolation",
-    "room-status-and-six-seat-touch-ui"
+    "room-status-and-six-seat-touch-ui",
+    "checkpoint-v17-reward-stage",
+    "reroll-wallet-transaction",
+    "build54-shared-difficulty-rules",
+    "sun-gift-receipts-build55",
+    "readiness-generations-build55"
   ],
   "compiledOnly": [],
   "next": [

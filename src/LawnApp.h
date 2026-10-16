@@ -121,7 +121,7 @@ public:
     void ResetZombieVote();
     void DisconnectOnline();
     void AlignRunToHost(int seed, int index, int mode, int difficulty, int scale, int tempo,
-        int zombotany, int scene, int boss, int buffMult, int ladder, int zombieBuff, const uint8_t* stacks);
+        int zombotany, int scene, int boss, int buffMult, int ladder, int zombieBuff, const uint8_t* stacks,int speedTier=0);
     bool IsOnlineGame();
     bool IsOnlineStartAllowed();
     bool IsOnlineClient();
@@ -155,7 +155,7 @@ public:
     void DoOnlineDialog();
 
 	void ShowRunMenu();
-	void StartRun(int mode, int buffMult = 0, int difficulty = 1, int scale = 1, int tempo = 1, int zombotany = 0, int endlessScene = 0, int bossFlag = 0, int ladder = 0, int zombieBuff = 0);
+	void StartRun(int mode, int buffMult = 0, int difficulty = 1, int scale = 1, int tempo = 1, int zombotany = 0, int endlessScene = 0, int bossFlag = 2, int ladder = 0, int zombieBuff = 1,int speedTier=0);
 	void RunPickPaidReroll();
 	void ResumeRun();
 	void ShowRunPicks();

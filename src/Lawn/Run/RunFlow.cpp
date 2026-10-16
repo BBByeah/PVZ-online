@@ -38,7 +38,7 @@ void LawnApp::ShowRunMenu()
     mWidgetManager->SetFocus(mRunFlowScreen.get());
 }
 
-void LawnApp::StartRun(int mode, int buffMult, int difficulty, int scale, int tempo, int zombotany, int endlessScene, int bossFlag, int ladder, int zombieBuff)
+void LawnApp::StartRun(int mode, int buffMult, int difficulty, int scale, int tempo, int zombotany, int endlessScene, int bossFlag, int ladder, int zombieBuff,int speedTier)
 {
     if (!IsOnlineStartAllowed() && !(mOnlineSession && mOnlineSession->GetRole() == NetSession::Role::HOST && mOnlineSession->GetState() == NetSession::State::LISTENING))
     { DoOnlineDialog(); return; }
@@ -48,7 +48,7 @@ void LawnApp::StartRun(int mode, int buffMult, int difficulty, int scale, int te
     KillBoard();
     KillGameSelector();
     mRunState = std::make_unique<RunState>();
-    mRunState->StartNew(Sexy::Rand(), mode, difficulty, scale, tempo, zombotany, endlessScene, bossFlag, buffMult, ladder, zombieBuff);
+    mRunState->StartNew(Sexy::Rand(), mode, difficulty, scale, tempo, zombotany, endlessScene, bossFlag, buffMult, ladder, zombieBuff,speedTier);
     mRunState->BeginStartPicks();
     mRunState->Save(mPlayerInfo->mId);
     EnterRunLevel();
@@ -330,23 +330,13 @@ void LawnApp::RefreshRunChoicePlants(int aId, int aBefore)
 {
     auto* aRun=mRunState.get();
     if(!aRun) return;
-		if (mBoard && aBefore == 0 && aRun->GetBuffCount(aId) > 0)
+		if (mBoard && aRun->GetBuffCount(aId) > 0)
 		{
-			const int aBase = RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT;
 			Plant* aPlant = nullptr;
 			while (mBoard->IteratePlants(aPlant))
 			{
-				int aNewMax = aPlant->mPlantMaxHealth;
-				if (aId == aBase + RUN_BUFF2_DIGEST_HEAL && aPlant->mSeedType == SeedType::SEED_CHOMPER)
-					aNewMax = (int)std::min((long long)INT_MAX, (long long)aPlant->mPlantMaxHealth * 10);
-				else if (aId == aBase + RUN_BUFF2_STEEL_PUMPKIN && aPlant->mSeedType == SeedType::SEED_PUMPKINSHELL)
-					aNewMax = std::max(1, aPlant->mPlantMaxHealth / 2);
-				if (aNewMax != aPlant->mPlantMaxHealth)
-				{
-					aPlant->mPlantHealth = (int)((long long)std::max(0, aPlant->mPlantHealth) * aNewMax / std::max(1, aPlant->mPlantMaxHealth));
-					aPlant->mPlantMaxHealth = aNewMax;
-				}
-				if (aId == RUN_BUFF_COUNT + RUN_UPGRADE_POTATOMINE && aPlant->mSeedType == SeedType::SEED_POTATOMINE &&
+				aPlant->RefreshRunMaxHealth();
+				if (aBefore == 0 && aId == RUN_BUFF_COUNT + RUN_UPGRADE_POTATOMINE && aPlant->mSeedType == SeedType::SEED_POTATOMINE &&
 					aPlant->mState == PlantState::STATE_NOTREADY)
 					aPlant->mStateCountdown = std::min(aPlant->mStateCountdown, 375);
 			}

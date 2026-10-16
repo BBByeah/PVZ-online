@@ -12,6 +12,7 @@
 #include "../SeedPacket.h"
 #include "../../PvzpLib/PvzpCommon.h"
 #include "widget/ButtonWidget.h"
+#include "widget/Dialog.h"
 #include "graphics/Graphics.h"
 #include "graphics/Font.h"
 #include "../../PvzpLib/PvzpStringFile.h"
@@ -99,10 +100,11 @@ RunFlowScreen::RunFlowScreen(LawnApp* app, bool modePage) : mApp(app), mModePage
         for (int i = 0; i < 6; ++i)
             mOptionButtons[i] = addButton(20 + i, "", 64 + (i % 2) * 344, 154 + (i / 2) * 74, 328, 54);
         RefreshOptionLabels();
-        mZombieBuffButton = addButton(27, ModText::Tr("僵尸强化：关", "Zombie boosts: off"), 64, 376, 328, 54);
+        mZombieBuffButton = addButton(27, ModText::Tr("僵尸强化：1", "Zombie boosts: 1"), 64, 376, 328, 54);
         const char* ladders[] = { "1.33", "1", "1.2", "1.5", "2" };
         mLadderButton = addButton(26, ModText::Format("场景阶梯：×{}", "Scene ladder: x{}", ladders[mLadder]), 408, 376, 328, 54);
         mBuffMultButton = addButton(14, ModText::Format("增益倍选：×{}", "Buff picks: x{}", RunState::BuffMultValueFor(mBuffMult)), 64, 450, 328, 44);
+        mSpeedButton=addButton(29,ModText::Tr("移速成长：无", "Speed growth: none"),408,450,328,44);
         addButton(13, ModText::Tr("继续闯关", "Continue run"), 310, 510, 180, 48)->SetDisabled(!RunState::HasCheckpoint(app->mPlayerInfo->mId));
         addButton(28,ModText::Tr("高级选项", "Advanced"),90,510,180,48);
     }
@@ -130,7 +132,7 @@ RunFlowScreen::RunFlowScreen(LawnApp* app, bool modePage) : mApp(app), mModePage
 void RunFlowScreen::RefreshModePage()
 {
     for(auto* b:mModeButtons){
-        bool advanced=(b->mId>=20&&b->mId<=27)||b->mId==14;
+        bool advanced=(b->mId>=20&&b->mId<=27)||b->mId==14||b->mId==29;
         b->SetVisible(b->mId==9||b->mId==28||(advanced==mAdvanced));
         if(b->mId>=40&&b->mId<=42)b->mInverted=(b->mId-40==mDifficulty);
         if(b->mId==28)b->mLabel=mAdvanced?ModText::Tr("返回模式","Back"):ModText::Tr("高级选项","Advanced");
@@ -150,7 +152,7 @@ void RunFlowScreen::RefreshOptionLabels()
     mOptionButtons[1]->mLabel = ModText::Format("规模：{}", "Scale: {}", scales[mScale]);
     mOptionButtons[2]->mLabel = ModText::Format("节奏：{}", "Tempo: {}", tempos[mTempo]);
     mOptionButtons[3]->mLabel = ModText::Format("植物僵尸：{}", "Zombotany: {}", mZombotany ? ModText::Tr("开", "On") : ModText::Tr("关", "Off"));
-    mOptionButtons[4]->mLabel = ModText::Format("关底首领：{}", "Final boss: {}", mBossFlag ? ModText::Tr("开", "On") : ModText::Tr("关", "Off"));
+    mOptionButtons[4]->mLabel = ModText::Format("关底首领：{}", "Final boss: {}", mBossFlag==2?ModText::Tr("末关+场景3","Final + Scene3"):mBossFlag==1?ModText::Tr("仅末关","Final"):ModText::Tr("关","Off"));
     mOptionButtons[5]->mLabel = ModText::Format("无尽场景：{}", "Endless scene: {}", scenes[mEndlessScene]);
     MarkDirty();
 }
@@ -187,7 +189,11 @@ void RunFlowScreen::ButtonDepress(int id)
     if(mApp->mCoopPlay && mApp->mCoopPlay->Blocking())return;
     if (id == 9) {
         if (!mModePage && mApp->mRunState) {
-            if (!mApp->mRunState->SaveWithPlayer(*mApp->mPlayerInfo)) return;
+            if (!mApp->mRunState->SaveWithPlayer(*mApp->mPlayerInfo)) {
+                mApp->LawnMessageBox(Dialogs::DIALOG_MESSAGE,ModText::Tr("保存失败","Save failed"),
+                    ModText::Tr("进度尚未保存，请检查存储后再返回。","Progress was not saved. Check storage before leaving."),
+                    "OK","",Sexy::Dialog::BUTTONS_FOOTER);return;
+            }
             if (mApp->mCoopPlay) mApp->mCoopPlay->Close();
             mApp->DoBackToMain(true);
         } else mApp->ShowGameSelector();
@@ -196,6 +202,9 @@ void RunFlowScreen::ButtonDepress(int id)
     if (mModePage)
     {
         if(id==28){mAdvanced=!mAdvanced;RefreshModePage();return;}
+        if(id==29){mSpeedTier=(mSpeedTier+1)%3;
+            const char* tiers[]={ModText::Tr("无","none"),"x1.03","x1.05"};
+            mSpeedButton->mLabel=ModText::Format("移速成长：{}","Speed growth: {}",tiers[mSpeedTier]);return;}
         if(id>=40&&id<=42){mDifficulty=id-40;RefreshOptionLabels();RefreshModePage();return;}
         if (id >= 20 && id <= 25)
         {
@@ -203,7 +212,7 @@ void RunFlowScreen::ButtonDepress(int id)
             if (id == 21) mScale = (mScale + 1) % 4;
             if (id == 22) mTempo = (mTempo + 1) % 3;
             if (id == 23) mZombotany ^= 1;
-            if (id == 24) mBossFlag ^= 1;
+            if (id == 24) mBossFlag=(mBossFlag+1)%3;
             if (id == 25) mEndlessScene = (mEndlessScene + 1) % 5;
             RefreshOptionLabels();
             RefreshModePage();
@@ -233,7 +242,7 @@ void RunFlowScreen::ButtonDepress(int id)
         if (id == 13) mApp->ResumeRun();
         else if ((id >= 10 && id <= 12) || id == 15)
             mApp->StartRun(id == 15 ? RunState::RUN_MODE_ENDLESS : id - 10, mBuffMult,
-                mDifficulty, mScale, mTempo, mZombotany, mEndlessScene, mBossFlag, mLadder, mZombieBuff);
+                mDifficulty, mScale, mTempo, mZombotany, mEndlessScene, mBossFlag, mLadder, mZombieBuff,mSpeedTier);
         return;
     }
     RunState& run = *mApp->mRunState;

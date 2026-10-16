@@ -207,37 +207,12 @@ void Board::UpdateQuickChat()
 
 bool Board::TrySendSunGift(uint8_t theTargetSeat)
 {
-    if (!mApp->IsOnlineGame() || !mApp->IsRunMode() || mApp->mOnlineSession == nullptr)
-        return false;
-    if (theTargetSeat == mApp->mOnlineSession->GetLocalSeat() ||
-        !mApp->mOnlineSession->IsSeatOccupied(theTargetSeat))
-        return false;
-    if (mSunGiftCooldownFrames > 0)
-    {
-        PushCustomBanner(ModText::Tr("发阳光冷却中", "Sun gift is on cooldown"));
-        return false;
-    }
-    if (mSunMoney < kSunGiftAmount)
-    {
-        PushCustomBanner(ModText::Tr("阳光不足", "Not enough sun"));
-        return false;
-    }
-
-    mSunMoney -= kSunGiftAmount;
-    mSunGiftCooldownFrames = kSunGiftCooldownFrames;
-    int aCredit = kSunGiftAmount - kSunGiftTax;
-    if (mApp->mOnlineSession->SendSunGift((uint16_t)aCredit, theTargetSeat))
-    {
-        char aBuf[48];
-        snprintf(aBuf, sizeof(aBuf), "%s%d%s", ModText::Tr("已发阳光（-", "Sent sun (-"), kSunGiftAmount,
-                 ModText::Tr("）", ")"));
-        PushCustomBanner(aBuf);
-        return true;
-    }
-    // 没发出去（掉线等）：钱退回、不进冷却
-    mSunMoney += kSunGiftAmount;
-    mSunGiftCooldownFrames = 0;
-    return false;
+    if (!mApp->IsOnlineGame() || !mApp->IsRunMode() || !mApp->mOnlineSession) return false;
+    // @pvz-online: a successful relay write is not a delivery receipt; share the idempotent gift path.
+    if (!mApp->mCoopPlay) mApp->mCoopPlay=std::make_unique<CoopPlay>(mApp);
+    const bool sent=mApp->mCoopPlay->GiveSun(theTargetSeat);
+    PushCustomBanner(mApp->mCoopPlay->notice.c_str());
+    return sent;
 }
 
 bool Board::HandleSunGiftKey(KeyCode theKey)
@@ -487,7 +462,7 @@ void Board::DrawCoopUI(Sexy::Graphics *g)
             for (int i = 0; i < 6; ++i)
             {
                 uint8_t seat = static_cast<uint8_t>(i + 1);
-                bool available = session->IsSeatOccupied(seat) && seat != session->GetLocalSeat();
+                bool available = session->IsSeatOccupied(seat) && !session->IsSeatOffline(seat) && seat != session->GetLocalSeat();
                 std::string name =
                     session->IsSeatOccupied(seat) ? session->GetSeatName(seat) : ModText::Tr("空位", "Empty");
                 DrawMobileStone(g, CoopChoiceRect(i, false, true), std::to_string(seat) + ": " + name, false,

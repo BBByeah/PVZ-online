@@ -300,7 +300,7 @@ void LawnApp::UpdateOnlineStart()
 		AlignRunToHost((int)aStart.mRunSeed, (int)aStart.mRunLevelIndex, (int)aStart.mRunMode, (int)aStart.mRunDiff,
 			(int)aStart.mRunScale, (int)aStart.mRunTempo, (int)aStart.mRunZombotany,
 			(int)aStart.mRunEndlessScene, (int)aStart.mRunBossFlag, (int)aStart.mRunBuffMult,
-			(int)aStart.mRunLadder, (int)aStart.mRunZombieBuff, aStart.mZombieStacks);
+			(int)aStart.mRunLadder, (int)aStart.mRunZombieBuff, aStart.mZombieStacks,aStart.mRunSpeedTier);
 		mOnlineRunStartHeld = true;
 		mOnlineRunGo = false;		// 这条是新命令：上一次的放行作废
 		mOnlineSession->SendStartAck();
@@ -414,7 +414,7 @@ void LawnApp::OnlineStartPromptAnswer(bool theAccepted)
 		AlignRunToHost((int)aMsg.mRunSeed, (int)aMsg.mRunLevelIndex, (int)aMsg.mRunMode, (int)aMsg.mRunDiff,
 			(int)aMsg.mRunScale, (int)aMsg.mRunTempo, (int)aMsg.mRunZombotany,
 			(int)aMsg.mRunEndlessScene, (int)aMsg.mRunBossFlag, (int)aMsg.mRunBuffMult,
-			(int)aMsg.mRunLadder, (int)aMsg.mRunZombieBuff, aMsg.mZombieStacks);
+			(int)aMsg.mRunLadder, (int)aMsg.mRunZombieBuff, aMsg.mZombieStacks,aMsg.mRunSpeedTier);
 		mOnlineRunStartHeld = true;
 		mOnlineRunGo = false;
 		mOnlineSession->SendStartAck();
@@ -708,7 +708,7 @@ void LawnApp::UpdateOnlineEvents()
 					(uint8_t)mRunState->mScale, (uint8_t)mRunState->mTempo, (uint8_t)mRunState->mZombotany,
 					(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag,
 					(uint8_t)mRunState->mBuffMult, (uint8_t)mRunState->mLadder,
-					(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks);
+					(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks,(uint8_t)mRunState->mSpeedTier);
 			}
 			break;
 
@@ -775,7 +775,7 @@ void LawnApp::UpdateOnlineEvents()
 					(uint8_t)mRunState->mScale, (uint8_t)mRunState->mTempo, (uint8_t)mRunState->mZombotany,
 					(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag,
 					(uint8_t)mRunState->mBuffMult, (uint8_t)mRunState->mLadder,
-					(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks);
+					(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks,(uint8_t)mRunState->mSpeedTier);
 			}
 			break;
 
@@ -984,7 +984,7 @@ void LawnApp::RetryOnlineLevel()
 			(uint8_t)mRunState->mScale, (uint8_t)mRunState->mTempo, (uint8_t)mRunState->mZombotany,
 			(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag,
 			(uint8_t)mRunState->mBuffMult, (uint8_t)mRunState->mLadder,
-			(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks);
+			(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks,(uint8_t)mRunState->mSpeedTier);
 		return;
 	}
 
@@ -1036,7 +1036,7 @@ void LawnApp::EnterRunLevel()
 			(uint8_t)mRunState->mScale, (uint8_t)mRunState->mTempo, (uint8_t)mRunState->mZombotany,
 			(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag,
 			(uint8_t)mRunState->mBuffMult, (uint8_t)mRunState->mLadder,
-			(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks);
+			(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks,(uint8_t)mRunState->mSpeedTier);
 		return;
 	}
 
@@ -1068,7 +1068,7 @@ void LawnApp::EnterRunLevel()
 
 void LawnApp::AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode, int theRunDiff,
 	int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag,
-	int theBuffMult, int theLadder, int theZombieBuff, const uint8_t* theZombieStacks)
+	int theBuffMult, int theLadder, int theZombieBuff, const uint8_t* theZombieStacks,int theSpeedTier)
 {
 	// 时长档来自对端（构建代次不同只提示、不拒连）：非法值按完整版处理，别让它把
 	// 越界模式一路带进关卡表。无尽档（3）是合法档，得放行——钳成完整版会让客户端
@@ -1112,7 +1112,7 @@ void LawnApp::AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode,
 	}
 
 	// 关底 boss 开关同理（MOD_BUILD 38）：非法值按关。
-	if (theBossFlag != 0 && theBossFlag != 1)
+	if (theBossFlag<0 || theBossFlag>2)
 	{
 		NetworkLog("[run] the host named an unknown boss switch %d - treating it as off", theBossFlag);
 		theBossFlag = 0;
@@ -1192,7 +1192,8 @@ void LawnApp::AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode,
 	mRunState->mScale = theRunScale;
 	mRunState->mTempo = theRunTempo;
 	mRunState->mZombotany = theZombotany;
-	mRunState->mBossFlag = (theBossFlag != 0 && mRunState->mMode != RunState::RUN_MODE_ENDLESS) ? 1 : 0;
+	mRunState->mBossFlag = mRunState->mMode != RunState::RUN_MODE_ENDLESS ? theBossFlag : 0;
+    mRunState->mSpeedTier=theSpeedTier>=0 && theSpeedTier<=2 ? theSpeedTier : 0;
 	mRunState->mBuffMult = theBuffMult;
 	mRunState->mLadder = theLadder;
 	mRunState->mZombieBuffMode = theZombieBuff;

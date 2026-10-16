@@ -17,10 +17,10 @@ const uint16_t	CONTROL_TYPE_BASE		= 0xF000;
 
 const int	HELLO_PAYLOAD_SIZE		= 6 + NetProto::NAME_SIZE;		// src, dst, u16 version, u16 build, 名字
 const int	HELLO_ACK_PAYLOAD_SIZE	= 7 + NetProto::NAME_SIZE;		// src, dst, u16 version, u16 build, u8 accepted, 名字
-const int	START_LEVEL_PAYLOAD_SIZE = 37;	// src, dst, u8 mode, u32 level, i32 seed, u8 isRun, i32 runSeed, u16 runLevelIndex, u8 runMode, u8 runDiff, u8 runScale, u8 runTempo, u8 runZombotany, u8 runEndlessScene, u8 runBossFlag, u8 runBuffMult, u8 runLadder, u8 runZombieBuff, u8 runSpeedTier, u8 zombieStacks[8]
+const int	START_LEVEL_PAYLOAD_SIZE = 41;	// src, dst, u8 mode, u32 level, i32 seed, u8 isRun, i32 runSeed, u16 runLevelIndex, u8 runMode, u8 runDiff, u8 runScale, u8 runTempo, u8 runZombotany, u8 runEndlessScene, u8 runBossFlag, u8 runBuffMult, u8 runLadder, u8 runZombieBuff, u8 runSpeedTier, u8 zombieStacks[8]
 const int	START_ACK_PAYLOAD_SIZE	= 3;	// src, dst, u8 accepted
 const int	RUN_GO_PAYLOAD_SIZE		= 2;	// src, dst
-const int	SEEDS_READY_PAYLOAD_SIZE = 3;	// src, dst, u8 ready
+const int	SEEDS_READY_PAYLOAD_SIZE = 7;	// src, dst, u8 ready, u32 generation
 const int	SWAP_REQUEST_PAYLOAD_SIZE = 2;	// src, dst
 const int	SWAP_REPLY_PAYLOAD_SIZE = 3;	// src, dst, u8 accepted
 const int	SWAP_REQUEST_TIMEOUT_FRAMES = 500;	// 换位请求等答复 ≈5 秒：对面掉线/装死时自己收摊（等待必须有出路）
@@ -173,6 +173,7 @@ void NetSession::ClearSeatTable()
 		mSeats[aSeat].mName.clear();
 		mSeats[aSeat].mLevelDone = false;
 		mSeats[aSeat].mSeedsReady = false;
+        mSeats[aSeat].mSeedsReadyEpoch = 0;
 		mSeats[aSeat].mAckState = 0;
 		mSeats[aSeat].mAwaitingAck = false;
 	}
@@ -831,7 +832,7 @@ bool NetSession::IsPeerSeedsReady()
 		if (aSeat == mLocalSeat || !IsSeatOccupied(aSeat)) continue;
 
 		aHasPeer = true;
-		if (!mSeats[aSeat].mSeedsReady) return false;
+		if (!mSeats[aSeat].mSeedsReady || mSeats[aSeat].mSeedsReadyEpoch!=mReadyEpoch) return false;
 	}
 	return aHasPeer;		// 自己报的不算"对面"；一个队友都没有也不叫"都选好了"
 }
@@ -1109,6 +1110,7 @@ void NetSession::PostNotice(const char* theText)
 // 不清的话，上一局的怪会凭空出现在下一局的棋盘上（迟到包砸到新棋盘是最难查的一类）。
 void NetSession::DiscardLevelPackets()
 {
+    mSeedsReadySent=false;
 	mHasPendingStart = false;
 	mHasRunGo = false;
 	mHasPendingLevelExit = false;
@@ -1134,6 +1136,7 @@ void NetSession::DiscardLevelPackets()
 	for (int aSeat = 0; aSeat <= NetProto::MAX_PLAYERS; aSeat++)
 	{
 		mSeats[aSeat].mSeedsReady = false;
+        mSeats[aSeat].mSeedsReadyEpoch = 0;
 		mSeats[aSeat].mAckState = 0;
 		mSeats[aSeat].mAwaitingAck = false;
 	}
@@ -1221,7 +1224,7 @@ bool NetSession::SendSunGift(uint16_t theAmount, uint8_t theTargetSeat)
 	// @pvz-online: 发阳光（MOD_BUILD 38）——定向发给按键直选的席位（本地 G + 1-6 选人）。
 	// 目标必须是上座、非自己的席位；与漏怪链无关，末席也能发。
 	if (theTargetSeat == NetProto::SEAT_UNSET || theTargetSeat == mLocalSeat
-		|| !IsSeatOccupied(theTargetSeat) || !IsConnected()) return false;
+		|| !IsSeatOccupied(theTargetSeat) || IsSeatOffline(theTargetSeat) || !IsConnected()) return false;
 
 	NetProto::MsgSendSun aMsg;
 	aMsg.mSrcSeat = mLocalSeat;
@@ -1509,6 +1512,7 @@ bool NetSession::SendBoardSnapshot(uint8_t theViewerSeat, const uint8_t* theBody
 
 void NetSession::ResetToOff()
 {
+    mReadyEpoch=0;mSeedsReadySent=false;
     static std::atomic<uint64_t> coopEpoch{0};
     mCoopToken=(uint64_t)std::chrono::steady_clock::now().time_since_epoch().count() ^ (++coopEpoch);
     if(!mCoopToken)mCoopToken=++coopEpoch;
@@ -1886,6 +1890,8 @@ void NetSession::HandlePacket(const NetLink::Packet& thePacket)
 				return;
 			}
 			if (mRole != Role::CLIENT) return;		// 只有客户端听主机的
+            if(aMsg.mReadyEpoch<mReadyEpoch)break;
+            AdoptReadyEpoch(aMsg.mReadyEpoch);
 
 			// 不在收包链里直接开局：开局要动游戏场景和一堆 UI，那是主循环的活。
 			// 这里只把命令存下来，LawnApp 每帧 TakePendingStartLevel 取走；
@@ -2279,8 +2285,10 @@ void NetSession::HandlePacket(const NetLink::Packet& thePacket)
 				break;
 			}
 			// 收下的是个状态（"他这一轮选好了没有"），后到的覆盖先到的——对面新一轮开始
-			// 会再报一次 0，本地不用挑时机清（清位就是丢消息，见 NetProtocol.h 那段）。
-			mSeats[aMsg.mSrcSeat].mSeedsReady = aMsg.mReady != 0;
+			// 会再报一次0；轮次不同不满足本轮开场门，下一轮的早到报告仍可保留。
+			if(aMsg.mReadyEpoch<mReadyEpoch || aMsg.mReadyEpoch<mSeats[aMsg.mSrcSeat].mSeedsReadyEpoch)break;
+            mSeats[aMsg.mSrcSeat].mSeedsReadyEpoch=aMsg.mReadyEpoch;
+            mSeats[aMsg.mSrcSeat].mSeedsReady = aMsg.mReady != 0;
 			TodLog("[net] seat %u %s", (unsigned)aMsg.mSrcSeat,
 				(aMsg.mReady != 0) ? "picked their plants" : "is picking plants");
 		}
@@ -2530,7 +2538,7 @@ void NetSession::HandleControlFrame(uint16_t theType, const uint8_t* thePayload,
 			// 报过一次（Let's Rock / 这一关不用选卡）就不会再报，去重记忆随名册重建归零后
 			// 没有任何一帧会再触发它，队友的等待门（IsPeerSeedsReady）就干等一个永远不来的
 			// "选好了"。这里连同记忆一起恢复，重建完名册立刻补报一遍。
-			bool aWasSeedsReady = aWasReconnect && mSeats[mLocalSeat].mSeedsReady;
+			bool aWasSeedsReady = aWasReconnect && mSeats[mLocalSeat].mSeedsReady && mSeats[mLocalSeat].mSeedsReadyEpoch==mReadyEpoch;
 
 			ClearSeatTable();
 			for (int i = 0; i < aMsg.mSeatCount; i++)
@@ -2564,10 +2572,12 @@ void NetSession::HandleControlFrame(uint16_t theType, const uint8_t* thePayload,
 				if (aWasSeedsReady)
 				{
 					mSeats[mLocalSeat].mSeedsReady = true;
+                    mSeats[mLocalSeat].mSeedsReadyEpoch=mReadyEpoch;mSeedsReadySent=true;
 					NetProto::MsgSeedsReady aReady = {};
 					aReady.mSrcSeat = mLocalSeat;
 					aReady.mDstSeat = NetProto::SEAT_UNSET;		// 由 Dispatch 按目标填
 					aReady.mReady = 1;
+                aReady.mReadyEpoch=mReadyEpoch;
 					uint8_t aPayload[NetProto::MAX_PAYLOAD];
 					int aSize = NetProto::EncodeSeedsReady(aPayload, (int)sizeof(aPayload), aReady);
 					if (aSize > 0) Dispatch(NetProto::MSG_SEEDS_READY, aPayload, aSize);
@@ -2767,12 +2777,13 @@ void NetSession::HandleControlFrame(uint16_t theType, const uint8_t* thePayload,
 			// 而我这边的去重记忆（值没变不发）会把下一次重报吞掉。两条状态点名补给他
 			// （和 PEER_JOIN 补判胜同一个理，选卡那条 PEER_JOIN 没补，归队场景靠得住它）。
 			if (mSeats[mLocalSeat].mLevelDone) SendLevelDoneTo(aMsg.mSeat, true);
-			if (mSeats[mLocalSeat].mSeedsReady)
+			if (mSeats[mLocalSeat].mSeedsReady && mSeats[mLocalSeat].mSeedsReadyEpoch==mReadyEpoch)
 			{
 				NetProto::MsgSeedsReady aReady = {};
 				aReady.mSrcSeat = mLocalSeat;
 				aReady.mDstSeat = aMsg.mSeat;
 				aReady.mReady = 1;
+                aReady.mReadyEpoch=mReadyEpoch;
 				uint8_t aPayload[NetProto::MAX_PAYLOAD];
 				int aSize = NetProto::EncodeSeedsReady(aPayload, (int)sizeof(aPayload), aReady);
 				if (aSize > 0) Dispatch(NetProto::MSG_SEEDS_READY, aPayload, aSize, aMsg.mSeat);
@@ -3012,6 +3023,12 @@ bool NetSession::SendStartLevel(uint8_t theGameMode, uint32_t theLevel, int32_t 
 
 	NetProto::MsgStartLevel aMsg;
 	aMsg.mSrcSeat = mLocalSeat;
+    aMsg.mReadyEpoch=mReadyEpoch+1;
+    if(theTargetSeat!=NetProto::SEAT_UNSET && mLastStartLevelValid &&
+        mLastStartLevel.mLevelSeed==theLevelSeed && mLastStartLevel.mRunSeed==theRunSeed &&
+        mLastStartLevel.mRunLevelIndex==theRunLevelIndex && mLastStartLevel.mGameMode==theGameMode &&
+        mLastStartLevel.mIsRun==(theIsRun?1:0)) aMsg.mReadyEpoch=mReadyEpoch;
+    if(!aMsg.mReadyEpoch)aMsg.mReadyEpoch=1;
 	aMsg.mDstSeat = NetProto::SEAT_UNSET;		// 由 Dispatch 按目标填
 	aMsg.mGameMode = theGameMode;
 	aMsg.mLevel = theLevel;
@@ -3052,6 +3069,7 @@ bool NetSession::SendStartLevel(uint8_t theGameMode, uint32_t theLevel, int32_t 
 	ClearLevelDoneState();	// "谁清完了"同理
 
 	if (!Dispatch(NetProto::MSG_START_LEVEL, aPayload, aSize, theTargetSeat)) return false;
+    AdoptReadyEpoch(aMsg.mReadyEpoch);
 
 	// @pvz-online MOD_BUILD 39：这份命令留个底——重连归队/队友回来时要照原样补发一条
 	//（见 ResendLastStartLevel），那一头不能带"新一局"的副作用。
@@ -3113,21 +3131,34 @@ bool NetSession::SendRunGo(uint8_t theTargetSeat)
 // 双向：报"我这一轮的选卡状态"。是个状态不是事件——同一轮里重复报同一个值就不发
 // （和 SendLevelDone 同款去重）；新一轮开始调用方会报一次当下的状态（要选卡的报 0，
 // 不用选卡的报 1），所以去重不会把该报的漏掉。
+// @pvz-online: same-round reconnect STARTs preserve readiness; a new START invalidates old reports.
+void NetSession::AdoptReadyEpoch(uint32_t epoch)
+{
+    if(mReadyEpoch==epoch)return;
+    mReadyEpoch=epoch;mSeedsReadySent=false;
+    if(mLocalSeat>=1 && mLocalSeat<=NetProto::MAX_PLAYERS) {
+        mSeats[mLocalSeat].mSeedsReady=false;
+        mSeats[mLocalSeat].mSeedsReadyEpoch=epoch;
+    }
+}
+
 bool NetSession::SendSeedsReady(bool theReady)
 {
 	if (mRole == Role::NONE || !IsConnected()) return false;
-	if (mSeats[mLocalSeat].mSeedsReady == theReady) return false;		// 状态没变，队友本来就是对的
+	if (mSeedsReadySent && mSeats[mLocalSeat].mSeedsReadyEpoch==mReadyEpoch && mSeats[mLocalSeat].mSeedsReady == theReady) return false;		// 状态没变，队友本来就是对的
 
 	NetProto::MsgSeedsReady aMsg;
 	aMsg.mSrcSeat = mLocalSeat;
 	aMsg.mDstSeat = NetProto::SEAT_UNSET;		// 由 Dispatch 按目标填
 	aMsg.mReady = theReady ? 1 : 0;
+    aMsg.mReadyEpoch=mReadyEpoch;
 
 	uint8_t aPayload[NetProto::MAX_PAYLOAD];
 	int aSize = NetProto::EncodeSeedsReady(aPayload, (int)sizeof(aPayload), aMsg);
 	if (aSize <= 0) return false;
 
 	mSeats[mLocalSeat].mSeedsReady = theReady;
+    mSeats[mLocalSeat].mSeedsReadyEpoch=mReadyEpoch;mSeedsReadySent=true;
 	TodLog(theReady ? "[net] told the team my plants are picked"
 		: "[net] told the team I am still picking plants");
 	return Dispatch(NetProto::MSG_SEEDS_READY, aPayload, aSize);

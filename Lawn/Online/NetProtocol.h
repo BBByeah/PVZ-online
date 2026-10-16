@@ -199,7 +199,8 @@ const uint16_t	PROTOCOL_VERSION	= 1;
 //        蹦极出怪权重折半——波表两端各算，混搭必岔。旧长度（36 字节）的 START_LEVEL
 //        被新端按串包拒掉。检查点不抬版本：位包 bit12..13 = 移速档（老档读 0 = 无成长、
 //        安全降级），v13 的 boss u16 原样放宽 0/1/2（老档 0/1 读作档 0/1）。
-const uint16_t	MOD_BUILD			= 54; // @pvz-online: campaign-independent garden and battle isolation.
+// Build55: generation-scoped readiness, receipted proactive gifts and safe loan cancellation.
+const uint16_t	MOD_BUILD			= 55; // @pvz-online: campaign-independent garden and battle isolation.
 
 const uint16_t	DEFAULT_PORT		= 27777;
 
@@ -480,6 +481,7 @@ struct MsgStartLevel
 	uint8_t			mRunZombieBuff;
 	uint8_t			mRunSpeedTier;
 	uint8_t			mZombieStacks[8];
+    uint32_t mReadyEpoch; // @pvz-online: new starts, including retries, have distinct readiness generations.
 };
 
 // LEVEL_DONE：{ srcSeat, dstSeat, u8 done }（1 = 我这块草坪清完了，0 = 又不清净了）
@@ -645,20 +647,16 @@ struct MsgRunGo
 	uint8_t			mDstSeat;
 };
 
-// SEEDS_READY：{ srcSeat, dstSeat, u8 ready }
-// "我这一轮的选卡是什么状态"：1 = 选好了（按下 Let's Rock），0 = 还在选（新一轮刚开始）。
-// 两态而不是"报一次就完"，理由和 LEVEL_DONE 一样——它是个状态、不是一串事件：
-// 各家在**新一轮开始时各报一次当下状态**（要选卡的报 0，这一关不用选卡的直接报 1），
-// 按下 Let's Rock 再报一次 1。收的人只管读"对面现在是什么状态"，不用在本地挑时机清位——
-// 清位就是丢消息（对面报得早、清得晚，两边就互相干等）。
-// 谁先选完谁先报；收到的人若自己也选完了就放行，没选完就继续选。
-// 所有上座席位都报"选好了"才开打——少一个人开打，两家从第一秒就不在一个时间线上。
-// 中继模式下会话层对每个上座席位各发一帧（同 RUN_GO，不是协议广播）。
+// @pvz-online Build55: SEEDS_READY = src/dst/ready/u32 readyEpoch (7 bytes).
+// START_LEVEL carries the host's generation (41 bytes including Build54 speed tier).
+// A fresh start, including a same-level retry, invalidates old ready reports. A targeted
+// resend/reconnect keeps its generation; early reports for the next generation are retained.
 struct MsgSeedsReady
 {
 	uint8_t			mSrcSeat;
 	uint8_t			mDstSeat;
 	uint8_t			mReady;
+    uint32_t mReadyEpoch;
 };
 
 // QUICK_CHAT：{ srcSeat, dstSeat, u8 id }
@@ -893,6 +891,7 @@ inline int EncodeStartLevel(uint8_t* theBuffer, int theCapacity, const MsgStartL
 	aWriter.U8(theMsg.mRunZombieBuff);
 	aWriter.U8(theMsg.mRunSpeedTier);
 	for (int i = 0; i < 8; i++) aWriter.U8(theMsg.mZombieStacks[i]);
+    aWriter.U32(theMsg.mReadyEpoch);
 	return aWriter.Overflowed() ? -1 : aWriter.Size();
 }
 
@@ -919,6 +918,7 @@ inline bool DecodeStartLevel(const uint8_t* theData, int theSize, MsgStartLevel&
 	theMsg.mRunZombieBuff = aReader.U8();
 	theMsg.mRunSpeedTier = aReader.U8();
 	for (int i = 0; i < 8; i++) theMsg.mZombieStacks[i] = aReader.U8();
+    theMsg.mReadyEpoch = aReader.U32();
 	return !aReader.Overflowed();
 }
 
@@ -1281,6 +1281,7 @@ inline int EncodeSeedsReady(uint8_t* theBuffer, int theCapacity, const MsgSeedsR
 	aWriter.U8(theMsg.mSrcSeat);
 	aWriter.U8(theMsg.mDstSeat);
 	aWriter.U8(theMsg.mReady);
+    aWriter.U32(theMsg.mReadyEpoch);
 	return aWriter.Overflowed() ? -1 : aWriter.Size();
 }
 
@@ -1290,7 +1291,8 @@ inline bool DecodeSeedsReady(const uint8_t* theData, int theSize, MsgSeedsReady&
 	theMsg.mSrcSeat = aReader.U8();
 	theMsg.mDstSeat = aReader.U8();
 	theMsg.mReady = aReader.U8();
-	return !aReader.Overflowed();
+    theMsg.mReadyEpoch = aReader.U32();
+	return !aReader.Overflowed() && theMsg.mReady<=1;
 }
 
 inline int EncodeQuickChat(uint8_t* theBuffer, int theCapacity, const MsgQuickChat& theMsg)

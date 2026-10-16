@@ -2134,7 +2134,7 @@ void LawnApp::AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode,
 	}
 
 	// 关底 boss 开关同理（MOD_BUILD 38）：非法值按关。
-	if (theBossFlag != 0 && theBossFlag != 1)
+	if (theBossFlag<0 || theBossFlag>2)
 	{
 		TodLog("[run] the host named an unknown boss switch %d - treating it as off", theBossFlag);
 		theBossFlag = 0;

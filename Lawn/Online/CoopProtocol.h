@@ -2,7 +2,7 @@
 #include <cstdint>
 namespace CoopWire {
 // A session-local identity survives seat swaps and reconnects of this session object.
-enum Op : uint8_t { HELLO=0, SUN_REQUEST, SUN_GIFT, SUN_RESULT, SUN_DONE, OFFER, ACCEPT, DECLINE, CANCEL, ASK };
+enum Op : uint8_t { HELLO=0, SUN_REQUEST, SUN_GIFT, SUN_RESULT, SUN_DONE, OFFER, ACCEPT, DECLINE, CANCEL, ASK, RETURN_LOAN, RETURN_RESULT };
 constexpr int MAX_TRAITS=16;
 struct Event {
     uint8_t src=0,dst=0,op=0,plant=0,count=0,result=0;
@@ -21,7 +21,7 @@ inline bool Decode(const uint8_t* b,int size,Event& e) {
     if(size<38)return false;int at=0;
     auto get=[&](int n){uint64_t v=0;for(int i=0;i<n;++i)v|=(uint64_t)b[at++]<<(8*i);return v;};
     e.src=get(1);e.dst=get(1);e.op=get(1);e.plant=get(1);e.count=get(1);e.result=get(1);
-    if(e.op>ASK || e.result>1 || e.count>MAX_TRAITS || size!=38+e.count*4)return false;
+    if(e.op>RETURN_RESULT || e.result>1 || e.count>MAX_TRAITS || size!=38+e.count*4)return false;
     e.run=get(4);e.level=get(4);e.serial=get(4);e.request=get(4);e.sender=get(8);e.target=get(8);
     if(!e.sender)return false;
     for(int i=0;i<e.count;++i){e.ids[i]=get(2);e.stacks[i]=get(2);if(!e.stacks[i])return false;

@@ -49,6 +49,7 @@ void Coin::CoinInitialize(int theX, int theY, CoinType theCoinType, CoinMotion t
 	mHitGround = false;
 	mTimesDropped = 0;
 	mVisualOnly = false;
+    mRunSunBonus = 0;
 	mPottedPlantSpec.InitializePottedPlant(SeedType::SEED_NONE);
 
     if (IsSun())
@@ -1309,7 +1310,7 @@ float Coin::GetSunScale()
 //0x4329A0
 int Coin::GetSunValue()
 {
-    return mType == CoinType::COIN_SUN ? 25 : mType == CoinType::COIN_SMALLSUN ? 15 : mType == CoinType::COIN_LARGESUN ? 50 : 0;
+    return (mType == CoinType::COIN_SUN ? 25 : mType == CoinType::COIN_SMALLSUN ? 15 : mType == CoinType::COIN_LARGESUN ? 50 : 0) + mRunSunBonus;
 }
 
 //0x4329D0

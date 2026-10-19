@@ -1,6 +1,9 @@
 #ifndef __BOARD_H__
 #define __BOARD_H__
 #include <unordered_set>
+#include <unordered_map>
+#include "Run/RunDotState.h"
+#include "Run/WaveHealthState.h"
 
 #include "../ConstEnums.h"
 #include "../Sexy.TodLib/DataArray.h"
@@ -95,6 +98,8 @@ struct ZombiePicker
 
 struct PlantsOnLawn
 {
+	Plant* mLilypadPlant;
+	Plant* mFlowerPotPlant;
 	Plant*							mUnderPlant;
 	Plant*							mPumpkinPlant;
 	Plant*							mFlyingPlant;
@@ -110,8 +115,26 @@ struct BungeeDropGrid
 class Board : public Widget, public ButtonListener
 {
 public:
+    bool PlantHealthVisible() const;
+    bool ZombieHealthVisible() const;
+    void SetPlantHealthVisible(bool visible);
+    void SetZombieHealthVisible(bool visible);
     // @pvz-online: online-only presentation metadata avoids changing native zombie save layout.
     std::unordered_set<unsigned int> mRelayedZombieIds;
+    std::unordered_map<unsigned int,RunDotState> mRunDotStates;
+    // Exact wave accounting stays before mPaused: preserve the legacy raw-save suffix.
+    WaveHealthState mWaveHealth;
+    void SyncLegacyWaveHealth();
+    void RestoreLegacyWaveHealth();
+    bool mCoopTouchCaptured=false,mCoopWatchLatched=false;
+    int mCoopTouchAction=-1;
+    // Keep the PC raw-save suffix alignment unchanged; this token is transient.
+    uint32_t mCoopTouchPeerLow=0,mCoopTouchPeerHigh=0;
+    int CoopHit(int x,int y);
+    bool CoopMouseDown(int x,int y,int clicks);
+    bool CoopMouseUp(int x,int y,int clicks);
+    void CoopAction(int action);
+    void DrawCoopUI(Graphics* g);
     void MarkRelayedZombie(Zombie* zombie);
     bool IsRelayedZombie(Zombie* zombie);
     void DrawRelayedZombieMarkers(Graphics* g);
@@ -244,6 +267,8 @@ public:
 
 	void							DisposeBoard();
 	int								CountSunBeingCollected();
+	int                             GetRenderListCapacity() const;
+	int                             BuildRenderList(RenderItem* theRenderList, int theCapacity);
 	void							DrawGameObjects(Graphics* g);
 	void							ClearCursor();
 	/*inline*/ bool					AreEnemyZombiesOnScreen();
@@ -347,7 +372,7 @@ public:
 	/*inline*/ void					ClearAdvice(AdviceType theHelpIndex);
 	bool							RowCanHaveZombieType(int theRow, ZombieType theZombieType);
 	/*inline*/ int					NumberZombiesInWave(int theWaveIndex);
-	int								TotalZombiesHealthInWave(int theWaveIndex);
+	int64_t								TotalZombiesHealthInWave(int theWaveIndex);
 	void							DrawDebugText(Graphics* g);
 	void							DrawUICoinBank(Graphics* g);
 	/*inline*/ void					ShowCoinBank(int theDuration = 1000);
@@ -439,7 +464,7 @@ public:
 	bool							IsValidCobCannonSpot(int theGridX, int theGridY);
 	bool							IsValidCobCannonSpotHelper(int theGridX, int theGridY);
 	void							MouseDownCobcannonFire(int x, int y, int theClickCount);
-	int								KillAllZombiesInRadius(int theRow, int theX, int theY, int theRadius, int theRowRange, bool theBurn, int theDamageRangeFlags, int theDirectDamage = 0); // @Patoke: modified function prototype
+	int								KillAllZombiesInRadius(int theRow, int theX, int theY, int theRadius, int theRowRange, bool theBurn, int theDamageRangeFlags, int theDirectDamage = 0, bool theExpandRadius = false);
 	// @pvz-online: theDirectDamage = 爆炸直伤基数覆写（0 = 默认 1800×「爆破」乘数）——毁灭菇单株升级「Annihilation」经此传 50000（批八b）。
 	/*inline*/ int					GetSeedBankExtraWidth();
 	bool							IsFlagWave(int theWaveNumber);

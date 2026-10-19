@@ -310,6 +310,9 @@ enum Dialogs
     DIALOG_ZOMBIE_VOTE,                         // @pvz-online: 僵尸强化投票框（三候选 + 「弃权」+ 倒计时），见 ZombieVoteDialog
     DIALOG_COOP_PLAY,
     DIALOG_ONLINE_SWAP,                         // @pvz-online: 大厅换位选人框（任选队友 + 换后预览），2026-10-15
+    DIALOG_ROOM_DIRECTORY,                     // @pvz-online: public live room browser.
+    DIALOG_RUN_HISTORY,                        // @pvz-online: local per-profile recent runs.
+    DIALOG_SERVER_SELECT,                      // @pvz-online: explicit relay node selection.
     NUM_DIALOGS
 };
 enum DebugTextMode

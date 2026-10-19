@@ -118,6 +118,7 @@ void CutScene::PlaceAZombie(ZombieType theZombieType, int theGridX, int theGridY
 	}
 
 	Zombie* aZombie = mBoard->AddZombieInRow(theZombieType, theGridY, -2);
+	if (aZombie == nullptr) return;
 	TOD_ASSERT(aZombie);
 	aZombie->mPosX = theGridX * 56 + 830;
 	aZombie->mPosY = theGridY * 90 + 70;
@@ -1843,6 +1844,7 @@ void CutScene::ClearUpsellBoard()
 void CutScene::AddUpsellZombie(ZombieType theZombieType, int thePixelX, int theGridY)
 {
 	Zombie* aZombie = mBoard->AddZombieInRow(theZombieType, theGridY, 0);
+	if (aZombie == nullptr) return;
 	aZombie->mPosX = thePixelX;
 	aZombie->mPosY = aZombie->GetPosYBasedOnRow(theGridY);
 	aZombie->SetRow(theGridY);
@@ -2194,8 +2196,8 @@ void CutScene::UpdateUpsell()
 		Reanimation* aReanimSquash = mApp->AddReanimation(0, 0, 0, ReanimationType::REANIM_SQUASH);
 		aReanimSquash->PlayReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 0, 15.0f);
 		AttachEffect* anAttachEffect = AttachReanim(aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand")->mAttachmentID, aReanimSquash, 92.0f, 387.0f);
-		anAttachEffect->mOffset.m11 = 1.2f;
-		anAttachEffect->mOffset.m22 = 1.2f;
+		if (anAttachEffect) anAttachEffect->mOffset.m11 = 1.2f;
+		if (anAttachEffect) anAttachEffect->mOffset.m22 = 1.2f;
 		aCrazyDaveReanim->Update();
 		break;
 	}
@@ -2213,7 +2215,7 @@ void CutScene::UpdateUpsell()
 			aReanimHead->AttachToAnotherReanimation(aReanimThreepeater, StrFormat("anim_head%d", i).c_str());
 		}
 		AttachEffect* anAttachEffect = AttachReanim(aCrazyDaveReanim->GetTrackInstanceByName("Dave_body1")->mAttachmentID, aReanimThreepeater, 0.0f, 0.0f);
-		TodScaleRotateTransformMatrix(anAttachEffect->mOffset, -50, 230, 0.5f, 1.2f, 1.2f);
+		if (anAttachEffect) TodScaleRotateTransformMatrix(anAttachEffect->mOffset, -50, 230, 0.5f, 1.2f, 1.2f);
 		aCrazyDaveReanim->Update();
 		aReanimThreepeater->Update();
 		break;
@@ -2225,8 +2227,8 @@ void CutScene::UpdateUpsell()
 		aReanimMagnet->PlayReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 0, 15.0f);
 		TodScaleRotateTransformMatrix(aReanimMagnet->mOverlayMatrix, 0, 0, 0.3f, 1, 1);
 		AttachEffect* anAttachEffect = AttachReanim(aCrazyDaveReanim->GetTrackInstanceByName("Dave_pot")->mAttachmentID, aReanimMagnet, 49.0f, 25.0f);
-		anAttachEffect->mOffset.m11 = 1.2f;
-		anAttachEffect->mOffset.m22 = 1.2f;
+		if (anAttachEffect) anAttachEffect->mOffset.m11 = 1.2f;
+		if (anAttachEffect) anAttachEffect->mOffset.m22 = 1.2f;
 		aCrazyDaveReanim->Update();
 		break;
 	}

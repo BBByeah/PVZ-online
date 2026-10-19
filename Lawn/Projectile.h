@@ -66,6 +66,12 @@ public:
     // @pvz-online: Puff-shroom shares this projectile type; only Scaredy-shroom earns percent damage.
     bool                    mRunScaredySource;
     int                     mRunCrystalDamage;
+    // @pvz-online: source isolation, bounded hunter/wave state and delayed cob launch.
+    SeedType                mRunSourceSeed;
+    int                     mRunHuntHitsLeft;
+    int                     mRunLaunchDelay;
+    bool                    mRunIceWave;
+    ZombieID                mRunWaveHitIds[1024];
 
 public:
     Projectile();
@@ -77,6 +83,8 @@ public:
     void                    DrawShadow(Graphics* g);
     void                    Die();
     void                    DoImpact(Zombie* theZombie);
+    Zombie*                 FindHuntTarget();
+    void                    UpdatePurpleWave();
     int                     GetRunFixedDamageBonus(Zombie* theZombie);
     bool                    WasZombiePricklyHit(Zombie* theZombie);
     void                    RecordPricklyHit(Zombie* theZombie);

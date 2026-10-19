@@ -68,10 +68,9 @@ RunModeDialog::RunModeDialog(LawnApp* theApp, bool theShowDiff, int theEndlessSc
 		mCardButtons[i]->mFrameNoDraw = true;	// 画在 Dialog::Draw 里（照 ChallengeScreen）；无尽变体整行不摆
 	}
 
-	// 出怪难度行（MOD_BUILD 27）：联机主机才摆（单机档位恒为标准，摆了也是死控件）。
 	// 选中 = mInverted（CjkStoneButton::Draw 里 XOR 成按下态贴图）；点了只换选中、不关弹窗。
-	// 无尽变体（MOD_BUILD 37）例外：单机也摆——无尽局的难度/规模/节奏同样吃这一行。
-	mShowDiff = theShowDiff || aEndless;
+	(void)theShowDiff;
+	mShowDiff = true;
 	mDiffSel = RunState::RUN_DIFF_STD;
 	mScaleSel = RunState::RUN_SCALE_STD;
 	mTempoSel = RunState::RUN_TEMPO_STD;
@@ -81,6 +80,7 @@ RunModeDialog::RunModeDialog(LawnApp* theApp, bool theShowDiff, int theEndlessSc
 	mLadderSel = RunState::RUN_LADDER_STD;	// 默认 = 现状 ×1.33 档（MOD_BUILD 45）
 	mZombieBuffSel = 1;						// 默认每场景 1 条（2026-10-16 用户令「默认带僵尸buff」）
 	mSpeedSel = 0;							// 移速成长默认无（2026-10-16 用户令）
+	mFirstWaveSel = RunState::RUN_FIRSTWAVE_STD;
 	mOptionsButton = nullptr;
 	mOptionsWidth = 0;
 	mDiffCaptionY = 0;
@@ -88,17 +88,16 @@ RunModeDialog::RunModeDialog(LawnApp* theApp, bool theShowDiff, int theEndlessSc
 	if (mShowDiff)
 	{
 		mDiffCaption = ModText::Tr("出怪难度（全队倍率）", "Zombie difficulty (team multiplier)");
-		mDiffLabels[0] = ModText::Tr("轻松 ×0.5", "Easy ×0.5");
-		mDiffLabels[1] = ModText::Tr("标准 ×1", "Standard ×1");
-		mDiffLabels[2] = ModText::Tr("高压 ×2.0", "High ×2.0");
+		mDiffLabels[0] = ModText::Tr("轻松 x0.5", "Easy x0.5");
+		mDiffLabels[1] = ModText::Tr("标准 x1", "Standard x1");
+		mDiffLabels[2] = ModText::Tr("高压 x2.0", "High x2.0");
 
 		// 三枚等宽（取最长标签量的），石门贴图平铺对宽度有整段要求（见 CjkStoneButtonWidth）。
 		// 量宽用按钮实际画标签的那档字号（CjkPointSize(CJK_BUTTON_LABEL_PX)），量画同一份。
-		ModText::Font* aDiffFont = ModText::GetFont(CjkPointSize(CJK_BUTTON_LABEL_PX), false);
 		int aLabelMax = 0;
 		for (int i = 0; i < 3; i++)
 		{
-			int aWidth = ModText::TextWidth(aDiffFont, ModText::WideFromUtf8(mDiffLabels[i].c_str()));
+			int aWidth = CjkStoneButtonLabelWidth(mDiffLabels[i]);
 			if (aWidth > aLabelMax) aLabelMax = aWidth;
 		}
 		int aDiffWidth = CjkStoneButtonWidth(aLabelMax + 26, true);
@@ -115,20 +114,18 @@ RunModeDialog::RunModeDialog(LawnApp* theApp, bool theShowDiff, int theEndlessSc
 
 		// 「高级选项…」（MOD_BUILD 35）：与取消并排贴底，点开 RunOptionsDialog 回填三值。
 		CjkStoneButton* aOptions = new CjkStoneButton(RunModeDialog_Options, this);
-		aOptions->SetLabel(ModText::Tr("高级选项…", "Advanced Options..."));
+		aOptions->SetLabel(ModText::Tr("更多设置", "Advanced Options..."));
 		aOptions->mHasAlpha = true;
 		aOptions->mHasTransparencies = true;
 		mOptionsButton = aOptions;
-		mOptionsWidth = CjkStoneButtonWidth(ModText::TextWidth(ModText::GetFont(CjkPointSize(CJK_BUTTON_LABEL_PX), false),
-			ModText::WideFromUtf8(aOptions->mLabel.c_str())) + 32, true);
+		mOptionsWidth = CjkStoneButtonWidth(CjkStoneButtonLabelWidth(aOptions->mLabel) + 32, true);
 	}
 
 	mCancelButton = new CjkStoneButton(Dialog::ID_NO, this);
 	mCancelButton->SetLabel(ModText::Tr("取消", "Cancel"));
 	mCancelButton->mHasAlpha = true;
 	mCancelButton->mHasTransparencies = true;
-	mCancelWidth = CjkStoneButtonWidth(ModText::TextWidth(ModText::GetFont(CjkPointSize(CJK_BUTTON_LABEL_PX), false),
-		ModText::WideFromUtf8(mCancelButton->mLabel.c_str())) + 32, true);
+	mCancelWidth = CjkStoneButtonWidth(CjkStoneButtonLabelWidth(mCancelButton->mLabel) + 32, true);
 
 	// 无尽变体（MOD_BUILD 37）：底行多一枚「开始」——卡片行撤了，结果 id 换成它；
 	// 取消照旧（等待必须有出路）。
@@ -141,8 +138,7 @@ RunModeDialog::RunModeDialog(LawnApp* theApp, bool theShowDiff, int theEndlessSc
 		aStart->mHasAlpha = true;
 		aStart->mHasTransparencies = true;
 		mStartButton = aStart;
-		mStartWidth = CjkStoneButtonWidth(ModText::TextWidth(ModText::GetFont(CjkPointSize(CJK_BUTTON_LABEL_PX), false),
-			ModText::WideFromUtf8(aStart->mLabel.c_str())) + 32, true);
+		mStartWidth = CjkStoneButtonWidth(CjkStoneButtonLabelWidth(aStart->mLabel) + 32, true);
 	}
 
 	mTallBottom = true;
@@ -151,7 +147,7 @@ RunModeDialog::RunModeDialog(LawnApp* theApp, bool theShowDiff, int theEndlessSc
 	// 版心：宽 = 三张一行的宽度（边框两侧各探出几像素，留 16 兜住）；高 = 标题 + 间隔
 	// + 卡片（连边框）+ （难度行）+ 按钮。CalcSize 会按对话框贴图再取整/加高，多出来的
 	// 空隙由 Resize 里"卡片贴顶、按钮贴底"吸收。
-	ModText::Font* aTitleFont = ModText::GetFont(16, true);
+	ModText::Font* aTitleFont = ModText::GetFont(CjkPointSize(28), true);
 	int anExtraX = ModText::TextWidth(aTitleFont, ModText::WideFromUtf8(mTitle.c_str())) + 80;
 	if (aEndless)
 	{
@@ -168,12 +164,12 @@ RunModeDialog::RunModeDialog(LawnApp* theApp, bool theShowDiff, int theEndlessSc
 		if (aRowWidth > anExtraX) anExtraX = aRowWidth;
 	}
 	int anExtraY = ModText::LineHeight(aTitleFont) + 18	// 标题 + 与下一行的间隔
-		+ (aEndless ? ModText::LineHeight(ModText::GetFont(14, true)) + 14 : CARD_H + 14)
+		+ (aEndless ? ModText::LineHeight(ModText::GetFont(CjkPointSize(22), true)) + 14 : CARD_H + 14)
 		+ IMAGE_BUTTON_LEFT->mHeight + 18;			// 按钮行 + 与上一行的间隔
 	if (mShowDiff)
 	{
 		// 难度行：卡片之下一行——小标题 + 间隔 + 按钮
-		anExtraY += ModText::LineHeight(ModText::GetFont(12, false)) + 6 + IMAGE_BUTTON_LEFT->mHeight + 8;
+		anExtraY += ModText::LineHeight(ModText::GetFont(CjkPointSize(20), false)) + 6 + IMAGE_BUTTON_LEFT->mHeight + 8;
 	}
 
 	CalcSize(anExtraX, anExtraY);
@@ -194,7 +190,7 @@ void RunModeDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 {
 	LawnDialog::Resize(theX, theY, theWidth, theHeight);
 
-	ModText::Font* aTitleFont = ModText::GetFont(16, true);
+	ModText::Font* aTitleFont = ModText::GetFont(CjkPointSize(28), true);
 
 	// 标题贴顶；三张卡片横排在标题下面（一行整体在版心里左右居中）。
 	// 无尽变体（MOD_BUILD 37）：卡片整行撤掉，环境名一行顶在卡片原位。
@@ -214,7 +210,7 @@ void RunModeDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 	}
 	else
 	{
-		aRowH = ModText::LineHeight(ModText::GetFont(14, true));
+		aRowH = ModText::LineHeight(ModText::GetFont(CjkPointSize(22), true));
 		mSceneY = aCardsY;
 	}
 
@@ -223,7 +219,7 @@ void RunModeDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 	// 出怪难度行：行区之下、取消之上，三枚等宽横排居中
 	if (mShowDiff)
 	{
-		ModText::Font* aCaptionFont = ModText::GetFont(12, false);
+		ModText::Font* aCaptionFont = ModText::GetFont(CjkPointSize(20), false);
 		int aCaptionTop = aCardsY + aRowH + 34;
 		mDiffCaptionY = aCaptionTop;			// 同上：顶对齐
 		int aDiffY = aCaptionTop + ModText::LineHeight(aCaptionFont) + 6;
@@ -296,7 +292,7 @@ void RunModeDialog::Draw(Graphics* g)
 
 	if (!mTitle.empty())
 	{
-		ModText::Font* aTitleFont = ModText::GetFont(16, true);
+		ModText::Font* aTitleFont = ModText::GetFont(CjkPointSize(28), true);
 		std::wstring aTitle = ModText::WideFromUtf8(mTitle.c_str());
 		ModText::DrawTextWide(g, aTitleFont,
 			(mWidth - ModText::TextWidth(aTitleFont, aTitle)) / 2, mTitleY,
@@ -326,7 +322,7 @@ void RunModeDialog::Draw(Graphics* g)
 				aPosX - 6, aPosY - 2);
 
 			Color aTextColor = aHighLight ? Color(250, 40, 40) : Color(42, 42, 90);
-			ModText::Font* aNameFont = ModText::GetFont(14, true);
+			ModText::Font* aNameFont = ModText::GetFont(CjkPointSize(22), true);
 			std::wstring aName = ModText::WideFromUtf8(mCardNames[i].c_str());
 			ModText::DrawTextWide(g, aNameFont,
 				aPosX + (CARD_W - ModText::TextWidth(aNameFont, aName)) / 2,
@@ -337,22 +333,22 @@ void RunModeDialog::Draw(Graphics* g)
 	else if (!mSceneLine.empty())
 	{
 		// 无尽变体：环境名一行（14 粗、居中）顶在卡片原位。
-		ModText::Font* aSceneFont = ModText::GetFont(14, true);
+		ModText::Font* aSceneFont = ModText::GetFont(CjkPointSize(22), true);
 		std::wstring aScene = ModText::WideFromUtf8(mSceneLine.c_str());
 		ModText::DrawTextWide(g, aSceneFont,
 			(mWidth - ModText::TextWidth(aSceneFont, aScene)) / 2, mSceneY,
-			aScene, Color(42, 42, 90), g->mClipRect);
+			aScene, Color(220, 215, 190), g->mClipRect);
 	}
 
 	// 难度行的小标题（三枚按钮自己画自己，走控件那套）：
 	// 卡片区之下、居中，"多出来的是全队倍率"这层意思写在标题里。
 	if (mShowDiff)
 	{
-		ModText::Font* aCaptionFont = ModText::GetFont(12, false);
+		ModText::Font* aCaptionFont = ModText::GetFont(CjkPointSize(20), false);
 		std::wstring aCaption = ModText::WideFromUtf8(mDiffCaption.c_str());
 		ModText::DrawTextWide(g, aCaptionFont,
 			(mWidth - ModText::TextWidth(aCaptionFont, aCaption)) / 2, mDiffCaptionY,
-			aCaption, Color(96, 72, 40), g->mClipRect);
+			aCaption, Color(220, 215, 190), g->mClipRect);
 	}
 }
 
@@ -405,7 +401,7 @@ void RunModeDialog::ButtonDepress(int theId)
 	// 无尽变体（mEndlessScene >= 0）把"无尽"告诉面板：「场景难度」行不摆（无尽不吃阶梯）。
 	if (theId == RunModeDialog_Options)
 	{
-		RunOptionsDialog* aDialog = new RunOptionsDialog(mApp, mScaleSel, mTempoSel, mZombotanySel, mApp->mSlideCollect ? 1 : 0, mBossSel, mBuffMultSel, mLadderSel, mZombieBuffSel, mSpeedSel, mEndlessScene >= 0);
+		RunOptionsDialog* aDialog = new RunOptionsDialog(mApp, mScaleSel, mTempoSel, mZombotanySel, mApp->mSlideCollect ? 1 : 0, mBossSel, mBuffMultSel, mLadderSel, mZombieBuffSel, mSpeedSel, mFirstWaveSel, mEndlessScene >= 0, mEndlessOptions);
 		mApp->CenterDialog(aDialog, aDialog->mWidth, aDialog->mHeight);
 		mApp->AddDialog(Dialogs::DIALOG_RUN_OPTIONS, aDialog);
 		if (aDialog->WaitForResult() == RunOptionsDialog::RunOptionsDialog_OK)
@@ -418,6 +414,8 @@ void RunModeDialog::ButtonDepress(int theId)
 			mLadderSel = aDialog->mLadderSel;
 			mZombieBuffSel = aDialog->mZombieBuffSel;
 			mSpeedSel = aDialog->mSpeedSel;
+			mFirstWaveSel = aDialog->mFirstWaveSel;
+            mEndlessOptions=aDialog->mEndlessOptions;
 			// 滑动收阳光是本机即时设置（2026-10-10，不进联机载荷）：确定即落注册表并热改
 			// LawnApp 缓存，正在打的局当刻生效；取消不动。
 			if (mApp->mSlideCollect != (aDialog->mSlideSel != 0))

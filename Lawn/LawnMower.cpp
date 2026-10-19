@@ -29,7 +29,8 @@ void LawnMower::LawnMowerInitialize(int theRow)
         mMowerType = LawnMowerType::LAWNMOWER_ROOF;
         aReanimType = ReanimationType::REANIM_ROOF_CLEANER;
     }
-    else if (mBoard->mPlantRow[mRow] == PlantRowType::PLANTROW_POOL && mApp->mPlayerInfo->mPurchases[(int)StoreItem::STORE_ITEM_POOL_CLEANER])
+    else if (mBoard->mPlantRow[mRow] == PlantRowType::PLANTROW_POOL &&
+        (mApp->IsRunMode() || mApp->mPlayerInfo->mPurchases[(int)StoreItem::STORE_ITEM_POOL_CLEANER]))
     {
         mMowerType = LawnMowerType::LAWNMOWER_POOL;
         aReanimType = ReanimationType::REANIM_POOL_CLEANER;
@@ -134,6 +135,7 @@ void LawnMower::MowZombie(Zombie* theZombie)
         mChompCounter = 50;
     }
 
+    if (mBoard->IsRunBossZombie(theZombie)) return;
     if (mMowerType == LawnMowerType::LAWNMOWER_POOL)
     {
         mApp->PlayFoley(FoleyType::FOLEY_SHOOP);
@@ -206,7 +208,7 @@ void LawnMower::Update()
             int aOverlap = GetRectOverlap(aAttackRect, aZombieRect);
             if (aOverlap > (aZombie->mZombieType == ZombieType::ZOMBIE_BALLOON ? 20 : 0))
             {
-                // 蹦极僵尸或已死亡的僵尸不能主动触发小推车
+                // 韫︽瀬鍍靛案鎴栧凡姝讳骸鐨勫兊灏镐笉鑳戒富鍔ㄨЕ鍙戝皬鎺ㄨ溅
                 if (mMowerState != LawnMowerState::MOWER_READY || (aZombie->mZombieType != ZombieType::ZOMBIE_BUNGEE && aZombie->mHasHead))
                 {
                     MowZombie(aZombie);

@@ -210,6 +210,13 @@ void Music::MusicCreditScreenInit()
 //0x45ABB0
 void Music::StopAllMusic()
 {
+    auto& state = mApp->mBattleMusic;
+    if (!state.mInternalChange)
+    {
+        state.mBattleActive = false;
+        state.mBoard = nullptr;
+        state.mPreviewActive = false;
+    }
 	if (mMusicInterface != nullptr)
 	{
 		if (mCurMusicFileMain != MusicFile::MUSIC_FILE_NONE)
@@ -483,6 +490,8 @@ void Music::StartBurst()
 
 void Music::FadeOut(int theFadeOutDuration)
 { 
+    StopMusicPreview();
+    mApp->mBattleMusic.mBattleActive = false;
 	if (mCurMusicTune != MusicTune::MUSIC_TUNE_NONE)
 	{
 		mFadeOutCounter = theFadeOutDuration;
@@ -656,6 +665,8 @@ void Music::UpdateMusicBurst()
 //0x45B670
 void Music::MusicUpdate()
 {
+    if (mApp->mBattleMusic.mPreviewActive) return;
+    RefreshBattleMusic();
 	if (mFadeOutCounter > 0)
 	{
 		mFadeOutCounter--;
@@ -679,6 +690,13 @@ void Music::MusicUpdate()
 // GOTY @Patoke: 0x45EFA0
 void Music::MakeSureMusicIsPlaying(MusicTune theMusicTune)
 {
+    auto& state = mApp->mBattleMusic;
+    if (!state.mInternalChange)
+    {
+        if (state.mPreviewActive) StopAllMusic();
+        state.mBattleActive = false;
+        state.mBoard = nullptr;
+    }
 	if (mCurMusicTune != theMusicTune)
 	{
 		StopAllMusic();
@@ -686,42 +704,10 @@ void Music::MakeSureMusicIsPlaying(MusicTune theMusicTune)
 	}
 }
 
-//0x45B770
-void Music::StartGameMusic()
-{
-	TOD_ASSERT(mApp->mBoard);
-
-	if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN || mApp->mGameMode == GameMode::GAMEMODE_TREE_OF_WISDOM)
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_ZEN_GARDEN);
-	else if (mApp->IsFinalBossLevel())
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_FINAL_BOSS_BRAINIAC_MANIAC);
-	else if (mApp->IsWallnutBowlingLevel() || mApp->IsWhackAZombieLevel() || mApp->IsLittleTroubleLevel() || mApp->IsBungeeBlitzLevel() ||
-		mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_SPEED)
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_MINIGAME_LOONBOON);
-	// @pvz-online: 闯关的关卡号是引擎关，不是档案进度（§5.9）——档案恰好停在 10/20/30
-	// 会让闯关的白天/夜/泳池关误放传送带音乐，所以闯关不吃这条。
-	else if ((mApp->IsAdventureMode() && !mApp->IsRunMode() && (mApp->mPlayerInfo->GetLevel() == 10 || mApp->mPlayerInfo->GetLevel() == 20 || mApp->mPlayerInfo->GetLevel() == 30)) ||
-		mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_COLUMN)
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_CONVEYER);
-	else if (mApp->IsStormyNightLevel())
-		StopAllMusic();
-	else if (mApp->IsScaryPotterLevel() || mApp->IsIZombieLevel())
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_PUZZLE_CEREBRAWL);
-	else if (mApp->mBoard->StageHasFog())
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_FOG_RIGORMORMIST);
-	else if (mApp->mBoard->StageIsNight())
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_NIGHT_MOONGRAINS);
-	else if (mApp->mBoard->StageHas6Rows())
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_POOL_WATERYGRAVES);
-	else if (mApp->mBoard->StageHasRoof())
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_ROOF_GRAZETHEROOF);
-	else
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_DAY_GRASSWALK);
-}
-
 //0x45B930
 void Music::GameMusicPause(bool thePause)
 {
+    StopMusicPreview();
 	if (thePause)
 	{
 		if (!mPaused && mCurMusicTune != MusicTune::MUSIC_TUNE_NONE)
@@ -760,6 +746,7 @@ void Music::GameMusicPause(bool thePause)
 	}
 	else if (mPaused)
 	{
+        if (RefreshBattleMusic(true)) return;
 		if (mCurMusicTune != MusicTune::MUSIC_TUNE_NONE)
 			PlayMusic(mCurMusicTune, mPauseOffset, mPauseOffsetDrums);
 		mPaused = false;

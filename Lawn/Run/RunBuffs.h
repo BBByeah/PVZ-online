@@ -85,7 +85,7 @@ enum RunPlantUpgradeId
 	RUN_UPGRADE_WALLNUT,		// 坚果墙：巨人砸击时像地刺王一样耐砸（每次 -200 血；只可选 1 层；2026-10-04 批七由血量族整条换掉）
 	RUN_UPGRADE_POTATOMINE,		// 土豆雷：速熟——出土准备25%、最低2秒（cap1；48替换震雷，旧ID保留）
 	RUN_UPGRADE_SNOWPEA,		// 寒冰射手：发射冰西瓜（只可选 1 层；2026-10-04 批 18 由减速时长族整条换掉）
-	RUN_UPGRADE_CHOMPER,		// 大嘴花：咀嚼时间减半（只可选 1 层）
+	RUN_UPGRADE_CHOMPER,		// 大嘴花：消化时间40秒→8秒（只可选1层）
 	RUN_UPGRADE_REPEATER,		// 双发：每次射击多发 2 颗（无上限；2026-10-04 批 18 由射击间隔族整条换掉）
 	RUN_UPGRADE_PUFFSHROOM,		// 小喷菇：每次多发 2 颗/层（无上限；2026-10-04 由「射程变为无限」改，射程挂点已还原）
 	RUN_UPGRADE_SUNSHROOM,		// 阳光菇：亮顶——产阳光间隔 ×0.75/层 叠乘（至多 2 层；2026-10-09 经济批由概率多产改速度轴）
@@ -122,8 +122,8 @@ enum RunPlantUpgradeId
 	RUN_UPGRADE_GATLINGPEA,		// 机枪射手：攻击间隔 ×0.5（只可选 1 层；2026-10-04 批 18 由射击间隔族整条换掉）
 	RUN_UPGRADE_TWINSUNFLOWER,	// 双子向日葵：绽放——每轮固定多产 2 阳光/层（至多 2 层；2026-10-09 经济批由概率多产改加量轴）
 	RUN_UPGRADE_GLOOMSHROOM,	// 忧郁菇：光环范围 +1 格（只可选 1 层；2026-10-04 上限 2→1）
-	RUN_UPGRADE_CATTAIL,		// 猫尾草：攻击目标 +1 个/层（至多 2 层）
-	RUN_UPGRADE_WINTERMELON,	// 冰西瓜：溅射半径 +50%/层（无上限；2026-10-04 批 18 由减速时长族整条换掉）
+	RUN_UPGRADE_CATTAIL,		// 猫尾草：每层多1枚追踪针，优先不同目标、不足补打主目标（2星2层）
+	RUN_UPGRADE_WINTERMELON,	// 冰西瓜：极寒爆裂，3×3每名敌人80伤并冰缓（2星1层）
 	RUN_UPGRADE_GOLDMAGNET,		// 吸金磁：吸取间隔 ×0.8/层（至多 3 层；2026-10-09 权重批 ×0.75→×0.8）
 	RUN_UPGRADE_SPIKEROCK,		// 地刺王：血量 +150%/层（至多 2 层；2026-10-04 批七换血量 +200% cap3，2026-10-09 权重批血量族统一回调）
 	RUN_UPGRADE_COBCANNON,		// 玉米加农炮：装填时间 ×0.8/层（至多 3 层；2026-10-09 权重批 ×0.75→×0.8）
@@ -248,12 +248,12 @@ enum RunPlantBuff2Id
 	RUN_BUFF2_GUIDE,		// #36 大蒜：引路蒜——血量仅 20，被吃时全行僵尸换道（cap1，2★；矛盾设计原型）
 	RUN_BUFF2_FORTUNE,		// #38 金盏花：富贵——+10%/层 概率产金/钻石币（cap3，1★；产币端可实现照落，钱用途待定）
 	RUN_BUFF2_ROLLING,		// #39 西瓜投手：滚爆——落地后向前滚 1 格并再炸一次（cap1，1★）
-	RUN_BUFF2_FIREPEA,		// #40 机枪射手：火豆——子弹变火豆：伤害翻倍（原版火豆 40 伤，评审文案「+50%」低估，docs/07）、命中解除冰缓（cap1，2★）
-	RUN_BUFF2_LEGACY,		// #41 双子向日葵：遗泽——被吃掉时产 1 次阳光（cap1，2★）
+	RUN_BUFF2_FIREPEA, // 机枪射手：概率瓜弹，25%子弹变为直射西瓜（2星1层）
+	RUN_BUFF2_LEGACY, // 双子向日葵：聚光增幅，自动拾取阳光+20%（2星1层）
 	RUN_BUFF2_ROCKFLESH,	// #42 忧郁菇：耐砸——血量变为 1000、仅巨人砸击每次 -200，其余伤害正常结算（cap1，2★；2026-10-15 由 500/每击固定50 改版，坚果耐砸同款口径）
-	RUN_BUFF2_DEEPFREEZE,	// #44 冰西瓜：冰封——+20%/层 概率冻结命中者 2 秒（cap3，3★）
-	RUN_BUFF2_GOLDTOUCH,	// #45 吸金磁：金石——+25%/层 概率银币升金币（cap3，1★；钱用途待定）
-	RUN_BUFF2_TWINCOB,		// #47 玉米加农炮：双联装——每轮多发 1 枚（cap1，1★）
+	RUN_BUFF2_DEEPFREEZE, // 冰西瓜：冰川推进，每3次主攻击释放三行冰浪，240伤/冰冻1秒（3星1层）
+	RUN_BUFF2_GOLDTOUCH, // 吸金磁：点石成金，银币必变金币，每枚钱币+10阳光（2星1层）
+	RUN_BUFF2_TWINCOB, // 玉米加农炮：战略轰炸，五点错峰轰炸（3星1层）
 	// @pvz-online: append-only IDs preserve existing checkpoints and legacy hooks.
 	RUN_BUFF2_DISPATCH,
 	RUN_BUFF2_FORWARD_BACK,
@@ -268,9 +268,14 @@ enum RunPlantBuff2Id
 	RUN_BUFF2_WALLNUT_AID,
 	RUN_BUFF2_CACTUS_SLOW,
 	RUN_BUFF2_REROLL_FUND,
-	RUN_BUFF2_HEART_SPORE,	// 胆小菇：当前本体生命5%，额外伤害最高800，2星1层。
-	RUN_BUFF2_EMO_DAMAGE,	// 忧郁菇：emotional damage——周围 8 格无植物时伤害 ×3、每次命中回 2% 最大生命（cap1，3★；2026-10-15 用户定案，中英同名）
-	RUN_BUFF2_NUT_BOWLING,	// 坚果墙：保龄球——费用变 0、冷却 15 秒，种下的坚果变保龄球滚撞击杀（cap1，3★；2026-10-15 用户定案，与「耐砸」/「荆棘之壁」互斥）
+	RUN_BUFF2_HEART_SPORE,	// 胆小菇：当前本体生命5%，额外伤害最高5000，2星1层。
+	RUN_BUFF2_EMO_DAMAGE,	// 忧郁菇：emotional damage——周围 8 格无植物时伤害 ×5、每次命中回 4% 最大生命（cap1，3★；2026-10-15 用户定案，中英同名）
+	RUN_BUFF2_NUT_BOWLING,	// 坚果墙：保龄球——费用变 0、冷却 3 秒，种下的坚果变保龄球滚撞击杀（cap1，3★；2026-10-15 用户定案，与「耐砸」/「荆棘之壁」互斥）
+	// @pvz-online: append-only; do not shift existing checkpoint IDs.
+	RUN_BUFF2_HUNT, // 猫尾草：追猎，3星1层
+	RUN_BUFF2_GIANT_BITE, // 大嘴花：噬巨，巨人/Boss每口10000，重咬结束进入消化，3星1层。
+	RUN_BUFF2_BUTTER_HEAVY, // 黄油重击：当前本体1%/秒，上限2000，8秒，2星1层。
+	RUN_BUFF2_EMBERS, // 余焰：燃烧后当前本体1%/秒，最低300，3秒，2星1层。
 	RUN_PLANT_BUFF2_COUNT
 };
 

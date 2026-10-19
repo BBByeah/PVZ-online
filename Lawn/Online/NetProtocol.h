@@ -3,6 +3,8 @@
 
 #include <cstdint>
 #include <cstring>
+#include "../Run/ZombieBuffRules.h"
+#include "../Run/EndlessRules.h"
 
 // @pvz-online: 联机协议 v1（M2 直连 + M3 Go 中继共用）。
 //
@@ -199,7 +201,18 @@ const uint16_t	PROTOCOL_VERSION	= 1;
 //        蹦极出怪权重折半——波表两端各算，混搭必岔。旧长度（36 字节）的 START_LEVEL
 //        被新端按串包拒掉。检查点不抬版本：位包 bit12..13 = 移速档（老档读 0 = 无成长、
 //        安全降级），v13 的 boss u16 原样放宽 0/1/2（老档 0/1 读作档 0/1）。
-const uint16_t	MOD_BUILD			= 54; // @pvz-online: campaign-independent garden and battle isolation.
+// Build55: generation-scoped readiness, receipted proactive gifts and safe loan cancellation.
+// Build56: zombie-boost vote rounds (tier 2 = two ballots of one) and Heartguard capped at one stack;
+//          vote data consumption changed — mixed builds must not share a run (47 precedent).
+// Build69: bare-roof mines/spikes, capped regeneration and +25% Zamboni boss HP.
+// Build70: faster Chomper digestion, five-bite chains and Giant Bite with digestion on kill.
+// Build72: reduce Football boss bite damage from 200 to 150.
+// Build73: Football boss bites for 60; Ravenous retains normal growth.
+// Build75: lily pads and flower pots can share a tile in either planting order.
+// Build77: butter coating DOT, percentage Scorched Earth and Jalapeno Embers.
+const uint16_t	MOD_BUILD			= 82;
+// @pvz-online: Build61 splits control buffs; all peers need the new nine-stack snapshot.
+const int ZOMBIE_BUFF_COUNT = RunZombieBuffRules::COUNT;
 
 const uint16_t	DEFAULT_PORT		= 27777;
 
@@ -248,6 +261,9 @@ enum MessageType : uint16_t
 	MSG_ZOMBIE_VOTE_OPEN	= 20,	// H→C：本场景僵尸强化开票（房主抽 3 个候选；载荷见 MsgZombieVoteOpen）
 	MSG_ZOMBIE_VOTE		= 21,	// C→H：我对本场景强化的投票（0..2 = 候选下标、3 = 弃权）
 	MSG_COOP_EVENT = 23, // bounded, session-identified cooperation events
+	MSG_DAMAGE_STATS = 24,
+    MSG_ROUND_WAIT = 27, // host-owned exclusion from the active battle until the next START.
+    MSG_PREPARATION = 25, // @pvz-online: revision-bound intermission consent and ready barrier.
 	MSG_ZOMBIE_VOTE_RESULT	= 22	// H→C：计票结果（只驱动 UI；层数权威在随后的 START_LEVEL 快照）
 };
 
@@ -430,7 +446,7 @@ struct MsgHelloAck
 //                u8 isRun, i32 runSeed, u16 runLevelIndex, u8 runMode, u8 runDiff,
 //                u8 runScale, u8 runTempo, u8 runZombotany, u8 runEndlessScene,
 //                u8 runBossFlag, u8 runBuffMult, u8 runLadder, u8 runZombieBuff,
-//                u8 runSpeedTier, u8 zombieStacks[8] }
+//                u8 runSpeedTier, u8 zombieStacks[9] }
 // levelSeed 是主机 GetLevelRandSeed() 的完整返回值（它含主机存档 ID，客户端必须整体覆盖）。
 // 闯关局（isRun=1）多带"这一局是谁的局、打到第几关"：队友拿它对上自己的检查点，
 // 没检查点 / 对不上就从这一局的起点摆起、把欠下的三选一补回来（补做的屏和真打过的一模一样，
@@ -449,7 +465,7 @@ struct MsgHelloAck
 // 0=×1.33 现状 sentinel / 1=×1 / 2=×1.2 / 3=×1.5 / 4=×2）：乘在僵尸血量与出怪点数上，
 // 队友按同一档建局；非法值队友按现状档。无尽档不叠阶梯（该字节在无尽局恒 0）。
 // mRunZombieBuff（MOD_BUILD 45）= 僵尸 buff 档 0/1/2（每进一个新场景给僵尸叠几条）；
-// mZombieStacks[8]（MOD_BUILD 45）= 8 条强化的当前层数快照（下标 = RunState 池子枚举，
+// mZombieStacks[ZOMBIE_BUFF_COUNT]（MOD_BUILD 45）= 9 条强化的当前层数快照（下标 = RunState 池子枚举，
 // 0..255）——权威值在主机，队友一律按这条快照覆盖自己的层数（投票结果只驱动 UI，
 // 层数不信投票帧、只信本快照，防乱序）；重连补发（mLastStartLevel）自动带上。
 // mRunSpeedTier（2026-10-16）= 僵尸移速成长档 0/1/2（无/×1.03/×1.05，每进一个新场景
@@ -457,7 +473,7 @@ struct MsgHelloAck
 // 2 末关+场景 3（旧语义的"开"= 档 1）。
 // 单关局 isRun=0：runSeed/runLevelIndex/runMode 全是 0，runDiff 记标准档（1，单关局
 // 不参与难度缩放），高级选项三格记 标准/标准/关，场景记 0，阶梯记现状 0、僵尸 buff
-// 记关 0、8 层数记 0，其余语义一字不变。
+// 记关 0、9 层数记 0，其余语义一字不变。
 struct MsgStartLevel
 {
 	uint8_t			mSrcSeat;
@@ -479,7 +495,10 @@ struct MsgStartLevel
 	uint8_t			mRunLadder;
 	uint8_t			mRunZombieBuff;
 	uint8_t			mRunSpeedTier;
-	uint8_t			mZombieStacks[8];
+	uint8_t mRunFirstWave;
+    uint8_t mRunEndlessOptions;
+	uint8_t			mZombieStacks[ZOMBIE_BUFF_COUNT];
+    uint32_t mReadyEpoch; // @pvz-online: new starts, including retries, have distinct readiness generations.
 };
 
 // LEVEL_DONE：{ srcSeat, dstSeat, u8 done }（1 = 我这块草坪清完了，0 = 又不清净了）
@@ -491,6 +510,7 @@ struct MsgLevelDone
 	uint8_t			mSrcSeat;
 	uint8_t			mDstSeat;
 	uint8_t			mDone;
+    uint32_t mReadyEpoch = 0;
 };
 
 // START_ACK：{ srcSeat, dstSeat, u8 accepted }
@@ -645,20 +665,16 @@ struct MsgRunGo
 	uint8_t			mDstSeat;
 };
 
-// SEEDS_READY：{ srcSeat, dstSeat, u8 ready }
-// "我这一轮的选卡是什么状态"：1 = 选好了（按下 Let's Rock），0 = 还在选（新一轮刚开始）。
-// 两态而不是"报一次就完"，理由和 LEVEL_DONE 一样——它是个状态、不是一串事件：
-// 各家在**新一轮开始时各报一次当下状态**（要选卡的报 0，这一关不用选卡的直接报 1），
-// 按下 Let's Rock 再报一次 1。收的人只管读"对面现在是什么状态"，不用在本地挑时机清位——
-// 清位就是丢消息（对面报得早、清得晚，两边就互相干等）。
-// 谁先选完谁先报；收到的人若自己也选完了就放行，没选完就继续选。
-// 所有上座席位都报"选好了"才开打——少一个人开打，两家从第一秒就不在一个时间线上。
-// 中继模式下会话层对每个上座席位各发一帧（同 RUN_GO，不是协议广播）。
+// @pvz-online Build55: SEEDS_READY = src/dst/ready/u32 readyEpoch (7 bytes).
+// START_LEVEL carries the host's generation (42 bytes including Build60 first-wave delay).
+// A fresh start, including a same-level retry, invalidates old ready reports. A targeted
+// resend/reconnect keeps its generation; early reports for the next generation are retained.
 struct MsgSeedsReady
 {
 	uint8_t			mSrcSeat;
 	uint8_t			mDstSeat;
 	uint8_t			mReady;
+    uint32_t mReadyEpoch;
 };
 
 // QUICK_CHAT：{ srcSeat, dstSeat, u8 id }
@@ -892,7 +908,10 @@ inline int EncodeStartLevel(uint8_t* theBuffer, int theCapacity, const MsgStartL
 	aWriter.U8(theMsg.mRunLadder);
 	aWriter.U8(theMsg.mRunZombieBuff);
 	aWriter.U8(theMsg.mRunSpeedTier);
-	for (int i = 0; i < 8; i++) aWriter.U8(theMsg.mZombieStacks[i]);
+	aWriter.U8(theMsg.mRunFirstWave);
+    aWriter.U8(theMsg.mRunEndlessOptions);
+	for (int i = 0; i < ZOMBIE_BUFF_COUNT; i++) aWriter.U8(theMsg.mZombieStacks[i]);
+    aWriter.U32(theMsg.mReadyEpoch);
 	return aWriter.Overflowed() ? -1 : aWriter.Size();
 }
 
@@ -918,7 +937,11 @@ inline bool DecodeStartLevel(const uint8_t* theData, int theSize, MsgStartLevel&
 	theMsg.mRunLadder = aReader.U8();
 	theMsg.mRunZombieBuff = aReader.U8();
 	theMsg.mRunSpeedTier = aReader.U8();
-	for (int i = 0; i < 8; i++) theMsg.mZombieStacks[i] = aReader.U8();
+	theMsg.mRunFirstWave = aReader.U8();
+    theMsg.mRunEndlessOptions = aReader.U8();
+    if(!EndlessRules::Valid(theMsg.mRunEndlessOptions))return false;
+	for (int i = 0; i < ZOMBIE_BUFF_COUNT; i++) theMsg.mZombieStacks[i] = aReader.U8();
+    theMsg.mReadyEpoch = aReader.U32();
 	return !aReader.Overflowed();
 }
 
@@ -928,15 +951,18 @@ inline int EncodeLevelDone(uint8_t* theBuffer, int theCapacity, const MsgLevelDo
 	aWriter.U8(theMsg.mSrcSeat);
 	aWriter.U8(theMsg.mDstSeat);
 	aWriter.U8(theMsg.mDone);
+    if (theMsg.mReadyEpoch) aWriter.U32(theMsg.mReadyEpoch);
 	return aWriter.Overflowed() ? -1 : aWriter.Size();
 }
 
 inline bool DecodeLevelDone(const uint8_t* theData, int theSize, MsgLevelDone& theMsg)
 {
+    if (theSize != 3 && theSize != 7) return false;
 	Reader aReader(theData, theSize);
 	theMsg.mSrcSeat = aReader.U8();
 	theMsg.mDstSeat = aReader.U8();
 	theMsg.mDone = aReader.U8();
+    theMsg.mReadyEpoch = theSize == 7 ? aReader.U32() : 0;
 	return !aReader.Overflowed();
 }
 
@@ -1105,7 +1131,8 @@ inline bool DecodeZombieVoteOpen(const uint8_t* theData, int theSize, MsgZombieV
 	if (aReader.Overflowed()) return false;
 	for (int i = 0; i < 3; i++)
 	{
-		if (theMsg.mCandidates[i] >= 8) return false;
+		if (theMsg.mCandidates[i] == 0xff) continue;
+        if (theMsg.mCandidates[i] >= ZOMBIE_BUFF_COUNT) return false;
 		for (int j = 0; j < i; j++) if (theMsg.mCandidates[i] == theMsg.mCandidates[j]) return false;
 	}
 	return true;
@@ -1152,7 +1179,7 @@ inline bool DecodeZombieVoteResult(const uint8_t* theData, int theSize, MsgZombi
 	for (int i = 0; i < 2; i++) theMsg.mIds[i] = aReader.U8();
 	// @pvz-online: the banner iterates mCount, so reject out-of-array counts before queueing it.
 	if (aReader.Overflowed() || theMsg.mCount > 2) return false;
-	for (int i = 0; i < theMsg.mCount; i++) if (theMsg.mIds[i] >= 8) return false;
+	for (int i = 0; i < theMsg.mCount; i++) if (theMsg.mIds[i] >= ZOMBIE_BUFF_COUNT) return false;
 	return true;
 }
 
@@ -1281,6 +1308,7 @@ inline int EncodeSeedsReady(uint8_t* theBuffer, int theCapacity, const MsgSeedsR
 	aWriter.U8(theMsg.mSrcSeat);
 	aWriter.U8(theMsg.mDstSeat);
 	aWriter.U8(theMsg.mReady);
+    aWriter.U32(theMsg.mReadyEpoch);
 	return aWriter.Overflowed() ? -1 : aWriter.Size();
 }
 
@@ -1290,7 +1318,8 @@ inline bool DecodeSeedsReady(const uint8_t* theData, int theSize, MsgSeedsReady&
 	theMsg.mSrcSeat = aReader.U8();
 	theMsg.mDstSeat = aReader.U8();
 	theMsg.mReady = aReader.U8();
-	return !aReader.Overflowed();
+    theMsg.mReadyEpoch = aReader.U32();
+	return !aReader.Overflowed() && theMsg.mReady<=1;
 }
 
 inline int EncodeQuickChat(uint8_t* theBuffer, int theCapacity, const MsgQuickChat& theMsg)

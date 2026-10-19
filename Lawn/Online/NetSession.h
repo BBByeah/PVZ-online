@@ -1,4 +1,7 @@
 #include "CoopProtocol.h"
+#include "DamageStatsWire.h"
+#include "PreparationWire.h"
+#include "AdmissionWire.h"
 #ifndef __NETSESSION_H__
 #define __NETSESSION_H__
 
@@ -20,7 +23,40 @@
 class NetSession
 {
 public:
-    uint64_t mCoopToken=0;
+    // @pvz-online: desired visibility is acknowledged by the relay before the UI calls it public.
+    bool mDirectoryPublic=false,mDirectoryStarted=false,mDirectoryConfirmed=false,mDirectoryJoin=false;
+    int mDirectoryRetry=0;
+    void SetDirectoryPublic(bool value) {if(value!=mDirectoryPublic){mDirectoryPublic=value;mDirectoryConfirmed=false;mDirectoryRetry=0;}}
+    void SetDirectoryStarted(bool value) {if(value!=mDirectoryStarted){mDirectoryStarted=value;mDirectoryConfirmed=false;mDirectoryRetry=0;}}
+    bool StartDirectoryJoin(const char* server,const char* code,uint16_t port=NetProto::DEFAULT_RELAY_PORT) {
+        bool ok=StartRoomJoin(server,code,port);mDirectoryJoin=ok;return ok;
+    }
+    // Host-owned, round-scoped seats which re-entered after combat began.
+    bool WaitForNextRound(uint8_t seat);
+    bool IsWaitingForNextRound(uint8_t seat) const {return seat>=1 && seat<=NetProto::MAX_PLAYERS && (mRoundWaitMask & (1u<<seat));}
+    void PublishRoundWait();
+    uint8_t mRoundWaitMask=0;
+    int mRoundWaitTicks=0;
+    uint64_t mCoopToken=0,mPersistentPlayer=0;
+    void SetPersistentPlayer(uint64_t token){mPersistentPlayer=token;mCoopToken=token;}
+    std::vector<AdmissionWire::Message> mAdmissionInbox;
+    AdmissionWire::Message mAdmissionOffer;
+    int mAdmissionValues[NetProto::MAX_PLAYERS+1]{-1,-1,-1,-1,-1,-1,-1};
+    uint32_t mAdmissionValuesEpoch=0;
+    uint8_t mAdmissionNewMask=0;
+    bool mHasCredential=false;
+    uint8_t mCredential[16]{};
+    int mGateWanted=-1,mGateRetry=0;
+    uint32_t mGateEpoch=0,mGateRequest=0,mGateAck=0;
+    bool HasAdmissionOffer(int level)const{return mAdmissionOffer.op==AdmissionWire::OFFER && mAdmissionOffer.run && mAdmissionOffer.level==uint32_t(level) && mAdmissionOffer.epoch==mReadyEpoch;}
+    bool SupportsAdmission() const{return mTransport==Transport::RELAY && mHasCredential;}
+    bool RequestRoomGate(bool open);
+    void CancelPendingAdmissions();
+    bool SendAdmission(AdmissionWire::Message message,uint8_t destination);
+    void ResetAdmissionNetwork();
+    std::vector<DamageStatsWire::Snapshot> mDamageInbox;
+    bool SendDamageStats(DamageStatsWire::Snapshot snapshot, uint8_t target = 0);
+    bool TakeDamageStats(DamageStatsWire::Snapshot& snapshot);
     uint64_t mCoopPeers[NetProto::MAX_PLAYERS+1]{};
     std::vector<CoopWire::Event> mCoopInbox;
     bool SendCoop(CoopWire::Event event, uint8_t target=NetProto::SEAT_UNSET);
@@ -149,6 +185,8 @@ public:
 	bool			StartRoomJoin(const char* theServer, const char* theRoomCode,
 						uint16_t thePort = NetProto::DEFAULT_RELAY_PORT);
 	bool			IsRelay() const { return mTransport == Transport::RELAY; }
+	const std::string& GetRelayHost() const { return mConnectHost; }
+	uint16_t GetRelayPort() const { return mConnectPort; }
 
 	// 中继：本房房间码（4 字符，房主念给朋友的那串）。直连时空串。
 	const std::string&	GetRoomCode() const { return mRoomCode; }
@@ -186,6 +224,9 @@ public:
 	// 凭空等一个不存在的队友，闯关局会永久挂起。
 	bool			HasOtherSeats() const;
 	int				GetOccupiedSeatCount() const;
+    int GetConnectedPlayerCount(bool nextRound = false) const;
+    bool CanHostStart() const;
+    bool RelayBattleHeld() const;
 
 	// 席位是个环（换位）：1 → 2 → … → N → 1，末位的后一位是首位，人人都有换的对象。
 	// 只看**上座**席位、跳过空位——中间有人走了，环自己把洞跳过去。
@@ -229,7 +270,7 @@ public:
 						uint8_t theRunEndlessScene = 0, uint8_t theRunBossFlag = 0,
 						uint8_t theRunBuffMult = 0, uint8_t theRunLadder = 0,
 						uint8_t theRunZombieBuff = 0, const uint8_t* theZombieStacks = nullptr,
-						uint8_t theRunSpeedTier = 0);
+						uint8_t theRunSpeedTier = 0, uint8_t theRunFirstWave = 0, uint8_t theEndlessOptions = 0);
 
 	// 客户端侧：取出主机发来的开局命令（同时清掉）。没有就返回 false。
 	// 单槽而不是队列：开局命令只有"最新那条"有意义，堆着旧的开局命令没有用处。
@@ -266,11 +307,36 @@ public:
 	// 双向：报"我这一轮的选卡状态"（theReady=1 选好了 / 0 还在选）。选完卡不能一个人
 	// 先开打——两边各按各的 Let's Rock，开打时间就对不上；谁先选完谁先报，等所有人到齐。
 	// 是个状态不是事件，所以同一轮里重复报同一个值会被去重（和 SendLevelDone 同款）。
-	bool			SendSeedsReady(bool theReady = true);
+	bool            SendSeedsReady(bool theReady = true);
+    // @pvz-online: called only after local rewards/votes finish; the host waits for every player.
+    bool BeginPreparation(bool gameManaged=false);
+    bool ConfirmPreparationConfiguration();
+    void EndPreparation() { mPreparation=PreparationWire::StateData{};ClearSwapState(); }
+    bool IsPreparationActive() const { return mPreparation.local && mPreparation.epoch==mReadyEpoch; }
+    bool CanChangePreparationSeats() const;
+    bool CanReadyPreparation() const { return !IsPreparationActive() || CanChangePreparationSeats() ||
+        (IsConnected() && !HasOtherSeats() && mPreparation.phase==PreparationWire::OPEN); }
+    uint32_t GetPreparationRevision() const { return mPreparation.revision; }
+    uint8_t GetPreparationPhase() const { return mPreparation.phase; }
+    uint8_t GetSwapRequesterSeat() const { return IsPreparationActive()?FindCoopSeat(mPreparation.actor):mSwapAskSeat; }
+    uint8_t GetSwapTargetSeat() const { return IsPreparationActive()?FindCoopSeat(mPreparation.target):mSwapRequestSeat; }
+
 
 	// 其他上座席位这一轮都选好了没有（各席位报的是状态，本地只在开局/回菜单时重置）。
 	// 单对端（直连）时就是"对面那一个"，语义与 M2 完全一致。
 	bool			IsPeerSeedsReady();
+
+	// @pvz-online: UI observes the current round without consuming start/ready events.
+	bool HasReadyRound() const { return mReadyEpoch != 0; }
+    uint32_t GetReadyEpoch() const{return mReadyEpoch;}
+    uint8_t GetOccupiedMask() const{uint8_t mask=0;for(uint8_t seat=1;seat<=NetProto::MAX_PLAYERS;++seat)if(IsSeatOccupied(seat))mask|=uint8_t(1u<<seat);return mask;}
+	bool IsSeatSeedsReady(uint8_t seat) const {
+		return IsSeatOccupied(seat) && !IsSeatOffline(seat) && mReadyEpoch != 0
+			&& mSeats[seat].mSeedsReadyEpoch == mReadyEpoch && mSeats[seat].mSeedsReady;
+	}
+	bool IsSeatAwaitingStartAck(uint8_t seat) const {
+		return IsHostSeat() && IsSeatOccupied(seat) && mSeats[seat].mAwaitingAck;
+	}
 
 	// 我离开这一局了（回主菜单）。对面收到会跟着退——不然一边在关卡里、一边在菜单上，
 	// 退的那边再点关卡开局时还会撞上"对面不在菜单、开局命令被丢掉"的卡死。
@@ -326,11 +392,15 @@ public:
 	bool			SwapSeats(uint8_t theTargetSeat);	// 2026-10-15：从「只跟环上后一位」放开为任选上座队友（大厅换位弹窗）
 
 	// 我发出的请求还在等对面回话（面板据此灰掉 Swap 键，也挡住重复请求）。
-	bool			IsSwapRequestPending() const { return mSwapRequestSeat != NetProto::SEAT_UNSET; }
+	bool IsSwapRequestPending() const { return IsPreparationActive() ?
+        (mPreparation.phase==PreparationWire::ASK || mPreparation.phase==PreparationWire::COMMIT) :
+        mSwapRequestSeat != NetProto::SEAT_UNSET; }
 
 	// 对面正问我换不换（主循环看到就把面板叫出来，等玩家按同意/拒绝）。
 	// 一次请求一直挂着为真，直到 AnswerSwapRequest 作答。
-	bool			HasIncomingSwapRequest() const { return mSwapAskSeat != NetProto::SEAT_UNSET; }
+	bool HasIncomingSwapRequest() const { return IsPreparationActive() ?
+        (mPreparation.phase==PreparationWire::ASK && mPreparation.target==mCoopToken) :
+        mSwapAskSeat != NetProto::SEAT_UNSET; }
 
 	// 回答对面的换位请求。同意则两边各自执行同一次换位（本机当场生效，
 	// 对面收到 REPLY 后跟着换）；拒绝则什么都不发生，对面只收到一句说明。
@@ -357,6 +427,11 @@ public:
 
 	// 收下的漏怪（先进先出，一只都不许丢）。没有就返回 false。
 	bool			TakePendingEscapedZombie(NetProto::MsgEscapedZombie& theMsg);
+    // Inspect without consuming: an exhausted receiving board retries on the next update.
+    bool PeekPendingEscapedZombie(NetProto::MsgEscapedZombie& msg) const {
+        if(mPendingEscapedZombies.empty())return false;
+        msg=mPendingEscapedZombies.front();return true;
+    }
 
 	// @pvz-online: 发阳光给队友（MOD_BUILD 38）：定向发给 theTargetSeat（上座、非自己——
 	// 本地按 G 后 1-6 直选），amount = 到账额（发送端已扣档位与税）。空位/自己/没连上
@@ -424,6 +499,7 @@ public:
 
 	// 对端的构建代次（握手时报的，连上才有效）。
 	uint16_t		GetPeerBuild() const;
+    uint16_t GetSeatBuild(uint8_t seat) const { return seat>=1 && seat<=NetProto::MAX_PLAYERS ? mSeats[seat].mBuild : 0; }
 	// 有席位的构建代次和本机不一样：包还是同一套，但行为可能不配套（比如漏怪在某代才真的
 	// 落地）。**从 MOD_BUILD 12 起这不再拒绝握手**——照常连、UI 上挂一句提醒，
 	// 玩家真撞上不对劲自己会去更新，比"整场连不上"实用（用户 2026-10-02 拍板）。
@@ -459,7 +535,8 @@ private:
 		uint16_t		mBuild;			// 他报的构建代次（0 = 还不知道）
 		std::string		mName;
 		bool			mLevelDone;		// 报的"草坪清完了"
-		bool			mSeedsReady;	// 报的"这一轮选卡选好了"
+		uint32_t mSeedsReadyEpoch;
+        bool			mSeedsReady;	// 报的"这一轮选卡选好了"
 		uint8_t			mAckState;		// 主机侧收到的开局回答：0 还没 / 1 进场 / 2 现在不行
 		bool			mAwaitingAck;	// 主机侧：正在等他这一条
 	};
@@ -471,6 +548,17 @@ private:
 	void			HandlePacket(const NetLink::Packet& thePacket);
 	void			PushEvent(EventType theType, uint8_t theSeat = NetProto::SEAT_UNSET);
 	void			ClearSeatTable();
+    void AdoptReadyEpoch(uint32_t epoch);
+    PreparationWire::StateData mPreparation;
+    bool SendPreparation(uint8_t op,uint8_t destination,uint64_t target=0,bool value=false);
+    void HandlePreparation(const PreparationWire::Message& message);
+    void PublishPreparation();
+    void UpdatePreparation();
+    void PreparationSeatSwapApplied(uint8_t a,uint8_t b);
+    uint32_t mReadyEpoch=0;
+    bool mSeedsReadySent=false;
+    uint32_t mConsumedStartEpoch=0;
+    bool mStartAckSent=false,mStartAccepted=false;
 	// 服务器控制帧（type ≥ 0xF000）整段收在这儿：只有中继模式会收到，管的是名册和路由，
 	// 不碰游戏状态（名册变动走事件队列通知主循环）。
 	void			HandleControlFrame(uint16_t theType, const uint8_t* thePayload, int theSize);
@@ -568,6 +656,7 @@ private:
 	// @pvz-online: 收到的发阳光（MOD_BUILD 38）。跨层不碰棋盘，理由同漏怪队列。
 	std::vector<NetProto::MsgSendSun>	mPendingSunGifts;
 	// @pvz-online: 僵尸强化投票三条（MOD_BUILD 45）。跨层不弹框，理由同漏怪队列。
+    std::vector<bool> mPendingZombieVoteOrder;
 	std::vector<NetProto::MsgZombieVoteOpen>	mPendingZombieVoteOpens;
 	std::vector<NetProto::MsgZombieVote>		mPendingZombieVotes;
 	std::vector<NetProto::MsgZombieVoteResult>	mPendingZombieVoteResults;

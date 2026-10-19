@@ -124,6 +124,49 @@ public:
 		return false;
 	}
 
+	// Checked allocation is opt-in until every legacy caller handles failure.
+	bool DataArrayCanAllocate(unsigned int theCount = 1) const
+	{
+		if (mMaxUsedCount > mMaxSize || mSize > mMaxUsedCount || mFreeListHead > mMaxUsedCount)
+			return false;
+		if ((mFreeListHead == mMaxUsedCount) != (mSize == mMaxUsedCount)) return false;
+		return theCount <= mMaxSize - mSize;
+	}
+
+	T* DataArrayTryAlloc()
+	{
+		if (!DataArrayCanAllocate()) return nullptr;
+		if (!mBlock) return nullptr;
+		if (mFreeListHead < mMaxUsedCount &&
+			(mBlock[mFreeListHead].mID > mMaxUsedCount || mBlock[mFreeListHead].mID == mFreeListHead)) return nullptr;
+		return DataArrayAlloc();
+	}
+
+	// Validate loaded IDs/free links before callers can iterate or allocate.
+	bool DataArrayValidateState() const
+	{
+		if (!DataArrayCanAllocate(0) || mNextKey == 0 || mNextKey >= DATA_ARRAY_MAX_SIZE) return false;
+		unsigned int aLive = 0;
+		for (unsigned int i = 0; i < mMaxUsedCount; ++i)
+		{
+			const unsigned int aId = mBlock[i].mID;
+			if (aId & DATA_ARRAY_KEY_MASK)
+			{
+				if ((aId & DATA_ARRAY_INDEX_MASK) != i) return false;
+				++aLive;
+			}
+			else if (aId > mMaxUsedCount) return false;
+		}
+		if (aLive != mSize) return false;
+		unsigned int aNext = mFreeListHead;
+		for (unsigned int n = 0; n < mMaxUsedCount - mSize; ++n)
+		{
+			if (aNext >= mMaxUsedCount) return false;
+			aNext = mBlock[aNext].mID;
+		}
+		return aNext == mMaxUsedCount;
+	}
+
 	T* DataArrayAlloc()
 	{
 		TOD_ASSERT(mSize < mMaxSize, "Data array full: %s", mName);
@@ -149,7 +192,7 @@ public:
 
 	T* DataArrayTryToGet(unsigned int theId)
 	{
-		if (!theId || (theId & DATA_ARRAY_INDEX_MASK) >= mMaxSize)
+		if (!theId || !(theId & DATA_ARRAY_KEY_MASK) || (theId & DATA_ARRAY_INDEX_MASK) >= mMaxUsedCount)
 			return nullptr;
 
 		DataArrayItem* aBlock = &mBlock[theId & DATA_ARRAY_INDEX_MASK];
@@ -159,7 +202,7 @@ public:
 	T* DataArrayGet(unsigned int theId)
 	{
 		TOD_ASSERT(DataArrayTryToGet(theId) != nullptr, "Failed: DataArrayGet(0x%x) for %s", theId, mName);
-		return &mBlock[(short)theId].mItem;
+		return &mBlock[theId & DATA_ARRAY_INDEX_MASK].mItem;
 	}
 };
 

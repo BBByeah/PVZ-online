@@ -3,6 +3,7 @@
 #include "../../LawnApp.h"
 #include "../../Resources.h"
 #include "graphics/Graphics.h"
+#include "graphics/ImageFont.h"
 
 int CjkPointSize(int thePixelHeight)
 {
@@ -37,24 +38,38 @@ int CjkStoneButtonWidth(int theWidth, bool theRoundUp)
 	return aWidth < aFloor ? aFloor : aWidth;
 }
 
-// 标签是不是纯 ASCII。英文档回落到位图字体是有前提的：那张字体表只到 Latin，
-// "Easy ×0.5" 里的 × 没有对应字形，硬走位图会画成乱码——含非 ASCII 的标签两种
-// 语言都得走宽字符直绘。
-static bool LabelIsAscii(const std::string& theLabel)
+static bool LabelHasArtwork(const std::string& theLabel)
 {
-	for (size_t i = 0; i < theLabel.size(); i++)
+	auto* font = static_cast<Sexy::ImageFont*>(Sexy::FONT_DWARVENTODCRAFT18GREENINSET);
+	font->Prepare();
+	int offset = 0;
+	while (offset < static_cast<int>(theLabel.size()))
 	{
-		if ((unsigned char)theLabel[i] >= 0x80) return false;
+		wchar_t character = Sexy::UTF8NextChar(theLabel, offset);
+		if (character == L' ') continue;
+		if (character < 128) character = static_cast<unsigned char>(font->GetMappedChar(static_cast<SexyChar>(character)));
+		bool found = false;
+		for (auto& layer : font->mActiveLayerList)
+		{
+			auto glyph = layer.mBaseFontLayer->mCharDataMap.find(character);
+			if (glyph != layer.mBaseFontLayer->mCharDataMap.end() && glyph->second.mWidth > 0) { found = true; break; }
+		}
+		if (!found) return false;
 	}
 	return true;
+}
+
+int CjkStoneButtonLabelWidth(const std::string& theLabel)
+{
+	if (LabelHasArtwork(theLabel)) return Sexy::FONT_DWARVENTODCRAFT18GREENINSET->StringWidth(theLabel);
+	return ModText::TextWidth(ModText::GetFont(CjkPointSize(CJK_BUTTON_LABEL_PX), false), ModText::WideFromUtf8(theLabel.c_str()));
 }
 
 void CjkStoneButton::Draw(Graphics* g)
 {
 	if (mBtnNoDraw) return;
 
-	// 英文档 + 纯 ASCII 标签：位图字体自带英文，回落到原版画法（字色与基线都是贴图/字体烤好的）
-	if (!ModText::IsChinese() && LabelIsAscii(mLabel))
+	if (LabelHasArtwork(mLabel))
 	{
 		LawnStoneButton::Draw(g);
 		return;

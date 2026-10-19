@@ -8,6 +8,11 @@
 #include "../System/Music.h"
 #include "../../Resources.h"
 #include "NewOptionsDialog.h"
+#ifdef __ANDROID__
+#include <SDL.h>
+#endif
+#include "OnlineUiDraw.h"
+#include "../CoopPlay.h"
 #include "../../ConstEnums.h"
 #include "../../Sexy.TodLib/TodFoley.h"
 #include "widget/Slider.h"
@@ -19,7 +24,6 @@
 #include "graphics/Graphics.h"
 #include "graphics/Font.h"
 #include "../ModText.h"
-#include "CjkStoneButton.h"
 #include "OnlineStartDialog.h"
 #include <cstdio>
 #include <string>
@@ -27,106 +31,26 @@
 
 using namespace Sexy;
 
-// ── 中文绘制这一档（词条查看器用）──────────────────────────────────────
-// 引擎自带的字体全是位图字体，没有中文字形，中文说明自 2026-10-03 语言批起走 ModText
-// 的宽字符直绘（UTF-8 → UTF-16 → TextOutW，与系统码页脱钩）；此前这里是一份独立的
-// 转码 + 字体缓存拷贝（第三份），已并入 Lawn/ModText。
-// 字号 13pt = 正文（与三选一屏同档）；入口按钮 11pt——按钮列右侧那条竖带只有 ~100px 宽
-//（1:1 截图实测），13pt 无论四字还是六字都放不下，见 RunInfoEntryRect。
-static ModText::Font* NewOptionsCjkFont() { return ModText::GetFont(13, false); }
-static ModText::Font* NewOptionsCjkFontSmall() { return ModText::GetFont(11, false); }
-
-// ── 语言选项行（2026-10-03 语言批；2026-10-04 改版）────────────────────
-// 左下竖带单列：标题对「语言 / Language」+ 三档「自动 Auto / 中文 / English」
-//（档位 1..3 与 MODLANG_* 同序），当前档高亮、点击即存注册表。
-// 2026-10-04 改版缘由（1:1 截图实测）：原竖排四行用 11pt——本机 150% 缩放下字形 22px、
-// 步进只有 21px，行行相贴；且「语言/Language」横排 147px 冲出左侧空带，压到 Sound FX
-// 标签上。现字号改像素口径（CjkPointSize，与 DPI 脱钩），英文部分改走游戏自带位图字体
-// DwarvenTodcraft12（与联机状态条英文同字体），不再借 GDI 渲染。
-// 落点（2026-10-04 二次复验，1:1 截图逐行取色）：原 x=38 落在对话框左边框的石条与
-// 室外背景上（「语」字一半压着亮房子），字色 (107,109,145) 在亮底上发糊——右移进
-// 深色面板内（面板内缘在本地 x≈74），并给这排字换亮字 + 1px 暗投影。
-static const int LANGUAGE_X = 84;
-static const int LANGUAGE_TITLE_TOP = 252;      // 标题对第一行（中文）行顶
-static const int LANGUAGE_TITLE_EN_TOP = 270;   // 标题对第二行（英文）行顶
-static const int LANGUAGE_OPT_TOP = 291;        // 第一个选项行（自动 Auto）行顶
-static const int LANGUAGE_OPT_STEP = 19;
-static const int LANGUAGE_GAP = 6;              // 中文与英文之间的小间隔
-
-// 这一排文案两语并排固定、不随语言变——选择器本身得让两种语言的人都认得出，
-// 所以不走 ModText::Tr（它按当前语言择一）。0 = 标题对，1..3 = 三档。
-static const char* NewOptionsLanguageZh(int theItem)
+namespace
 {
-	static const char* aRows[4] = { "语言", "自动", "中文", "" };
-	return (theItem >= 0 && theItem <= 3) ? aRows[theItem] : "";
-}
-
-static const char* NewOptionsLanguageEn(int theItem)
+class OptionsHelpButton final : public LawnStoneButton
 {
-	static const char* aRows[4] = { "Language", "Auto", "", "English" };
-	return (theItem >= 0 && theItem <= 3) ? aRows[theItem] : "";
-}
+public:
+    OptionsHelpButton(int id, ButtonListener* listener) : LawnStoneButton(nullptr, id, listener)
+    {
+        SetLabel(ModText::Tr("帮助", "Help"));
+        mHasAlpha = true;
+        mHasTransparencies = true;
+    }
 
-// 选项行（1..3）命中矩形：按两段实测宽自适应（中文宽字符量宽、英文位图字体量宽）。
-static Sexy::Rect NewOptionsLanguageItemRect(int theItem)
-{
-	ModText::Font* aCjk = ModText::GetFont(CjkPointSize(13), false);
-	const char* aZh = NewOptionsLanguageZh(theItem);
-	const char* aEn = NewOptionsLanguageEn(theItem);
-	int aWidth = 0;
-	if (aZh[0]) aWidth += ModText::TextWidth(aCjk, ModText::WideFromUtf8(aZh));
-	if (aZh[0] && aEn[0]) aWidth += LANGUAGE_GAP;
-	if (aEn[0]) aWidth += FONT_DWARVENTODCRAFT12->StringWidth(aEn);
-	int aTop = LANGUAGE_OPT_TOP + (theItem - 1) * LANGUAGE_OPT_STEP;
-	return Sexy::Rect(LANGUAGE_X - 4, aTop - 2, aWidth + 10, 18);
-}
-
-// 一"行"文字的落点：调用方给的是行顶；ModText::DrawTextWide 也收顶对齐
-//（原 DrawString 是基线口径、要补 +GetAscent()，这份换算已并入 ModText 的口径）。
-static void NewOptionsDrawCjk(Sexy::Graphics* g, ModText::Font* theFont, int theX, int theTopY,
-	const char* theUtf8, const Sexy::Color& theColor)
-{
-	ModText::DrawTextWide(g, theFont, theX, theTopY, ModText::WideFromUtf8(theUtf8), theColor, g->mClipRect);
-}
-
-static void NewOptionsDrawCjkCentered(Sexy::Graphics* g, ModText::Font* theFont, int theCenterX, int theTopY,
-	const char* theUtf8, const Sexy::Color& theColor)
-{
-	std::wstring aText = ModText::WideFromUtf8(theUtf8);
-	ModText::DrawTextWide(g, theFont, theCenterX - ModText::TextWidth(theFont, aText) / 2, theTopY,
-		aText, theColor, g->mClipRect);
-}
-
-// 列宽装不下的条目：按宽字符逐字回退、接省略号——「Swift Strikes×2」宁可截名字也
-// 不丢「×N」（层数是玩家最要看的一格），连「…×N」都放不下就整条不画。这里的每一行
-// 都保证不越过给它的宽度（2026-10-03 1:1 截图实证：无钳制的两列流会互相压字、右列
-// 冲出面板右缘被对话框边缘裁断）。宽字符化后逐字回退即 pop_back 一个 wchar_t。
-static void NewOptionsDrawCjkFit(Sexy::Graphics* g, ModText::Font* theFont, int theX, int theTopY,
-	int theMaxW, const char* theMainUtf8, const char* theSuffixUtf8, const Sexy::Color& theColor)
-{
-	std::wstring aSuffix = ModText::WideFromUtf8(theSuffixUtf8);
-	std::wstring aDraw = ModText::WideFromUtf8(theMainUtf8) + aSuffix;
-	if (ModText::TextWidth(theFont, aDraw) > theMaxW)
-	{
-		std::wstring aEll = ModText::WideFromUtf8("…");
-		std::wstring aWide = ModText::WideFromUtf8(theMainUtf8);
-		aDraw.clear();
-		for (;;)
-		{
-			std::wstring aProbe = aWide + aEll + aSuffix;
-			if (ModText::TextWidth(theFont, aProbe) <= theMaxW)
-			{
-				aDraw = aProbe;
-				break;
-			}
-			if (aWide.empty()) break;
-			aWide.pop_back();
-		}
-	}
-	if (!aDraw.empty())
-	{
-		ModText::DrawTextWide(g, theFont, theX, theTopY, aDraw, theColor, g->mClipRect);
-	}
+    void Draw(Graphics* graphics) override
+    {
+        if (mBtnNoDraw) return;
+        const bool pressed = (mIsDown && mIsOver && !mDisabled) ^ mInverted;
+        SeatUi::Button(graphics, Rect(0, 0, mWidth, mHeight), mLabel.c_str(),
+            !mDisabled, pressed, mIsOver && !mDisabled);
+    }
+};
 }
 
 //0x45C050
@@ -136,16 +60,11 @@ NewOptionsDialog::NewOptionsDialog(LawnApp* theApp, bool theFromGameSelector) :
     mApp = theApp;
     mFromGameSelector = theFromGameSelector;
     mRunInfoOpen = false;
-    mRunInfoPage = 0;
-    mRunInfoPageCount = 1;
-    for (int i = 0; i < 8; i++)
-    {
-        mRunInfoWidgetVis[i] = false;
-    }
     SetColor(Dialog::COLOR_BUTTON_TEXT, Color(255, 255, 100));
     mAlmanacButton = MakeButton(NewOptionsDialog::NewOptionsDialog_Almanac, this, _S("[VIEW_ALMANAC_BUTTON]"));
-    mRestartButton = MakeButton(NewOptionsDialog::NewOptionsDialog_Restart, this, _S("[RESTART_LEVEL_BUTTON]")); // @Patoke: wrong local name
+    mRestartButton = MakeButton(NewOptionsDialog::NewOptionsDialog_Restart, this, "[RESTART_LEVEL_BUTTON]");
     mBackToMainButton = MakeButton(NewOptionsDialog::NewOptionsDialog_MainMenu, this, _S("[MAIN_MENU_BUTTON]"));
+    mHelpButton = new OptionsHelpButton(NewOptionsDialog_Help, this);
 
     mBackToGameButton = MakeNewButton(
         Dialog::ID_OK, 
@@ -230,6 +149,7 @@ NewOptionsDialog::~NewOptionsDialog()
     delete mRestartButton;
     delete mBackToMainButton;
     delete mBackToGameButton;
+    delete mHelpButton;
 }
 
 //0x45C880
@@ -251,11 +171,13 @@ void NewOptionsDialog::AddedToManager(Sexy::WidgetManager* theWidgetManager)
     AddWidget(mHardwareAccelerationCheckbox);
     AddWidget(mFullscreenCheckbox);
     AddWidget(mBackToGameButton);
+    AddWidget(mHelpButton);
 }
 
 //0x45C930
 void NewOptionsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
 {
+    if (mApp->mMusic) mApp->mMusic->StopMusicPreview();
     Dialog::RemovedFromManager(theWidgetManager);
     RemoveWidget(mAlmanacButton);
     RemoveWidget(mMusicVolumeSlider);
@@ -265,12 +187,32 @@ void NewOptionsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
     RemoveWidget(mBackToMainButton);
     RemoveWidget(mBackToGameButton);
     RemoveWidget(mRestartButton);
+    RemoveWidget(mHelpButton);
 }
 
 //0x45C9D0
 void NewOptionsDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 {
+    if (mRunInfoOpen || mMusicOpen || mRunSettingsOpen) { Dialog::Resize(theX, theY, theWidth, theHeight); return; }
     Dialog::Resize(theX, theY, theWidth, theHeight);
+    if (!mFromGameSelector) {
+        mMusicVolumeSlider->Resize(300, 112, 200, 40);
+        mSfxVolumeSlider->Resize(300, 156, 200, 40);
+        mHardwareAccelerationCheckbox->Resize(224, 202, 46, 45);
+        mFullscreenCheckbox->Resize(498, 202, 46, 45);
+        mAlmanacButton->Resize(54, 326, 234, 46);
+        mRestartButton->Resize(312, 326, 234, 46);
+        if (mAlmanacButton->mVisible != mRestartButton->mVisible) {
+            mAlmanacButton->mX = 183;
+            mRestartButton->mX = 183;
+        }
+        mBackToMainButton->Resize(54, 386, 492, 46);
+        mBackToGameButton->Resize((mWidth - IMAGE_OPTIONS_BACKTOGAMEBUTTON0->mWidth) / 2,
+            438, IMAGE_OPTIONS_BACKTOGAMEBUTTON0->mWidth, IMAGE_OPTIONS_BACKTOGAMEBUTTON0->mHeight);
+        const Rect help = RunInfoEntryRect();
+        mHelpButton->Resize(help.mX, help.mY, help.mWidth, help.mHeight);
+        return;
+    }
     mMusicVolumeSlider->Resize(199, 116, 135, 40);
     mSfxVolumeSlider->Resize(199, 143, 135, 40);
     mHardwareAccelerationCheckbox->Resize(283, 175, 46, 45);
@@ -279,6 +221,8 @@ void NewOptionsDialog::Resize(int theX, int theY, int theWidth, int theHeight)
     mRestartButton->Resize(mAlmanacButton->mX, mAlmanacButton->mY + 43, 209, 46);
     mBackToMainButton->Resize(mRestartButton->mX, mRestartButton->mY + 43, 209, 46);
     mBackToGameButton->Resize(30, 381, mBackToGameButton->mWidth, mBackToGameButton->mHeight);
+    const Rect help = RunInfoEntryRect();
+    mHelpButton->Resize(help.mX, help.mY, help.mWidth, help.mHeight);
 
     if (mFromGameSelector)
     {
@@ -294,113 +238,61 @@ void NewOptionsDialog::Resize(int theX, int theY, int theWidth, int theHeight)
     }
 }
 
-//0x45CB50
 void NewOptionsDialog::Draw(Sexy::Graphics* g)
 {
+    if (mMusicOpen) { mMusicView.Draw(g, mRunInfoDown); return; }
+    if (mRunSettingsOpen) {
+        mRunSettingsView.Draw(g, mApp->GetRunState(), mApp->IsOnlineGame(), mRunInfoDown);
+        return;
+    }
+    if (mRunInfoOpen) { DrawRunInfo(g); return; }
+    if (!mFromGameSelector) {
+        SeatUi::Panel(g, Rect(0, 0, mWidth, mHeight));
+        TodDrawString(g, ModText::Tr("菜单", "Game Menu"), mWidth / 2, 64,
+            FONT_DWARVENTODCRAFT24, Color(245, 230, 165), DS_ALIGN_CENTER);
+        TodDrawString(g, ModText::Tr("音乐音量", "Music Volume"), 274, 138,
+            FONT_DWARVENTODCRAFT18, Color(245, 230, 165), DS_ALIGN_RIGHT);
+        TodDrawString(g, ModText::Tr("音效音量", "Sound Volume"), 274, 182,
+            FONT_DWARVENTODCRAFT18, Color(245, 230, 165), DS_ALIGN_RIGHT);
+#ifndef __ANDROID__
+        TodDrawString(g, ModText::Tr("3D 加速", "3D"), 212, 228,
+            FONT_DWARVENTODCRAFT18, Color(245, 230, 165), DS_ALIGN_RIGHT);
+#endif
+        TodDrawString(g, ModText::Tr("全屏", "Full Screen"), 486, 228,
+            FONT_DWARVENTODCRAFT18, Color(245, 230, 165), DS_ALIGN_RIGHT);
+        SeatUi::Button(g, MusicEntryRect(), ModText::Tr("音乐", "Music"), true, mMusicEntryDown);
+        if (mApp->IsRunMode())
+            SeatUi::Button(g, RunSettingsEntryRect(), ModText::Tr("开局设定", "Setup"), true, mRunSettingsEntryDown);
+        if (mApp->mOnlineSession && mApp->mOnlineSession->IsPausedByPeer())
+            TodDrawString(g, ModText::Tr("队友暂停了游戏", "Teammate paused the game"), mWidth / 2, 96,
+                FONT_DWARVENTODCRAFT18, Color(255, 220, 100), DS_ALIGN_CENTER);
+        return;
+    }
     g->DrawImage(IMAGE_OPTIONS_MENUBACK, 0, 0);
 
-    int aMusicOffset = 0;
     int aSfxOffset = 0;
     int a3DAccelOffset = 0;
     int aFullScreenOffset = 0;
     if (mFromGameSelector)
     {
-        aMusicOffset = 5;
         aSfxOffset = 10;
         a3DAccelOffset = 15;
         aFullScreenOffset = 20;
     }
     Sexy::Color aTextColor(107, 109, 145);
 
-    TodDrawString(g, ModText::Tr("音乐", "Music"), 186, 140 + aMusicOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
+    SeatUi::Button(g, MusicEntryRect(), ModText::Tr("音乐", "Music"), true, mMusicEntryDown);
+    if (mApp->IsRunMode())
+        SeatUi::Button(g, RunSettingsEntryRect(), ModText::Tr("开局设定", "Setup"), true, mRunSettingsEntryDown);
     TodDrawString(g, ModText::Tr("音效", "Sound FX"), 186, 167 + aSfxOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
-    TodDrawString(g, ModText::Tr("3D 加速", "3D Acceleration"), 274, 197 + a3DAccelOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
+    TodDrawString(g, ModText::Tr("3D 加速", mApp->IsRunMode() ? "3D" : "3D Acceleration"), 274, 197 + a3DAccelOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
     TodDrawString(g, ModText::Tr("全屏", "Full Screen"), 274, 229 + aFullScreenOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 
-    // @pvz-online: 语言选项行（2026-10-03 语言批，2026-10-04 改版）。左下竖带单列：
-    // 标题对 + 三档（自动/中文/English），当前档高亮；点击存注册表（ModText::
-    // SetLanguageSetting）并即时生效。这一排文案故意**两语并排固定**、不随语言变——
-    // 选择器本身得让两种语言的人都认得出。英文部分走游戏自带位图字体（基线 = 行顶 +
-    // 中文升部），和旁边 Music/Sound FX 一个质感；落点与命中同一份几何（ItemRect）。
-    // 2026-10-04 二次复验：整块右移进深色面板内（见 LANGUAGE_X），字色由面板灰蓝
-    // (107,109,145) 改亮字 + 1px 暗投影——原色在左边框亮底上对比度不够。
-    {
-        ModText::Font* aLangFont = ModText::GetFont(CjkPointSize(13), false);
-        int aLangSel = ModText::GetLanguageSetting() + 1;   // 0 自动 / 1 中文 / 2 英文 → 行 1..3
-        int aLangBase = ModText::Ascent(aLangFont);         // 位图英文的基线偏移
-        Sexy::Color aRowColor(233, 236, 247);
-        Sexy::Color aSelColor(255, 228, 115);
-        Sexy::Color aShadowColor(20, 22, 34);
-        // 标题对分两行画（横排放不下这段空带）
-        NewOptionsDrawCjk(g, aLangFont, LANGUAGE_X + 1, LANGUAGE_TITLE_TOP + 1, NewOptionsLanguageZh(0), aShadowColor);
-        NewOptionsDrawCjk(g, aLangFont, LANGUAGE_X, LANGUAGE_TITLE_TOP, NewOptionsLanguageZh(0), aRowColor);
-        TodDrawString(g, NewOptionsLanguageEn(0), LANGUAGE_X + 1, LANGUAGE_TITLE_EN_TOP + aLangBase + 1,
-            FONT_DWARVENTODCRAFT12, aShadowColor, DrawStringJustification::DS_ALIGN_LEFT);
-        TodDrawString(g, NewOptionsLanguageEn(0), LANGUAGE_X, LANGUAGE_TITLE_EN_TOP + aLangBase,
-            FONT_DWARVENTODCRAFT12, aRowColor, DrawStringJustification::DS_ALIGN_LEFT);
-        // 三档
-        for (int i = 1; i <= 3; i++)
-        {
-            int aTop = LANGUAGE_OPT_TOP + (i - 1) * LANGUAGE_OPT_STEP;
-            Sexy::Color aColor = (i == aLangSel) ? aSelColor : aRowColor;
-            const char* aZh = NewOptionsLanguageZh(i);
-            const char* aEn = NewOptionsLanguageEn(i);
-            int aEnX = LANGUAGE_X;
-            if (aZh[0])
-            {
-                NewOptionsDrawCjk(g, aLangFont, LANGUAGE_X + 1, aTop + 1, aZh, aShadowColor);
-                NewOptionsDrawCjk(g, aLangFont, LANGUAGE_X, aTop, aZh, aColor);
-                aEnX = LANGUAGE_X + ModText::TextWidth(aLangFont, ModText::WideFromUtf8(aZh)) + LANGUAGE_GAP;
-            }
-            if (aEn[0])
-            {
-                TodDrawString(g, aEn, aEnX + 1, aTop + aLangBase + 1,
-                    FONT_DWARVENTODCRAFT12, aShadowColor, DrawStringJustification::DS_ALIGN_LEFT);
-                TodDrawString(g, aEn, aEnX, aTop + aLangBase,
-                    FONT_DWARVENTODCRAFT12, aColor, DrawStringJustification::DS_ALIGN_LEFT);
-            }
-        }
-        // 「重启后生效」提示（汉化批 ④ 2026-10-13）：② 的文本字库与 ① 的美术覆盖包都在
-        // 启动期随 pvz_zh.pak 加载——这里切语言只即时改变模组自绘 UI，语言文本/美术下一
-        // 次启动才跟上。接最后一档的节奏挂在下面，11pt 小一级 + 色淡，不做成第四个可点项。
-        ModText::Font* aHintFont = NewOptionsCjkFontSmall();
-        int aHintTop = LANGUAGE_OPT_TOP + 3 * LANGUAGE_OPT_STEP + 5;
-        Sexy::Color aHintColor(176, 184, 205);
-        NewOptionsDrawCjk(g, aHintFont, LANGUAGE_X + 1, aHintTop + 1, "重启后生效", aShadowColor);
-        NewOptionsDrawCjk(g, aHintFont, LANGUAGE_X, aHintTop, "重启后生效", aHintColor);
-        TodDrawString(g, "Restart to apply", LANGUAGE_X + 1, aHintTop + 16 + ModText::Ascent(aHintFont) + 1,
-            FONT_DWARVENTODCRAFT12, aShadowColor, DrawStringJustification::DS_ALIGN_LEFT);
-        TodDrawString(g, "Restart to apply", LANGUAGE_X, aHintTop + 16 + ModText::Ascent(aHintFont),
-            FONT_DWARVENTODCRAFT12, aHintColor, DrawStringJustification::DS_ALIGN_LEFT);
-    }
-
-    // @pvz-online: 这次暂停是队友按的，得说清楚——不然玩家会以为自己误触了。
-    // 标题是烤进背景图里的，面板上半（y≈105 起）空着，就在这画一行。
     if (!mFromGameSelector && mApp->mOnlineSession && mApp->mOnlineSession->IsPausedByPeer())
-    {
         TodDrawString(g, ModText::Tr("队友暂停了游戏", "Teammate paused the game"), mWidth / 2, 112,
-            FONT_DWARVENTODCRAFT18, Sexy::Color(255, 220, 100), DrawStringJustification::DS_ALIGN_CENTER);
-    }
-
-    // @pvz-online: 词条查看器入口（2026-10-03）：只在闯关局出现——主菜单上的暂停面板没有"本局"。
-    if (RunInfoAvailable() && !mRunInfoOpen)
-    {
-        Sexy::Rect aEntry = RunInfoEntryRect();
-        ModText::Font* aFont = NewOptionsCjkFontSmall();
-        g->SetColor(Sexy::Color(0, 0, 0, 150));
-        g->FillRect(aEntry.mX, aEntry.mY, aEntry.mWidth, aEntry.mHeight);
-        g->SetColor(Sexy::Color(255, 220, 100, 170));
-        g->DrawRect(aEntry);
-        NewOptionsDrawCjkCentered(g, aFont, aEntry.mX + aEntry.mWidth / 2, aEntry.mY + 4,
-            "本局词条", Sexy::Color(255, 220, 100));
-    }
-    if (mRunInfoOpen)
-    {
-        DrawRunInfo(g);
-    }
+            FONT_DWARVENTODCRAFT18, Color(255, 220, 100), DS_ALIGN_CENTER);
 }
 
-//0x45CF50
 void NewOptionsDialog::SliderVal(int theId, double theVal)
 {
     switch (theId)
@@ -489,18 +381,32 @@ void NewOptionsDialog::CheckboxChecked(int theId, bool checked)
 //0x45D290
 void NewOptionsDialog::KeyDown(Sexy::KeyCode theKey)
 {
-    // @pvz-online: 查看器开着时吞掉一切键——多页时 PgUp/PgDn/←/→ 翻页，其余任意键只关它
-    //（别穿透到下一条 SPACE=继续 / ESC=关面板）
-    if (mRunInfoOpen)
-    {
-        if (mRunInfoPageCount > 1
-            && (theKey == KeyCode::KEYCODE_PRIOR || theKey == KeyCode::KEYCODE_LEFT
-                || theKey == KeyCode::KEYCODE_NEXT || theKey == KeyCode::KEYCODE_RIGHT))
-        {
-            RunInfoFlipPage(theKey == KeyCode::KEYCODE_NEXT || theKey == KeyCode::KEYCODE_RIGHT ? 1 : -1);
-            return;
+    if (mWidgetManager && mWidgetManager->mIsKeyRepeat &&
+        (theKey == KEYCODE_ESCAPE || theKey == KEYCODE_SPACE || theKey == KEYCODE_RETURN)) return;
+    if (mMusicOpen) {
+        if (theKey == KeyCode::KEYCODE_ESCAPE) CloseRunInfo();
+        else if (theKey == KeyCode::KEYCODE_PRIOR || theKey == KeyCode::KEYCODE_LEFT ||
+            theKey == KeyCode::KEYCODE_NEXT || theKey == KeyCode::KEYCODE_RIGHT) {
+            mMusicView.Flip(theKey == KeyCode::KEYCODE_NEXT || theKey == KeyCode::KEYCODE_RIGHT ? 1 : -1);
+            MarkDirty();
         }
-        CloseRunInfo();
+        return;
+    }
+    if (mRunSettingsOpen) {
+        if (theKey == KeyCode::KEYCODE_ESCAPE) CloseRunInfo();
+        else if (theKey == KeyCode::KEYCODE_PRIOR || theKey == KeyCode::KEYCODE_LEFT ||
+            theKey == KeyCode::KEYCODE_NEXT || theKey == KeyCode::KEYCODE_RIGHT) {
+            mRunSettingsView.Flip(theKey == KeyCode::KEYCODE_NEXT || theKey == KeyCode::KEYCODE_RIGHT ? 1 : -1,
+                mApp->GetRunState());
+            MarkDirty();
+        }
+        return;
+    }
+    if (mRunInfoOpen) {
+        if (theKey == KeyCode::KEYCODE_PRIOR || theKey == KeyCode::KEYCODE_LEFT ||
+            theKey == KeyCode::KEYCODE_NEXT || theKey == KeyCode::KEYCODE_RIGHT)
+            RunInfoFlipPage(theKey == KeyCode::KEYCODE_NEXT || theKey == KeyCode::KEYCODE_RIGHT ? 1 : -1);
+        else if (theKey == KeyCode::KEYCODE_ESCAPE) CloseRunInfo();
         return;
     }
 
@@ -529,6 +435,8 @@ void NewOptionsDialog::ButtonPress(int theId)
 //0x45D310
 void NewOptionsDialog::ButtonDepress(int theId)
 {
+    if (mMusicOpen || mRunInfoOpen || mRunSettingsOpen) return;
+    if (theId == NewOptionsDialog_Help) { OpenRunInfo(); return; }
     Dialog::ButtonDepress(theId);
 
     switch (theId)
@@ -620,339 +528,225 @@ void NewOptionsDialog::ButtonDepress(int theId)
     }
 }
 
-// ── 局内词条查看器（2026-10-03 用户定案）──────────────────────────────
-// 入口画在按钮列右侧的空白竖带，点开是整屏覆盖层：模式/关卡/出怪档 + 全局增益 + 单株强化，
-// 单击任意处或按任意键关闭。数据全来自 mApp->mRunState；全局增益 id < RUN_BUFF_COUNT，
-// 单株升级 id − RUN_BUFF_COUNT 是老单株表下标（表满编后 == SeedType，仍按表查，别写死）；
-// 第二 buff id（≥ RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT）按第二表查——绘制行统一走
-// GetRunChoicePlant。
-
-bool NewOptionsDialog::RunInfoAvailable()
-{
-    // 主菜单上的暂停面板没有"本局"这个概念；闯关局（单机/联机都算）才有 mRunState
-    return !mFromGameSelector && mApp->IsRunMode() && mApp->mRunState != NULL;
+bool NewOptionsDialog::RunInfoAvailable() { return true; }
+Sexy::Rect NewOptionsDialog::RunInfoEntryRect() {
+    if (!mFromGameSelector) return Rect(mApp->IsRunMode() ? 390 : 312, 264, 156, 46);
+    return Rect(ModText::IsChinese() ? 96 : 50, 226, 76, 34);
 }
-
-Sexy::Rect NewOptionsDialog::RunInfoEntryRect()
-{
-    // 按钮列（子控件画在最上层）右边到墓碑右缘之间这条竖带：1:1 截图实测约 100px 宽
-    //（shot 495..595）。原来 13pt 六字「查看本局词条」有 185px 宽，左半段被按钮板子
-    // 盖掉、只剩右缘一截，所以改成 11pt 四字、尺寸按实际文本量出来。往左别越过 495：
-    // 按钮列右缘约在 shot 490。
-    ModText::Font* aFont = NewOptionsCjkFontSmall();
-    int aWidth = ModText::TextWidth(aFont, ModText::WideFromUtf8(ModText::Tr("本局词条", "This Run"))) + 14;
-    int aHeight = ModText::LineHeight(aFont) + 10;
-    return Sexy::Rect(mWidth - 16 - aWidth, 258, aWidth, aHeight);
+void NewOptionsDialog::RunInfoFlipPage(int delta) {
+    mRunInfoView.Flip(delta, mApp->IsRunMode() ? mApp->GetRunState() : nullptr);
+    MarkDirty();
 }
-
-// @pvz-online: 分页（2026-10-04 用户定案）：全局增益封顶 8 种、两列最多 4 行，一套得下；
-// 溢出的主角是单株区（表满编 48 条都可能出现在同一局）。只在单株区装不下时才分页——
-// 装得下时页数 = 1，界面和旧版一字不差。翻页钳在首末页之间、不回绕（回绕会让人分不清
-// "到底翻没翻"）。
-void NewOptionsDialog::RunInfoFlipPage(int theDelta)
-{
-    int aPage = mRunInfoPage + theDelta;
-    if (aPage < 0) aPage = 0;
-    if (aPage > mRunInfoPageCount - 1) aPage = mRunInfoPageCount - 1;
-    mRunInfoPage = aPage;
-}
-
-// 页脚那一行两端翻页箭头的命中区：与页脚文案同一行、左右各让 10px；命中区 34 宽，
-// 比实心三角（DrawRunInfo 里 PolyFill 画的 ~16px）宽一圈，好点。
-Sexy::Rect NewOptionsDialog::RunInfoArrowRect(bool theRight)
-{
-    ModText::Font* aFont = NewOptionsCjkFont();
-    int aTop = (14 + mHeight - 28) - 8 - ModText::LineHeight(aFont);
-    int aW = 34;
-    int aX = theRight ? (14 + (mWidth - 28) - 10 - aW) : (14 + 10);
-    return Sexy::Rect(aX, aTop - 4, aW, ModText::LineHeight(aFont) + 8);
-}
-
-// 开/关时把八个控件整体藏起、按快照还原：覆盖层期间它们一个都不该被点到、被画出来。
-// 顺序数组两边共用，改动控件集合只改这一处的两处拷贝（Open/Close 各一份）。
-void NewOptionsDialog::OpenRunInfo()
-{
-    Sexy::Widget* aWidgets[8] =
-    {
-        mMusicVolumeSlider, mSfxVolumeSlider, mFullscreenCheckbox, mHardwareAccelerationCheckbox,
-        mAlmanacButton, mRestartButton, mBackToMainButton, mBackToGameButton,
-    };
-    for (int i = 0; i < 8; i++)
-    {
-        mRunInfoWidgetVis[i] = aWidgets[i]->mVisible;
-        aWidgets[i]->SetVisible(false);
-    }
-    mRunInfoOpen = true;
-    mRunInfoPage = 0;
-    mRunInfoPageCount = 1;
-    // @pvz-online: 滚轮按焦点派发（WidgetManager::MouseWheel 只发给焦点控件）——开面板时
-    // 把焦点收回对话框自己（正常路径 LawnApp 建面板时已 SetFocus，这是打开覆盖层时兜底）。
-    if (mWidgetManager)
-    {
-        mWidgetManager->SetFocus(this);
-    }
-}
-
-void NewOptionsDialog::CloseRunInfo()
-{
-    Sexy::Widget* aWidgets[8] =
-    {
-        mMusicVolumeSlider, mSfxVolumeSlider, mFullscreenCheckbox, mHardwareAccelerationCheckbox,
-        mAlmanacButton, mRestartButton, mBackToMainButton, mBackToGameButton,
-    };
-    for (int i = 0; i < 8; i++)
-    {
-        aWidgets[i]->SetVisible(mRunInfoWidgetVis[i]);
-    }
-    mRunInfoOpen = false;
-}
-
-void NewOptionsDialog::MouseDown(int x, int y, int theClickCount)
-{
-    // @pvz-online: 查看器开着时——多页时两端箭头翻页，其余单击任意处 = 关
-    //（点开自己那一下也不再传给下面的按钮）
-    if (mRunInfoOpen)
-    {
-        if (mRunInfoPageCount > 1 && RunInfoArrowRect(true).Contains(x, y))
-        {
-            mApp->PlaySample(SOUND_GRAVEBUTTON);
-            RunInfoFlipPage(1);
-            return;
-        }
-        if (mRunInfoPageCount > 1 && RunInfoArrowRect(false).Contains(x, y))
-        {
-            mApp->PlaySample(SOUND_GRAVEBUTTON);
-            RunInfoFlipPage(-1);
-            return;
-        }
-        mApp->PlaySample(SOUND_GRAVEBUTTON);
-        CloseRunInfo();
+void NewOptionsDialog::MouseDown(int x, int y, int theClickCount) {
+    if (mRunSettingsOpen) {
+        mRunInfoDown = theClickCount > 0 ? mRunSettingsView.Hit(x, y, mApp->GetRunState()) : -1;
+        MarkDirty();
         return;
     }
-    if (RunInfoAvailable() && RunInfoEntryRect().Contains(x, y))
-    {
-        mApp->PlaySample(SOUND_GRAVEBUTTON);
-        OpenRunInfo();
+    if (mMusicOpen) {
+        mRunInfoDown = theClickCount > 0 ? mMusicView.Hit(x, y) : -1;
+        MarkDirty();
         return;
     }
-    // @pvz-online: 语言选项行（标题对不响应；三档命中即存注册表 + 石头按钮音）。
-    // 生效范围：本面板的"本局词条"入口 / 查看器下一帧就换语言（ModText 每次现读），
-    // 其余界面各自的文案在下次打开时才取——不必重建任何东西。
-    for (int i = 1; i <= 3; i++)
-    {
-        if (NewOptionsLanguageItemRect(i).Contains(x, y))
-        {
-            mApp->PlaySample(SOUND_GRAVEBUTTON);
-            ModText::SetLanguageSetting(i - 1);
-            return;
-        }
+    if (mRunInfoOpen) {
+        mRunInfoDown = theClickCount > 0 ? mRunInfoView.Hit(x, y,
+            mApp->IsRunMode() ? mApp->GetRunState() : nullptr, mApp->mBoard != nullptr, mApp->IsOnlineGame()) : -1;
+        MarkDirty();
+        return;
+    }
+    if (theClickCount > 0 && mApp->IsRunMode() && RunSettingsEntryRect().Contains(x, y)) {
+        mRunSettingsEntryDown = true;
+        MarkDirty();
+        return;
+    }
+    if (theClickCount > 0 && MusicEntryRect().Contains(x, y)) {
+        mMusicEntryDown = true;
+        MarkDirty();
+        return;
     }
     Dialog::MouseDown(x, y, theClickCount);
 }
-
-void NewOptionsDialog::MouseWheel(int theDelta)
-{
-    // @pvz-online: 查看器开着且多页时，滚轮一格 = 翻一页（用户 2026-10-04 定案）；
-    // 其余情况滚轮不管。滚轮按焦点派发（WidgetManager::MouseWheel 只发焦点控件），
-    // 焦点由 OpenRunInfo 兜底。
-    if (mRunInfoOpen && mRunInfoPageCount > 1 && theDelta != 0)
-    {
-        RunInfoFlipPage(theDelta < 0 ? 1 : -1);
+void NewOptionsDialog::MouseUp(int x, int y, int theClickCount) {
+    if (mRunSettingsOpen) {
+        const int action = mRunInfoDown;
+        mRunInfoDown = -1;
+        if (theClickCount > 0 && action >= 0 && action == mRunSettingsView.Hit(x, y, mApp->GetRunState())) {
+            if (action == 100) CloseRunInfo();
+            else mRunSettingsView.Act(action, mApp->GetRunState());
+        }
+        MarkDirty();
         return;
     }
-    Dialog::MouseWheel(theDelta);
+    if (mMusicOpen) {
+        const int action = mRunInfoDown;
+        mRunInfoDown = -1;
+        if (theClickCount > 0 && action >= 0 && action == mMusicView.Hit(x, y)) MusicAction(action);
+        MarkDirty();
+        return;
+    }
+    if (!mRunInfoOpen) {
+        bool music = mMusicEntryDown && theClickCount > 0 && MusicEntryRect().Contains(x, y);
+        const bool settings = mRunSettingsEntryDown && theClickCount > 0 && RunSettingsEntryRect().Contains(x, y);
+        const bool entryPressed = mMusicEntryDown || mRunSettingsEntryDown;
+        mMusicEntryDown = false;
+        mRunSettingsEntryDown = false;
+        MarkDirty();
+        if (settings) OpenRunSettings();
+        else if (music) OpenMusic();
+        else if (!entryPressed) Dialog::MouseUp(x, y, theClickCount);
+        return;
+    }
+    auto* run = mApp->IsRunMode() ? mApp->GetRunState() : nullptr;
+    int action = mRunInfoDown;
+    mRunInfoDown = -1;
+    if (theClickCount <= 0 || action < 0 ||
+        action != mRunInfoView.Hit(x, y, run, mApp->mBoard != nullptr, mApp->IsOnlineGame())) return;
+    if (action == 100) { CloseRunInfo(); return; }
+    if (const char* url = RunInfoView::CreatorUrl(action)) {
+#ifdef __ANDROID__
+        const bool opened = SDL_OpenURL(url) == 0;
+#else
+        const bool opened = mApp->OpenURL(url, false);
+#endif
+        if (!opened) mApp->LawnMessageBox(DIALOG_MESSAGE, ModText::Tr("打开链接", "Open link"),
+            ModText::Tr("无法打开浏览器，请使用页面显示的网址。", "Could not open a browser. Use the URL shown on this page."), "OK", "", Dialog::BUTTONS_FOOTER);
+        return;
+    }
+    mRunInfoView.Act(action, run);
+    if (action == 500) {
+#ifdef __ANDROID__
+        if (!ModText::SetLanguageSetting((ModText::GetLanguageSetting() + 1) % 3))
+            mApp->LawnMessageBox(DIALOG_MESSAGE, ModText::Tr("保存失败", "Save failed"),
+                ModText::Tr("无法保存语言选项。", "Cannot save language."), "OK", "", Dialog::BUTTONS_FOOTER);
+#else
+        ModText::SetLanguageSetting((ModText::GetLanguageSetting() + 1) % 3);
+#endif
+    }
+    if (action == 501 && mApp->mBoard) mApp->mBoard->SetPlantHealthVisible(!mApp->mBoard->PlantHealthVisible());
+    if (action == 502 && mApp->mBoard) mApp->mBoard->SetZombieHealthVisible(!mApp->mBoard->ZombieHealthVisible());
+    if (action == 503) {
+        bool next = !mApp->mSlideCollect;
+#ifdef __ANDROID__
+        bool saved = mApp->RegistryWriteInteger("ModSlideCollect", next ? 1 : 0);
+#else
+        bool saved = ModText::RegWriteDword("ModSlideCollect", next ? 1 : 0);
+#endif
+        if (saved) mApp->mSlideCollect = next;
+        else mApp->LawnMessageBox(DIALOG_MESSAGE, ModText::Tr("保存失败", "Save failed"),
+            ModText::Tr("无法保存划取选项。", "Cannot save collection setting."), "OK", "", Dialog::BUTTONS_FOOTER);
+    }
+    if (action == 504) { CloseRunInfo(); mApp->ShowCoopPlay(); return; }
+    MarkDirty();
 }
-
-void NewOptionsDialog::DrawRunInfo(Sexy::Graphics* g)
-{
-    // 整屏压暗：控件已全藏，这一层把"屏幕只剩词条"说清楚；底下的背景照旧透个轮廓
-    g->SetColor(Sexy::Color(0, 0, 0, 200));
-    g->FillRect(0, 0, mWidth, mHeight);
-
-    RunState* aRun = mApp->mRunState;
-    ModText::Font* aFont = NewOptionsCjkFont();
-    if (aRun == NULL)
-    {
+void NewOptionsDialog::LostFocus() {
+    mMusicEntryDown = false;
+    mRunSettingsEntryDown = false;
+    if (mMusicOpen && mApp->mMusic) {
+        mApp->mMusic->StopMusicPreview();
+        mMusicView.mStatus.clear();
+        mMusicView.mError = false;
+    }
+    mRunInfoDown = -1;
+    Dialog::LostFocus();
+}
+void NewOptionsDialog::MouseWheel(int delta) {
+    if (mRunSettingsOpen) {
+        if (delta) mRunSettingsView.Flip(delta < 0 ? 1 : -1, mApp->GetRunState());
+        MarkDirty();
         return;
     }
-
-    int aPanelX = 14;
-    int aPanelY = 14;
-    int aPanelW = mWidth - 28;
-    int aPanelH = mHeight - 28;
-    g->SetColor(Sexy::Color(24, 44, 28));
-    g->FillRect(aPanelX, aPanelY, aPanelW, aPanelH);
-    g->SetColor(Sexy::Color(255, 220, 100, 160));
-    g->DrawRect(Sexy::Rect(aPanelX, aPanelY, aPanelW, aPanelH));
-
-    int aLineHeight = ModText::LineHeight(aFont) + 4;
-    int aCenterX = mWidth / 2;
-    int aY = aPanelY + 12;
-
-    NewOptionsDrawCjkCentered(g, aFont, aCenterX, aY, ModText::Tr("本局词条", "This Run"), Sexy::Color(255, 220, 100));
-    aY += aLineHeight;
-
-    const char* aModeName = (aRun->mMode == RunState::RUN_MODE_NORMAL) ? ModText::Tr("普通版", "Normal")
-        : (aRun->mMode == RunState::RUN_MODE_QUICK) ? ModText::Tr("快速版", "Quick")
-        : (aRun->mMode == RunState::RUN_MODE_ENDLESS) ? ModText::Tr("无尽", "Endless") : ModText::Tr("完整版", "Full");
-    const char* aDiffName = (aRun->mDiff == RunState::RUN_DIFF_EASY) ? ModText::Tr("轻松", "Easy")
-        : (aRun->mDiff == RunState::RUN_DIFF_HIGH) ? ModText::Tr("高压", "High") : ModText::Tr("标准", "Standard");
-    char aSubLine[160];
-    if (aRun->mMode == RunState::RUN_MODE_ENDLESS)
-    {
-        // 无尽档没有分母（软上限 60000，实际不可达）：格式换成只报当前关号。
-        snprintf(aSubLine, sizeof(aSubLine), ModText::Tr("%s · 第 %d 关 · 出怪：%s", "%s · Level %d · Spawns: %s"),
-            aModeName, aRun->GetPlayingLevelIndex() + 1, aDiffName);
-    }
-    else
-    {
-        snprintf(aSubLine, sizeof(aSubLine), ModText::Tr("%s · 第 %d/%d 关 · 出怪：%s", "%s · Level %d/%d · Spawns: %s"),
-            aModeName, aRun->GetPlayingLevelIndex() + 1, aRun->GetLevelCount(), aDiffName);
-    }
-    NewOptionsDrawCjkCentered(g, aFont, aCenterX, aY, aSubLine, Sexy::Color(200, 200, 200));
-    aY += aLineHeight + 8;
-
-    // 列几何按 1:1 截图实测定（2026-10-03）：13pt 下 CJK ≈26px、拉丁 ≈11-13px/字符，
-    // 最长全局条目「Swift Strikes×2」≈180px。列步进 190、每列可写 182——两列间 8px
-    // 空隙、右列距面板右缘 ≥10px；仍装不下的由 NewOptionsDrawCjkFit 截名保计数。
-    // （条目名 2026-10-11 起随语言档：中文档走中文名，比英文名更短，只会更松。）
-    int aColX[2] = { aPanelX + 12, aPanelX + 12 + 190 };
-    int aColW = 182;
-    int aBottom = aPanelY + aPanelH - 14 - aLineHeight;   // 给底部提示留一行
-    Sexy::Color anEntryColor(232, 232, 232);
-
-    // 【全局增益】：名称×层数，两列流
-    NewOptionsDrawCjk(g, aFont, aColX[0], aY, ModText::Tr("【全局增益】", "[Global Boosts]"), Sexy::Color(150, 224, 150));
-    aY += aLineHeight;
-    int aShown = 0;
-    bool anOverflow = false;
-    for (int i = 0; i < RUN_BUFF_COUNT; i++)
-    {
-        int aStacks = aRun->GetBuffCount(i);
-        if (aStacks <= 0) continue;
-        if (aShown % 2 == 0 && aY > aBottom) { anOverflow = true; break; }
-        char aSuffix[16];
-        snprintf(aSuffix, sizeof(aSuffix), "×%d", aStacks);
-        NewOptionsDrawCjkFit(g, aFont, aColX[aShown % 2], aY, aColW,
-            GetRunChoiceDisplayName(i), aSuffix, anEntryColor);
-        if (aShown % 2 == 1) aY += aLineHeight;
-        aShown++;
-    }
-    if (aShown % 2 == 1) aY += aLineHeight;
-    if (aShown == 0 || anOverflow)
-    {
-        NewOptionsDrawCjk(g, aFont, aColX[0], aY, ModText::Tr(anOverflow ? "……" : "（无）", anOverflow ? "..." : "(none)"), Sexy::Color(150, 150, 150));
-        aY += aLineHeight;
-    }
-    aY += 8;
-
-    // 【僵尸强化】：全局段同款两列流；一条没投就不占版面（僵尸 buff 是高级选项开关，
-    // 大多数局整条线为 0，常驻"（无）"徒增噪音——与全局段「恒显示」有意不同）。
-    // 名字随语言档（GetZombieBuffDisplayName），层数 = mZombieBuffStacks。
-    int aZombieStacksTotal = 0;
-    for (int i = 0; i < RunState::RUN_ZOMBIE_BUFF_COUNT; i++) aZombieStacksTotal += aRun->ZombieBuffCount(i);
-    if (aZombieStacksTotal > 0)
-    {
-        NewOptionsDrawCjk(g, aFont, aColX[0], aY, ModText::Tr("【僵尸强化】", "[Zombie Boosts]"), Sexy::Color(224, 150, 150));
-        aY += aLineHeight;
-        int aZombieShown = 0;
-        for (int i = 0; i < RunState::RUN_ZOMBIE_BUFF_COUNT; i++)
-        {
-            int aStacks = aRun->ZombieBuffCount(i);
-            if (aStacks <= 0) continue;
-            if (aZombieShown % 2 == 0 && aY > aBottom) break;   // 超页让位给单株段（它自己会翻页）
-            char aSuffix[16];
-            snprintf(aSuffix, sizeof(aSuffix), "×%d", aStacks);
-            NewOptionsDrawCjkFit(g, aFont, aColX[aZombieShown % 2], aY, aColW,
-                GetZombieBuffDisplayName(i), aSuffix, anEntryColor);
-            if (aZombieShown % 2 == 1) aY += aLineHeight;
-            aZombieShown++;
+    if (mMusicOpen) { if (delta) mMusicView.Flip(delta < 0 ? 1 : -1); MarkDirty(); return; }
+    if (mRunInfoOpen) { if (delta) RunInfoFlipPage(delta < 0 ? 1 : -1); return; }
+    Dialog::MouseWheel(delta);
+}
+void NewOptionsDialog::DrawRunInfo(Sexy::Graphics* graphics) {
+#ifdef __ANDROID__
+    std::string language = ModText::SettingName();
+#else
+    const char* languages[] = {ModText::Tr("自动", "Auto"), ModText::Tr("中文", "Chinese"), "English"};
+    std::string language = languages[ModText::GetLanguageSetting()];
+#endif
+    mRunInfoView.Draw(graphics, mApp->IsRunMode() ? mApp->GetRunState() : nullptr,
+        mApp->mBoard != nullptr, mApp->IsOnlineGame(),
+        mApp->mBoard && mApp->mBoard->PlantHealthVisible(),
+        mApp->mBoard && mApp->mBoard->ZombieHealthVisible(), mApp->mSlideCollect, language, mRunInfoDown);
+}
+Sexy::Rect NewOptionsDialog::MusicEntryRect() {
+    if (!mFromGameSelector) return Rect(mApp->IsRunMode() ? 54 : 132, 264, 156, 46);
+    return Rect(94, 117, 96, 34);
+}
+void NewOptionsDialog::OpenMusic() {
+    if (!mApp->mMusic || mMusicOpen || mRunInfoOpen || mRunSettingsOpen) return;
+    mApp->mMusic->LoadBattleMusicSettings();
+    mMusicView = MusicSelectionView();
+    mMusicView.mTune = mApp->mBattleMusic.mSelectedTune;
+    mMusicView.mBossMusic = mApp->mBattleMusic.mBossMusic;
+    mMusicView.mPage = mMusicView.mTune > 6 ? 1 : 0;
+    OpenOptionsPage(true);
+}
+void NewOptionsDialog::MusicAction(int action) {
+    if (action == 100) { CloseRunInfo(); return; }
+    if (action == 201) {
+        const bool playing = mApp->mMusic->StartMusicPreview(static_cast<MusicTune>(mMusicView.mTune));
+        mMusicView.mError = !playing;
+        mMusicView.mStatus = playing ? ModText::Tr("正在试听；返回或应用结束试听。", "Previewing. Back or Apply ends preview.") :
+            ModText::Tr("音乐暂不可用；请检查音乐音量与资源。", "Music unavailable. Check music volume and resources.");
+    } else if (action == 202) {
+        const bool saved = mApp->mMusic->SaveBattleMusicSettings(mMusicView.mTune, mMusicView.mBossMusic);
+        mMusicView.mError = !saved;
+        mMusicView.mStatus = saved ? ModText::Tr("已应用，仅本机战斗生效。", "Applied to battles on this device.") :
+            ModText::Tr("保存失败，原设置未更改。", "Save failed. Previous settings are unchanged.");
+    } else {
+        mMusicView.mStatus.clear();
+        mMusicView.mError = false;
+        if (action == 200 || (action >= 300 && action < 306)) {
+            mApp->mMusic->StopMusicPreview();
+            mMusicView.mTune = action == 200 ? 0 : mMusicView.mPage * 6 + action - 299;
         }
-        if (aZombieShown % 2 == 1) aY += aLineHeight;
-        aY += 8;
+        if (action == 203) mMusicView.mBossMusic = !mMusicView.mBossMusic;
+        if (action == 204 || action == 205) mMusicView.Flip(action == 204 ? -1 : 1);
     }
-
-    // 【单株强化】：植物名 + 词条名×层数，整幅宽单列——「植物名+词条名+×N」英文档最长
-    // 约 310px（玉米加农炮 Rapid Reload×3），两列 182px 根本装不下：截图实证会互相
-    // 压字、右列冲出面板右缘被对话框边缘裁断。单列 372px 全放得下，一格一行也更易读。
-    // 中文档名更短（最长「玉米加农炮 加农炮转化×3」≈190px），单列绰绰有余。
-    // @pvz-online: 2026-10-04 起按页切（用户定案）：一页 = 到 aBottom 为止放得下的行数，
-    // 页数现算存 mRunInfoPageCount；翻页口 = PgUp/PgDn/←/→、滚轮、页脚两端箭头（见
-    // KeyDown/MouseWheel/MouseDown/RunInfoArrowRect）。一页装得下的局界面同旧版。
-    NewOptionsDrawCjk(g, aFont, aColX[0], aY, ModText::Tr("【单株强化】", "[Plant Upgrades]"), Sexy::Color(150, 224, 150));
-    aY += aLineHeight;
-    int aFullW = aColX[1] + aColW - aColX[0];
-    int aRowsFit = (aBottom - aY) / aLineHeight + 1;   // 与旧循环的「aY > aBottom 即停」等价
-    if (aRowsFit < 1) aRowsFit = 1;                    // 极端窄窗兜底，防下面除零
-    int aTotal = 0;
-    for (int i = 0; i < (int)aRun->mBuffs.size(); i++)
-    {
-        if (aRun->mBuffs[i].mId < RUN_BUFF_COUNT || aRun->mBuffs[i].mCount == 0) continue;
-        aTotal++;
+}
+void NewOptionsDialog::OpenRunInfo() {
+    OpenOptionsPage(false);
+}
+Sexy::Rect NewOptionsDialog::RunSettingsEntryRect() {
+    if (!mFromGameSelector) return Rect(222, 264, 156, 46);
+    return Rect(96, 185, 112, 34);
+}
+void NewOptionsDialog::OpenRunSettings() {
+    if (mApp->IsRunMode()) OpenOptionsPage(false, true);
+}
+void NewOptionsDialog::OpenOptionsPage(bool music, bool settings) {
+    if (mRunInfoOpen || mMusicOpen || mRunSettingsOpen) return;
+    Sexy::Widget* widgets[] = {mMusicVolumeSlider, mSfxVolumeSlider, mFullscreenCheckbox, mHardwareAccelerationCheckbox, mAlmanacButton, mRestartButton, mBackToMainButton, mBackToGameButton, mHelpButton};
+    for (int index = 0; index < 9; ++index) {
+        mRunInfoWidgetVis[index] = widgets[index]->mVisible;
+        widgets[index]->SetVisible(false);
     }
-    mRunInfoPageCount = (aTotal + aRowsFit - 1) / aRowsFit;
-    if (mRunInfoPageCount < 1) mRunInfoPageCount = 1;
-    if (mRunInfoPage > mRunInfoPageCount - 1) mRunInfoPage = mRunInfoPageCount - 1;
-    int aFirst = mRunInfoPage * aRowsFit;
-    int aSeen = 0;
-    int aDrawn = 0;
-    for (int i = 0; i < (int)aRun->mBuffs.size() && aDrawn < aRowsFit; i++)
-    {
-        if (aRun->mBuffs[i].mId < RUN_BUFF_COUNT || aRun->mBuffs[i].mCount == 0) continue;
-        if (aSeen++ < aFirst) continue;
-        // 第二 buff 批 0：id 可能落在第二表（≥ RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT），
-        // GetRunChoicePlant 两表各查各的 mPlant——直接查所属植物，别按老表下标解；条目名
-        // 同样按 id 走 GetRunChoiceDisplayName（随语言档，2026-10-11 起）。
-        const char* aPlantName = GetRunPlantName(GetRunChoicePlant(aRun->mBuffs[i].mId));
-        char aText[128];
-        char aSuffix[16];
-        snprintf(aText, sizeof(aText), "%s %s", aPlantName != NULL ? aPlantName : "?",
-            GetRunChoiceDisplayName(aRun->mBuffs[i].mId));
-        snprintf(aSuffix, sizeof(aSuffix), "×%d", (int)aRun->mBuffs[i].mCount);
-        NewOptionsDrawCjkFit(g, aFont, aColX[0], aY, aFullW, aText, aSuffix, anEntryColor);
-        aY += aLineHeight;
-        aDrawn++;
-    }
-    if (aTotal == 0)
-    {
-        NewOptionsDrawCjk(g, aFont, aColX[0], aY, ModText::Tr("（无）", "(none)"), Sexy::Color(150, 150, 150));
-    }
-
-    // 页脚：多页时两端画实心三角箭头（命中区见 RunInfoArrowRect）+ 居中页码；单页时
-    // 维持原提示文案。三角用 PolyFill 画实心——不借「◀▶」字形（宽字体不保证有）。
-    int aFootY = aPanelY + aPanelH - 8 - ModText::LineHeight(aFont);
-    if (mRunInfoPageCount > 1)
-    {
-        char aPageLine[64];
-        snprintf(aPageLine, sizeof(aPageLine), ModText::Tr("第 %d/%d 页 · 其余关闭", "Page %d/%d · others close"),
-            mRunInfoPage + 1, mRunInfoPageCount);
-        NewOptionsDrawCjkCentered(g, aFont, aCenterX, aFootY, aPageLine, Sexy::Color(160, 160, 160));
-        for (int aSide = 0; aSide < 2; aSide++)
-        {
-            bool aRight = (aSide == 1);
-            Sexy::Rect aHit = RunInfoArrowRect(aRight);
-            int aMidX = aHit.mX + aHit.mWidth / 2;
-            int aMidY = aHit.mY + aHit.mHeight / 2;
-            Sexy::Point aPts[3];
-            if (aRight)
-            {
-                aPts[0] = Sexy::Point(aMidX - 5, aMidY - 9);
-                aPts[1] = Sexy::Point(aMidX + 8, aMidY);
-                aPts[2] = Sexy::Point(aMidX - 5, aMidY + 9);
-            }
-            else
-            {
-                aPts[0] = Sexy::Point(aMidX + 5, aMidY - 9);
-                aPts[1] = Sexy::Point(aMidX - 8, aMidY);
-                aPts[2] = Sexy::Point(aMidX + 5, aMidY + 9);
-            }
-            g->SetColor(Sexy::Color(255, 220, 100, 200));
-            g->PolyFill(aPts, 3, true);
-        }
-    }
-    else
-    {
-        NewOptionsDrawCjkCentered(g, aFont, aCenterX, aFootY,
-            ModText::Tr("单击任意处或按任意键关闭", "Click anywhere or press any key to close"), Sexy::Color(160, 160, 160));
-    }
+    mOptionsRect = Sexy::Rect(mX, mY, mWidth, mHeight);
+    mRunInfoOpen = !music && !settings;
+    mMusicOpen = music;
+    mRunSettingsOpen = settings;
+    mMusicEntryDown = false;
+    mRunSettingsEntryDown = false;
+    mRunInfoDown = -1;
+    mRunInfoView = RunInfoView();
+    mRunSettingsView = RunSettingsView();
+    Dialog::Resize(20, 20, 760, 560);
+    if (mWidgetManager) mWidgetManager->SetFocus(this);
+    MarkDirty();
+}
+void NewOptionsDialog::CloseRunInfo() {
+    if (!mRunInfoOpen && !mMusicOpen && !mRunSettingsOpen) return;
+    if (mMusicOpen && mApp->mMusic) mApp->mMusic->StopMusicPreview();
+    Sexy::Widget* widgets[] = {mMusicVolumeSlider, mSfxVolumeSlider, mFullscreenCheckbox, mHardwareAccelerationCheckbox, mAlmanacButton, mRestartButton, mBackToMainButton, mBackToGameButton, mHelpButton};
+    for (int index = 0; index < 9; ++index)
+        widgets[index]->SetVisible(mRunInfoWidgetVis[index]);
+    mRunInfoOpen = false;
+    mMusicOpen = false;
+    mRunSettingsOpen = false;
+    mRunInfoDown = -1;
+    Dialog::Resize(mOptionsRect.mX, mOptionsRect.mY, mOptionsRect.mWidth, mOptionsRect.mHeight);
+    MarkDirty();
 }

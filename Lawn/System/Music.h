@@ -97,6 +97,16 @@ public:
 	/*inline*/ void				PlayMusic(MusicTune theMusicTune, int theOffset = -1, int theDrumsOffset = -1);
 	/*inline*/ HMUSIC			GetBassMusicHandle(MusicFile theMusicFile);
 	void						StartGameMusic();
+    MusicTune GetSceneMusicTune();
+    MusicTune PrepareGameMusic();
+    MusicTune ResolveBattleMusic();
+    void LoadBattleMusicSettings();
+    bool SaveBattleMusicSettings(int tune, bool bossMusic);
+    bool IsMusicTuneAvailable(MusicTune tune);
+    bool RefreshBattleMusic(bool resuming = false);
+    void RestoreGameMusicAfterLoad();
+    bool StartMusicPreview(MusicTune tune);
+    void StopMusicPreview();
 	/*inline*/ void				LoadSong(MusicFile theMusicFile, const std::string& theFileName);
 	void						MusicResync();
 	void						UpdateMusicBurst();

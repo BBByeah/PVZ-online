@@ -17,21 +17,13 @@ class CjkStoneButton;
 // 确定即由打开方落注册表并热改 LawnApp::mSlideCollect，取消不动（同"确定才收值"纪律）。
 // 第五行「巨型 Boss」（MOD_BUILD 38，2026-10-10 用户定案）：回到房间级设置口径——随
 // START_LEVEL 广播；无尽档没有关底，该值在无尽档恒按关处理（StartNew/读档都归 0）。
-// 翻页批（2026-10-13 用户令「高级选项现在出格了，需要翻页功能」）：行数加到六行
-// （第六行「增益倍选」，MOD_BUILD 43），一屏摆不下——分页、每页三行。
-// 阶梯批（MOD_BUILD 45，2026-10-14 用户令）再加两行——分三页。难度批（2026-10-16
-// 用户令）成**九行分三页**：第 1 页「出怪规模/节奏/植物僵尸」，第 2 页「滑动收阳光/
-// 巨型Boss/增益倍选」，第 3 页「移速成长/僵尸 buff/场景难度」。翻页行（上一页/下一页
-// + 「第 n / 3 页」指示）贴在确定行上面一行；两枚按钮环绕翻页。「巨型 Boss」行升级
-// 三档（RunState::mBossFlag 0 关 / 1 仅末关 / 2 末关+场景 3，默认 2）；「移速成长」行
-// （RunState::mSpeedTier 0/1/2 = 无/×1.03/×1.05 每新场景）同样三档。场景难度殿后：
 // 无尽档不吃阶梯、**「场景难度」行在无尽档整行不摆**（2026-10-14 用户裁决；
-// mShowLadderRow 为假时该行永远不上场），末页剩移速成长+僵尸 buff 两行。僵尸 buff 行
+// mShowLadderRow 为假时该行永远不上场）。僵尸 buff 行
 // （RunState::mZombieBuffMode 0/1/2）无尽档照摆——无尽是五关一选、照吃。
 // 页切换只挪控件：当前页的行摆进行槽位，其余整行 Resize 去屏外（画不着、点不着）——
 // 选中态存在各按钮的 mInverted 上，翻回来原样还在。
 // 阻塞式 WaitForResult 收结果：确定 = RunOptionsDialog_OK、取消 = Dialog::ID_NO；
-// 八个选择值由打开方在 WaitForResult 之后读成员带走（取消保留原值）。嵌套阻塞没问题：
+// 各项选择值由打开方在 WaitForResult 之后读成员带走（取消保留原值）。嵌套阻塞没问题：
 // WaitForResult 泵的就是主循环（见 Dialog::WaitForResult），父弹窗只是继续等自己的结果。
 class RunOptionsDialog : public LawnDialog
 {
@@ -51,9 +43,15 @@ public:
 											// ——与枚举顺序不同（STD=0 是第三枚），值映射见 .cpp 的 kLadderUiValues
 		RunOptionsDialog_ZombieBuff0 = 210,	// 僵尸 buff 三枚（MOD_BUILD 45）：0 关 / 1 / 2（值 = 顺序）
 		RunOptionsDialog_Speed0 = 220,		// 移速成长三枚（2026-10-16）：0 无 / ×1.03 / ×1.05（值 = 顺序）
-		RUN_OPTIONS_ROW_COUNT = 9,		// 九行分 3 页、每页 3 行（行序 = 槽位序，见 PlaceRows）
+		RunOptionsDialog_FirstWave0 = 230,
+		RunOptionsDialog_Theme0 = 240,
+        RunOptionsDialog_Focus0 = 250,
+        RunOptionsDialog_DamageScope0 = 260,
+        RunOptionsDialog_DamageTotal0 = 270,
+        RunOptionsDialog_DamageBoss0 = 280,
+		RUN_OPTIONS_ROW_COUNT = 15,
 		RUN_OPTIONS_ROWS_PER_PAGE = 3,
-		RUN_OPTIONS_PAGE_COUNT = 3
+		RUN_OPTIONS_PAGE_COUNT = 5
 	};
 
 	ButtonWidget*	mScaleButtons[4];
@@ -62,7 +60,8 @@ public:
 	ButtonWidget*	mSlideButtons[2];
 	ButtonWidget*	mBossButtons[3];
 	ButtonWidget*	mBuffMultButtons[3];
-	ButtonWidget*	mSpeedButtons[3];		// 第 7 行（2026-10-16）：移速成长 0/×1.03/×1.05
+	ButtonWidget*	mSpeedButtons[3]; // 第 7 行（2026-10-16）：移速成长 0/×1.03/×1.05
+	ButtonWidget*	mFirstWaveButtons[3];
 	ButtonWidget*	mZombieBuffButtons[3];	// 第 8 行（MOD_BUILD 45）
 	ButtonWidget*	mLadderButtons[5];		// 第 9 行（MOD_BUILD 45；无尽档不摆）
 	int				mScaleSel;			// 选中的规模档（RunState::RUN_SCALE_*）
@@ -71,11 +70,26 @@ public:
 	int				mSlideSel;			// 滑动收阳光开关（0 关 1 开）
 	int				mBossSel;			// 巨型 boss 档（0 关 / 1 仅末关 / 2 末关+场景3，默认 2）
 	int				mBuffMultSel;		// 增益倍选档（RunState::RUN_BUFFMULT_*）
-	int				mSpeedSel;			// 移速成长档（0 无 / 1 ×1.03 / 2 ×1.05）
+	int				mSpeedSel; // 移速成长档（0 无 / 1 ×1.03 / 2 ×1.05）
+	int				mFirstWaveSel;
 	int				mZombieBuffSel;		// 僵尸 buff 档（0 关 / 1 / 2）
 	int				mLadderSel;			// 场景难度阶梯档（RunState::RUN_LADDER_*；存"值"不存槽位）
+	int mEndlessOptions;
+    int mThemeSel, mFocusSel;
+    int mDamageScopeSel, mDamageTotalSel, mDamageBossSel;
+    ButtonWidget* mDamageScopeButtons[2];
+    ButtonWidget* mDamageTotalButtons[2];
+    ButtonWidget* mDamageBossButtons[2];
+    int mDamageScopeWidths[2], mDamageTotalWidths[2], mDamageBossWidths[2];
+    std::string mDamageScopeLabels[2], mDamageTotalLabels[2], mDamageBossLabels[2];
+    std::string mDamageScopeCaption, mDamageTotalCaption, mDamageBossCaption;
+    ButtonWidget* mThemeButtons[2];ButtonWidget* mFocusButtons[2];
+    int mThemeWidths[2],mFocusWidths[2];
+    std::string mThemeLabels[2],mFocusLabels[2],mThemeCaption,mFocusCaption;
+    int RowPage(int row) const;
+    int RowSlot(int row) const;
 	bool			mShowLadderRow;		// 无尽档不摆「场景难度」行（2026-10-14 用户裁决：无尽不吃阶梯）
-	int				mPage;				// 当前页（0/1/2）
+	int				mPage;
 	CjkStoneButton*	mOkButton;
 	CjkStoneButton*	mCancelButton;
 	CjkStoneButton*	mPrevButton;
@@ -94,6 +108,7 @@ public:
 	int				mBossWidths[3];
 	int				mBuffMultWidths[3];
 	int				mSpeedWidths[3];
+	int				mFirstWaveWidths[3];
 	int				mZombieBuffWidths[3];
 	int				mLadderWidths[5];
 	int				mTitleY;			// 标题顶部（ModText 顶对齐口径）
@@ -106,6 +121,7 @@ public:
 	std::string		mBossCaption;
 	std::string		mBuffMultCaption;
 	std::string		mSpeedCaption;
+	std::string		mFirstWaveCaption;
 	std::string		mZombieBuffCaption;
 	std::string		mLadderCaption;
 	std::string		mScaleLabels[4];
@@ -115,11 +131,12 @@ public:
 	std::string		mBossLabels[3];
 	std::string		mBuffMultLabels[3];
 	std::string		mSpeedLabels[3];
+	std::string		mFirstWaveLabels[3];
 	std::string		mZombieBuffLabels[3];
 	std::string		mLadderLabels[5];
 
 public:
-	RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTempoSel, int theZombotanySel, int theSlideSel, int theBossSel, int theBuffMultSel, int theLadderSel, int theZombieBuffSel, int theSpeedSel, bool theEndless);
+	RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTempoSel, int theZombotanySel, int theSlideSel, int theBossSel, int theBuffMultSel, int theLadderSel, int theZombieBuffSel, int theSpeedSel, int theFirstWaveSel, bool theEndless, int theEndlessOptions=141);
 	virtual ~RunOptionsDialog();
 
 	virtual void		Draw(Graphics* g);

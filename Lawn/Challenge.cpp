@@ -3664,6 +3664,7 @@ int Challenge::BeghouledCanClearCrater()
 Zombie* Challenge::ZombiquariumSpawnSnorkle()
 {
 	Zombie* aZombie = mBoard->AddZombieInRow(ZOMBIE_SNORKEL, 0, 0);
+	if (aZombie == nullptr) return nullptr;
 	aZombie->mPosX = RandRangeFloat(50, 650);
 	aZombie->mPosY = RandRangeFloat(100, 400);
 	return aZombie;
@@ -3688,6 +3689,7 @@ void Challenge::ZombiquariumPacketClicked(SeedPacket* theSeedPacket)
 			}
 
 			Zombie* aZombie = ZombiquariumSpawnSnorkle();
+			if (aZombie == nullptr) return;
 			mApp->PlayFoley(FOLEY_ZOMBIESPLASH);
 			mApp->AddTodParticle(aZombie->mPosX + 60.0f, aZombie->mPosY + 20.0f, RENDER_LAYER_TOP, PARTICLE_PLANTING_POOL);
 		}
@@ -4254,8 +4256,11 @@ void Challenge::ScaryPotterOpenPot(GridItem* theScaryPot)
 		mBoard->AddCoin(aXPos + 20, aYPos, COIN_USABLE_SEED_PACKET, COIN_MOTION_FROM_PLANT)->mUsableSeedType = theScaryPot->mSeedType;
 		break;
 	case SCARYPOT_ZOMBIE:
-		mBoard->AddZombieInRow(theScaryPot->mZombieType, theScaryPot->mGridY, 0)->mPosX = aXPos;
+	{
+		Zombie* aZombie = mBoard->AddZombieInRow(theScaryPot->mZombieType, theScaryPot->mGridY, 0);
+		if (aZombie != nullptr) aZombie->mPosX = aXPos;
 		break;
+	}
 	case SCARYPOT_SUN:
 	{
 		int aSunCount = ScaryPotterCountSunInPot(theScaryPot);
@@ -4400,6 +4405,7 @@ ZombieType Challenge::IZombieSeedTypeToZombieType(SeedType theSeedType)
 void Challenge::IZombiePlaceZombie(ZombieType theZombieType, int theGridX, int theGridY)
 {
 	Zombie* aZombie = mBoard->AddZombieInRow(theZombieType, theGridY, 0);
+	if (aZombie == nullptr) return;
 	if (theZombieType == ZOMBIE_BUNGEE)
 	{
 		aZombie->mTargetCol = theGridX;
@@ -5098,6 +5104,7 @@ void Challenge::SquirrelFound(GridItem* theSquirrel)
 	if (theSquirrel->mGridItemState == GRIDITEM_STATE_SQUIRREL_ZOMBIE)
 	{
 		Zombie* aZombie = mBoard->AddZombieInRow(ZOMBIE_NORMAL, theSquirrel->mGridY, 0);
+		if (aZombie == nullptr) return;
 		aZombie->mPosX = mBoard->GridToPixelX(theSquirrel->mGridX, theSquirrel->mGridY);
 		theSquirrel->GridItemDie();
 		mBoard->DisplayAdvice("[ADVICE_SQUIRREL_ZOMBIE]", MESSAGE_STYLE_HINT_FAST, ADVICE_NONE);

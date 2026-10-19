@@ -16,15 +16,34 @@
 static const int kGapX = 12;
 static const int kBottomGapX = 20;
 
-// 九行的行数表（构造/摆位/注册/绘制共用；行序 = 槽位序 = 页序：
-// 第 1 页「规模/节奏/植物僵尸」、第 2 页「滑动收阳光/巨型Boss/增益倍选」、
-// 第 3 页「移速成长/僵尸 buff/场景难度」）。
-static const int kRowCounts[RunOptionsDialog::RUN_OPTIONS_ROW_COUNT] = { 4, 3, 2, 2, 3, 3, 3, 3, 5 };
+static const int kRowCounts[RunOptionsDialog::RUN_OPTIONS_ROW_COUNT] = { 4, 3, 2, 2, 3, 3, 3, 3, 5, 3, 2, 2, 2, 2, 2 };
+static const int kRowPages[RunOptionsDialog::RUN_OPTIONS_ROW_COUNT] = { 0, 0, 0, 3, 1, 1, 1, 2, 2, 2, -1, -1, 4, 4, 4 };
+static const int kRowSlots[RunOptionsDialog::RUN_OPTIONS_ROW_COUNT] = { 0, 1, 2, 0, 0, 1, 2, 0, 1, 2, 0, 0, 0, 1, 2 };
+
+static std::string SectionTitle(int page)
+{
+	const char* names[] = {
+		ModText::Tr("高级选项 · 基础", "Advanced / Basics"),
+		ModText::Tr("高级选项 · 成长与首领", "Advanced / Growth and bosses"),
+		ModText::Tr("高级选项 · 场景与强化", "Advanced / Scenes and boosts"),
+		ModText::Tr("高级选项 · 本机辅助", "Advanced / Local assistance"),
+        ModText::Tr("高级选项 · 伤害统计", "Advanced / Damage statistics")
+	};
+	return names[page];
+}
 
 // 「场景难度」行的槽位号（行序末位）。无尽档不吃阶梯，该行整行不摆（2026-10-14 用户
 // 裁决）——mShowLadderRow 为假时它永远不上场（Resize 去屏外，画不着、点不着）。
-// 摆在末位的好处：无尽档末页还剩移速成长+僵尸 buff 两行，不留空槽。
 static const int kRowLadder = 8;
+static const int kRowFirstWave = 9;
+static const int kFirstWaveUiValues[3] = { RunState::RUN_FIRSTWAVE_VANILLA, RunState::RUN_FIRSTWAVE_STD, RunState::RUN_FIRSTWAVE_LONG };
+
+static int FirstWaveUiIndex(int theValue)
+{
+	for (int anIndex = 0; anIndex < 3; ++anIndex)
+		if (kFirstWaveUiValues[anIndex] == theValue) return anIndex;
+	return 1;
+}
 
 // 「场景难度」行的按钮顺序与枚举顺序不同：UI 按倍率从小到大摆（用户 2026-10-14 令
 // 「做 1 1.2 1.33 1.5 2 五档」），枚举里 RUN_LADDER_STD（= 现状 ×1.33）是 0（sentinel
@@ -47,7 +66,7 @@ static void DrawRowCaption(Graphics* g, ModText::Font* theFont, const std::strin
 {
 	std::wstring aWide = ModText::WideFromUtf8(theText.c_str());
 	ModText::DrawTextWide(g, theFont, (theWidth - ModText::TextWidth(theFont, aWide)) / 2, theY,
-		aWide, Color(96, 72, 40), g->mClipRect);
+		aWide, Color(220, 215, 190), g->mClipRect);
 }
 
 // 翻页行中间那句「第 n / m 页」（中英各一版；两处调用：构造量宽、Draw 现画）。
@@ -57,10 +76,27 @@ static std::string MakePageText(int thePage)
 		+ std::to_string(RunOptionsDialog::RUN_OPTIONS_PAGE_COUNT) + ModText::Tr(" 页", "");
 }
 
-RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTempoSel, int theZombotanySel, int theSlideSel, int theBossSel, int theBuffMultSel, int theLadderSel, int theZombieBuffSel, int theSpeedSel, bool theEndless)
+RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTempoSel, int theZombotanySel, int theSlideSel, int theBossSel, int theBuffMultSel, int theLadderSel, int theZombieBuffSel, int theSpeedSel, int theFirstWaveSel, bool theEndless, int theEndlessOptions)
 	: LawnDialog(theApp, Dialogs::DIALOG_RUN_OPTIONS, true, _S(""), _S(""), _S(""), Dialog::BUTTONS_NONE)
 {
-	mTitle = ModText::Tr("高级选项", "Advanced Options");
+	mTitle = theEndless ? ModText::Tr("无尽高级选项", "Endless options") : ModText::Tr("闯关高级选项", "Run options");
+    mApp->mDamageStats.LoadSettings();
+    mDamageScopeSel = mApp->mDamageStats.WholeRun() ? 1 : 0;
+    mDamageTotalSel = mApp->mDamageStats.ShowTotal() ? 1 : 0;
+    mDamageBossSel = mApp->mDamageStats.ShowBoss() ? 1 : 0;
+    mDamageScopeCaption = ModText::Tr("统计范围（仅本机）", "Statistics scope (local)");
+    mDamageTotalCaption = ModText::Tr("总伤害统计（包含BOSS）", "Total damage (includes bosses)");
+    mDamageBossCaption = ModText::Tr("BOSS伤害统计（独立显示）", "Boss damage (separate display)");
+    mDamageScopeLabels[0] = ModText::Tr("本关", "Level");
+    mDamageScopeLabels[1] = ModText::Tr("本轮", "Run");
+    for (int index = 0; index < 2; ++index)
+        mDamageTotalLabels[index] = mDamageBossLabels[index] = index ? ModText::Tr("开启", "On") : ModText::Tr("关闭", "Off");
+    mEndlessOptions=theEndlessOptions;
+    mThemeSel=(theEndlessOptions&4)?1:0;mFocusSel=(theEndlessOptions&8)?1:0;
+    mThemeCaption=ModText::Tr("阶段主题（每五关轮换）","Stage themes (every 5 levels)");
+    mFocusCaption=ModText::Tr("增益候选偏好","Buff candidate preference");
+    mThemeLabels[0]=ModText::Tr("关闭","Off");mThemeLabels[1]=ModText::Tr("开启","On");
+    mFocusLabels[0]=ModText::Tr("自由随机","Random");mFocusLabels[1]=ModText::Tr("阵容偏好","Lineup");
 
 	// 传入的当前值先钳一遍（与 AlignRunToHost 同纪律）：非法档按 标准/标准/关。
 	mScaleSel = theScaleSel;
@@ -71,28 +107,29 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 	if (mZombotanySel != 0 && mZombotanySel != 1) mZombotanySel = 0;
 	mSlideSel = theSlideSel;
 	if (mSlideSel != 0 && mSlideSel != 1) mSlideSel = 1;	// 非法档归开（同"默认开"口径）
-	mBossSel = theBossSel;
+	mBossSel = theEndless ? (theEndlessOptions&3) : theBossSel;
 	if (mBossSel < 0 || mBossSel > 2) mBossSel = 0;	// 非法档归关（2026-10-16 起三档）
 	mBuffMultSel = theBuffMultSel;
 	if (mBuffMultSel < RunState::RUN_BUFFMULT_X1 || mBuffMultSel > RunState::RUN_BUFFMULT_X3) mBuffMultSel = RunState::RUN_BUFFMULT_X1;
 	mZombieBuffSel = theZombieBuffSel;
 	if (mZombieBuffSel < 0 || mZombieBuffSel > 2) mZombieBuffSel = 0;
 	mSpeedSel = theSpeedSel;
+	mFirstWaveSel = theFirstWaveSel >= RunState::RUN_FIRSTWAVE_STD && theFirstWaveSel <= RunState::RUN_FIRSTWAVE_LONG ? theFirstWaveSel : RunState::RUN_FIRSTWAVE_STD;
 	if (mSpeedSel < 0 || mSpeedSel > 2) mSpeedSel = 0;	// 移速成长：非法档归无（2026-10-16）
 	mLadderSel = theLadderSel;
 	if (mLadderSel < RunState::RUN_LADDER_STD || mLadderSel > RunState::RUN_LADDER_X2) mLadderSel = RunState::RUN_LADDER_STD;
 	mShowLadderRow = !theEndless;	// 无尽档不吃阶梯 → 整行不摆（2026-10-14 用户裁决）
 
 	mScaleCaption = ModText::Tr("出怪规模（全队倍率）", "Zombie scale (team multiplier)");
-	mScaleLabels[0] = ModText::Tr("少 ×0.5", "Few ×0.5");
-	mScaleLabels[1] = ModText::Tr("标准 ×1", "Standard ×1");
-	mScaleLabels[2] = ModText::Tr("多 ×2", "Many ×2");
-	mScaleLabels[3] = ModText::Tr("海量 ×4", "Swarm ×4");
+	mScaleLabels[0] = ModText::Tr("少 x0.5", "Few x0.5");
+	mScaleLabels[1] = ModText::Tr("标准 x1", "Standard x1");
+	mScaleLabels[2] = ModText::Tr("多 x2", "Many x2");
+	mScaleLabels[3] = ModText::Tr("海量 x4", "Swarm x4");
 
 	mTempoCaption = ModText::Tr("出怪节奏（波间隔）", "Spawn tempo (wave interval)");
-	mTempoLabels[0] = ModText::Tr("快 ×0.6", "Fast ×0.6");
-	mTempoLabels[1] = ModText::Tr("标准 ×1", "Standard ×1");
-	mTempoLabels[2] = ModText::Tr("慢 ×1.6", "Slow ×1.6");
+	mTempoLabels[0] = ModText::Tr("快 x0.6", "Fast x0.6");
+	mTempoLabels[1] = ModText::Tr("标准 x1", "Standard x1");
+	mTempoLabels[2] = ModText::Tr("慢 x1.6", "Slow x1.6");
 
 	mZombotanyCaption = ModText::Tr("植物僵尸（实验玩法）", "ZomBotany (experimental)");
 	mZombotanyLabels[0] = ModText::Tr("关闭", "Off");
@@ -107,24 +144,31 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 	mBossLabels[1] = ModText::Tr("仅末关", "Final only");
 	mBossLabels[2] = ModText::Tr("末关+场景3", "Final + Scene 3");
 
+    if(theEndless) {
+        mBossCaption=ModText::Tr("周期 BOSS（胜利额外选一次增益）","Boss cycle (extra buff on victory)");
+        mBossLabels[1]=ModText::Tr("每十关","Every 10");mBossLabels[2]=ModText::Tr("每五关","Every 5");
+    }
+
 	// 第六行「增益倍选」（2026-10-13 用户令，MOD_BUILD 43）：×1/×2/×3——每屏照旧三选一
 	// 拿 1 条，但发放的三选一屏数乘倍（拿到的总数翻倍，代价是连点更多屏）。
 	mBuffMultCaption = ModText::Tr("增益倍选（屏数倍率）", "Buff picks (multiplier)");
-	mBuffMultLabels[0] = ModText::Tr("×1", "×1");
-	mBuffMultLabels[1] = ModText::Tr("×2", "×2");
-	mBuffMultLabels[2] = ModText::Tr("×3", "×3");
+	mBuffMultLabels[0] = ModText::Tr("x1", "x1");
+	mBuffMultLabels[1] = ModText::Tr("x2", "x2");
+	mBuffMultLabels[2] = ModText::Tr("x3", "x3");
 
 	// 第七行「移速成长」（2026-10-16 用户令）：0/×1.03/×1.05——僵尸移速每进一个新场景
 	// 复利一档（场景 1 恒 ×1，场景 5 ≈ ×1.12/×1.21）。0 = 无成长。消费在 ZombieInitialize
 	//（与迅捷 buff 独立叠乘）。
 	mSpeedCaption = ModText::Tr("僵尸移速成长（每新场景）", "Zombie speed growth (per scene)");
+    if(theEndless)mSpeedCaption=ModText::Tr("移速成长（每五关，最高1.5倍）","Speed per 5 levels (cap x1.5)");
 	mSpeedLabels[0] = ModText::Tr("关闭", "Off");
-	mSpeedLabels[1] = ModText::Tr("×1.03", "×1.03");
-	mSpeedLabels[2] = ModText::Tr("×1.05", "×1.05");
+	mSpeedLabels[1] = ModText::Tr("x1.03", "x1.03");
+	mSpeedLabels[2] = ModText::Tr("x1.05", "x1.05");
 
 	// 第八行「僵尸 buff」（2026-10-14 用户令，MOD_BUILD 45）：0/1/2 = 每进一个新场景给
 	// 僵尸叠几条强化（全队投票选具体哪几条；无尽档五关一选）。0 = 整条机制不开。
-	mZombieBuffCaption = ModText::Tr("僵尸 buff（每新场景）", "Zombie buffs (per new scene)");
+	// MOD_BUILD 56 起档 2 = 同一场景连开两屏、每屏三选一取 1 条（两屏制，见 LawnApp）。
+	mZombieBuffCaption = theEndless?ModText::Tr("僵尸强化（每五关）","Zombie boosts (every 5 levels)"):ModText::Tr("僵尸 buff（每新场景）", "Zombie buffs (per new scene)");
 	mZombieBuffLabels[0] = ModText::Tr("关闭", "Off");
 	mZombieBuffLabels[1] = ModText::Tr("1 条", "1 buff");
 	mZombieBuffLabels[2] = ModText::Tr("2 条", "2 buffs");
@@ -133,47 +177,56 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 	// 出怪点数上；×1.33 = 现状（老档/默认；枚举值是 sentinel 0）。无尽档不吃阶梯，
 	// 该行整行不摆（mShowLadderRow，构造参数 theEndless）。
 	mLadderCaption = ModText::Tr("场景难度阶梯（血量+出怪）", "Scene difficulty ladder (HP+spawns)");
-	mLadderLabels[0] = ModText::Tr("×1", "×1");
-	mLadderLabels[1] = ModText::Tr("×1.2", "×1.2");
-	mLadderLabels[2] = ModText::Tr("×1.33", "×1.33");
-	mLadderLabels[3] = ModText::Tr("×1.5", "×1.5");
-	mLadderLabels[4] = ModText::Tr("×2", "×2");
+	mLadderLabels[0] = ModText::Tr("x1", "x1");
+	mLadderLabels[1] = ModText::Tr("x1.2", "x1.2");
+	mLadderLabels[2] = ModText::Tr("x1.33", "x1.33");
+	mLadderLabels[3] = ModText::Tr("x1.5", "x1.5");
+	mLadderLabels[4] = ModText::Tr("x2", "x2");
+
+	mFirstWaveCaption = ModText::Tr("首波出怪", "First wave delay");
+	mFirstWaveLabels[0] = ModText::Tr("18 s", "18 sec");
+	mFirstWaveLabels[1] = ModText::Tr("30 s", "30 sec");
+	mFirstWaveLabels[2] = ModText::Tr("60 s", "60 sec");
 
 	mTitleY = 0;
 	for (int i = 0; i < RUN_OPTIONS_ROW_COUNT; i++) mCaptionYs[i] = 0;
 
 	// 各行按钮等宽（取最长标签量的）；石门贴图平铺对宽度有整段要求（见 CjkStoneButtonWidth）。
 	// 量宽用按钮实际画标签的那档字号（CjkPointSize(CJK_BUTTON_LABEL_PX)），量画同一份。
-	ModText::Font* aLabelFont = ModText::GetFont(CjkPointSize(CJK_BUTTON_LABEL_PX), false);
 	const std::string* aLabelSets[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleLabels, mTempoLabels, mZombotanyLabels, mSlideLabels, mBossLabels, mBuffMultLabels,
-		mSpeedLabels, mZombieBuffLabels, mLadderLabels
+		mSpeedLabels, mZombieBuffLabels, mLadderLabels, mFirstWaveLabels, mThemeLabels, mFocusLabels,
+        mDamageScopeLabels, mDamageTotalLabels, mDamageBossLabels
 	};
 	ButtonWidget** aSlots[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons,
-		mSpeedButtons, mZombieBuffButtons, mLadderButtons
+		mSpeedButtons, mZombieBuffButtons, mLadderButtons, mFirstWaveButtons, mThemeButtons, mFocusButtons,
+        mDamageScopeButtons, mDamageTotalButtons, mDamageBossButtons
 	};
 	int* aWidthSets[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleWidths, mTempoWidths, mZombotanyWidths, mSlideWidths, mBossWidths, mBuffMultWidths,
-		mSpeedWidths, mZombieBuffWidths, mLadderWidths
+		mSpeedWidths, mZombieBuffWidths, mLadderWidths, mFirstWaveWidths, mThemeWidths, mFocusWidths,
+        mDamageScopeWidths, mDamageTotalWidths, mDamageBossWidths
 	};
 	static const int kRowIdBase[RUN_OPTIONS_ROW_COUNT] = {
 		RunOptionsDialog_Scale0, RunOptionsDialog_Tempo0, RunOptionsDialog_Zombotany0,
 		RunOptionsDialog_Slide0, RunOptionsDialog_Boss0, RunOptionsDialog_BuffMult0,
-		RunOptionsDialog_Speed0, RunOptionsDialog_ZombieBuff0, RunOptionsDialog_Ladder0
+		RunOptionsDialog_Speed0, RunOptionsDialog_ZombieBuff0, RunOptionsDialog_Ladder0, RunOptionsDialog_FirstWave0, RunOptionsDialog_Theme0, RunOptionsDialog_Focus0,
+        RunOptionsDialog_DamageScope0, RunOptionsDialog_DamageTotal0, RunOptionsDialog_DamageBoss0
 	};
 	// 每行"选中槽位号"：多数行 = 值本身（枚举顺序 = 按钮顺序）；「场景难度」行例外
 	// （UI 顺序与枚举顺序不同，走 kLadderUiValues 映射）。
 	const int aSelIndex[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleSel, mTempoSel, mZombotanySel, mSlideSel, mBossSel, mBuffMultSel,
-		mSpeedSel, mZombieBuffSel, LadderUiIndex(mLadderSel)
+		mSpeedSel, mZombieBuffSel, LadderUiIndex(mLadderSel), FirstWaveUiIndex(mFirstWaveSel), mThemeSel, mFocusSel,
+        mDamageScopeSel, mDamageTotalSel, mDamageBossSel
 	};
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
 	{
 		int aLabelMax = 0;
 		for (int i = 0; i < kRowCounts[aRow]; i++)
 		{
-			int aWidth = ModText::TextWidth(aLabelFont, ModText::WideFromUtf8(aLabelSets[aRow][i].c_str()));
+			int aWidth = CjkStoneButtonLabelWidth(aLabelSets[aRow][i]);
 			if (aWidth > aLabelMax) aLabelMax = aWidth;
 		}
 		int aButtonWidth = CjkStoneButtonWidth(aLabelMax + 26, true);
@@ -194,32 +247,28 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 	mOkButton->SetLabel(ModText::Tr("确定", "OK"));
 	mOkButton->mHasAlpha = true;
 	mOkButton->mHasTransparencies = true;
-	mOkWidth = CjkStoneButtonWidth(ModText::TextWidth(ModText::GetFont(CjkPointSize(CJK_BUTTON_LABEL_PX), false),
-		ModText::WideFromUtf8(mOkButton->mLabel.c_str())) + 32, true);
+	mOkWidth = CjkStoneButtonWidth(CjkStoneButtonLabelWidth(mOkButton->mLabel) + 32, true);
 
 	mCancelButton = new CjkStoneButton(Dialog::ID_NO, this);
 	mCancelButton->SetLabel(ModText::Tr("取消", "Cancel"));
 	mCancelButton->mHasAlpha = true;
 	mCancelButton->mHasTransparencies = true;
-	mCancelWidth = CjkStoneButtonWidth(ModText::TextWidth(ModText::GetFont(CjkPointSize(CJK_BUTTON_LABEL_PX), false),
-		ModText::WideFromUtf8(mCancelButton->mLabel.c_str())) + 32, true);
+	mCancelWidth = CjkStoneButtonWidth(CjkStoneButtonLabelWidth(mCancelButton->mLabel) + 32, true);
 
 	// 翻页行两枚（上一页 / 下一页，环绕翻页）+ 中间的「第 n / m 页」文字（宽度先量好，摆位留位）。
 	mPrevButton = new CjkStoneButton(RunOptionsDialog_PrevPage, this);
 	mPrevButton->SetLabel(ModText::Tr("上一页", "Prev"));
 	mPrevButton->mHasAlpha = true;
 	mPrevButton->mHasTransparencies = true;
-	mPrevWidth = CjkStoneButtonWidth(ModText::TextWidth(ModText::GetFont(CjkPointSize(CJK_BUTTON_LABEL_PX), false),
-		ModText::WideFromUtf8(mPrevButton->mLabel.c_str())) + 26, true);
+	mPrevWidth = CjkStoneButtonWidth(CjkStoneButtonLabelWidth(mPrevButton->mLabel) + 26, true);
 
 	mNextButton = new CjkStoneButton(RunOptionsDialog_NextPage, this);
 	mNextButton->SetLabel(ModText::Tr("下一页", "Next"));
 	mNextButton->mHasAlpha = true;
 	mNextButton->mHasTransparencies = true;
-	mNextWidth = CjkStoneButtonWidth(ModText::TextWidth(ModText::GetFont(CjkPointSize(CJK_BUTTON_LABEL_PX), false),
-		ModText::WideFromUtf8(mNextButton->mLabel.c_str())) + 26, true);
+	mNextWidth = CjkStoneButtonWidth(CjkStoneButtonLabelWidth(mNextButton->mLabel) + 26, true);
 
-	mPageTextW = ModText::TextWidth(ModText::GetFont(12, false), ModText::WideFromUtf8(MakePageText(0).c_str()));
+	mPageTextW = ModText::TextWidth(ModText::GetFont(CjkPointSize(20), false), ModText::WideFromUtf8(MakePageText(0).c_str()));
 	mPageTextX = mPageTextY = 0;
 
 	mPage = 0;
@@ -230,8 +279,8 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 	// 版心（翻页批后按"一页"算）：宽 = 标题与八行按钮总宽的最大者；高 = 标题 + 间隔 + 三行
 	// （小标题 + 按钮）+ 翻页行 + 确定行。CalcSize 会按对话框贴图再取整/加高，多出来的
 	// 空隙由 PlaceRows 里"首行贴顶、翻页/确定贴底"吸收。
-	ModText::Font* aTitleFont = ModText::GetFont(16, true);
-	ModText::Font* aCaptionFont = ModText::GetFont(12, false);
+	ModText::Font* aTitleFont = ModText::GetFont(CjkPointSize(28), true);
+	ModText::Font* aCaptionFont = ModText::GetFont(CjkPointSize(20), false);
 	int aButtonHeight = IMAGE_BUTTON_LEFT->mHeight;
 	int anExtraX = ModText::TextWidth(aTitleFont, ModText::WideFromUtf8(mTitle.c_str())) + 80;
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
@@ -269,7 +318,8 @@ RunOptionsDialog::~RunOptionsDialog()
 {
 	ButtonWidget** aSlots[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons,
-		mSpeedButtons, mZombieBuffButtons, mLadderButtons
+		mSpeedButtons, mZombieBuffButtons, mLadderButtons, mFirstWaveButtons, mThemeButtons, mFocusButtons,
+        mDamageScopeButtons, mDamageTotalButtons, mDamageBossButtons
 	};
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
 	{
@@ -287,17 +337,19 @@ RunOptionsDialog::~RunOptionsDialog()
 // 无尽档的「场景难度」行永远不上场（mShowLadderRow = 假，同"挪去屏外"处理）。
 void RunOptionsDialog::PlaceRows()
 {
-	ModText::Font* aTitleFont = ModText::GetFont(16, true);
-	ModText::Font* aCaptionFont = ModText::GetFont(12, false);
+	ModText::Font* aTitleFont = ModText::GetFont(CjkPointSize(28), true);
+	ModText::Font* aCaptionFont = ModText::GetFont(CjkPointSize(20), false);
 	int aButtonHeight = IMAGE_BUTTON_LEFT->mHeight;
 
 	ButtonWidget** aSlots[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons,
-		mSpeedButtons, mZombieBuffButtons, mLadderButtons
+		mSpeedButtons, mZombieBuffButtons, mLadderButtons, mFirstWaveButtons, mThemeButtons, mFocusButtons,
+        mDamageScopeButtons, mDamageTotalButtons, mDamageBossButtons
 	};
 	int* aWidthSets[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleWidths, mTempoWidths, mZombotanyWidths, mSlideWidths, mBossWidths, mBuffMultWidths,
-		mSpeedWidths, mZombieBuffWidths, mLadderWidths
+		mSpeedWidths, mZombieBuffWidths, mLadderWidths, mFirstWaveWidths, mThemeWidths, mFocusWidths,
+        mDamageScopeWidths, mDamageTotalWidths, mDamageBossWidths
 	};
 
 	int aTitleTop = mContentInsets.mTop + mBackgroundInsets.mTop + DIALOG_HEADER_OFFSET;
@@ -307,9 +359,9 @@ void RunOptionsDialog::PlaceRows()
 	int aRowHeight = ModText::LineHeight(aCaptionFont) + 6 + aButtonHeight + 8;
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
 	{
-		int aRowY = aRowTop + (aRow % RUN_OPTIONS_ROWS_PER_PAGE) * aRowHeight;
-		bool aOnPage = (aRow / RUN_OPTIONS_ROWS_PER_PAGE == mPage)
-			&& (aRow != kRowLadder || mShowLadderRow);
+		int aRowY = aRowTop + RowSlot(aRow) * aRowHeight;
+		bool aOnPage = (RowPage(aRow) == mPage)
+			&& RowPage(aRow)>=0;
 		mCaptionYs[aRow] = aOnPage ? aRowY : -2000;
 		int aButtonY = aOnPage ? aRowY + ModText::LineHeight(aCaptionFont) + 6 : -2000;
 
@@ -356,7 +408,8 @@ void RunOptionsDialog::AddedToManager(WidgetManager* theWidgetManager)
 	LawnDialog::AddedToManager(theWidgetManager);
 	ButtonWidget** aSlots[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons,
-		mSpeedButtons, mZombieBuffButtons, mLadderButtons
+		mSpeedButtons, mZombieBuffButtons, mLadderButtons, mFirstWaveButtons, mThemeButtons, mFocusButtons,
+        mDamageScopeButtons, mDamageTotalButtons, mDamageBossButtons
 	};
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
 	{
@@ -373,7 +426,8 @@ void RunOptionsDialog::RemovedFromManager(WidgetManager* theWidgetManager)
 	LawnDialog::RemovedFromManager(theWidgetManager);
 	ButtonWidget** aSlots[RUN_OPTIONS_ROW_COUNT] = {
 		mScaleButtons, mTempoButtons, mZombotanyButtons, mSlideButtons, mBossButtons, mBuffMultButtons,
-		mSpeedButtons, mZombieBuffButtons, mLadderButtons
+		mSpeedButtons, mZombieBuffButtons, mLadderButtons, mFirstWaveButtons, mThemeButtons, mFocusButtons,
+        mDamageScopeButtons, mDamageTotalButtons, mDamageBossButtons
 	};
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
 	{
@@ -391,30 +445,32 @@ void RunOptionsDialog::Draw(Graphics* g)
 
 	if (!mTitle.empty())
 	{
-		ModText::Font* aTitleFont = ModText::GetFont(16, true);
-		std::wstring aTitle = ModText::WideFromUtf8(mTitle.c_str());
+		ModText::Font* aTitleFont = ModText::GetFont(CjkPointSize(28), true);
+		const char* endlessTitles[]={ModText::Tr("无尽 · 出怪设置","Endless / Zombies"),ModText::Tr("无尽 · 阶段挑战","Endless / Challenges"),ModText::Tr("无尽 · 阵容与增益","Endless / Lineup"),ModText::Tr("无尽 · 准备与操作","Endless / Preparation"),ModText::Tr("高级选项 · 伤害统计","Advanced / Damage statistics")};
+        std::wstring aTitle = ModText::WideFromUtf8((mShowLadderRow?SectionTitle(mPage):std::string(endlessTitles[mPage])).c_str());
 		ModText::DrawTextWide(g, aTitleFont,
 			(mWidth - ModText::TextWidth(aTitleFont, aTitle)) / 2, mTitleY,
 			aTitle, mColors[Dialog::COLOR_HEADER], g->mClipRect);
 	}
 
 	// 当前页三行的小标题（各行的按钮自己画自己，走控件那套；非当前页的行已被挪去屏外）。
-	ModText::Font* aCaptionFont = ModText::GetFont(12, false);
+	ModText::Font* aCaptionFont = ModText::GetFont(CjkPointSize(20), false);
 	const std::string* aCaptions[RUN_OPTIONS_ROW_COUNT] = {
 		&mScaleCaption, &mTempoCaption, &mZombotanyCaption, &mSlideCaption, &mBossCaption, &mBuffMultCaption,
-		&mSpeedCaption, &mZombieBuffCaption, &mLadderCaption
+		&mSpeedCaption, &mZombieBuffCaption, &mLadderCaption, &mFirstWaveCaption, &mThemeCaption, &mFocusCaption,
+        &mDamageScopeCaption, &mDamageTotalCaption, &mDamageBossCaption
 	};
 	for (int aRow = 0; aRow < RUN_OPTIONS_ROW_COUNT; aRow++)
 	{
-		if (aRow / RUN_OPTIONS_ROWS_PER_PAGE != mPage) continue;
-		if (aRow == kRowLadder && !mShowLadderRow) continue;	// 无尽档不摆（同 PlaceRows）
+		if (RowPage(aRow) != mPage) continue;
+		if (RowPage(aRow)<0) continue;	// 无尽档不摆（同 PlaceRows）
 		DrawRowCaption(g, aCaptionFont, *aCaptions[aRow], mCaptionYs[aRow], mWidth);
 	}
 
 	// 翻页行中间的「第 n / m 页」。
 	std::wstring aPage = ModText::WideFromUtf8(MakePageText(mPage).c_str());
 	ModText::DrawTextWide(g, aCaptionFont, mPageTextX, mPageTextY,
-		aPage, Color(96, 72, 40), g->mClipRect);
+		aPage, Color(220, 215, 190), g->mClipRect);
 }
 
 // 键盘一律不认（同 OnlineStartDialog / RunModeDialog 的纪律）。
@@ -432,6 +488,29 @@ void RunOptionsDialog::ButtonPress(int theId)
 
 void RunOptionsDialog::ButtonDepress(int theId)
 {
+    const int damageBases[] = {RunOptionsDialog_DamageScope0, RunOptionsDialog_DamageTotal0, RunOptionsDialog_DamageBoss0};
+    int* damageSelections[] = {&mDamageScopeSel, &mDamageTotalSel, &mDamageBossSel};
+    ButtonWidget** damageButtons[] = {mDamageScopeButtons, mDamageTotalButtons, mDamageBossButtons};
+    for (int row = 0; row < 3; ++row)
+        if (theId >= damageBases[row] && theId < damageBases[row] + 2)
+        {
+            *damageSelections[row] = theId - damageBases[row];
+            for (int index = 0; index < 2; ++index) damageButtons[row][index]->mInverted = index == *damageSelections[row];
+            return;
+        }
+    if(theId>=RunOptionsDialog_Theme0 && theId<RunOptionsDialog_Theme0+2) {
+        mThemeSel=theId-RunOptionsDialog_Theme0;
+        mEndlessOptions=(mEndlessOptions&~4)|(mThemeSel?4:0);
+        for(int i=0;i<2;++i)mThemeButtons[i]->mInverted=i==mThemeSel;
+        return;
+    }
+    if(theId>=RunOptionsDialog_Focus0 && theId<RunOptionsDialog_Focus0+2) {
+        mFocusSel=theId-RunOptionsDialog_Focus0;
+        mEndlessOptions=(mEndlessOptions&~8)|(mFocusSel?8:0);
+        for(int i=0;i<2;++i)mFocusButtons[i]->mInverted=i==mFocusSel;
+        return;
+    }
+
 	// 不调 Dialog::ButtonDepress（RunModeDialog 同款纪律）：结果由打开方在 WaitForResult
 	// 里收，不走 2000+/3000+ 的标准对话框路由。
 	if (theId >= RunOptionsDialog_Scale0 && theId <= RunOptionsDialog_Scale0 + 3)
@@ -461,6 +540,7 @@ void RunOptionsDialog::ButtonDepress(int theId)
 	if (theId >= RunOptionsDialog_Boss0 && theId <= RunOptionsDialog_Boss0 + 2)
 	{
 		mBossSel = theId - RunOptionsDialog_Boss0;
+        if(!mShowLadderRow)mEndlessOptions=(mEndlessOptions&~3)|mBossSel;
 		for (int i = 0; i < 3; i++) mBossButtons[i]->mInverted = (i == mBossSel);
 		return;
 	}
@@ -474,6 +554,13 @@ void RunOptionsDialog::ButtonDepress(int theId)
 	{
 		mSpeedSel = theId - RunOptionsDialog_Speed0;
 		for (int i = 0; i < 3; i++) mSpeedButtons[i]->mInverted = (i == mSpeedSel);
+		return;
+	}
+	if (theId >= RunOptionsDialog_FirstWave0 && theId <= RunOptionsDialog_FirstWave0 + 2)
+	{
+		mFirstWaveSel = kFirstWaveUiValues[theId - RunOptionsDialog_FirstWave0];
+		for (int anIndex = 0; anIndex < 3; ++anIndex)
+			mFirstWaveButtons[anIndex]->mInverted = kFirstWaveUiValues[anIndex] == mFirstWaveSel;
 		return;
 	}
 	if (theId >= RunOptionsDialog_ZombieBuff0 && theId <= RunOptionsDialog_ZombieBuff0 + 2)
@@ -502,6 +589,12 @@ void RunOptionsDialog::ButtonDepress(int theId)
 	}
 	if (theId == RunOptionsDialog_OK)
 	{
+        if (!mApp->mDamageStats.SaveSettings(mDamageScopeSel | (mDamageTotalSel << 1) | (mDamageBossSel << 2)))
+        {
+            mApp->LawnMessageBox(Dialogs::DIALOG_MESSAGE, ModText::Tr("保存失败", "Save failed"),
+                ModText::Tr("统计设置未保存，请检查可用存储。", "Statistics settings were not saved. Check storage."), "OK", "", Dialog::BUTTONS_FOOTER);
+            return;
+        }
 		mResult = RunOptionsDialog_OK;	// 确定 = 收结果（WaitForResult 自己收摊）
 		return;
 	}
@@ -510,4 +603,13 @@ void RunOptionsDialog::ButtonDepress(int theId)
 		mResult = Dialog::ID_NO;		// 取消 = 关弹窗不改任何值
 		return;
 	}
+}
+
+int RunOptionsDialog::RowPage(int row) const {
+    if(mShowLadderRow)return kRowPages[row];
+    static const int pages[]={0,0,0,3,1,2,1,1,-1,3,2,2,4,4,4};return pages[row];
+}
+int RunOptionsDialog::RowSlot(int row) const {
+    if(mShowLadderRow)return kRowSlots[row];
+    static const int slots[]={0,1,2,1,0,0,1,2,0,0,1,2,0,1,2};return slots[row];
 }

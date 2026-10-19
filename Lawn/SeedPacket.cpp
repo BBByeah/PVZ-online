@@ -10,6 +10,7 @@
 #include "../Sexy.TodLib/FilterEffect.h"
 #include "misc/SexyMatrix.h"
 #include "Run/RunBuffs.h"
+#include "Run/RunState.h"
 
 SeedPacket::SeedPacket()
 {
@@ -651,7 +652,7 @@ void SeedPacket::Draw(Graphics* g)
 		{
 			aPercentDark = 0.0f;
 		}
-		else if ((!mBoard->CanTakeSunMoney(aCost) && aDrawCost) || aPercentDark > 1.0f || !mBoard->PlantingRequirementsMet(aUseSeedType))
+		else if ((mApp->AdmissionBuilding() && !CanPickUp()) || (!mBoard->CanTakeSunMoney(aCost) && aDrawCost) || aPercentDark > 1.0f || !mBoard->PlantingRequirementsMet(aUseSeedType))
 		{
 			aGrayness = 128;
 		}
@@ -664,6 +665,7 @@ void SeedPacket::Draw(Graphics* g)
 //0x488500
 bool SeedPacket::CanPickUp()
 {
+    if(mApp->AdmissionBuilding() && (mPacketType==SEED_CHERRYBOMB || mPacketType==SEED_JALAPENO || mPacketType==SEED_DOOMSHROOM || mPacketType==SEED_ICESHROOM || mPacketType==SEED_GRAVEBUSTER))return false;
 	if (mBoard->mPaused || mApp->mGameScene != GameScenes::SCENE_PLAYING || mPacketType == SeedType::SEED_NONE)
 	{
 		return false;
@@ -706,6 +708,7 @@ bool SeedPacket::CanPickUp()
 // GOTY @Patoke: 0x4931C0
 void SeedPacket::MouseDown(int x, int y, int theClickCount)
 {
+    if(mApp->AdmissionBuilding() && !CanPickUp())return;
 	(void)x;(void)y;(void)theClickCount;
 	if (mBoard->mPaused || mApp->mGameScene != GameScenes::SCENE_PLAYING || mPacketType == SeedType::SEED_NONE)
 	{
@@ -974,7 +977,7 @@ void SeedBank::Draw(Graphics* g)
 
 	if (!mBoard->HasConveyorBeltSeedBank())
 	{
-		SexyString aMoneyLabel = StrFormat(_S("%d"), std::max(mBoard->mSunMoney, 0));
+		SexyString aMoneyLabel = StrFormat(_S("%d"), std::max(mApp->AdmissionBuilding()?mApp->GetRunState()->mAdmission.budget:mBoard->mSunMoney,0));
 		Color aMoneyColor(0, 0, 0);
 		if (mBoard->mOutOfMoneyCounter > 0 && mBoard->mOutOfMoneyCounter % 20 < 10)
 		{

@@ -13,14 +13,10 @@ class CjkStoneButton;
 // 点哪张 = 选哪个时长档，底部一枚"取消"石头按钮 = 关弹窗不开局（等待必须有出路）。
 // MOD_BUILD 27 起再多一行"出怪难度"（轻松/标准/高压三枚小石头按钮，选中 = 按下态贴图，
 // 点了不关弹窗）：房主定全队出怪倍率（乘在顺位乘数上，见 Board::PickZombieWaves）。
-// 这一行只在"队伍"里摆（联机主机，判据与 RequestAdventure 同口径）——单机局档位恒为
-// 标准，摆出来也是死控件，所以 mShowDiff 为假时整行不做。
 // 阻塞式 WaitForResult 收结果：返回值是卡片按钮编号（RunModeDialog_Mode0 = 完整版，
 // 往后依序普通/快速）或 Dialog::ID_NO（取消）；换算回档位、读 mDiffSel 在 LawnApp 一侧做
 // （读成员安全：WaitForResult 的自动收摊是 SafeDeleteList 延迟删，框架自己也这么读 mResult）。
 // 联机不另问：只有主机走到这一页，选完由 START_LEVEL 的模式字节 + 难度字节带动队友。
-// MOD_BUILD 35 起底行多一枚「高级选项…」（仅 mShowDiff 同判据）：点开 RunOptionsDialog
-// （嵌套阻塞，见那边的头注释）回填 mScaleSel/mTempoSel/mZombotanySel，随 START_LEVEL 带动队友。
 // @pvz-online: 无尽变体（MOD_BUILD 37，2026-10-10）：theEndlessScene >= 0 时本页改当
 // 「无尽设置」——三张时长卡整行撤掉，原位摆一行锁定的环境名（白天/夜晚/泳池/浓雾/屋顶，
 // 由点的那张 Endless 卡定死）；出怪难度行与「高级选项…」对单机也摆（无尽单机同样吃这些档）；
@@ -55,7 +51,9 @@ public:
 	int					mBuffMultSel;		// 增益倍选档（RunState::RUN_BUFFMULT_*，默认 ×1；MOD_BUILD 43）
 	int					mLadderSel;			// 场景难度阶梯档（RunState::RUN_LADDER_*，默认现状 STD；MOD_BUILD 45）
 	int					mZombieBuffSel;		// 僵尸 buff 档（0 关 / 1 / 2，默认 1 条；MOD_BUILD 45）
-	int					mSpeedSel;			// 僵尸移速成长档（0 无 / 1 ×1.03 / 2 ×1.05，默认无；2026-10-16）
+	int					mSpeedSel; // 僵尸移速成长档（0 无 / 1 ×1.03 / 2 ×1.05，默认无；2026-10-16）
+	int mFirstWaveSel;
+    int mEndlessOptions=141;
 	CjkStoneButton*	mCancelButton;		// 取消 = 关弹窗不开局
 	CjkStoneButton*	mStartButton;		// 无尽变体的「开始」（普通页 nullptr）
 	ButtonWidget*		mOptionsButton;		// 「高级选项…」（mShowDiff 为假时 nullptr）

@@ -222,7 +222,7 @@ static void DrawAlmanacRunEntry(Graphics* g, int theId, int theRarity, int theDe
 	if (aFitsSplit || aFitsJoined)		// 1)/2) 带标题行
 	{
 		int aY = theDescBottom + (aFitsSplit ? 5 : 3);
-		std::wstring aHead = ModText::WideFromUtf8(ModText::Tr("闯关词条 · ", "Run Modifier · "));
+		std::wstring aHead = ModText::WideFromUtf8(ModText::Tr("可得词条 · ", "Available · "));
 		aHead += ModText::WideFromUtf8(GetRunChoiceName(theId));		// 英文条名与三选一屏按钮同字
 		ModText::DrawTextWide(g, aHeadFont, ALMANAC_ENTRY_X, aY, aHead, Color(160, 75, 15), g->mClipRect);
 		DrawRarityStars(g, aHeadFont, theRarity,

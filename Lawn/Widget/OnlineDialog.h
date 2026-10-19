@@ -3,6 +3,7 @@
 
 #include "LawnDialog.h"
 #include "widget/EditListener.h"
+#include "../Online/AutomaticRooms.h"
 
 class LawnApp;
 class LawnEditWidget;
@@ -34,8 +35,15 @@ public:
 		OnlineDialog_Reject		= 1206,
 		OnlineDialog_CreateRoom	= 1207,
 		OnlineDialog_JoinRoom	= 1208,
+		OnlineDialog_Start = 1209,
 		OnlineDialog_IpEdit		= 1210,		// 直连：主机地址
 		OnlineDialog_ServerEdit	= 1211,		// 中继：服务器地址
+        OnlineDialog_Directory=1213,
+        OnlineDialog_History=1214,
+        OnlineDialog_Visibility=1215,
+        OnlineDialog_LocalPage=1216,
+        OnlineDialog_ServerPage=1217,
+        OnlineDialog_Solo=1218,
 		OnlineDialog_CodeEdit	= 1212		// 中继：房间码
 	};
 
@@ -58,10 +66,16 @@ public:
 	LawnStoneButton*	mRejectButton;
 	// @pvz-online: M3 中继那一排——Server/Code 两个输入框 + 建房/按码加入两把键，
 	// 和底排的直连 Host/Join 并存（直连模式保留）。默认地址先填本机，P4 上线后换云 IP。
-	LawnEditWidget*		mServerEditWidget;
 	LawnEditWidget*		mCodeEditWidget;
 	LawnStoneButton*	mCreateRoomButton;
 	LawnStoneButton*	mJoinRoomButton;
+	LawnStoneButton* mStartButton;
+    LawnStoneButton *mDirectoryButton,*mHistoryButton,*mVisibilityButton;
+    LawnStoneButton *mLocalPageButton,*mServerPageButton,*mSoloButton;
+    RelayNodes::Allocator mAllocator;
+    std::string mServerInputError;
+    int mPage=0;
+    bool mConfirmSolo=false;
 
 public:
 	OnlineDialog(LawnApp* theApp);
@@ -74,29 +88,16 @@ public:
 	virtual void		Draw(Graphics* g);
 	virtual void		ButtonDepress(int theId);
 	virtual void		EditWidgetText(int theId, const SexyString& theString);
+	void KeyDown(KeyCode key) override;
 
 private:
-	int					GetStatusBaseline();
-	// 居中画一行状态/提示（语言批：中文档按宽字符量宽居中，长行还按可用宽度缩字号；
-	// 英文档走原版 WriteCenteredLine）。
-	void				DrawStatusLine(Graphics* g, int theBaseline, const std::string& theUtf8);
-	// @pvz-online: 房间信息块（标题 + 每席位一行名册）就排在两行状态和输入框之间，见 .cpp。
-	// 地盘按席位上限钉死——没连上时标题说"没房间"、名册留空，面板不因为这个跳高度。
-	int					GetRoomHeaderBaseline();
-	void				DrawRoomBlock(Graphics* g);
-	std::string			GetRoomHeaderLine();
-	std::string			GetRoomSeatLine(int theSeat);
-	int					GetEditY();
 	void				StartHost();
 	void				StartJoin();
 	void				StartRoomHost();
 	void				StartRoomJoin();
 	std::string			GetIpText();
-	std::string			GetServerText();
 	std::string			GetRoomCodeText();
 
-	std::string			mStatusLine;
-	std::string			mHintLine;
 	// 已经写进 Code 框的那个房间码：只在码真的换了的时候写一次，
 	// 不然玩家在框里敲字会被每帧擦掉。
 	std::string			mShownRoomCode;

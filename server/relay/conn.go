@@ -20,11 +20,15 @@ type outMsg struct {
 }
 
 type Conn struct {
-	srv       *Server
-	nc        net.Conn
-	send      chan outMsg
-	done      chan struct{}
-	closeOnce sync.Once
+	created      time.Time
+	credential   [16]byte
+	controlStart time.Time
+	controlCount int
+	srv          *Server
+	nc           net.Conn
+	send         chan outMsg
+	done         chan struct{}
+	closeOnce    sync.Once
 
 	room atomic.Pointer[Room] // 所属房间（未进房为 nil）
 	seat uint8                // 当前席位（1..6；未分配为 0）—— 持 srv.mu 改
@@ -40,12 +44,15 @@ type Conn struct {
 
 func newConn(s *Server, nc net.Conn) *Conn {
 	c := &Conn{
-		srv:  s,
-		nc:   nc,
-		send: make(chan outMsg, 64),
-		done: make(chan struct{}),
+		created: time.Now(),
+		srv:     s,
+		nc:      &meteredConn{Conn: nc, stats: &s.stats},
+		send:    make(chan outMsg, 64),
+		done:    make(chan struct{}),
 	}
 	c.lastActive.Store(time.Now().UnixNano())
+	s.connections.Store(c, struct{}{})
+	s.stats.accepted.Add(1)
 	return c
 }
 
@@ -53,6 +60,8 @@ func (c *Conn) remoteAddr() string { return c.nc.RemoteAddr().String() }
 
 func (c *Conn) close() {
 	c.closeOnce.Do(func() {
+		c.srv.connections.Delete(c)
+		c.srv.stats.closed.Add(1)
 		close(c.done)
 		c.nc.Close()
 	})
@@ -73,11 +82,13 @@ func (c *Conn) readLoop() {
 		typ, payload, err := readFrame(c.nc)
 		if err != nil {
 			if err == errMalformed {
+				c.srv.stats.malformed.Add(1)
 				c.srv.logf("malformed frame from %s - dropping the connection", c.remoteAddr())
 			}
 			return
 		}
 		c.lastActive.Store(time.Now().UnixNano())
+		c.srv.stats.inFrames.Add(1)
 		c.srv.handle(c, typ, payload)
 	}
 }
@@ -98,10 +109,15 @@ func (c *Conn) writeLoop() {
 				return
 			}
 		case <-ticker.C:
+			if c.room.Load() == nil && time.Since(c.created) > 10*time.Second {
+				c.close()
+				return
+			}
 			if c.room.Load() != nil {
 				if time.Since(time.Unix(0, c.lastActive.Load())) > c.srv.idleTimeout {
 					c.srv.logf("%s timed out (no data for %v)", c.remoteAddr(), c.srv.idleTimeout)
 					c.timedOut.Store(true)
+					c.srv.stats.timedOut.Add(1)
 					c.close()
 					return
 				}
@@ -116,17 +132,50 @@ func (c *Conn) writeLoop() {
 // write 写一帧，带 10 秒写超时（对面不收也不许把写循环挂死）。写失败即断连。
 func (c *Conn) write(frame []byte) bool {
 	c.nc.SetWriteDeadline(time.Now().Add(10 * time.Second))
-	if _, err := c.nc.Write(frame); err != nil {
+	n, err := c.nc.Write(frame)
+	if err != nil || n != len(frame) {
+		c.srv.stats.writeErrors.Add(1)
 		c.close()
 		return false
 	}
+	c.srv.stats.outFrames.Add(1)
 	return true
 }
 
 // handle 收帧分发：控制帧服务器自己处理；游戏帧走转发。
 func (s *Server) handle(c *Conn, typ uint16, payload []byte) {
 	if typ >= srvFrameBase {
+		if time.Since(c.controlStart) > time.Second {
+			c.controlStart = time.Now()
+			c.controlCount = 0
+		}
+		c.controlCount++
+		if c.controlCount > 32 {
+			s.stats.rateLimited.Add(1)
+			c.close()
+			return
+		}
 		switch typ {
+		case msgCliNodeInfo:
+			s.handleNodeInfo(c, payload)
+		case msgCliPublish:
+			s.handlePublish(c, payload)
+		case msgCliList:
+			s.handleList(c, payload)
+		case msgCliDirectoryJoin:
+			version, build, name, code, ok := decodeJoinRoom(payload)
+			if !ok {
+				s.dropBadControl(c, typ)
+				return
+			}
+			s.handleJoinFrom(c, version, build, name, code, true)
+		case msgCliCancelAdmission:
+			s.handleCancelAdmission(c, payload)
+			return
+		case msgCliGate:
+			s.handleGate(c, payload)
+		case msgCliSecureRejoin:
+			s.handleSecureRejoin(c, payload)
 		case msgCliCreateRoom:
 			version, build, name, ok := decodeCreateRoom(payload)
 			if !ok {
@@ -176,6 +225,7 @@ func (s *Server) handle(c *Conn, typ uint16, payload []byte) {
 	}
 	// 游戏帧：至少要有 src + dst 两个字节，否则断线
 	if len(payload) < 2 {
+		s.stats.malformed.Add(1)
 		s.logf("malformed game frame %#x from %s - dropping the connection", typ, c.remoteAddr())
 		c.close()
 		return
@@ -184,6 +234,7 @@ func (s *Server) handle(c *Conn, typ uint16, payload []byte) {
 }
 
 func (s *Server) dropBadControl(c *Conn, typ uint16) {
+	s.stats.malformed.Add(1)
 	s.logf("bad control frame %#x from %s - dropping the connection", typ, c.remoteAddr())
 	c.close()
 }

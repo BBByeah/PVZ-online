@@ -1,5 +1,6 @@
 #include "Coin.h"
 #include "Plant.h"
+#include "Run/RunDotEffects.h"
 #include "Board.h"
 #include "Zombie.h"
 #include "Cutscene.h"
@@ -23,6 +24,7 @@
 #include "Widget/AchievementsWidget.h"
 #include "Run/RunBuffs.h"
 
+// @pvz-online: 紫卡保留较长种植等待，但以 30 秒封顶避免拖慢成型（2026-10-16 用户定案）。
 PlantDefinition gPlantDefs[SeedType::NUM_SEED_TYPES] = {  //0x69F2B0
     { SeedType::SEED_PEASHOOTER,        nullptr, ReanimationType::REANIM_PEASHOOTER,    0,  100,    750,    PlantSubClass::SUBCLASS_SHOOTER,    150,    _S("PEASHOOTER") },
     { SeedType::SEED_SUNFLOWER,         nullptr, ReanimationType::REANIM_SUNFLOWER,     1,  50,     750,    PlantSubClass::SUBCLASS_NORMAL,     2500,   _S("SUNFLOWER") },
@@ -31,7 +33,8 @@ PlantDefinition gPlantDefs[SeedType::NUM_SEED_TYPES] = {  //0x69F2B0
     { SeedType::SEED_POTATOMINE,        nullptr, ReanimationType::REANIM_POTATOMINE,    37, 25,     3000,   PlantSubClass::SUBCLASS_NORMAL,     0,      _S("POTATO_MINE") },
     { SeedType::SEED_SNOWPEA,           nullptr, ReanimationType::REANIM_SNOWPEA,       4,  175,    750,    PlantSubClass::SUBCLASS_SHOOTER,    150,    _S("SNOW_PEA") },
     { SeedType::SEED_CHOMPER,           nullptr, ReanimationType::REANIM_CHOMPER,       31, 150,    750,    PlantSubClass::SUBCLASS_NORMAL,     0,      _S("CHOMPER") },
-    { SeedType::SEED_REPEATER,          nullptr, ReanimationType::REANIM_REPEATER,      5,  200,    750,    PlantSubClass::SUBCLASS_SHOOTER,    150,    _S("REPEATER") },
+    // @pvz-online: 降低双发的成型费用（2026-10-16 用户定案）。
+    { SeedType::SEED_REPEATER,          nullptr, ReanimationType::REANIM_REPEATER,      5,  150,    750,    PlantSubClass::SUBCLASS_SHOOTER,    150,    _S("REPEATER") },
     { SeedType::SEED_PUFFSHROOM,        nullptr, ReanimationType::REANIM_PUFFSHROOM,    6,  0,      750,    PlantSubClass::SUBCLASS_SHOOTER,    150,    _S("PUFF_SHROOM") },
     { SeedType::SEED_SUNSHROOM,         nullptr, ReanimationType::REANIM_SUNSHROOM,     7,  0,      750,    PlantSubClass::SUBCLASS_NORMAL,     2500,   _S("SUN_SHROOM") },
     { SeedType::SEED_FUMESHROOM,        nullptr, ReanimationType::REANIM_FUMESHROOM,    9,  75,     750,    PlantSubClass::SUBCLASS_SHOOTER,    150,    _S("FUME_SHROOM") },
@@ -42,7 +45,8 @@ PlantDefinition gPlantDefs[SeedType::NUM_SEED_TYPES] = {  //0x69F2B0
     { SeedType::SEED_DOOMSHROOM,        nullptr, ReanimationType::REANIM_DOOMSHROOM,    20, 125,    5000,   PlantSubClass::SUBCLASS_NORMAL,     0,      _S("DOOM_SHROOM") },
     { SeedType::SEED_LILYPAD,           nullptr, ReanimationType::REANIM_LILYPAD,       19, 25,     750,    PlantSubClass::SUBCLASS_NORMAL,     0,      _S("LILY_PAD") },
     { SeedType::SEED_SQUASH,            nullptr, ReanimationType::REANIM_SQUASH,        21, 50,     3000,   PlantSubClass::SUBCLASS_NORMAL,     0,      _S("SQUASH") },
-    { SeedType::SEED_THREEPEATER,       nullptr, ReanimationType::REANIM_THREEPEATER,   12, 150,    750,    PlantSubClass::SUBCLASS_SHOOTER,    150,    _S("THREEPEATER") },
+    // @pvz-online: 重新拉开三道火力与单道植物的费用差距（2026-10-16 用户定案）。
+    { SeedType::SEED_THREEPEATER,       nullptr, ReanimationType::REANIM_THREEPEATER,   12, 200,    750,    PlantSubClass::SUBCLASS_SHOOTER,    150,    _S("THREEPEATER") },
     { SeedType::SEED_TANGLEKELP,        nullptr, ReanimationType::REANIM_TANGLEKELP,    17, 25,     3000,   PlantSubClass::SUBCLASS_NORMAL,     0,      _S("TANGLE_KELP") },
     { SeedType::SEED_JALAPENO,          nullptr, ReanimationType::REANIM_JALAPENO,      11, 125,    5000,   PlantSubClass::SUBCLASS_NORMAL,     0,      _S("JALAPENO") },
     { SeedType::SEED_SPIKEWEED,         nullptr, ReanimationType::REANIM_SPIKEWEED,     22, 100,    750,    PlantSubClass::SUBCLASS_NORMAL,     0,      _S("SPIKEWEED") },
@@ -63,15 +67,16 @@ PlantDefinition gPlantDefs[SeedType::NUM_SEED_TYPES] = {  //0x69F2B0
     { SeedType::SEED_GARLIC,            nullptr, ReanimationType::REANIM_GARLIC,        8,  50,     750,    PlantSubClass::SUBCLASS_NORMAL,     0,      _S("GARLIC") },
     { SeedType::SEED_UMBRELLA,          nullptr, ReanimationType::REANIM_UMBRELLALEAF,  23, 100,    750,    PlantSubClass::SUBCLASS_NORMAL,     0,      _S("UMBRELLA_LEAF") },
     { SeedType::SEED_MARIGOLD,          nullptr, ReanimationType::REANIM_MARIGOLD,      24, 50,     3000,   PlantSubClass::SUBCLASS_NORMAL,     2500,   _S("MARIGOLD") },
-    { SeedType::SEED_MELONPULT,         nullptr, ReanimationType::REANIM_MELONPULT,     14, 300,    750,    PlantSubClass::SUBCLASS_SHOOTER,    300,    _S("MELON_PULT") },
-    { SeedType::SEED_GATLINGPEA,        nullptr, ReanimationType::REANIM_GATLINGPEA,    5,  250,    5000,   PlantSubClass::SUBCLASS_SHOOTER,    150,    _S("GATLING_PEA") },
-    { SeedType::SEED_TWINSUNFLOWER,     nullptr, ReanimationType::REANIM_TWIN_SUNFLOWER,1,  150,    5000,   PlantSubClass::SUBCLASS_NORMAL,     2500,   _S("TWIN_SUNFLOWER") },
-    { SeedType::SEED_GLOOMSHROOM,       nullptr, ReanimationType::REANIM_GLOOMSHROOM,   27, 150,    5000,   PlantSubClass::SUBCLASS_SHOOTER,    200,    _S("GLOOM_SHROOM") },
-    { SeedType::SEED_CATTAIL,           nullptr, ReanimationType::REANIM_CATTAIL,       27, 225,    5000,   PlantSubClass::SUBCLASS_SHOOTER,    150,    _S("CATTAIL") },
-    { SeedType::SEED_WINTERMELON,       nullptr, ReanimationType::REANIM_WINTER_MELON,  27, 200,    5000,   PlantSubClass::SUBCLASS_SHOOTER,    300,    _S("WINTER_MELON") },
-    { SeedType::SEED_GOLD_MAGNET,       nullptr, ReanimationType::REANIM_GOLD_MAGNET,   27, 50,     5000,   PlantSubClass::SUBCLASS_NORMAL,     0,      _S("GOLD_MAGNET") },
-    { SeedType::SEED_SPIKEROCK,         nullptr, ReanimationType::REANIM_SPIKEROCK,     27, 125,    5000,   PlantSubClass::SUBCLASS_NORMAL,     0,      _S("SPIKEROCK") },
-    { SeedType::SEED_COBCANNON,         nullptr, ReanimationType::REANIM_COBCANNON,     16, 700,    5000,   PlantSubClass::SUBCLASS_NORMAL,     600,    _S("COB_CANNON") },
+    // @pvz-online: 降低西瓜体系的成型成本；闯关冰瓜直种费用也随底座价格降低。
+    { SeedType::SEED_MELONPULT,         nullptr, ReanimationType::REANIM_MELONPULT,     14, 175,    750,    PlantSubClass::SUBCLASS_SHOOTER,    300,    _S("MELON_PULT") },
+    { SeedType::SEED_GATLINGPEA,        nullptr, ReanimationType::REANIM_GATLINGPEA,    5,  250,    3000,   PlantSubClass::SUBCLASS_SHOOTER,    150,    _S("GATLING_PEA") },
+    { SeedType::SEED_TWINSUNFLOWER,     nullptr, ReanimationType::REANIM_TWIN_SUNFLOWER,1,  150,    3000,   PlantSubClass::SUBCLASS_NORMAL,     2500,   _S("TWIN_SUNFLOWER") },
+    { SeedType::SEED_GLOOMSHROOM,       nullptr, ReanimationType::REANIM_GLOOMSHROOM,   27, 150,    3000,   PlantSubClass::SUBCLASS_SHOOTER,    200,    _S("GLOOM_SHROOM") },
+    { SeedType::SEED_CATTAIL,           nullptr, ReanimationType::REANIM_CATTAIL,       27, 225,    3000,   PlantSubClass::SUBCLASS_SHOOTER,    150,    _S("CATTAIL") },
+    { SeedType::SEED_WINTERMELON,       nullptr, ReanimationType::REANIM_WINTER_MELON,  27, 200,    3000,   PlantSubClass::SUBCLASS_SHOOTER,    300,    _S("WINTER_MELON") },
+    { SeedType::SEED_GOLD_MAGNET,       nullptr, ReanimationType::REANIM_GOLD_MAGNET,   27, 50,     3000,   PlantSubClass::SUBCLASS_NORMAL,     0,      _S("GOLD_MAGNET") },
+    { SeedType::SEED_SPIKEROCK,         nullptr, ReanimationType::REANIM_SPIKEROCK,     27, 125,    3000,   PlantSubClass::SUBCLASS_NORMAL,     0,      _S("SPIKEROCK") },
+    { SeedType::SEED_COBCANNON,         nullptr, ReanimationType::REANIM_COBCANNON,     16, 700,    3000,   PlantSubClass::SUBCLASS_NORMAL,     600,    _S("COB_CANNON") },
     { SeedType::SEED_IMITATER,          nullptr, ReanimationType::REANIM_IMITATER,      33, 0,      750,    PlantSubClass::SUBCLASS_NORMAL,     0,      _S("IMITATER") },
     { SeedType::SEED_EXPLODE_O_NUT,     nullptr, ReanimationType::REANIM_WALLNUT,       2,  0,      3000,   PlantSubClass::SUBCLASS_NORMAL,     0,      _S("EXPLODE_O_NUT") },
     { SeedType::SEED_GIANT_WALLNUT,     nullptr, ReanimationType::REANIM_WALLNUT,       2,  0,      3000,   PlantSubClass::SUBCLASS_NORMAL,     0,      _S("GIANT_WALLNUT") },
@@ -201,6 +206,8 @@ void Plant::PlantInitialize(int theGridX, int theGridY, SeedType theSeedType, Se
     mRunDispatchCursor = 0;
     mRunAliveTicks = 0;
     mRunGarlicCooldown = 0;
+    mRunPurpleShots = 0;
+    mRunSunCollectTicks = 0;
     mChainBitesLeft = 0;	// @pvz-online: 连锁吞（第二 buff 批 8）——非闯关/非种下路径恒 0
     mParticleID = ParticleSystemID::PARTICLESYSTEMID_NULL;
     mBodyReanimID = ReanimationID::REANIMATIONID_NULL;
@@ -225,6 +232,24 @@ void Plant::PlantInitialize(int theGridX, int theGridY, SeedType theSeedType, Se
     mLaunchRate = aPlantDef.mLaunchRate;
     mSubclass = aPlantDef.mSubClass;
     mRenderOrder = CalcRenderOrder();
+    if (IsOnBoard() && mApp->mGameMode != GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN &&
+        (theSeedType == SeedType::SEED_LILYPAD || theSeedType == SeedType::SEED_FLOWERPOT ||
+         (theSeedType == SeedType::SEED_IMITATER &&
+          (theImitaterType == SeedType::SEED_LILYPAD || theImitaterType == SeedType::SEED_FLOWERPOT))))
+    {
+        PlantsOnLawn aPlants;
+        mBoard->GetPlantsOnLawn(mPlantCol, mRow, &aPlants);
+        SeedType aSupportType = theSeedType == SeedType::SEED_IMITATER ? theImitaterType : theSeedType;
+        Plant* aOther = aSupportType == SeedType::SEED_LILYPAD ? aPlants.mFlowerPotPlant : aPlants.mLilypadPlant;
+        if (aOther)
+        {
+            // Keep the pair within its existing render band; the later support is exposed first.
+            aOther->mRenderOrder = mRenderOrder;
+            if (Reanimation* aOtherBody = mApp->ReanimationTryToGet(aOther->mBodyReanimID))
+                aOtherBody->mRenderOrder = mRenderOrder + 1;
+            mRenderOrder += 2;
+        }
+    }
 
     Reanimation* aBodyReanim = nullptr;
     if (aPlantDef.mReanimationType != ReanimationType::REANIM_NONE)
@@ -584,16 +609,15 @@ void Plant::PlantInitialize(int theGridX, int theGridY, SeedType theSeedType, Se
     // 只有血量型条目（Kind=HEALTH：睡莲/南瓜头/花盆/保护伞/地刺王——地刺王 2026-10-04 批七
     // 由攻击间隔族换成血量族；坚果/高坚果批七换成耐砸，已不在血量族）才乘——此前任意行都乘，
     // 双发/寒冰这类非血量条目会把该株血量一起改了。非闯关局都是 1.0，对 300/4000 无损。
+    if (theSeedType == SeedType::SEED_GLOOMSHROOM && mApp->RunPlantBuff2Count(theSeedType) > 0)
+        mPlantHealth = 1000;
     mPlantHealth = (int)(mPlantHealth * mApp->RunBuffMul(RUN_BUFF_ROOTED) * mApp->RunPlantUpgradeMulKind(theSeedType, RUN_UPGRADE_KIND_HEALTH) + 0.5f);
-    // @pvz-online: 第二 buff 批 3「血量改写」（docs/06 §8.6 #13/#42/#36）：绝对值覆盖——
-    // 乘法链（扎根/老血量条）算完后按词条写死（「变为 N」语义，全局血量 buff 不再放大）。
-    // 磐石 4000（1★）/ 耐砸 1000 + 仅巨人砸每次 -200（2★，2026-10-15 由 500/每击固定50
-    // 改版=坚果耐砸同款口径；砸分支在 Zombie::Update，啃咬与其他伤害正常结算）/
+    // @pvz-online: 第二 buff「血量改写」：忧郁菇耐砸的1000为基础生命，先设基值再乘血量加成。
+    // 磐石4000和引路蒜20仍在乘法链后绝对覆盖，不改变其他植物规则。
     // 引路蒜 20 + 被吃全行换道（2★，换道在 Zombie::EatPlant → SwitchLanes）。
     if (mApp->RunPlantBuff2Count(theSeedType) > 0)
     {
         if (theSeedType == SeedType::SEED_SCAREDYSHROOM) mPlantHealth = 4000;
-        else if (theSeedType == SeedType::SEED_GLOOMSHROOM) mPlantHealth = 1000;
         else if (theSeedType == SeedType::SEED_GARLIC) mPlantHealth = 20;
     }
     // @pvz-online: steel shell halves the final HP after existing health multipliers.
@@ -786,7 +810,7 @@ bool Plant::IsSpiky()
 }
 
 // @pvz-online: 「emotional damage」（2026-10-15 用户定案）的条件判定：周围 8 格
-//（3×3 减自身）没有任何植物——花盆/睡莲也算有。即时判定口径（用户拍板）：每发
+//（3×3 减自身）没有其他非承载植物。即时判定口径（用户拍板）：每发
 // 雾爆各自查，种上/铲掉的下一发即刻生效；同帧同态下整轮四发结果一致。
 static bool GloomIsLonely(Plant* thePlant)
 {
@@ -794,6 +818,7 @@ static bool GloomIsLonely(Plant* thePlant)
     while (thePlant->mBoard->IteratePlants(aPlant))
     {
         if (aPlant == thePlant || aPlant->mDead) continue;
+        if (aPlant->mSeedType == SeedType::SEED_FLOWERPOT || aPlant->mSeedType == SeedType::SEED_LILYPAD) continue;
         if (abs(aPlant->mPlantCol - thePlant->mPlantCol) <= 1 &&
             abs(aPlant->mRow - thePlant->mRow) <= 1)
         {
@@ -810,7 +835,7 @@ void Plant::DoRowAreaDamage(int theDamage, unsigned int theDamageFlags)
     Rect aAttackRect = GetPlantAttackRect(PlantWeapon::WEAPON_PRIMARY);
 
     // @pvz-online: 「emotional damage」回血预门：只有忧郁菇且词条在手、且此刻孤高才回
-    //（每发雾爆各判一次；回血量 = 2% 最大生命/命中，无每轮封顶——用户拍板的大胆口径）。
+    //（每发雾爆各判一次；回血量 = 4% 最大生命/命中，无每轮封顶）。
     bool anEmoHeal = mSeedType == SeedType::SEED_GLOOMSHROOM &&
         mApp->RunExtraBuffCount(RUN_BUFF2_EMO_DAMAGE) > 0 && GloomIsLonely(this);
 
@@ -853,11 +878,11 @@ void Plant::DoRowAreaDamage(int theDamage, unsigned int theDamageFlags)
                 aZombie->TakeDamage(aDamage, theDamageFlags);
                 mApp->PlayFoley(FoleyType::FOLEY_SPLAT);
 
-                // @pvz-online: 「emotional damage」命中回血：每命中一只回 2% 最大生命
-                //（耐砸改版后 1000 血 = 每次 +20），钳满血为止、无每轮封顶。
+                // @pvz-online: 「emotional damage」命中回血：每命中一只回 4% 最大生命
+                //（耐砸改版后 1000 血 = 每次 +40），钳满血为止、无每轮封顶。
                 if (anEmoHeal)
                 {
-                    mPlantHealth = std::min(mPlantMaxHealth, mPlantHealth + mPlantMaxHealth / 50);
+                    mPlantHealth = std::min(mPlantMaxHealth, mPlantHealth + mPlantMaxHealth / 25);
                 }
 
                 // @pvz-online: 单株升级「Barbed Spikes」（地刺，表行 SEED_SPIKEWEED）：扎过的
@@ -867,7 +892,7 @@ void Plant::DoRowAreaDamage(int theDamage, unsigned int theDamageFlags)
                 // RunPlantUpgradeCount 非闯关恒 0，加 0 不进这条。
                 if (mSeedType == SeedType::SEED_SPIKEWEED)
                 {
-                    int aSlowFrames = 300 * mApp->RunPlantUpgradeCount(SeedType::SEED_SPIKEWEED);
+                    int aSlowFrames = aZombie->SoftControlDuration(300 * mApp->RunPlantUpgradeCount(SeedType::SEED_SPIKEWEED));
                     if (aSlowFrames > 0 && aZombie->CanBeChilled() && aSlowFrames > aZombie->mChilledCounter)
                     {
                         if (aZombie->mChilledCounter == 0)
@@ -882,14 +907,14 @@ void Plant::DoRowAreaDamage(int theDamage, unsigned int theDamageFlags)
                 // @pvz-online: 第二 buff「腐臭之息」（大喷菇 #10，docs/06 §8.6）：命中软减速
                 // 3 秒（mFetidSlowCounter=300，幅度 20%/层在 ApplyAnimRate 乘）。只认大喷菇
                 // 本体（忧郁菇是另一株、词条不共享）；软减速刷到 300 封顶、不缩短已有窗口。
-                // 僵尸强化「免控」（MOD_BUILD 45）单点守卫：这里直写 mFetidSlowCounter、
-                // 零谓词——跳过免疫者。
+                // @pvz-online: duration resistance also applies to this non-ice slow; hard immunity does not.
                 if (mSeedType == SeedType::SEED_FUMESHROOM && mApp->RunPlantBuff2Count(SeedType::SEED_FUMESHROOM) > 0
-                    && !aZombie->mControlImmune)
+                    && !aZombie->IsDeadOrDying())
                 {
-                    if (aZombie->mFetidSlowCounter < 300)
+                    int aFetidFrames = aZombie->SoftControlDuration(300);
+                    if (aZombie->mFetidSlowCounter < aFetidFrames)
                     {
-                        aZombie->mFetidSlowCounter = 300;
+                        aZombie->mFetidSlowCounter = aFetidFrames;
                         aZombie->UpdateAnimSpeed();
                     }
                 }
@@ -1187,6 +1212,7 @@ void Plant::StarFruitFire()
     for (int i = 0; i < 5; i++)
     {
         Projectile* aProjectile = mBoard->AddProjectile(mX + 25, mY + 25, mRenderOrder - 1, mRow, ProjectileType::PROJECTILE_STAR);
+        if (aProjectile == nullptr) return;
         aProjectile->mDamageRangeFlags = GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
         aProjectile->mMotionType = ProjectileMotion::MOTION_STAR;
 
@@ -1701,13 +1727,11 @@ void Plant::UpdateTanglekelp()
     }
 }
 
-// @pvz-online: 地刺系攻击循环 = 100 帧；单株升级「Royal Thorns」（地刺王，表行 SEED_SPIKEROCK）
-// 攻击间隔 ×0.75/层（乘算、至多 3 层）就乘在这。UpdateSpikeweed 的命中点（地刺 75、地刺王
-// 69/33）靠倒计时整数相等判定——必须按同一比例缩，写死 100 时那三个数在缩短过的循环里
-// 对不上号、不会出伤。非闯关局取用口恒 1.0，还是 100。
+// @pvz-online: 只让节奏词条调整攻击循环，避免「棘冠」的生命倍率拖慢攻击。
+// 命中点仍按循环同比例换算；当前地刺系专属词条没有节奏加成，保持 100 帧。
 int Plant::SpikeweedCycleFrames(LawnApp* theApp, SeedType theSeedType)
 {
-    return (int)(100 * theApp->RunPlantUpgradeMul(theSeedType) + 0.5f);
+    return (int)(100 * theApp->RunPlantUpgradeMulKind(theSeedType, RUN_UPGRADE_KIND_RHYTHM) + 0.5f);
 }
 
 //0x460320
@@ -2273,8 +2297,8 @@ void Plant::UpdateChomper()
             mState = PlantState::STATE_CHOMPER_BITING;
             mStateCountdown = 70;
             // @pvz-online: 第二 buff「Chain Bite」连锁吞（大嘴花 #6，docs/06 §8.6，2★ cap2）：
-            // 每次张嘴记下还能追咬几次；层数 0（未抽/非闯关）时全程走原逻辑。
-            mChainBitesLeft = mApp->RunPlantBuff2Count(SeedType::SEED_CHOMPER);
+            // 每层追加2次追咬，最多5口；非闯关不增加追咬。
+            mChainBitesLeft = 2 * mApp->RunPlantBuff2Count(SeedType::SEED_CHOMPER);
         }
     }
     else if (mState == PlantState::STATE_CHOMPER_BITING)
@@ -2313,8 +2337,16 @@ void Plant::UpdateChomper()
             if (doBite)
             {
                 mApp->PlayFoley(FoleyType::FOLEY_SPLAT);
-                aZombie->TakeDamage(40, 0U);
-                mState = PlantState::STATE_CHOMPER_BITING_MISSED;
+                const bool aGiantBite = mApp->RunExtraBuffCount(RUN_BUFF2_GIANT_BITE) > 0;
+                aZombie->TakeDamage(aGiantBite ? 10000 : 40, 0U);
+                if (aGiantBite)
+                {
+                    // A lethal heavy bite still owes digestion, even with chains left.
+                    if (aZombie->IsDeadOrDying()) mChainBitesLeft = 0;
+                    mState = PlantState::STATE_CHOMPER_BITING_GOT_ONE;
+                }
+                else
+                    mState = PlantState::STATE_CHOMPER_BITING_MISSED;
             }
             else if (doMiss)
             {
@@ -2352,7 +2384,7 @@ void Plant::UpdateChomper()
 
                 mState = PlantState::STATE_CHOMPER_DIGESTING;
                 // @pvz-online: 单株升级「Ravenous」（大嘴花，表行 SEED_CHOMPER）：咀嚼（消化）
-                // 时间 ×0.5，只可选 1 层。4000 帧是咬到后的消化倒计时；咬/吞动画本身不动。
+                // 时间 ×0.2（40秒→8秒），只可选1层；噬巨每轮或击杀后同样进入消化。
                 mStateCountdown = (int)(4000 * mApp->RunPlantUpgradeMul(SeedType::SEED_CHOMPER) + 0.5f);
             }
         }
@@ -2835,13 +2867,10 @@ void Plant::UpdateGoldMagnetShroom()
                 default:                                        TOD_ASSERT();                           return;
                 }
 
-                // @pvz-online: 第二 buff「金石」（吸金磁 #45，docs/06 §8.6）：吸到银币入账时
-                // +25%/层 概率按金币计值（25→50）；金/钻石不重 roll，只改这一枚的入账值。
-                int aGoldChance = 25 * mApp->RunPlantBuff2Count(SeedType::SEED_GOLD_MAGNET);
-                if (aGoldChance > 0 && aCoinType == CoinType::COIN_SILVER && (int)Sexy::Rand(100) < aGoldChance)
-                {
-                    aCoinType = CoinType::COIN_GOLD;
-                }
+                // @pvz-online: transmute silver deterministically and award sun once per absorbed coin.
+                bool aGoldTouch = mApp->RunPlantBuff2Count(SeedType::SEED_GOLD_MAGNET) > 0;
+                if (aGoldTouch && aCoinType == CoinType::COIN_SILVER) aCoinType = CoinType::COIN_GOLD;
+                if (aGoldTouch) mBoard->AddSunMoney(10);
 
                 int aValue = Coin::GetCoinValue(aCoinType);
                 mApp->mPlayerInfo->AddCoins(aValue);
@@ -3133,6 +3162,7 @@ void Plant::UpdateAbilities()
     if (mIsAsleep || mSquished || mOnBungeeState != PlantOnBungeeState::NOT_ON_BUNGEE)
         return;
     
+    UpdatePurpleBuffs();
     UpdateShooting();
 
     if (mStateCountdown > 0)
@@ -3471,6 +3501,7 @@ void Plant::UpdateReanim()
 //0x463E40
 void Plant::Update()
 {
+    DamageStats::Source aDamageSource(mApp->mDamageStats, true);
     bool doUpdate = false;
     if (IsOnBoard() && mApp->mGameScene == GameScenes::SCENE_LEVEL_INTRO && mApp->IsWallnutBowlingLevel())
         doUpdate = true;
@@ -3913,7 +3944,7 @@ void Plant::UpdateShooting()
 
                 // @pvz-online: 单株升级「Quick Claw」（猫尾草，表行 SEED_CATTAIL）：攻击目标
                 // +1 个/层（计数型、至多 2 层）——同一瞬间依次找第 2、第 3 个目标（排除已选），
-                // 各发一颗追踪刺；找不出更多就只打现有的。
+                // 各发一颗追踪刺；目标不足时补打主目标。
                 Zombie* aPrevZombie = aZombie;
                 Zombie* aPrevZombie2 = nullptr;
                 for (int i = 0, aExtra = mApp->RunPlantUpgradeCount(SeedType::SEED_CATTAIL); i < aExtra; i++)
@@ -3921,7 +3952,7 @@ void Plant::UpdateShooting()
                     Zombie* aExtraZombie = FindTargetZombie(mRow, PlantWeapon::WEAPON_PRIMARY, aPrevZombie, aPrevZombie2);
                     if (!aExtraZombie)
                     {
-                        break;
+                        aExtraZombie = aZombie;
                     }
                     Fire(aExtraZombie, mRow, PlantWeapon::WEAPON_PRIMARY);
                     aPrevZombie2 = aPrevZombie;
@@ -4266,7 +4297,10 @@ float PlantDrawHeightOffset(Board* theBoard, Plant* thePlant, SeedType theSeedTy
     if (theBoard && (thePlant == nullptr || !thePlant->mSquished))
     {
         Plant* aPot = theBoard->GetFlowerPotAt(theCol, theRow);
-        if (aPot && !aPot->mSquished && theSeedType != SeedType::SEED_FLOWERPOT)
+        bool aPotBelow = true;
+        if (thePlant && theSeedType == SeedType::SEED_LILYPAD && aPot)
+            aPotBelow = aPot->mRenderOrder < thePlant->mRenderOrder;
+        if (aPot && !aPot->mSquished && theSeedType != SeedType::SEED_FLOWERPOT && aPotBelow)
         {
             aHeightOffset += PlantFlowerPotHeightOffset(theSeedType, 1.0f);
         }
@@ -4275,6 +4309,13 @@ float PlantDrawHeightOffset(Board* theBoard, Plant* thePlant, SeedType theSeedTy
     if (theSeedType == SeedType::SEED_FLOWERPOT)
     {
         aHeightOffset += 26.0f;
+        if (theBoard && thePlant && theBoard->mApp->mGameMode != GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN)
+        {
+            PlantsOnLawn aPlants;
+            theBoard->GetPlantsOnLawn(theCol, theRow, &aPlants);
+            if (aPlants.mLilypadPlant && aPlants.mLilypadPlant->mRenderOrder < thePlant->mRenderOrder)
+                aHeightOffset -= 5.0f;
+        }
     }
     else if (theSeedType == SeedType::SEED_LILYPAD)
     {
@@ -4886,6 +4927,7 @@ void Plant::DrawSeedType(Graphics* g, SeedType theSeedType, SeedType theImitater
 //0x466390
 void Plant::MouseDown(int x, int y, int theClickCount)
 {
+    if(mApp->AdmissionBuilding())return;
     if (theClickCount < 0)
         return;
 
@@ -4938,6 +4980,7 @@ void Plant::BurnRow(int theRow)
         {
             aZombie->RemoveColdEffects();
             aZombie->ApplyBurn();
+            if (mApp->RunExtraBuffCount(RUN_BUFF2_EMBERS) > 0) RunDotEffects::Ember(aZombie);
         }
     }
 
@@ -4982,22 +5025,28 @@ void Plant::BlowAwayFliers()
                 aZombie->mBlowingAway = true;
             }
             // @pvz-online: 关底 boss 免疫狂风推离（MOD_BUILD 39 批，2026-10-11 用户定案
-            //「免疫狂风」）——推离是位移控制，两个 boss 都不吃；减速 5 秒（下面 aSlowFrames
-            // 段）照常受 CanBeChilled 管：橄榄球 boss 吃减速、巨人 boss 不吃。
-            // 僵尸强化「免控」（MOD_BUILD 45）：免疫者同款——推离（全库唯一击退源）与
-            // 减速都不吃（减速走 CanBeChilled 谓词已兜住，这里补位移）。
+            //「免疫狂风」）——推离是位移控制，关底 boss 都不吃；减速 5 秒（下面 aSlowFrames
+            // 段）照常受 CanBeChilled 管：三种关底 boss 均吃减速，持续时间减半。
+            // @pvz-online: hard immunity blocks knockback; soft duration resistance is separate below.
             if (aGaleForceStacks > 0 && !aZombie->mIsEating && !aZombie->mBlowingAway
                 && !mBoard->IsRunBossZombie(aZombie) && !aZombie->mControlImmune)
             {
-                aZombie->mPosX += 80.0f * aGaleForceStacks;
+                Rect aBodyRect = aZombie->GetZombieRect();
+                float aRightLimit = (float)(WIDE_BOARD_WIDTH - (aBodyRect.mX - aZombie->mX + aBodyRect.mWidth));
+                if (aZombie->mPosX < aRightLimit)
+                {
+                    aZombie->mPosX = std::min(aZombie->mPosX + 80.0f * aGaleForceStacks, aRightLimit);
+                    aZombie->mX = (int)aZombie->mPosX;
+                }
             }
-            if (aSlowFrames > 0 && aZombie->CanBeChilled() && aSlowFrames > aZombie->mChilledCounter)
+            int aTargetSlowFrames = aZombie->SoftControlDuration(aSlowFrames);
+            if (aTargetSlowFrames > 0 && aZombie->CanBeChilled() && aTargetSlowFrames > aZombie->mChilledCounter)
             {
                 if (aZombie->mChilledCounter == 0)
                 {
                     mApp->PlayFoley(FoleyType::FOLEY_FROZEN);
                 }
-                aZombie->mChilledCounter = aSlowFrames;
+                aZombie->mChilledCounter = aTargetSlowFrames;
                 aZombie->UpdateAnimSpeed();
             }
         }
@@ -5024,6 +5073,7 @@ void Plant::KillAllPlantsNearDoom()
 // GOTY @Patoke: 0x46A110
 void Plant::DoSpecial()
 {
+    DamageStats::Source aDamageSource(mApp->mDamageStats, true);
     int aPosX = mX + mWidth / 2;
     int aPosY = mY + mHeight / 2;
     int aDamageRangeFlags = GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
@@ -5046,12 +5096,13 @@ void Plant::DoSpecial()
 
         // @pvz-online: 单株升级「扩爆」：半径 ×(1+50%/层)（RunBuffs 单株表；批八由 25% 上调）
         int aRadius = (int)(115 * mApp->RunPlantUpgradeMul(SeedType::SEED_CHERRYBOMB) + 0.5f);
-        if (mBoard->KillAllZombiesInRadius(mRow, aPosX, aPosY, aRadius, 1, true, aDamageRangeFlags) >= 10)
+        bool aExpandedBlast = aRadius > 115;
+        if (mBoard->KillAllZombiesInRadius(mRow, aPosX, aPosY, aRadius, 1, true, aDamageRangeFlags, 0, aExpandedBlast) >= 10)
             ReportAchievement::GiveAchievement(mApp, Explodonator, true);
 
         // @pvz-online: 第二 buff「焦土」（docs/06 §8.6 #2）：被炸中的僵尸继续燃烧——每秒
         // 300×层、共 3 秒（Update 递减块扣血）。半径判定照 KillAllZombiesInRadius 的口径
-        // （同行、Boss 视作同行、圆-矩形相交，照土豆雷「震雷」循环）；厚血目标爆炸秒不掉、
+        // （无扩爆沿用上下各一行；有扩爆按完整圆形；Boss 视作同行）；厚血目标爆炸秒不掉、
         // 焦土接力；僵尸已死则不挂（mScorchedCounter 挡在 EffectedByDamage 后）。
         int aScorchStacks = mApp->RunPlantBuff2Count(SeedType::SEED_CHERRYBOMB);
         if (aScorchStacks > 0)
@@ -5064,12 +5115,12 @@ void Plant::DoSpecial()
                 int aRowDist = aScorchZombie->mRow - mRow;
                 if (aScorchZombie->mZombieType == ZombieType::ZOMBIE_BOSS)
                     aRowDist = 0;
-                if (aRowDist < -1 || aRowDist > 1)
+                if (!aExpandedBlast && (aRowDist < -1 || aRowDist > 1))
                     continue;
                 Rect aScorchRect = aScorchZombie->GetZombieRect();
                 if (GetCircleRectOverlap(aPosX, aPosY, aRadius, aScorchRect))
                 {
-                    aScorchZombie->mScorchedCounter = 300;
+                    RunDotEffects::Scorch(aScorchZombie);
                 }
             }
         }
@@ -5096,7 +5147,7 @@ void Plant::DoSpecial()
         // @pvz-online: 第二 buff「灭世半径」（docs/06 §8.6 #15）：爆炸半径 +50%/层
         // （250 → 375/500）；波及格不变（KillAllPlantsNearDoom 只炸自身格）。
         int aDoomRadius = (int)(250 * mApp->RunPlantBuff2Mul(SeedType::SEED_DOOMSHROOM) + 0.5f);
-        mBoard->KillAllZombiesInRadius(mRow, aPosX, aPosY, aDoomRadius, 3, true, aDamageRangeFlags, aDirectDamage);
+        mBoard->KillAllZombiesInRadius(mRow, aPosX, aPosY, aDoomRadius, 3, true, aDamageRangeFlags, aDirectDamage, aDoomRadius > 250);
         KillAllPlantsNearDoom();
 
         mApp->AddTodParticle(aPosX, aPosY, (int)RenderLayer::RENDER_LAYER_TOP, ParticleEffect::PARTICLE_DOOM);
@@ -5335,11 +5386,11 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
     if (mSeedType == SeedType::SEED_GLOOMSHROOM)
     {
         // @pvz-online: 「emotional damage」（2026-10-15）：孤高（周围 8 格无植物）时
-        // 每发雾爆 20 → 60（×3，cap1 质变条）；有植物或没词条走原值。
+        // 每发雾爆 20 → 100（×5，cap1 质变条；2026-10-17 加强）；有植物或没词条走原值。
         int aGloomDamage = 20;
         if (mApp->RunExtraBuffCount(RUN_BUFF2_EMO_DAMAGE) > 0 && GloomIsLonely(this))
         {
-            aGloomDamage = 60;
+            aGloomDamage = 100;
         }
         DoRowAreaDamage(aGloomDamage, 2U);
         return;
@@ -5542,10 +5593,24 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
     }
 
     Projectile* aProjectile = mBoard->AddProjectile(aOriginX, aOriginY, mRenderOrder - 1, theRow, aProjectileType);
+    if (aProjectile == nullptr) return;
     aProjectile->mDamageRangeFlags = GetDamageRangeFlags(thePlantWeapon);
+    aProjectile->mRunSourceSeed = mSeedType;
     aProjectile->mRunIceSource = mSeedType == SeedType::SEED_SNOWPEA;
     aProjectile->mRunCactusSource = mSeedType == SeedType::SEED_CACTUS;
     aProjectile->mRunScaredySource = mSeedType == SeedType::SEED_SCAREDYSHROOM;
+    if (mSeedType == SeedType::SEED_WINTERMELON && mApp->RunPlantBuff2Count(mSeedType) > 0 && (mRunPurpleShots = (mRunPurpleShots + 1) % 3) == 0 &&
+        mBoard->mProjectiles.mSize < mBoard->mProjectiles.mMaxSize)
+    {
+        Projectile* wave = mBoard->AddProjectile(mX + 40, mY + 30, mRenderOrder + 1, mRow, ProjectileType::PROJECTILE_WINTERMELON);
+        if (wave)
+        {
+            wave->mRunIceWave = true;
+            wave->mRunSourceSeed = mSeedType;
+            wave->mDamageRangeFlags = aProjectile->mDamageRangeFlags;
+        }
+    }
+
 
     // @pvz-online: 单株升级「Prickly」（仙人掌，表行 SEED_CACTUS）：有该条就给尖刺预置
     // 无限穿透标记 -1（2026-10-09 晚实机反馈：由 +1 只/层、cap 2 改为无限穿透、cap 1）——
@@ -5568,15 +5633,9 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
         aProjectile->mPricklyHitsLeft = -1;
     }
 
-    // @pvz-online: 第二 buff「Fire Peas」火豆（机枪射手 #40，docs/06 §8.6，2★ cap1）：持条时
-    // 子弹按原版火豆成弹——就地复用火炬树桩的 ConvertToFireball（换弹型 + 挂火焰豌豆动画 +
-    // FOLEY_FIREPEA），此后一切走火豆既有口径：40 伤（豌豆的 2 倍——评审文案「+50%」低估，
-    // 见 docs/07）、命中解冻冰缓（DoImpact 火弹分支）、同排 1/3 溅射与火系抗性判定。
-    // 4 连发的每一发各走一次 Fire，逐发转换；Overclock 是节奏条不改弹数，无多发交互。
-    if (mSeedType == SeedType::SEED_GATLINGPEA && mApp->RunPlantBuff2Count(SeedType::SEED_GATLINGPEA) > 0)
-    {
-        aProjectile->ConvertToFireball(mPlantCol);
-    }
+    // @pvz-online: each Gatling bullet independently becomes a straight melon; no extra shot.
+    if (mSeedType == SeedType::SEED_GATLINGPEA && mApp->RunPlantBuff2Count(mSeedType) > 0 && Sexy::Rand(100) < 25)
+        aProjectile->mProjectileType = ProjectileType::PROJECTILE_MELON;
 
     // @pvz-online: 第二 buff「Tri-Spike」三向尖刺（仙人掌 #26，docs/06 §8.6，2★ cap1）：持条时
     // 本行上下各补一发同型尖刺——弹体从仙人掌出发、走三线射手同款斜向运动（MOTION_THREEPEATER）
@@ -5600,6 +5659,7 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
                 continue;
             }
             Projectile* aSideProjectile = mBoard->AddProjectile(aOriginX, aOriginY, mRenderOrder - 1, aSideRow, aProjectileType);
+            if (aSideProjectile == nullptr) continue;
             aSideProjectile->mDamageRangeFlags = aProjectile->mDamageRangeFlags;
             aSideProjectile->mRunCactusSource = true;
             aSideProjectile->mPricklyHitsLeft = aProjectile->mPricklyHitsLeft;
@@ -5628,7 +5688,9 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
     for (int i = 0; i < aExtraShots; i++)
     {
         Projectile* aExtraProjectile = mBoard->AddProjectile(aOriginX + 21 * (i + 1), aOriginY, mRenderOrder - 1, theRow, aProjectileType);
+        if (aExtraProjectile == nullptr) continue;
         aExtraProjectile->mDamageRangeFlags = aProjectile->mDamageRangeFlags;
+        aExtraProjectile->mRunSourceSeed = mSeedType;
         aExtraProjectile->mRunIceSource = aProjectile->mRunIceSource;
         aExtraProjectile->mRunCactusSource = aProjectile->mRunCactusSource;
         aExtraProjectile->mPricklyHitsLeft = aProjectile->mPricklyHitsLeft;	// 穿透族：多发复制的子弹同标记（第二 buff 批 1）
@@ -5695,7 +5757,9 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
             for (int i = 0, aExtra = mApp->RunPlantUpgradeCount(SeedType::SEED_MELONPULT); i < aExtra; i++)
             {
                 Projectile* aExtraProjectile = mBoard->AddProjectile(aOriginX + 21 * (i + 1), aOriginY, mRenderOrder - 1, theRow, aProjectileType);
+                if (aExtraProjectile == nullptr) continue;
                 aExtraProjectile->mDamageRangeFlags = aProjectile->mDamageRangeFlags;
+                aExtraProjectile->mRunSourceSeed = mSeedType;
                 aExtraProjectile->mMotionType = ProjectileMotion::MOTION_LOBBED;
                 aExtraProjectile->mVelX = aRangeX / 120.0f;
                 aExtraProjectile->mVelY = 0.0f;
@@ -5733,7 +5797,9 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
         for (int i = 0, aExtra = mApp->RunPlantUpgradeCount(SeedType::SEED_SPLITPEA); i < aExtra; i++)
         {
             Projectile* aExtraProjectile = mBoard->AddProjectile(aOriginX + (aBackFiresForward ? 21 : -21) * (i + 1), aOriginY, mRenderOrder - 1, theRow, aProjectileType);
+            if (aExtraProjectile == nullptr) continue;
             aExtraProjectile->mDamageRangeFlags = aProjectile->mDamageRangeFlags;
+            aExtraProjectile->mRunSourceSeed = mSeedType;
             aExtraProjectile->mMotionType = (aBackFiresForward ? ProjectileMotion::MOTION_STRAIGHT : ProjectileMotion::MOTION_BACKWARDS);
         }
     }
@@ -5746,6 +5812,11 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
         aProjectile->mVelX = 2.0f;
         aProjectile->mMotionType = ProjectileMotion::MOTION_HOMING;
         aProjectile->mTargetZombieID = mBoard->ZombieGetID(theTargetZombie);
+        if (mApp->RunExtraBuffCount(RUN_BUFF2_HUNT) > 0 && (mRunPurpleShots = (mRunPurpleShots + 1) % 4) == 0)
+        {
+            aProjectile->mRunHuntHitsLeft = 3;
+            aProjectile->mRunCrystalDamage = 80;
+        }
     }
     else if (mSeedType == SeedType::SEED_COBCANNON)
     {
@@ -5758,22 +5829,42 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
         aProjectile->mCobTargetX = mTargetX - 40;
         aProjectile->mCobTargetRow = mBoard->PixelToGridYKeepOnBoard(mTargetX, mTargetY);
 
-        // @pvz-online: 第二 buff「Twin Cob」双联装（玉米加农炮 #47，docs/06 §8.6，1★ cap1）：
-        // 每轮多发 1 枚同目标玉米——参数照抄主弹（同弧线同落点），出膛位置右后错开 21px
-        //（沿用西瓜多发的位置错位写法），弹道重叠但看得出是两枚；两发各 300 伤、落点
-        // 各爆各的（230×230 判定区完全重叠 + 位移微差）。
+        // @pvz-online: five ordinary cob blasts, staggered by 0.2 sec; replaces Twin Cob.
         if (mApp->RunPlantBuff2Count(SeedType::SEED_COBCANNON) > 0)
         {
-            Projectile* aExtraProjectile = mBoard->AddProjectile(aOriginX + 21, aOriginY, mRenderOrder - 1, theRow, aProjectileType);
-            aExtraProjectile->mVelX = 0.001f;
-            aExtraProjectile->mDamageRangeFlags = aProjectile->mDamageRangeFlags;
-            aExtraProjectile->mMotionType = ProjectileMotion::MOTION_LOBBED;
-            aExtraProjectile->mVelY = 0.0f;
-            aExtraProjectile->mAccZ = 0.0f;
-            aExtraProjectile->mVelZ = -8.0f;
-            aExtraProjectile->mCobTargetX = aProjectile->mCobTargetX;
-            aExtraProjectile->mCobTargetRow = aProjectile->mCobTargetRow;
+            const int dx[4] = { 0, 0, -80, 80 };
+            const int dr[4] = { -1, 1, 0, 0 };
+            for (int i = 0; i < 4 && mBoard->mProjectiles.mSize < mBoard->mProjectiles.mMaxSize; ++i)
+            {
+                int row = aProjectile->mCobTargetRow + dr[i];
+                if (!mBoard->RowCanHaveZombies(row)) continue;
+                Projectile* p = mBoard->AddProjectile(aOriginX, aOriginY, mRenderOrder - 1, theRow, aProjectileType);
+                if (p == nullptr) continue;
+                p->mVelX = 0.001f;
+                p->mDamageRangeFlags = aProjectile->mDamageRangeFlags;
+                p->mMotionType = ProjectileMotion::MOTION_LOBBED;
+                p->mVelZ = -8.0f;
+                p->mCobTargetX = std::max(0.0f, std::min(760.0f, aProjectile->mCobTargetX + dx[i]));
+                p->mCobTargetRow = row;
+                p->mRunLaunchDelay = (i + 1) * 20;
+                p->mRunSourceSeed = mSeedType;
+            }
         }
+    }
+}
+
+// @pvz-online: native collection animation, no duplicate coins or stacked amplification.
+void Plant::UpdatePurpleBuffs()
+{
+    if (mSeedType != SeedType::SEED_TWINSUNFLOWER || !mApp->IsRunMode()) return;
+    if (++mRunSunCollectTicks < 500) return;
+    mRunSunCollectTicks = 0;
+    Coin* coin = nullptr;
+    while (mBoard->IterateCoins(coin))
+    {
+        if (!coin->IsSun() || coin->mDead || coin->mVisualOnly || coin->mIsBeingCollected) continue;
+        if (mApp->RunPlantBuff2Count(mSeedType) > 0) coin->mRunSunBonus = coin->GetSunValue() / 5;
+        coin->Collect();
     }
 }
 
@@ -5782,6 +5873,12 @@ Zombie* Plant::FindTargetZombie(int theRow, PlantWeapon thePlantWeapon, Zombie* 
 {
     int aDamageRangeFlags = GetDamageRangeFlags(thePlantWeapon);
     Rect aAttackRect = GetPlantAttackRect(thePlantWeapon);
+    const int aChomperChains = mSeedType == SeedType::SEED_CHOMPER ?
+        2 * mApp->RunPlantBuff2Count(SeedType::SEED_CHOMPER) : 0;
+    const bool aChomperChainRange = aChomperChains > 0 &&
+        ((mState == PlantState::STATE_CHOMPER_BITING_GOT_ONE && mChainBitesLeft > 0) ||
+         (mState == PlantState::STATE_CHOMPER_BITING && mChainBitesLeft < aChomperChains));
+    if (aChomperChainRange) aAttackRect.mWidth = 160;
     int aHighestWeight = 0;
     Zombie* aBestZombie = nullptr;
 
@@ -5856,7 +5953,7 @@ Zombie* Plant::FindTargetZombie(int theRow, PlantWeapon thePlantWeapon, Zombie* 
                     continue;
                 }
 
-                if (aZombie->mIsEating || mState == PlantState::STATE_CHOMPER_BITING)
+                if (!aChomperChainRange && (aZombie->mIsEating || mState == PlantState::STATE_CHOMPER_BITING))
                 {
                     aExtraRange = 60;
                 }
@@ -5949,6 +6046,7 @@ int Plant::DistanceToClosestZombie()
 //0x4679B0
 void Plant::Die()
 {
+    DamageStats::Source aDamageSource(mApp->mDamageStats, true);
     if (IsOnBoard() && mSeedType == SeedType::SEED_TANGLEKELP)
     {
         Zombie* aZombie = mBoard->ZombieTryToGet(mTargetZombieID);
@@ -6158,11 +6256,11 @@ int Plant::GetRefreshTime(SeedType theSeedType, SeedType theImitaterType)
     {
         aRefreshTime *= 6;
     }
-    // @pvz-online: 「Nut Bowling」：坚果冷却改 15 秒（1500cs，2026-10-15）。速种
+    // @pvz-online: 「Nut Bowling」：坚果冷却改 3 秒（300cs，2026-10-19）。速种
     // （RUN_BUFF_FASTSEED）在 SeedPacket 侧随后再乘，属预期叠加。
     if (aRealType == SeedType::SEED_WALLNUT && gLawnApp->RunExtraBuffCount(RUN_BUFF2_NUT_BOWLING) > 0)
     {
-        aRefreshTime = 1500;
+        aRefreshTime = 300;
     }
     return aRefreshTime;
 }
@@ -6353,11 +6451,11 @@ int Plant::CoopMaxHealth()
     else if(mSeedType==SEED_GARLIC)base=400;
     else if(mSeedType==SEED_SPIKEROCK)base=450;
     else if(mSeedType==SEED_CHOMPER && mApp->RunExtraBuffCount(RUN_BUFF2_DIGEST_HEAL)>0)base=3000;
+    else if(mSeedType==SEED_GLOOMSHROOM && mApp->RunPlantBuff2Count(mSeedType)>0)base=1000;
     double value=base*(double)mApp->RunBuffMul(RUN_BUFF_ROOTED)*mApp->RunPlantUpgradeMulKind(mSeedType,RUN_UPGRADE_KIND_HEALTH);
     value=std::max(1.0,std::min((double)2147483647,value+0.5));
     if(mApp->RunPlantBuff2Count(mSeedType)>0) {
         if(mSeedType==SEED_SCAREDYSHROOM)value=4000;
-        else if(mSeedType==SEED_GLOOMSHROOM)value=1000;
         else if(mSeedType==SEED_GARLIC)value=20;
     }
     if(mSeedType==SEED_PUMPKINSHELL && mApp->RunExtraBuffCount(RUN_BUFF2_STEEL_PUMPKIN)>0)value=std::max(1.0,value/2);

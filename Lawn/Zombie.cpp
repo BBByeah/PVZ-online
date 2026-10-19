@@ -1,6 +1,7 @@
 #include "Plant.h"
 #include "Board.h"
 #include "Zombie.h"
+#include "Run/RunDotEffects.h"
 #include "Cutscene.h"
 #include "GridItem.h"
 #include "LawnMower.h"
@@ -642,7 +643,7 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
         AttachEffect* aAttachEffect = AttachReanim(aHeadTrackInstance->mAttachmentID, aHeadReanim, 0.0f, 0.0f);
 		aBodyReanim->mFrameBasePose = 0; // @Patoke: should this be aBodyReanim? this could be a bug in the original code
 
-        TodScaleRotateTransformMatrix(aAttachEffect->mOffset, M(-20.0f), M(-1.0f), M(0.2f), 1.0f, 1.0f);
+        if (aAttachEffect) TodScaleRotateTransformMatrix(aAttachEffect->mOffset, M(-20.0f), M(-1.0f), M(0.2f), 1.0f, 1.0f);
 
         ResetZombatarHead(mApp);
 
@@ -788,7 +789,7 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
         mSpecialHeadReanimID = mApp->ReanimationGetID(aHeadReanim);
         AttachEffect* aAttachEffect = AttachReanim(aTrackInstance->mAttachmentID, aHeadReanim, 0.0f, 0.0f);
         aBodyReanim->mFrameBasePose = 0;
-        TodScaleRotateTransformMatrix(aAttachEffect->mOffset, 65.0f, -5.0f, 0.2f, -1.0f, 1.0f);
+        if (aAttachEffect) TodScaleRotateTransformMatrix(aAttachEffect->mOffset, 65.0f, -5.0f, 0.2f, -1.0f, 1.0f);
 
         mPhaseCounter = 150;
         mVariant = false;
@@ -816,7 +817,7 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
         mSpecialHeadReanimID = mApp->ReanimationGetID(aHeadReanim);
         AttachEffect* aAttachEffect = AttachReanim(aTrackInstance->mAttachmentID, aHeadReanim, 0.0f, 0.0f);
         aBodyReanim->mFrameBasePose = 0;
-        TodScaleRotateTransformMatrix(aAttachEffect->mOffset, 50.0f, 0.0f, 0.2f, -0.8f, 0.8f);
+        if (aAttachEffect) TodScaleRotateTransformMatrix(aAttachEffect->mOffset, 50.0f, 0.0f, 0.2f, -0.8f, 0.8f);
 
         mHelmType = HelmType::HELMTYPE_WALLNUT;
         mHelmHealth = 1100;
@@ -844,7 +845,7 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
         mSpecialHeadReanimID = mApp->ReanimationGetID(aHeadReanim);
         AttachEffect* aAttachEffect = AttachReanim(aTrackInstance->mAttachmentID, aHeadReanim, 0.0f, 0.0f);
         aBodyReanim->mFrameBasePose = 0;
-        TodScaleRotateTransformMatrix(aAttachEffect->mOffset, 37.0f, 0.0f, 0.2f, -0.8f, 0.8f);
+        if (aAttachEffect) TodScaleRotateTransformMatrix(aAttachEffect->mOffset, 37.0f, 0.0f, 0.2f, -0.8f, 0.8f);
 
         mHelmType = HelmType::HELMTYPE_WALLNUT;
         mHelmHealth = 2200;
@@ -868,7 +869,7 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
         mSpecialHeadReanimID = mApp->ReanimationGetID(aHeadReanim);
         AttachEffect* aAttachEffect = AttachReanim(aTrackInstance->mAttachmentID, aHeadReanim, 0.0f, 0.0f);
         aBodyReanim->mFrameBasePose = 0;
-        TodScaleRotateTransformMatrix(aAttachEffect->mOffset, 55.0f, -5.0f, 0.2f, -1.0f, 1.0f);
+        if (aAttachEffect) TodScaleRotateTransformMatrix(aAttachEffect->mOffset, 55.0f, -5.0f, 0.2f, -1.0f, 1.0f);
 
         mVariant = false;
         mBodyHealth = 500;
@@ -903,7 +904,7 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
         mSpecialHeadReanimID = mApp->ReanimationGetID(aHeadReanim);
         AttachEffect* aAttachEffect = AttachReanim(aTrackInstance->mAttachmentID, aHeadReanim, 0.0f, 0.0f);
         aBodyReanim->mFrameBasePose = 0;
-        TodScaleRotateTransformMatrix(aAttachEffect->mOffset, 65.0f, -5.0f, 0.2f, -1.0f, 1.0f);
+        if (aAttachEffect) TodScaleRotateTransformMatrix(aAttachEffect->mOffset, 65.0f, -5.0f, 0.2f, -1.0f, 1.0f);
 
         mPhaseCounter = 150;
         mVariant = false;
@@ -936,7 +937,7 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
         mSpecialHeadReanimID = mApp->ReanimationGetID(aHeadReanim);
         AttachEffect* aAttachEffect = AttachReanim(aTrackInstance->mAttachmentID, aHeadReanim, 0.0f, 0.0f);
         aBodyReanim->mFrameBasePose = 0;
-        TodScaleRotateTransformMatrix(aAttachEffect->mOffset, 55.0f, -15.0f, 0.2f, -0.75f, 0.75f);
+        if (aAttachEffect) TodScaleRotateTransformMatrix(aAttachEffect->mOffset, 55.0f, -15.0f, 0.2f, -0.75f, 0.75f);
 
         mZombiePhase = ZombiePhase::PHASE_SQUASH_PRE_LAUNCH;
         mVariant = false;
@@ -1013,7 +1014,7 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
         }
     }
 
-    // @pvz-online: 僵尸强化「免控」（见 Zombie.h mControlImmune）：投过 ≥1 层就整只免控，
+    // @pvz-online: 僵尸强化「免控」（见 Zombie.h mControlImmune）：投过 ≥1 层就免疫硬控，减速另走缩时规则，
     // 初始化时一次性置位；菜单预览/过场僵尸（IsOnBoard false）不吃强化。
     mControlImmune = mApp->IsRunMode() && IsOnBoard()
         && mApp->GetRunState()->ZombieBuffCount(RunState::ZOMBIE_BUFF_STEADFAST) > 0;
@@ -1398,6 +1399,7 @@ void Zombie::PickRandomSpeed()
         // 新场景复利一次（场景 1 恒 ×1）——乘在迅捷之后、独立叠乘；档 0/非法时千分比恰为
         // 1000、零改动。乘数只由 RunState 档与场景序号推导，两端各算逐位一致。
         int aGrowthPermille = mApp->GetRunState()->ZombieSpeedGrowthPermille();
+        if(mApp->GetRunState()->IsNewEndless()) aGrowthPermille=std::min(aGrowthPermille,4000000/mApp->GetRunState()->ZombieBuffSpeedPermille());
         if (aGrowthPermille != 1000)
         {
             mVelX = mVelX * aGrowthPermille / 1000.0f;
@@ -1726,6 +1728,7 @@ void Zombie::ZombieCatapultFire(Plant* thePlant)
     mApp->PlayFoley(FoleyType::FOLEY_BASKETBALL);
 
     Projectile* aProjectile = mBoard->AddProjectile(aOriginX, aOriginY, mRenderOrder, mRow, ProjectileType::PROJECTILE_BASKETBALL);
+    if (aProjectile == nullptr) return;
     float aRangeX = aOriginX - aTargetX - 20.0f;
     float aRangeY = aTargetY - aOriginY;
     if (aRangeX < 40.0f)
@@ -2227,6 +2230,7 @@ void Zombie::UpdateZombieSnorkel()
 //0x526AE0
 void Zombie::UpdateZombieJackInTheBox()
 {
+    DamageStats::Source aDamageSource(mApp->mDamageStats, mMindControlled);
     if (mZombiePhase == ZombiePhase::PHASE_JACK_IN_THE_BOX_RUNNING)
     {
         if (mPhaseCounter <= 0 && mHasHead)
@@ -2277,6 +2281,7 @@ void Zombie::UpdateZombieJackInTheBox()
 //0x526D10
 void Zombie::UpdateZombieGargantuar()
 {
+    DamageStats::Source aDamageSource(mApp->mDamageStats, mMindControlled);
     if (mZombiePhase == ZombiePhase::PHASE_GARGANTUAR_SMASHING)
     {
         Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
@@ -2305,6 +2310,7 @@ void Zombie::UpdateZombieGargantuar()
                     }
                     else if (aPlant->mSeedType == SeedType::SEED_SPIKEROCK)
                     {
+                        DamageStats::Source aCounterDamageSource(mApp->mDamageStats, true);
                         TakeDamage(mApp->RunExtraBuffCount(RUN_BUFF2_GIANT_COUNTER) > 0 ? 1000 : 20,
                             mApp->RunExtraBuffCount(RUN_BUFF2_GIANT_COUNTER) > 0 ? (32U | RUN_FIXED_COUNTER_DAMAGE) : 32U);
                         aPlant->SpikeRockTakeDamage();
@@ -2321,15 +2327,7 @@ void Zombie::UpdateZombieGargantuar()
                         if (aPlant->mPlantHealth <= 0)
                             SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
                     }
-                    else if (aPlant->mSeedType == SeedType::SEED_PUMPKINSHELL &&
-                    mApp->RunExtraBuffCount(RUN_BUFF2_STEEL_PUMPKIN) > 0)
-                {
-                    // @pvz-online: steel shell absorbs this smash; squish the whole tile only after shell exhaustion.
-                    aPlant->mPlantHealth -= 200;
-                    if (aPlant->mPlantHealth <= 0)
-                        SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
-                }
-                else if (aPlant->mSeedType == SeedType::SEED_GLOOMSHROOM && mApp->RunPlantBuff2Count(SeedType::SEED_GLOOMSHROOM) > 0)
+                    else if (aPlant->mSeedType == SeedType::SEED_GLOOMSHROOM && mApp->RunPlantBuff2Count(SeedType::SEED_GLOOMSHROOM) > 0)
                     {
                         // @pvz-online: 第二 buff 批 3「耐砸」（忧郁菇，docs/06 §8.6 #42），
                         // 2026-10-15 改版=坚果耐砸同款：每次砸固定 -200（1000 血 = 硬吃 5 砸），
@@ -2391,6 +2389,7 @@ void Zombie::UpdateZombieGargantuar()
                 }
                 else if (aPlant->mSeedType == SeedType::SEED_SPIKEROCK)
                 {
+                    DamageStats::Source aCounterDamageSource(mApp->mDamageStats, true);
                     TakeDamage(mApp->RunExtraBuffCount(RUN_BUFF2_GIANT_COUNTER) > 0 ? 1000 : 20,
                         mApp->RunExtraBuffCount(RUN_BUFF2_GIANT_COUNTER) > 0 ? (32U | RUN_FIXED_COUNTER_DAMAGE) : 32U);
                     aPlant->SpikeRockTakeDamage();
@@ -2399,10 +2398,16 @@ void Zombie::UpdateZombieGargantuar()
                         SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
                     }
                 }
+                else if (aPlant->mSeedType == SeedType::SEED_PUMPKINSHELL &&
+                    mApp->RunExtraBuffCount(RUN_BUFF2_STEEL_PUMPKIN) > 0)
+                {
+                    aPlant->mPlantHealth -= 200;
+                    if (aPlant->mPlantHealth <= 0)
+                        SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
+                }
                 else if (aPlant->mSeedType == SeedType::SEED_GLOOMSHROOM && mApp->RunPlantBuff2Count(SeedType::SEED_GLOOMSHROOM) > 0)
                 {
-                    // @pvz-online: 第二 buff 批 3「耐砸」（忧郁菇）——同上一份（DO_FIX_BUGS 版）的分支（每次固定 -50）。
-                    aPlant->mPlantHealth -= 50;
+                    aPlant->mPlantHealth -= 200;
                     if (aPlant->mPlantHealth <= 0)
                     {
                         SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, ZombieAttackType::ATTACKTYPE_CHEW);
@@ -2631,15 +2636,18 @@ void Zombie::UpdateZombiePeaHead()
         {
             aOriginX += 90.0f * mScaleZombie;
             Projectile* aProjectile = mBoard->AddProjectile(aOriginX, aOriginY, mRenderOrder, mRow, ProjectileType::PROJECTILE_PEA);
+            if (aProjectile == nullptr) return;
             aProjectile->mDamageRangeFlags = 1;
         }
         else
         {
             Projectile* aProjectile = mBoard->AddProjectile(aOriginX, aOriginY, mRenderOrder, mRow, ProjectileType::PROJECTILE_ZOMBIE_PEA);
+            if (aProjectile == nullptr) return;
             aProjectile->mMotionType = ProjectileMotion::MOTION_BACKWARDS;
         }
 #else
         Projectile* aProjectile = mBoard->AddProjectile(aOriginX, aOriginY, mRenderOrder, mRow, ProjectileType::PROJECTILE_ZOMBIE_PEA);
+        if (aProjectile == nullptr) return;
         aProjectile->mMotionType = ProjectileMotion::MOTION_BACKWARDS;
 #endif
 
@@ -2649,6 +2657,7 @@ void Zombie::UpdateZombiePeaHead()
 
 void Zombie::BurnRow(int theRow)  // 此函数专用于在定义了 DO_FIX_BUGS 时修复火爆辣椒僵尸的 Bug
 {
+    DamageStats::Source aDamageSource(mApp->mDamageStats, mMindControlled);
     Zombie* aZombie = nullptr;
     while (mBoard->IterateZombies(aZombie))
     {
@@ -2755,15 +2764,18 @@ void Zombie::UpdateZombieGatlingHead()
         {
             aOriginX += 90.0f * mScaleZombie;
             Projectile* aProjectile = mBoard->AddProjectile(aOriginX, aOriginY, mRenderOrder, mRow, ProjectileType::PROJECTILE_PEA);
+            if (aProjectile == nullptr) return;
             aProjectile->mDamageRangeFlags = 1;
         }
         else
         {
             Projectile* aProjectile = mBoard->AddProjectile(aOriginX, aOriginY, mRenderOrder, mRow, ProjectileType::PROJECTILE_ZOMBIE_PEA);
+            if (aProjectile == nullptr) return;
             aProjectile->mMotionType = ProjectileMotion::MOTION_BACKWARDS;
         }
 #else
         Projectile* aProjectile = mBoard->AddProjectile(aOriginX, aOriginY, mRenderOrder, mRow, ProjectileType::PROJECTILE_ZOMBIE_PEA);
+        if (aProjectile == nullptr) return;
         aProjectile->mMotionType = ProjectileMotion::MOTION_BACKWARDS;
 #endif
     }
@@ -4424,6 +4436,16 @@ void Zombie::UpdateZombieWalking()
             IsBobsledTeamWithSled() || mZombiePhase == ZombiePhase::PHASE_POLEVAULTER_IN_VAULT || mZombiePhase == ZombiePhase::PHASE_SNORKEL_INTO_POOL)
         {
             aSpeed = mVelX;
+            // @pvz-online: a slowed boss vehicle must lose translation speed as well as animation rate.
+            if (mZombieType == ZombieType::ZOMBIE_ZAMBONI && mBoard->IsRunBossZombie(this))
+            {
+                if (IsMovingAtChilledSpeed()) aSpeed *= CHILLED_SPEED_FACTOR;
+                else
+                {
+                    if (mFetidSlowCounter > 0) aSpeed *= 1.0f - 0.2f * mApp->RunPlantBuff2Count(SeedType::SEED_FUMESHROOM);
+                    if (mFrostArmorCounter > 0) aSpeed *= 0.65f;
+                }
+            }
         }
         else if (aBodyReanim->TrackExists("_ground"))
         {
@@ -4606,6 +4628,8 @@ void Zombie::UpdateBurn()
 //0x52AE60
 void Zombie::Update()
 {
+    if (IsDeadOrDying()) RunDotEffects::Clear(this);
+    DamageStats::Source aDamageSource(mApp->mDamageStats, false);
     TOD_ASSERT(!mDead);
 
     mZombieAge++;
@@ -4659,16 +4683,19 @@ void Zombie::Update()
                 UpdatePlaying();
             }
 
-            if (mZombieType == ZombieType::ZOMBIE_BUNGEE)
+            if (!IsDeadOrDying())
             {
-                UpdateZombieBungee();
-            }
-            if (mZombieType == ZombieType::ZOMBIE_POGO)
-            {
-                UpdateZombiePogo();
-            }
+                if (mZombieType == ZombieType::ZOMBIE_BUNGEE)
+                {
+                    UpdateZombieBungee();
+                }
+                if (mZombieType == ZombieType::ZOMBIE_POGO)
+                {
+                    UpdateZombiePogo();
+                }
 
-            Animate();
+                Animate();
+            }
         }
 
         mJustGotShotCounter--;
@@ -4888,6 +4915,16 @@ void Zombie::CheckForBoardEdge()
 //0x52B340
 void Zombie::UpdatePlaying()
 {
+    if (mBodyHealth <= 0 &&
+        (mZombieType == ZombieType::ZOMBIE_GARGANTUAR || mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR))
+    {
+        mBodyHealth = 0;
+        mScorchedCounter = 0;
+        PlayDeathAnim(0U);
+        DropLoot();
+        return;
+    }
+
     TOD_ASSERT(mBodyHealth > 0 || mZombiePhase == ZombiePhase::PHASE_BOBSLED_CRASHING);
 
     mGroanCounter--;
@@ -4939,11 +4976,11 @@ void Zombie::UpdatePlaying()
                     Zombie* aFrostZombie = nullptr;
                     while (mBoard->IterateZombies(aFrostZombie))
                     {
-                        // @pvz-online: 免控（MOD_BUILD 45）单点守卫：霜甲解冻全场软减速
-                        // 这里直写 mFrostArmorCounter、零谓词——跳过免疫者。
-                        if (!aFrostZombie->mDead && !aFrostZombie->mControlImmune && aFrostZombie->mFrostArmorCounter < 2000)
+                        // @pvz-online: soft duration is reduced once on application, independently of hard immunity.
+                        int aFrostFrames = aFrostZombie->SoftControlDuration(2000);
+                        if (!aFrostZombie->mDead && aFrostZombie->mFrostArmorCounter < aFrostFrames)
                         {
-                            aFrostZombie->mFrostArmorCounter = 2000;
+                            aFrostZombie->mFrostArmorCounter = aFrostFrames;
                             aFrostZombie->UpdateAnimSpeed();
                         }
                     }
@@ -4979,24 +5016,16 @@ void Zombie::UpdatePlaying()
             UpdateAnimSpeed();
         }
     }
-    if (mScorchedCounter > 0)
+    RunDotEffects::Update(this);
+
+    if (IsDeadOrDying())
     {
-        // @pvz-online: 第二 buff「焦土」（樱桃炸弹 #2，docs/06 §8.6）：每 100 帧（1 秒）
-        // 扣 300×层，共 3 秒 3 跳；火随人——挂在僵尸身上随行，不烧地皮。扣血走 TakeDamage
-        // 自带闪白（0U 无特殊 flag）；烧死有正常死亡表现。
-        mScorchedCounter--;
-        if (mScorchedCounter % 100 == 0)
-        {
-            int aScorchStacks = mApp->RunPlantBuff2Count(SeedType::SEED_CHERRYBOMB);
-            if (aScorchStacks > 0)
-            {
-                TakeDamage(300 * aScorchStacks, 0U);
-            }
-        }
+        mScorchedCounter = 0;
+        return;
     }
 
     // @pvz-online: 僵尸强化「再生」（MOD_BUILD 45）：每 100 帧（1 秒）回上限本体的
-    // 0.5%/层（封顶 25%/s）。只回本体——护盾/头盔不回流；回量按 mBodyMaxHealth 现算
+    // 0.5%/层（总比例最多25%/s），每层每秒最多500。只回本体，护盾/头盔不回流。
     //（铁壁/阶梯抬过的上限同步受益）。mZombieAge 每帧在 Zombie::Update 自增，
     // 与焦土同款 %100 节奏；层数 0 时千分比为 0、零改动。
     if (mApp->IsRunMode() && mZombieAge > 0 && mZombieAge % 100 == 0 && !IsDeadOrDying())
@@ -5004,7 +5033,8 @@ void Zombie::UpdatePlaying()
         int aRegenPermille = mApp->GetRunState()->ZombieBuffRegenPermillePerSec();
         if (aRegenPermille > 0 && mBodyHealth > 0 && mBodyHealth < mBodyMaxHealth)
         {
-            int aHeal = RunMath::ScaleHealth(mBodyMaxHealth, aRegenPermille);
+            int aHeal = RunZombieBuffRules::RegenPerSecond(mBodyMaxHealth,
+                mApp->GetRunState()->ZombieBuffCount(RunState::ZOMBIE_BUFF_REGEN));
             if (aHeal < 1) aHeal = 1;
             mBodyHealth += std::min(aHeal, mBodyMaxHealth - mBodyHealth);
         }
@@ -6697,6 +6727,12 @@ void Zombie::DrawButter(Graphics* g, const ZombieDrawPosition& theDrawPos)
     {
         GetTrackPosition("Zombie_catapult_driver_head", aOffsetX, aOffsetY);
     }
+    else if (mZombieType == ZombieType::ZOMBIE_ZAMBONI)
+    {
+        // Vehicle has no anim_head1 track. Keep the butter on its moving windshield.
+        aOffsetX = mPosX + theDrawPos.mImageOffsetX + 72.0f;
+        aOffsetY = mPosY + theDrawPos.mImageOffsetY + 32.0f;
+    }
     else if (mBodyReanimID != ReanimationID::REANIMATIONID_NULL)
     {
         GetTrackPosition("anim_head1", aOffsetX, aOffsetY);
@@ -6768,7 +6804,7 @@ void Zombie::Draw(Graphics* g)
     {
         DrawIceTrap(g, aDrawPos, true);
     }
-    if (mButteredCounter > 0)
+    if (mButteredCounter > 0 || RunDotEffects::HasButter(this))
     {
         DrawButter(g, aDrawPos);
     }
@@ -6869,6 +6905,7 @@ bool Zombie::CanTargetPlant(Plant* thePlant, ZombieAttackType theAttackType)
         // 照旧停下砸；搭梯走 ATTACKTYPE_LADDER 是另一分支，不受影响。层数 0 零改动。
         if (mApp->IsRunMode()
             && mZombieType != ZombieType::ZOMBIE_GARGANTUAR && mZombieType != ZombieType::ZOMBIE_REDEYE_GARGANTUAR
+            && !(mZombieType == ZombieType::ZOMBIE_FOOTBALL && mBoard->IsRunBossZombie(this))
             && mApp->GetRunState()->ZombieBuffCount(RunState::ZOMBIE_BUFF_GHOSTWALK) > 0)
         {
             return false;
@@ -6955,7 +6992,7 @@ void Zombie::SquishAllInSquare(int theX, int theY, ZombieAttackType theAttackTyp
     {
         if (aPlant->mRow == theY && aPlant->mPlantCol == theX)
         {
-            if (theAttackType == ZombieAttackType::ATTACKTYPE_DRIVE_OVER && aPlant->IsSpiky())
+            if (theAttackType == ZombieAttackType::ATTACKTYPE_DRIVE_OVER && aPlant->IsSpiky() && !mBoard->IsRunBossZombie(this))
             {
                 continue;
             }
@@ -6976,7 +7013,9 @@ void Zombie::SquishAllInSquare(int theX, int theY, ZombieAttackType theAttackTyp
                     && mApp->GetRunState()->ZombieBuffCount(RunState::ZOMBIE_BUFF_GRAVEKEEPER) > 0
                     && mBoard->CanAddGraveStoneAt(aPlant->mPlantCol, aPlant->mRow))
                 {
-                    mBoard->AddAGraveStone(aPlant->mPlantCol, aPlant->mRow);
+                    auto* grave = mBoard->AddAGraveStone(aPlant->mPlantCol, aPlant->mRow);
+                    grave->mGridItemCounter = 100;
+                    grave->AddGraveStoneParticles();
                 }
             }
         }
@@ -6986,6 +7025,7 @@ void Zombie::SquishAllInSquare(int theX, int theY, ZombieAttackType theAttackTyp
 //0x52E9A0
 void Zombie::ZamboniDeath(unsigned int theDamageFlags)
 {
+    mApp->mDamageStats.RecordKill(this);
     if (TestBit(theDamageFlags, DamageFlags::DAMAGE_SPIKE))
     {
         mFlatTires = true;
@@ -7023,6 +7063,7 @@ void Zombie::ZamboniDeath(unsigned int theDamageFlags)
 //0x52EC00
 void Zombie::CatapultDeath(unsigned int theDamageFlags)
 {
+    mApp->mDamageStats.RecordKill(this);
     if (TestBit(theDamageFlags, DamageFlags::DAMAGE_SPIKE))
     {
         mApp->PlayFoley(FoleyType::FOLEY_TIRE_POP);
@@ -7053,7 +7094,7 @@ void Zombie::CheckSquish(ZombieAttackType theAttackType)
         if (aPlant->mRow == mRow)
         {
             Rect aPlantRect = aPlant->GetPlantRect();
-            if (GetRectOverlap(aAttackRect, aPlantRect) >= 20 && CanTargetPlant(aPlant, theAttackType) && !aPlant->IsSpiky())
+            if (GetRectOverlap(aAttackRect, aPlantRect) >= 20 && CanTargetPlant(aPlant, theAttackType) && (!aPlant->IsSpiky() || mBoard->IsRunBossZombie(this)))
             {
                 SquishAllInSquare(aPlant->mPlantCol, aPlant->mRow, theAttackType);
                 break;
@@ -7456,8 +7497,8 @@ void Zombie::CheckForPool()
     if (!mInPool && aIsPoolSquare)
     {
         // @pvz-online: 免控（MOD_BUILD 45）单点守卫：水下冰道分支在 ApplyChill 之前直赋
-        // mIceTrapCounter，绕开谓词——免疫者不入冰、正常下水（走 else 的入水动画）。
-        if (mBoard->mIceTrapCounter > 0 && !mControlImmune)
+        // mIceTrapCounter，绕开谓词——硬控免疫者不入冰、正常下水（走 else 的入水动画）。
+        if (mBoard->mIceTrapCounter > 0 && CanBeFrozen())
         {
             mIceTrapCounter = mBoard->mIceTrapCounter;
             ApplyChill(true);
@@ -7568,6 +7609,7 @@ void Zombie::StartMindControlled()
 //0x52FB40
 void Zombie::EatPlant(Plant* thePlant)
 {
+    DamageStats::Source aDamageSource(mApp->mDamageStats, true);
     if (mZombiePhase == ZombiePhase::PHASE_DANCER_DANCING_IN)
     {
         mPhaseCounter = 1;
@@ -7640,17 +7682,17 @@ void Zombie::EatPlant(Plant* thePlant)
     }
 
     // @pvz-online: 关底橄榄球 boss「极速啃食」（MOD_BUILD 39 批，2026-10-11 用户定案）：
-    // 破阵=啃食轴拉大——每口 200（普通僵尸 4；25 口/秒 ⇒ 5000 血/秒，高坚果 8000 血
-    // 约 1.6 秒啃穿）。上面的冰冻慢啃（节拍减半）照旧折半——所以减速能压它的啃食速度。
+    // Build73：每口60（普通僵尸4；25口/秒 ⇒ 1500血/秒，高坚果8000血
+    // 约5.3秒啃穿）。上面的冰冻慢啃（节拍减半）照旧折半——所以减速能压它的啃食速度。
     // 巨人 boss 走砸击轴不受影响；普通橄榄球僵尸维持每口 4。
     int aBiteDamage = DAMAGE_PER_EAT;
     if (mZombieType == ZombieType::ZOMBIE_FOOTBALL && mBoard->IsRunBossZombie(this))
     {
-        aBiteDamage = 200;
+        aBiteDamage = 60;
     }
 
     // @pvz-online: 僵尸强化「狂食」（MOD_BUILD 45）：每口啃咬 ×2/层（封顶 ×32）。乘在
-    // 橄榄球 boss「极速啃食」的 200 之后——两轴叠乘；层数 0 时千分比恰为 1000、零改动。
+    // 橄榄球 boss「极速啃食」的60之后——两轴叠乘；层数0时千分比恰为1000、零改动。
     if (mApp->IsRunMode())
     {
         int aBitePermille = mApp->GetRunState()->ZombieBuffBitePermille();
@@ -7735,7 +7777,6 @@ void Zombie::EatPlant(Plant* thePlant)
         }
         // @pvz-online: 第二 buff 批 4「亡语孢子」（小喷菇 #8 / 海蘑菇 #24，docs/06 §8.6）：
         // 被啃掉时原地爆炸——900 直伤/层（土豆雷式半径 60，走非燃烧直伤通道照毁灭菇先例）。
-        // 「遗泽」（双子向日葵 #41）：被吃掉时补产 1 轮阳光（2 枚 = 双子标准单轮产量）。
         int aDeathBoomStacks = mApp->RunPlantBuff2Count(thePlant->mSeedType);
         if (aDeathBoomStacks > 0 &&
             (thePlant->mSeedType == SeedType::SEED_PUFFSHROOM || thePlant->mSeedType == SeedType::SEED_SEASHROOM))
@@ -7747,11 +7788,6 @@ void Zombie::EatPlant(Plant* thePlant)
             int aBoomRender = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PARTICLE, thePlant->mRow, 0);
             mApp->AddTodParticle(aBoomX + 20.0f, aBoomY, aBoomRender, ParticleEffect::PARTICLE_POTATO_MINE);
             mBoard->ShakeBoard(3, -4);
-        }
-        else if (thePlant->mSeedType == SeedType::SEED_TWINSUNFLOWER && mApp->RunPlantBuff2Count(SeedType::SEED_TWINSUNFLOWER) > 0)
-        {
-            mBoard->AddCoin(thePlant->mX, thePlant->mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
-            mBoard->AddCoin(thePlant->mX, thePlant->mY, CoinType::COIN_SUN, CoinMotion::COIN_MOTION_FROM_PLANT);
         }
         thePlant->Die();
         mBoard->mChallenge->ZombieAtePlant(thePlant);
@@ -7769,6 +7805,7 @@ void Zombie::EatPlant(Plant* thePlant)
 //0x52FE10
 void Zombie::EatZombie(Zombie* theZombie)
 {
+    DamageStats::Source aDamageSource(mApp->mDamageStats, mMindControlled);
     // @pvz-online: 单株升级「Devotion」（魅惑菇老表 #12）：被魅惑僵尸咬到的僵尸也倒戈——
     // 1 层成型（上限 1）。EatZombie 只被魅惑僵尸的吃循环调到（FindZombieTarget 要求两边
     // mMindControlled 不同），倒戈照魅惑菇本体走 StartMindControlled + 同款粒子 + 过关
@@ -8100,6 +8137,8 @@ void Zombie::BungeeDie()
 //0x530510
 void Zombie::DieNoLoot()
 {
+    RunDotEffects::Clear(this);
+    mApp->mDamageStats.RecordKill(this);
     StopZombieSound();
     AttachmentDie(mAttachmentID);
     mApp->RemoveReanimation(mBodyReanimID);
@@ -8215,7 +8254,7 @@ void Zombie::ApplyChill(bool theIsIceTrap)
     {
         aChillTime = 2000;
     }
-    mChilledCounter = std::max(aChillTime, mChilledCounter);
+    mChilledCounter = std::max(SoftControlDuration(aChillTime), mChilledCounter);
 
     UpdateAnimSpeed();
 }
@@ -8306,6 +8345,7 @@ int Zombie::TakeShieldDamage(int theDamage, unsigned int theDamageFlags)
     int aDamageIndexBeforeDamage = GetShieldDamageIndex();
     int aDamageActual = std::min(mShieldHealth, theDamage);
     int aDamageRemaining = theDamage - aDamageActual;
+    mApp->mDamageStats.Record(this, std::max(0, aDamageActual));
     mShieldHealth -= aDamageActual;
     if (mShieldHealth == 0)
     {
@@ -8430,6 +8470,7 @@ int Zombie::TakeHelmDamage(int theDamage, unsigned int theDamageFlags)
     int aDamageIndexBeforeDamage = GetHelmDamageIndex();
     int aDamageActual = std::min(mHelmHealth, theDamage);
     int aDamageRemaining = theDamage - aDamageActual;
+    mApp->mDamageStats.Record(this, std::max(0, aDamageActual));
     mHelmHealth -= aDamageActual;
     if (TestBit(theDamageFlags, (int)DamageFlags::DAMAGE_FREEZE))
     {
@@ -8520,6 +8561,7 @@ int Zombie::TakeFlyingDamage(int theDamage, unsigned int theDamageFlags)
 
     int aDamageActual = std::min(mFlyingHealth, theDamage);
     int aDamageRemaining = theDamage - aDamageActual;
+    mApp->mDamageStats.Record(this, std::max(0, aDamageActual));
     mFlyingHealth -= aDamageActual;
     if (mFlyingHealth == 0)
     {
@@ -8544,6 +8586,7 @@ void Zombie::TakeBodyDamage(int theDamage, unsigned int theDamageFlags)
 
     int aBodyHealthOrigin = mBodyHealth;
     int aDamageIndexBeforeDamage = GetBodyDamageIndex();
+    mApp->mDamageStats.Record(this, std::max(0, std::min(mBodyHealth, theDamage)));
     mBodyHealth -= theDamage;
     int aDamageIndexAfterDamage = GetBodyDamageIndex();
     if (mZombieType == ZombieType::ZOMBIE_ZAMBONI)
@@ -8554,7 +8597,7 @@ void Zombie::TakeBodyDamage(int theDamage, unsigned int theDamageFlags)
             mApp->PlayFoley(FoleyType::FOLEY_SHIELD_HIT);
         }
 
-        if (TestBit(theDamageFlags, (int)DamageFlags::DAMAGE_SPIKE))
+        if (TestBit(theDamageFlags, (int)DamageFlags::DAMAGE_SPIKE) && !mBoard->IsRunBossZombie(this))
         {
             aBodyReanim->SetImageOverride("Zombie_zamboni_1", IMAGE_REANIM_ZOMBIE_ZAMBONI_1_DAMAGE2);
             aBodyReanim->SetImageOverride("Zombie_zamboni_2", IMAGE_REANIM_ZOMBIE_ZAMBONI_2_DAMAGE2);
@@ -8803,24 +8846,20 @@ Zombie::~Zombie()
     StopZombieSound();
 }
 
+// @pvz-online: boss resistance and the buff are alternatives, never multiplicative.
+int Zombie::SoftControlDuration(int theFrames)
+{
+    bool aResistant = mBoard && mBoard->IsRunBossZombie(this);
+    if (mApp->IsRunMode() && IsOnBoard())
+        aResistant = aResistant || mApp->GetRunState()->ZombieBuffCount(RunState::ZOMBIE_BUFF_SOFTRESIST) > 0;
+    return RunZombieBuffRules::SoftDuration(theFrames, aResistant);
+}
+
 //0x531990
 bool Zombie::CanBeChilled()
 {
-    // @pvz-online: 僵尸强化「免控」（MOD_BUILD 45）：投过的僵尸免疫一切控制类效果——
-    // 减速/冰冻/黄油定身/狂风击退/大蒜换道/魅惑催眠全免。本谓词与 CanBeFrozen 是两个
-    // 现成收口点（chill 类都从这里走：冰豌豆/冰西瓜/三叶草减速/地刺/冰道）；另有六处
-    // 绕开谓词的直写点各自单点守卫（CheckForPool/霜甲解冻/腐臭之息/SwitchLanes/
-    // StartMindControlled/狂风位移）。
-    if (mControlImmune)
-        return false;
-
-    // @pvz-online: 关底 boss 免疫减速/冰冻（MOD_BUILD 38；MOD_BUILD 39 批改口径，
-    // 2026-10-11 用户定案「橄榄球 boss 只受减速影响」）——红眼巨人 boss 全断；
-    // 橄榄球 boss 放行减速（chill 生效），冰冻/黄油/定身由 CanBeFrozen 顶栏挡下。
-    if (mBoard->IsRunBossZombie(this) && mZombieType != ZombieType::ZOMBIE_FOOTBALL)
-        return false;
-
-    if (mZombieType == ZombieType::ZOMBIE_ZAMBONI || IsBobsledTeamWithSled())
+    // @pvz-online: hard immunity does not block slows; marked Zamboni bosses can also be slowed.
+    if ((mZombieType == ZombieType::ZOMBIE_ZAMBONI && !mBoard->IsRunBossZombie(this)) || IsBobsledTeamWithSled())
         return false;
 
     if (IsDeadOrDying())
@@ -8847,9 +8886,7 @@ bool Zombie::CanBeChilled()
 //0x531A10
 bool Zombie::CanBeFrozen()
 {
-    // @pvz-online: 僵尸强化「免控」（MOD_BUILD 45）：同 CanBeChilled 的免疫早退——
-    // 冰冻/黄油定身/冰西瓜深冻都从本谓词收口（ApplyButter 的门就是它；CanBeChilled
-    // 里也有同一守卫，两处都写是防未来新增调用点只查其一）。
+    // @pvz-online: hard immunity blocks freeze/butter only; CanBeChilled remains independent.
     if (mControlImmune)
         return false;
 
@@ -9224,7 +9261,7 @@ void Zombie::AttachPaperHelmReanim()
     AttachEffect* aAttachEffect = AttachReanim(aBodyReanim->GetTrackInstanceByName("anim_head1")->mAttachmentID, aHatReanim, 0.0f, 0.0f);
     if (aAttachEffect)
     {
-        aAttachEffect->mOffset = aOffsetMatrix;
+        if (aAttachEffect) aAttachEffect->mOffset = aOffsetMatrix;
     }
     mPaperHelmReanimID = mApp->ReanimationGetID(aHatReanim);
 }
@@ -9245,6 +9282,7 @@ void Zombie::RemoveIceTrap()
 //0x5323C0
 void Zombie::HitIceTrap()
 {
+    DamageStats::Source aDamageSource(mApp->mDamageStats, true);
     bool cold = false;
     if (mChilledCounter > 0 || mIceTrapCounter != 0)
     {
@@ -9436,6 +9474,7 @@ void Zombie::ApplyButter(int theFrames)
 //0x5327E0
 void Zombie::MowDown()
 {
+    if (mBoard->IsRunBossZombie(this)) return;
     if (mDead || mZombiePhase == ZombiePhase::PHASE_ZOMBIE_MOWERED || mZombieType == ZombieType::ZOMBIE_BOSS)
         return;
 
@@ -9571,6 +9610,8 @@ void Zombie::ApplyBurn(int theDirectDamage)
         TakeDamage((int)(aBlastBase * mApp->RunBuffMul(RUN_BUFF_BLAST) + 0.5f), 18U);
         return;
     }
+
+    mApp->mDamageStats.RecordKill(this);
 
     if ((mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD || mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD_DOOR) && !mHasHead)
     {
@@ -10792,6 +10833,7 @@ void Zombie::BossSpawnContact()
     }
 
     Zombie* aZombie = mBoard->AddZombieInRow(aZombieType, mTargetRow, 0);
+    if (aZombie == nullptr) return;
     aZombie->mPosX = 600.0f;
 }
 
@@ -10882,6 +10924,8 @@ void Zombie::BossBungeeSpawn()
     for (int i = 0; i < NUM_BOSS_BUNGEES; i++)
     {
         Zombie* aZombie = mBoard->AddZombieInRow(ZombieType::ZOMBIE_BUNGEE, 0, 0);
+        mFollowerZombieID[i] = ZombieID::ZOMBIEID_NULL;
+        if (aZombie == nullptr) continue;
         aZombie->PickBungeeZombieTarget(mTargetCol + i);
         aZombie->mAltitude = aZombie->mPosY - 30.0f;
         mFollowerZombieID[i] = mBoard->ZombieGetID(aZombie);
@@ -11469,9 +11513,9 @@ void Zombie::BossSetupReanim()
     ReanimatorTrackInstance* aTrackInstance = aBodyReanim->GetTrackInstanceByName("Boss_head2");
     AttachEffect* aAttachEffect = AttachReanim(aTrackInstance->mAttachmentID, aHeadReanim, 28.0f, -84.0f);
     aBodyReanim->mFrameBasePose = 0;
-    aAttachEffect->mOffset.m00 = 1.2f;
-    aAttachEffect->mOffset.m11 = 1.2f;
-    aAttachEffect->mDontDrawIfParentHidden = true;
+    if (aAttachEffect) aAttachEffect->mOffset.m00 = 1.2f;
+    if (aAttachEffect) aAttachEffect->mOffset.m11 = 1.2f;
+    if (aAttachEffect) aAttachEffect->mDontDrawIfParentHidden = true;
 }
 
 //0x536940
@@ -11556,14 +11600,14 @@ void Zombie::ApplyBossSmokeParticles(bool theEnable)
         if (aParticle1)
         {
             AttachEffect* aAttachEffect = aBodyReanim->AttachParticleToTrack("Boss_head", aParticle1, 120.0f, 30.0f);
-            aAttachEffect->mDontDrawIfParentHidden = true;
-            aAttachEffect->mDontPropogateColor = true;
+            if (aAttachEffect) aAttachEffect->mDontDrawIfParentHidden = true;
+            if (aAttachEffect) aAttachEffect->mDontPropogateColor = true;
         }
         if (aParticle2)
         {
             AttachEffect* aAttachEffect = aBodyReanim->AttachParticleToTrack("Boss_head", aParticle2, 205.0f, 58.0f);
-            aAttachEffect->mDontDrawIfParentHidden = true;
-            aAttachEffect->mDontPropogateColor = true;
+            if (aAttachEffect) aAttachEffect->mDontDrawIfParentHidden = true;
+            if (aAttachEffect) aAttachEffect->mDontPropogateColor = true;
         }
 
         if (mBodyHealth < mBodyMaxHealth / BOSS_FLASH_HEALTH_FRACTION)
@@ -11572,8 +11616,8 @@ void Zombie::ApplyBossSmokeParticles(bool theEnable)
             if (aParticle3)
             {
                 AttachEffect* aAttachEffect = aBodyReanim->AttachParticleToTrack("Boss_head", aParticle3, 193.0f, 27.0f);
-                aAttachEffect->mDontDrawIfParentHidden = true;
-                aAttachEffect->mDontPropogateColor = true;
+                if (aAttachEffect) aAttachEffect->mDontDrawIfParentHidden = true;
+                if (aAttachEffect) aAttachEffect->mDontPropogateColor = true;
             }
         }
     }

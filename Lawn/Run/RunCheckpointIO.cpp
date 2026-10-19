@@ -3,6 +3,8 @@
 #include "misc/Buffer.h"
 #include <cstdio>
 #include <cstdint>
+#include <filesystem>
+#include <system_error>
 #ifdef _WIN32
 #include <windows.h>
 #include <io.h>
@@ -13,7 +15,7 @@
 namespace RunCheckpointIO {
 namespace {
 constexpr uint32_t MAGIC = 0x31585452; // RTX1
-constexpr size_t MAX_BYTES = 8 * 1024 * 1024;
+constexpr size_t MAX_BYTES = 64 * 1024 * 1024;
 uint32_t Hash(const unsigned char* data, size_t size) {
     uint32_t hash = 2166136261u;
     for (size_t i = 0; i < size; ++i) hash = (hash ^ data[i]) * 16777619u;
@@ -39,6 +41,17 @@ bool AtomicWrite(const std::string& path, const std::vector<unsigned char>& byte
 #endif
     if (std::fclose(file) != 0) ok = false;
     if (ok) {
+        if(path.size()>4 && path.substr(path.size()-4)==".dat") {
+            std::error_code ec;
+            if(std::filesystem::exists(path,ec)) {
+                FILE* previous=std::fopen(path.c_str(),"rb");
+                if(!previous){std::remove(temp.c_str());return false;}
+                std::vector<unsigned char> prior;unsigned char block[8192];size_t count;
+                while((count=std::fread(block,1,sizeof(block),previous))>0)prior.insert(prior.end(),block,block+count);
+                bool readOk=!std::ferror(previous);std::fclose(previous);
+                if(!readOk || !AtomicWrite(path+".bak",prior)){std::remove(temp.c_str());return false;}
+            }
+        }
 #ifdef _WIN32
         ok = MoveFileExA(temp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
 #else

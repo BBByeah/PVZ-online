@@ -599,7 +599,7 @@ AttachmentHolder::~AttachmentHolder()
 
 void AttachmentHolder::InitializeHolder()
 {
-	mAttachments.DataArrayInitialize(1024U, "attachments");
+	mAttachments.DataArrayInitialize(4096U, "attachments");
 }
 
 void AttachmentHolder::DisposeHolder()
@@ -609,7 +609,7 @@ void AttachmentHolder::DisposeHolder()
 
 Attachment* AttachmentHolder::AllocAttachment()
 {
-	return mAttachments.DataArrayAlloc();
+	return mAttachments.DataArrayTryAlloc();
 }
 
 //0x4051B0
@@ -851,10 +851,16 @@ AttachEffect* CreateEffectAttachment(AttachmentID& theAttachmentID, EffectType t
 	if (aAttachment == nullptr || aAttachment->mDead)
 	{
 		aAttachment = gEffectSystem->mAttachmentHolder->AllocAttachment();
+		if (aAttachment == nullptr)
+		{
+			theAttachmentID = AttachmentID::ATTACHMENTID_NULL;
+			return nullptr;
+		}
 		theAttachmentID = (AttachmentID)gEffectSystem->mAttachmentHolder->mAttachments.DataArrayGetID(aAttachment);
 	}
 
-	TOD_ASSERT(aAttachment->mNumEffects < MAX_EFFECTS_PER_ATTACHMENT);
+	// Both limits matter: total attachment slots and effects in this parent.
+	if (aAttachment->mNumEffects < 0 || aAttachment->mNumEffects >= MAX_EFFECTS_PER_ATTACHMENT) return nullptr;
 	TOD_ASSERT(!aAttachment->mDead);
 
 	AttachEffect* aAttachEffect = &aAttachment->mEffectArray[aAttachment->mNumEffects];
@@ -871,8 +877,14 @@ AttachEffect* CreateEffectAttachment(AttachmentID& theAttachmentID, EffectType t
 //0x4055D0
 AttachEffect* AttachReanim(AttachmentID& theAttachmentID, Reanimation* theReanimation, float theOffsetX, float theOffsetY)
 {
+	if (theReanimation == nullptr) return nullptr;
 	unsigned int aReanimId = gEffectSystem->mReanimationHolder->mReanimations.DataArrayGetID(theReanimation);
 	AttachEffect* aAttachEffect = CreateEffectAttachment(theAttachmentID, EffectType::EFFECT_REANIM, aReanimId, theOffsetX, theOffsetY);
+	if (aAttachEffect == nullptr)
+	{
+		// Keep essential body/head animation alive for its existing owner.
+		return nullptr;
+	}
 
 	TOD_ASSERT(!theReanimation->mIsAttachment);
 	theReanimation->mIsAttachment = true;
@@ -888,6 +900,11 @@ AttachEffect* AttachParticle(AttachmentID& theAttachmentID, TodParticleSystem* t
 
 	unsigned int aParticleId = gEffectSystem->mParticleHolder->mParticleSystems.DataArrayGetID(theParticleSystem);
 	AttachEffect* aAttachEffect = CreateEffectAttachment(theAttachmentID, EffectType::EFFECT_PARTICLE, aParticleId, theOffsetX, theOffsetY);
+	if (aAttachEffect == nullptr)
+	{
+		if (!theParticleSystem->mIsAttachment) theParticleSystem->ParticleSystemDie();
+		return nullptr;
+	}
 
 	TOD_ASSERT(!theParticleSystem->mIsAttachment);
 	theParticleSystem->mIsAttachment = true;
@@ -897,8 +914,14 @@ AttachEffect* AttachParticle(AttachmentID& theAttachmentID, TodParticleSystem* t
 
 AttachEffect* AttachTrail(AttachmentID& theAttachmentID, Trail* theTrail, float theOffsetX, float theOffsetY)
 {
+	if (theTrail == nullptr) return nullptr;
 	unsigned int aTrailId = gEffectSystem->mTrailHolder->mTrails.DataArrayGetID(theTrail);
 	AttachEffect* aAttachEffect = CreateEffectAttachment(theAttachmentID, EffectType::EFFECT_TRAIL, aTrailId, theOffsetX, theOffsetY);
+	if (aAttachEffect == nullptr)
+	{
+		if (!theTrail->mIsAttachment) theTrail->mDead = true;
+		return nullptr;
+	}
 
 	TOD_ASSERT(!theTrail->mIsAttachment);
 	theTrail->mIsAttachment = true;

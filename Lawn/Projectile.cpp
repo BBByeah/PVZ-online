@@ -3,6 +3,7 @@
 #include "Zombie.h"
 #include "Cutscene.h"
 #include "Projectile.h"
+#include "Run/RunDotEffects.h"
 #include "../LawnApp.h"
 #include "../Resources.h"
 #include "../GameConstants.h"
@@ -71,6 +72,11 @@ void Projectile::ProjectileInitialize(int theX, int theY, int theRenderOrder, in
 	mRunCactusSource = false;
 	mRunScaredySource = false;
 	mRunCrystalDamage = 0;
+    mRunSourceSeed = SeedType::SEED_NONE;
+    mRunHuntHitsLeft = 0;
+    mRunLaunchDelay = 0;
+    mRunIceWave = false;
+    for (int i = 0; i < 1024; ++i) mRunWaveHitIds[i] = ZombieID::ZOMBIEID_NULL;
 	mOnHighGround = mBoard->mGridSquareType[aGridX][theRow] == GridSquareType::GRIDSQUARE_HIGH_GROUND;
 	if (mBoard->StageHasRoof())
 	{
@@ -271,6 +277,12 @@ void Projectile::CheckForCollision()
 	if (mMotionType == ProjectileMotion::MOTION_HOMING)
 	{
 		Zombie* aZombie = mBoard->ZombieTryToGet(mTargetZombieID);
+        if (mRunHuntHitsLeft > 0 && (!aZombie || aZombie->IsDeadOrDying() || !aZombie->EffectedByDamage((unsigned int)mDamageRangeFlags)))
+        {
+            aZombie = FindHuntTarget();
+            if (!aZombie) { Die(); return; }
+            mTargetZombieID = mBoard->ZombieGetID(aZombie);
+        }
 		if (aZombie && aZombie->EffectedByDamage((unsigned int)mDamageRangeFlags))
 		{
 			Rect aProjectileRect = GetProjectileRect();
@@ -385,7 +397,8 @@ void Projectile::CheckForHighGround()
 //0x46D1F0
 bool Projectile::IsSplashDamage(Zombie* theZombie)
 {
-	if (mProjectileType && theZombie && theZombie->IsFireResistant())
+	// @pvz-online: fire resistance only suppresses fire splash; melons must retain their splash.
+	if (mProjectileType == ProjectileType::PROJECTILE_FIREBALL && theZombie && theZombie->IsFireResistant())
 		return false;
 
 	return 
@@ -428,13 +441,12 @@ bool Projectile::IsZombieHitBySplash(Zombie* theZombie)
 	{
 		aProjectileRect.mWidth = 100;
 	}
-	// @pvz-online: 批 18 冰西瓜「Deep Splash」——溅射半径 +50%/层（无上限；用户定案）。
-	// 只放宽这块溅射判定用的矩形（宽随乘数），主命中的投射物碰撞（GetProjectileRect
-	// 本体）不动，溅射伤害/减速的数值不受影响；西瓜行换成连击后不再走这里。
-	else if (mProjectileType == ProjectileType::PROJECTILE_WINTERMELON)
-	{
-		aProjectileRect.mWidth = (int)(aProjectileRect.mWidth * mApp->RunPlantUpgradeMul(SeedType::SEED_WINTERMELON) + 0.5f);
-	}
+    // @pvz-online: only genuine Winter Melon shots gain the full 3x3 burst.
+    else if (mRunSourceSeed == SeedType::SEED_WINTERMELON && mApp->RunPlantUpgradeCount(SeedType::SEED_WINTERMELON) > 0)
+    {
+        aProjectileRect.mX = (int)mPosX - 100;
+        aProjectileRect.mWidth = 240;
+    }
 
 	int aRowDeviation = theZombie->mRow - mRow;
 	Rect aZombieRect = theZombie->GetZombieRect();
@@ -478,6 +490,7 @@ static int KindlingFireballDamage(LawnApp* theApp, ProjectileType theType, int t
 
 void Projectile::DoSplashDamage(Zombie* theZombie)
 {
+    DamageStats::Source aDamageSource(mApp->mDamageStats, true);
 	const ProjectileDefinition& aProjectileDef = GetProjectileDef();
 
 	int aZombiesGetSplashed = 0;
@@ -499,7 +512,8 @@ void Projectile::DoSplashDamage(Zombie* theZombie)
 	// @pvz-online: 「重投」原挂此处，2026-10-10 实机修复挪走——卷心菜弹不是溅射弹
 	//（IsSplashDamage 只认西瓜/冰西瓜/火弹），这条路径对卷心菜零执行；现挂 DoImpact
 	// 单发分支（见该处注释）。
-	int aSplashDamage = aOriginalDamage / 3;
+	bool aColdBurst = mRunSourceSeed == SeedType::SEED_WINTERMELON && mApp->RunPlantUpgradeCount(SeedType::SEED_WINTERMELON) > 0;
+    int aSplashDamage = aColdBurst ? aOriginalDamage : aOriginalDamage / 3;
 	int aMaxSplashDamageAmount = aSplashDamage * 7;
 	if (mProjectileType == ProjectileType::PROJECTILE_FIREBALL)
 	{
@@ -509,7 +523,7 @@ void Projectile::DoSplashDamage(Zombie* theZombie)
 	// 溅射每只都吃满原伤 1/3，不再按总上限（原伤）摊薄；不持条走基线摊薄。
 	bool aFlameSplashBuff = mProjectileType == ProjectileType::PROJECTILE_FIREBALL && mApp->RunPlantBuff2Count(SeedType::SEED_TORCHWOOD) > 0;
 	int aSplashDamageAmount = aSplashDamage * aZombiesGetSplashed;
-	if (!aFlameSplashBuff && aSplashDamageAmount > aMaxSplashDamageAmount)
+	if (!aColdBurst && !aFlameSplashBuff && aSplashDamageAmount > aMaxSplashDamageAmount)
 	{
 		//aSplashDamage *= aMaxSplashDamageAmount / aSplashDamage;
 		aSplashDamage = aOriginalDamage * aMaxSplashDamageAmount / (aSplashDamageAmount * 3);
@@ -862,7 +876,7 @@ int Projectile::GetRunFixedDamageBonus(Zombie* theZombie)
     if (!mRunScaredySource || !theZombie || theZombie->IsDeadOrDying() ||
         mApp->RunExtraBuffCount(RUN_BUFF2_HEART_SPORE) == 0)
         return 0;
-    return std::min(800, std::max(0, theZombie->mBodyHealth) / 20);
+    return std::min(5000, std::max(0, theZombie->mBodyHealth) / 20);
 }
 
 //0x46E000
@@ -889,8 +903,54 @@ void Projectile::RecordPricklyHit(Zombie* theZombie)
 	mPricklyHitCount++;
 }
 
+// @pvz-online: hunter retargeting is local, respects target immunities and the hit ID history.
+Zombie* Projectile::FindHuntTarget()
+{
+    Zombie* best = nullptr;
+    float bestDistance = 300.0f * 300.0f;
+    Zombie* z = nullptr;
+    while (mBoard->IterateZombies(z))
+    {
+        if (z->IsDeadOrDying() || WasZombiePricklyHit(z) || !z->EffectedByDamage((unsigned int)mDamageRangeFlags)) continue;
+        Rect rect = z->GetZombieRect();
+        float dx = rect.mX + rect.mWidth / 2 - (mPosX + 20);
+        float dy = rect.mY + rect.mHeight / 2 - (mPosY + 20);
+        float distance = dx * dx + dy * dy;
+        if (distance < bestDistance) { bestDistance = distance; best = z; }
+    }
+    return best;
+}
+
+void Projectile::UpdatePurpleWave()
+{
+    DamageStats::Source aDamageSource(mApp->mDamageStats, true);
+    ++mProjectileAge;
+    mPosX += 6.0f;
+    mX = (int)mPosX;
+    mY = (int)mPosY;
+    Zombie* z = nullptr;
+    while (mBoard->IterateZombies(z))
+    {
+        if (z->IsDeadOrDying() || abs(z->mRow - mRow) > 1 || !z->EffectedByDamage((unsigned int)mDamageRangeFlags)) continue;
+        unsigned int id = (unsigned int)mBoard->ZombieGetID(z);
+        unsigned int slot = id & 0xFFFFU;
+        if (slot >= 1024 || mRunWaveHitIds[slot] == (ZombieID)id) continue;
+        Rect rect = z->GetZombieRect();
+        if (rect.mX > mPosX + 35 || rect.mX + rect.mWidth < mPosX - 35) continue;
+        mRunWaveHitIds[slot] = (ZombieID)id;
+        if (z->CanBeFrozen())
+        {
+            z->mIceTrapCounter = std::max(z->mIceTrapCounter, 100);
+            z->UpdateAnimSpeed();
+        }
+        z->TakeDamage((int)(240 * mApp->RunBuffMul(RUN_BUFF_FIREPOWER) + 0.5f), (unsigned int)DamageFlags::DAMAGE_HITS_SHIELD_AND_BODY);
+    }
+    if (mPosX > 850 || mProjectileAge > 150) Die();
+}
+
 void Projectile::DoImpact(Zombie* theZombie)
 {
+    DamageStats::Source aDamageSource(mApp->mDamageStats, true);
 	PlayImpactSound(theZombie);
 
 	// @pvz-online: split only original Snow Pea shots; piercing collision dedup prevents repeats.
@@ -903,27 +963,14 @@ void Projectile::DoImpact(Zombie* theZombie)
 			if (!mBoard->RowCanHaveZombies(r)) continue;
 			int y = mBoard->GridToPixelY(aCol, r) + 25;
 			Projectile* aCrystal = mBoard->AddProjectile((int)mPosX, y, mRenderOrder, r, ProjectileType::PROJECTILE_SNOWPEA);
+			if (aCrystal == nullptr) continue;
 			aCrystal->mDamageRangeFlags = 13;
 			aCrystal->mRunCrystalDamage = std::max(1, GetProjectileDef().mDamage / 2);
 		}
 	}
 	if (theZombie && mRunCactusSource && mApp->RunExtraBuffCount(RUN_BUFF2_CACTUS_SLOW) > 0 && theZombie->CanBeChilled())
-		theZombie->mRunBarbedCounter = 300;
+		theZombie->mRunBarbedCounter = std::max(theZombie->mRunBarbedCounter, theZombie->SoftControlDuration(300));
 
-	// @pvz-online: 第二 buff「冰封」（冰西瓜 #44，docs/06 §8.6）：冰西瓜弹命中主目标时
-	// +20%/层 概率完全冻住 2 秒（mIceTrapCounter=200，照 HitIceTrap 直赋先例；CanBeFrozen
-	// 挡下的不硬塞）。只认冰西瓜弹（雪豆弹也带 DAMAGE_FREEZE 但不走这条）；溅射目标不 roll
-	//（口径=「命中者」）。词条未抽取时短路。
-	if (mProjectileType == ProjectileType::PROJECTILE_WINTERMELON && theZombie != nullptr &&
-		mApp->RunPlantBuff2Count(SeedType::SEED_WINTERMELON) > 0)
-	{
-		int aFreezeChance = 20 * mApp->RunPlantBuff2Count(SeedType::SEED_WINTERMELON);
-		if ((int)Rand(100) < aFreezeChance && theZombie->CanBeFrozen())
-		{
-			theZombie->mIceTrapCounter = std::max(theZombie->mIceTrapCounter, 200);
-			theZombie->UpdateAnimSpeed();
-		}
-	}
 
 	if (IsSplashDamage(theZombie))
 	{
@@ -1020,7 +1067,8 @@ void Projectile::DoImpact(Zombie* theZombie)
 			// @pvz-online: 第二 buff「Butter Feast」黄油盛宴（玉米投手 #34，docs/06 §8.6，2★
 			// cap2）：黄油时长 400 + 100×层 帧（+1 秒/层；命中率的 +25%/层 在投手发射端起骰，
 			// 见 Plant::FindTargetAndFire 的 KERNELPULT 块）。未持条时 +0，与原版默认一致。
-			theZombie->ApplyButter(400 + 100 * mApp->RunPlantBuff2Count(SeedType::SEED_KERNELPULT));
+			RunDotEffects::ButterHit(theZombie, 400 + 100 * mApp->RunPlantBuff2Count(SeedType::SEED_KERNELPULT),
+                800 + 200 * mApp->RunPlantBuff2Count(SeedType::SEED_KERNELPULT));
 			// @pvz-online: extra butter is a status event, never another projectile or recursive splash.
 			if (mApp->RunExtraBuffCount(RUN_BUFF2_BUTTER_SPLASH) > 0)
 			{
@@ -1032,7 +1080,7 @@ void Projectile::DoImpact(Zombie* theZombie)
 				while (mBoard->IterateZombies(aOther))
 				{
 					if (aOther == theZombie || !aOther->mHasHead || aOther->IsFlying() || aOther->IsTangleKelpTarget() ||
-						aOther->IsBobsledTeamWithSled() || !aOther->CanBeFrozen() || !aOther->EffectedByDamage(mDamageRangeFlags)) continue;
+						aOther->IsBobsledTeamWithSled() || (!aOther->CanBeFrozen() && !(mApp->RunExtraBuffCount(RUN_BUFF2_BUTTER_HEAVY) > 0 && RunDotEffects::CanCoat(aOther))) || !aOther->EffectedByDamage(mDamageRangeFlags)) continue;
 					Rect aRect = aOther->GetZombieRect();
 					float dx = fabsf(aRect.mX + aRect.mWidth / 2.0f - aCenter);
 					if (abs(aOther->mRow - theZombie->mRow) > 1 || dx > 80.0f) continue;
@@ -1045,7 +1093,7 @@ void Projectile::DoImpact(Zombie* theZombie)
 				}
 				// @pvz-online: a short splash must not shorten a longer direct butter stun already in progress.
 				for (int i = 0; i < 3; ++i)
-					if (aTargets[i] && aTargets[i]->mButteredCounter < 200) aTargets[i]->ApplyButter(200);
+					if (aTargets[i]) RunDotEffects::ButterHit(aTargets[i], 200, 200);
 			}
 
 		}
@@ -1086,6 +1134,16 @@ void Projectile::DoImpact(Zombie* theZombie)
 	// FindCollisionTarget 跳环内僵尸），弹体位置不再动——旧版「推到命中者右缘 +30px」
 	// 的绝对传送会把弹跳过贴身/重叠的下一只（弹与它背向而行永不再相遇，实机反馈
 	// 「穿透弹无法同时命中靠近的僵尸」），已废。直射弹的阴影 Y 本来就不跟弹体走，不动。
+    // @pvz-online: one larger needle hits up to three distinct enemies; never duplicates itself.
+    if (mRunHuntHitsLeft > 0 && theZombie)
+    {
+        RecordPricklyHit(theZombie);
+        --mRunHuntHitsLeft;
+        Zombie* next = mRunHuntHitsLeft > 0 ? FindHuntTarget() : nullptr;
+        if (next) mTargetZombieID = mBoard->ZombieGetID(next);
+        else Die();
+        return;
+    }
 	if (mPricklyHitsLeft != 0 && theZombie)
 	{
 		if (mPricklyHitsLeft > 0) mPricklyHitsLeft--;
@@ -1104,7 +1162,7 @@ void Projectile::DoImpact(Zombie* theZombie)
 	// 亡语 9 / 加农炮 127 都带位 0，唯独这处没有。②圆心 Y 从粒子锚（上一帧弹顶）挪到
 	// 弹体身体中心（+mHeight/2 = +20）——旧值离被命中者矩形顶只剩 ~3.5px 裕量，中心化
 	// 后 ~30px，与溅射粒子画在身体中心的视觉一致。
-	if (mProjectileType == ProjectileType::PROJECTILE_MELON && mApp->RunPlantBuff2Count(SeedType::SEED_MELONPULT) > 0)
+	if (mProjectileType == ProjectileType::PROJECTILE_MELON && mRunSourceSeed == SeedType::SEED_MELONPULT && mApp->RunPlantBuff2Count(SeedType::SEED_MELONPULT) > 0)
 	{
 		int aRollX = (int)(mPosX + 80.0f);
 		int aRollY = (int)(mPosY + mPosZ) + mHeight / 2;
@@ -1120,6 +1178,18 @@ void Projectile::DoImpact(Zombie* theZombie)
 //0x46E460
 void Projectile::Update()
 {
+    DamageStats::Source aDamageSource(mApp->mDamageStats, true);
+    // @pvz-online: delayed salvos use the normal cob trajectory once released.
+    if (mRunLaunchDelay > 0)
+    {
+        if (mApp->mGameScene == GameScenes::SCENE_PLAYING) --mRunLaunchDelay;
+        return;
+    }
+    if (mRunIceWave)
+    {
+        if (mApp->mGameScene == GameScenes::SCENE_PLAYING) UpdatePurpleWave();
+        return;
+    }
 	mProjectileAge++;
 	if (mApp->mGameScene != GameScenes::SCENE_PLAYING && !mBoard->mCutScene->ShouldRunUpsellBoard())
 		return;
@@ -1156,6 +1226,31 @@ void Projectile::Update()
 //0x46E540
 void Projectile::Draw(Graphics* g)
 {
+    if (mRunLaunchDelay > 0) return;
+    if (mRunIceWave)
+    {
+        // @pvz-online: bounded geometry makes a visible three-row ice front without particle spam.
+        Color old = g->GetColor();
+        int col = mBoard->PixelToGridXKeepOnBoard(mPosX, mPosY);
+        for (int row = mRow - 1; row <= mRow + 1; ++row)
+        {
+            if (!mBoard->RowCanHaveZombies(row)) continue;
+            int y = mBoard->GridToPixelY(col, row) + 55 - mY;
+            g->SetColor(Color(80, 175, 255, 130));
+            g->FillRect(-45, y - 30, 65, 45);
+            g->SetColor(Color(205, 245, 255, 230));
+            for (int i = 0; i < 4; ++i)
+            {
+                int x = -35 + i * 16;
+                int h = 22 + (i % 2) * 18;
+                g->DrawLine(x, y, x + 8, y - h);
+                g->DrawLine(x + 8, y - h, x + 16, y);
+            }
+        }
+        g->SetColor(old);
+        return;
+    }
+
 	const ProjectileDefinition& aProjectileDef = GetProjectileDef();
 
 	Image* aImage = nullptr;
@@ -1225,6 +1320,7 @@ void Projectile::Draw(Graphics* g)
 		TOD_ASSERT();
 	}
 
+    if (mRunHuntHitsLeft > 0) aScale *= 1.7f;
 	bool aMirror = false;
 	if (mMotionType == ProjectileMotion::MOTION_BEE_BACKWARDS)
 	{
@@ -1265,6 +1361,7 @@ void Projectile::Draw(Graphics* g)
 //0x46E8C0
 void Projectile::DrawShadow(Graphics* g)
 {
+    if (mRunLaunchDelay > 0 || mRunIceWave) return;
 	int aCelCol = 0;
 	float aScale = 1.0f;
 	float aStretch = 1.0f;

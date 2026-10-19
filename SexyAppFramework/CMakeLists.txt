@@ -85,12 +85,14 @@ source_group("Lawn\\Run\\Run Include" FILES ${Lawn__Run__Run_Include})
 set(Lawn__Run__Run_Source
     "../Lawn/Run/RunState.cpp"
     "../Lawn/Run/RunCheckpointIO.cpp"
+    "../Lawn/Run/RunHistory.cpp"
     "../Lawn/Run/RunBuffs.cpp"
     "../Lawn/Run/RunZombieRoster.cpp"
 )
 source_group("Lawn\\Run\\Run Source" FILES ${Lawn__Run__Run_Source})
 
 set(Lawn__System__System_Include
+    "../Lawn/System/BattleMusicState.h"
     "../Lawn/System/DataSync.h"
     "../Lawn/System/Music.h"
     "../Lawn/System/PlayerInfo.h"
@@ -104,6 +106,8 @@ set(Lawn__System__System_Include
 source_group("Lawn\\System\\System Include" FILES ${Lawn__System__System_Include})
 
 set(Lawn__System__System_Source
+    "../Lawn/System/BattleMusic.cpp"
+    "../Lawn/System/DamageStats.cpp"
     "../Lawn/System/DataSync.cpp"
     "../Lawn/System/Music.cpp"
     "../Lawn/System/PlayerInfo.cpp"

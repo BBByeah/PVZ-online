@@ -1417,10 +1417,16 @@ void Reanimation::UpdateAttacherTrack(int theTrackIndex)
 	if (aAttachReanim == nullptr || aAttachReanim->mReanimationType != aReanimationType)  // 如果原先没有附属动画，或原附属动画不是上述设定的动画
 	{
 		AttachmentDie(aTrackInstance->mAttachmentID);  // 清除原有附件
+		if (!gEffectSystem->mReanimationHolder->mReanimations.DataArrayCanAllocate()) return;
 		aAttachReanim = gEffectSystem->mReanimationHolder->AllocReanimation(0.0f, 0.0f, 0, aReanimationType);  // 重新创建一个指定的动画
 		aAttachReanim->mLoopType = aAttacherInfo.mLoopType;
 		aAttachReanim->mAnimRate = aAttacherInfo.mAnimRate;
-		AttachReanim(aTrackInstance->mAttachmentID, aAttachReanim, 0.0f, 0.0f);
+		if (AttachReanim(aTrackInstance->mAttachmentID, aAttachReanim, 0.0f, 0.0f) == nullptr)
+		{
+			// This node owns the newly created animation; retry after capacity is released.
+			aAttachReanim->ReanimationDie();
+			return;
+		}
 		mFrameBasePose = NO_BASE_POSE;  // 设定附属动画后，自身不再存在基准帧
 	}
 

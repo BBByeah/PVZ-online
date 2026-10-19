@@ -209,6 +209,9 @@ public:
     int                     mRunDispatchCursor;
     int                     mRunAliveTicks;
     int                     mRunGarlicCooldown;
+    // @pvz-online: per-plant purple ability cadence survives board snapshots.
+    int                     mRunPurpleShots;
+    int                     mRunSunCollectTicks;
     int                     mMineregrowsLeft;
     // @pvz-online: 大嘴花「Chain Bite」连锁吞（第二 buff 批 8，docs/06 §8.6 #6）：本次进食
     // 还能追咬的剩余次数（进入 BITING 时按词条层数记入；每次咬死目标后有僵尸可咬就 -1
@@ -243,6 +246,7 @@ public:
     static /*inline*/ bool  IsFlying(SeedType theSeedtype);
     static /*inline*/ bool  IsUpgrade(SeedType theSeedtype);
     void                    UpdateAbilities();
+    void                    UpdatePurpleBuffs();
     void                    Squish();
     void                    DoRowAreaDamage(int theDamage, unsigned int theDamageFlags);
     int                     GetDamageRangeFlags(PlantWeapon thePlantWeapon = PlantWeapon::WEAPON_PRIMARY);

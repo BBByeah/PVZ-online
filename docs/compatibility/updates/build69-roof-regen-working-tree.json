@@ -1,0 +1,31 @@
+{
+  "modBuild": 69,
+  "date": "2026-10-18",
+  "previousOverlay": "docs/compatibility/updates/build68-lobby-history-working-tree.json",
+  "includesPreviousUncommittedBuild": 68,
+  "checkpointVersion": 21,
+  "protocolVersion": 1,
+  "onlineGameReady": false,
+  "sourceState": "Shared uncommitted workspace. PC Release x86 and Android ARM64 native builds passed. 28 production-engine checks passed. PC runtime updated and main-menu startup visually verified. Android APK, full player packages and production deployment not performed.",
+  "changes": [
+    "Direct roof planting for Potato Mine, Spikeweed and compatible Spikerock placement/upgrades",
+    "Zombie body regeneration capped at 500 HP per effective stack per second",
+    "Zamboni run Boss base health factor raised from 6 to 7.5"
+  ],
+  "pcReport": "re-plants-vs-zombies/docs/ROOF-REGEN-BUILD69-2026-10-18.md",
+  "pending": [
+    "five-player full Boss game",
+    "physical Android runtime acceptance",
+    "full player package and fresh startup acceptance",
+    "production capacity and deployment"
+  ],
+  "localPCVerification": {
+    "build": 69,
+    "runtimeUpdated": true,
+    "gameOpenedForUser": true,
+    "savedGamesPreserved": true,
+    "record": "tools/audit/runtime69-deployment-result.json",
+    "androidInstalled": false,
+    "productionDeployed": false
+  }
+}

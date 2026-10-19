@@ -24,6 +24,8 @@
 #include "Cutscene.h"
 #include "Challenge.h"
 #include "SeedPacket.h"
+#include "Run/RunBuffs.h"
+#include "Run/RunState.h"
 #include "../LawnApp.h"
 #include "CursorObject.h"
 #include "../Resources.h"
@@ -674,17 +676,19 @@ void SeedPacket::Draw(Graphics* g)
 		{
 			aPercentDark = 0.0f;
 		}
-		else if ((!mBoard->CanTakeSunMoney(aCost) && aDrawCost) || aPercentDark > 1.0f || !mBoard->PlantingRequirementsMet(aUseSeedType))
+		else if ((mApp->AdmissionBuilding() && !CanPickUp()) || (!mBoard->CanTakeSunMoney(aCost) && aDrawCost) || aPercentDark > 1.0f || !mBoard->PlantingRequirementsMet(aUseSeedType))
 		{
 			aGrayness = 128;
 		}
 
 		DrawSeedPacket(g, mOffsetX, 0.0f, mPacketType, mImitaterType, aPercentDark, aGrayness, aDrawCost, true);
 	}
+	mBoard->DrawKeyboardHint(g, mIndex, mOffsetX + 4, 13);
 }
 
 bool SeedPacket::CanPickUp()
 {
+    if(mApp->AdmissionBuilding() && (mPacketType==SEED_CHERRYBOMB || mPacketType==SEED_JALAPENO || mPacketType==SEED_DOOMSHROOM || mPacketType==SEED_ICESHROOM || mPacketType==SEED_GRAVEBUSTER))return false;
 	if (mBoard->mPaused || mApp->mGameScene != GameScenes::SCENE_PLAYING || mPacketType == SeedType::SEED_NONE)
 	{
 		return false;
@@ -725,6 +729,7 @@ bool SeedPacket::CanPickUp()
 
 void SeedPacket::MouseDown([[maybe_unused]] int x, [[maybe_unused]] int y, [[maybe_unused]] int theClickCount)
 {
+    if(mApp->AdmissionBuilding() && !CanPickUp())return;
 	if (mBoard->mPaused || mApp->mGameScene != GameScenes::SCENE_PLAYING || mPacketType == SeedType::SEED_NONE)
 	{
 		return;
@@ -891,7 +896,14 @@ void SeedPacket::WasPlanted()
 	{
 		mTimesUsed++;
 		mRefreshing = true;
-		mRefreshTime = Plant::GetRefreshTime(mPacketType, mImitaterType);
+		// @pvz-online: 闯关：种植后冷却时长 ×全局「速种」（×0.8^层）× 单株升级因子（×0.75^层，
+		// 火爆辣椒/海蘑菇等冷却型；无该株条目/非闯关自动 1.0）× 闯关咖啡豆系数（×1.6，
+		// 2026-10-03 用户定案：7.5 秒 → 12 秒；改产阳光后原速太频繁。非闯关/别的植物 1.0，
+		// 模仿者解析到 mImitaterType，同 GetRefreshTime 规则）。修正批（2026-10-03）改走
+		// Kind 闸门口（Kind=COOLDOWN）——只有冷却型条目进得来，此前睡莲这类 +100% 行
+		// 会把睡莲自己的种植冷却 ×3。只乘这里的时长，
+		// SetPacketType 里那些拿 GetRefreshTime 原值做的档位判断（==5000/==3000）不动。
+		mRefreshTime = (int)(Plant::GetRefreshTime(mPacketType, mImitaterType) * mApp->RunBuffMul(RUN_BUFF_FASTSEED) * mApp->RunPlantUpgradeMulKind(mPacketType, RUN_UPGRADE_KIND_COOLDOWN) * mApp->RunCoffeeBeanRefreshMul(mPacketType, mImitaterType) + 0.5f);
 	}
 }
 
@@ -975,7 +987,7 @@ void SeedBank::Draw(Graphics* g)
 
 	if (!mBoard->HasConveyorBeltSeedBank())
 	{
-		std::string aMoneyLabel = std::to_string(std::max(mBoard->mSunMoney, 0));
+		std::string aMoneyLabel = std::to_string(std::max(mApp->AdmissionBuilding()?mApp->GetRunState()->mAdmission.budget:mBoard->mSunMoney,0));
 		Color aMoneyColor(0, 0, 0);
 		if (mBoard->mOutOfMoneyCounter > 0 && mBoard->mOutOfMoneyCounter % 20 < 10)
 		{

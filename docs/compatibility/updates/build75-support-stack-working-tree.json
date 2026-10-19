@@ -1,0 +1,20 @@
+{
+  "modBuild": 75,
+  "date": "2026-10-18",
+  "previousOverlay": "docs/compatibility/updates/build74-pool-safety-working-tree.json",
+  "includesPreviousUncommittedBuild": 74,
+  "checkpointVersion": 21,
+  "protocolVersion": 1,
+  "onlineGameReady": false,
+  "sourceState": "PC x86 Release and Android ARM64 native builds passed; 33 production-engine checks passed with actual resources. Runtime updated with saves preserved and Build75 launched.",
+  "changes": [
+    "Lily pad and flower pot can coexist on a tile, one of each, with normal occupancy and terrain checks",
+    "Identify both supports independently for roof and water planting; newest support is exposed for shovel, bite and bungee",
+    "Support rendering order and height follow actual stacking; existing serialized render order preserves stack on reload",
+    "Cattail upgrade removes lily instead of an upper pot"
+  ],
+  "pending": [
+    "Full multiplayer and Android installation/visual acceptance"
+  ],
+  "pcReport": "re-plants-vs-zombies/docs/SUPPORT-STACK-BUILD75-2026-10-18.md"
+}

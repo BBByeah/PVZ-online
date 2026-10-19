@@ -20,6 +20,8 @@
  */
 
 #include "../Board.h"
+#include "../ModText.h"
+#include "widget/ButtonWidget.h"
 #include "GameButton.h"
 #include "../Cutscene.h"
 #include "AlmanacDialog.h"
@@ -28,6 +30,13 @@
 #include "../System/Music.h"
 #include "../../Resources.h"
 #include "NewOptionsDialog.h"
+#ifdef __ANDROID__
+#include <SDL.h>
+#endif
+#include "OnlineUiDraw.h"
+#include "../CoopPlay.h"
+#include "../Online/NetSession.h"
+#include "widget/WidgetManager.h"
 #include "../../ConstEnums.h"
 #include "../../PvzpLib/PvzpFoley.h"
 #include "widget/Slider.h"
@@ -36,6 +45,28 @@
 
 using namespace Sexy;
 
+namespace
+{
+class OptionsHelpButton final : public LawnStoneButton
+{
+public:
+    OptionsHelpButton(int id, ButtonListener* listener) : LawnStoneButton(nullptr, id, listener)
+    {
+        SetLabel(ModText::Tr("帮助", "Help"));
+        mHasAlpha = true;
+        mHasTransparencies = true;
+    }
+
+    void Draw(Graphics* graphics) override
+    {
+        if (mBtnNoDraw) return;
+        const bool pressed = (mIsDown && mIsOver && !mDisabled) ^ mInverted;
+        SeatUi::Button(graphics, Rect(0, 0, mWidth, mHeight), mLabel.c_str(),
+            !mDisabled, pressed, mIsOver && !mDisabled);
+    }
+};
+}
+
 NewOptionsDialog::NewOptionsDialog(LawnApp* theApp, bool theFromGameSelector) :
 	Dialog(nullptr, nullptr, Dialogs::DIALOG_NEWOPTIONS, true, "Options", "", "", Dialog::BUTTONS_NONE)
 {
@@ -43,8 +74,9 @@ NewOptionsDialog::NewOptionsDialog(LawnApp* theApp, bool theFromGameSelector) :
 	mFromGameSelector = theFromGameSelector;
 	SetButtonTextColor(Color(255, 255, 100));
 	mAlmanacButton = MakeButton(NewOptionsDialog::NewOptionsDialog_Almanac, this, "[VIEW_ALMANAC_BUTTON]");
-	mRestartButton = MakeButton(NewOptionsDialog::NewOptionsDialog_Restart, this, "[RESTART_LEVEL]");
+	mRestartButton = MakeButton(NewOptionsDialog::NewOptionsDialog_Restart, this, "[RESTART_LEVEL_BUTTON]");
 	mBackToMainButton = MakeButton(NewOptionsDialog::NewOptionsDialog_MainMenu, this, "[MAIN_MENU_BUTTON]");
+    mHelpButton = std::make_unique<OptionsHelpButton>(NewOptionsDialog_Help, this);
 
 	mBackToGameButton = MakeNewButton(
 		Dialog::ID_OK,
@@ -76,7 +108,12 @@ NewOptionsDialog::NewOptionsDialog(LawnApp* theApp, bool theFromGameSelector) :
 
 	mFullscreenCheckbox = MakeNewCheckbox(NewOptionsDialog::NewOptionsDialog_Fullscreen, this, !theApp->mIsWindowed);
 	mHardwareAccelerationCheckbox = MakeNewCheckbox(NewOptionsDialog::NewOptionsDialog_HardwareAcceleration, this, theApp->Is3DAccelerated());
+#ifdef __ANDROID__
+	// Android always renders through GLES.
+	mHardwareAccelerationCheckbox->SetVisible(false);
+#endif
 
+	if (mApp->IsOnlineGame()) mRestartButton->SetVisible(false);
 	if (mFromGameSelector)
 	{
 		mRestartButton->SetVisible(false);
@@ -129,10 +166,12 @@ void NewOptionsDialog::AddedToManager(Sexy::WidgetManager* theWidgetManager)
 	AddWidget(mHardwareAccelerationCheckbox.get());
 	AddWidget(mFullscreenCheckbox.get());
 	AddWidget(mBackToGameButton.get());
+    AddWidget(mHelpButton.get());
 }
 
 void NewOptionsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
 {
+    if (mApp->mMusic) mApp->mMusic->StopMusicPreview();
 	Dialog::RemovedFromManager(theWidgetManager);
 	RemoveWidget(mAlmanacButton.get());
 	RemoveWidget(mMusicVolumeSlider.get());
@@ -142,11 +181,34 @@ void NewOptionsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
 	RemoveWidget(mBackToMainButton.get());
 	RemoveWidget(mBackToGameButton.get());
 	RemoveWidget(mRestartButton.get());
+    RemoveWidget(mHelpButton.get());
 }
 
 void NewOptionsDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 {
+    if (mRunInfoOpen || mMusicOpen || mRunSettingsOpen) { Dialog::Resize(theX, theY, theWidth, theHeight); return; }
 	Dialog::Resize(theX, theY, theWidth, theHeight);
+    if (!mFromGameSelector) {
+        mMusicVolumeSlider->Resize(300, 112, 200, 40);
+        mSfxVolumeSlider->Resize(300, 156, 200, 40);
+        mHardwareAccelerationCheckbox->Resize(224, 202, 46, 45);
+        mFullscreenCheckbox->Resize(498, 202, 46, 45);
+#ifdef __ANDROID__
+        mFullscreenCheckbox->mX = 342;
+#endif
+        mAlmanacButton->Resize(54, 326, 234, 46);
+        mRestartButton->Resize(312, 326, 234, 46);
+        if (mAlmanacButton->mVisible != mRestartButton->mVisible) {
+            mAlmanacButton->mX = 183;
+            mRestartButton->mX = 183;
+        }
+        mBackToMainButton->Resize(54, 386, 492, 46);
+        mBackToGameButton->Resize((mWidth - IMAGE_OPTIONS_BACKTOGAMEBUTTON0->mWidth) / 2,
+            438, IMAGE_OPTIONS_BACKTOGAMEBUTTON0->mWidth, IMAGE_OPTIONS_BACKTOGAMEBUTTON0->mHeight);
+        const Rect help = RunInfoEntryRect();
+        mHelpButton->Resize(help.mX, help.mY, help.mWidth, help.mHeight);
+        return;
+    }
 	mMusicVolumeSlider->Resize(199, 116, 135, 40);
 	mSfxVolumeSlider->Resize(199, 143, 135, 40);
 	mHardwareAccelerationCheckbox->Resize(283, 175, 46, 45);
@@ -155,6 +217,8 @@ void NewOptionsDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 	mRestartButton->Resize(mAlmanacButton->mX, mAlmanacButton->mY + 43, 209, 46);
 	mBackToMainButton->Resize(mRestartButton->mX, mRestartButton->mY + 43, 209, 46);
 	mBackToGameButton->Resize(30, 381, mBackToGameButton->mWidth, mBackToGameButton->mHeight);
+    const Rect help = RunInfoEntryRect();
+    mHelpButton->Resize(help.mX, help.mY, help.mWidth, help.mHeight);
 
 	if (mFromGameSelector)
 	{
@@ -172,15 +236,50 @@ void NewOptionsDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 
 void NewOptionsDialog::Draw(Sexy::Graphics* g)
 {
+    if (mMusicOpen) { mMusicView.Draw(g, mRunInfoDown); return; }
+    if (mRunSettingsOpen) {
+        mRunSettingsView.Draw(g, mApp->GetRunState(), mApp->IsOnlineGame(), mRunInfoDown);
+        return;
+    }
+    if (mRunInfoOpen) { DrawRunInfo(g); return; }
+    if (!mFromGameSelector) {
+        SeatUi::Panel(g, Rect(0, 0, mWidth, mHeight));
+        PvzpDrawString(g, ModText::Tr("菜单", "Game Menu"), mWidth / 2, 64,
+            FONT_DWARVENTODCRAFT24, Color(245, 230, 165), DS_ALIGN_CENTER);
+        PvzpDrawString(g, ModText::Tr("音乐音量", "Music Volume"), 274, 138,
+            FONT_DWARVENTODCRAFT18, Color(245, 230, 165), DS_ALIGN_RIGHT);
+        PvzpDrawString(g, ModText::Tr("音效音量", "Sound Volume"), 274, 182,
+            FONT_DWARVENTODCRAFT18, Color(245, 230, 165), DS_ALIGN_RIGHT);
+#ifndef __ANDROID__
+        PvzpDrawString(g, ModText::Tr("3D 加速", "3D"), 212, 228,
+            FONT_DWARVENTODCRAFT18, Color(245, 230, 165), DS_ALIGN_RIGHT);
+#endif
+#ifdef __ANDROID__
+        const int fullscreenLabelX = 330;
+#else
+        const int fullscreenLabelX = 486;
+#endif
+        PvzpDrawString(g, ModText::Tr("全屏", "Full Screen"), fullscreenLabelX, 228,
+            FONT_DWARVENTODCRAFT18, Color(245, 230, 165), DS_ALIGN_RIGHT);
+        SeatUi::Button(g, MusicEntryRect(), ModText::Tr("音乐", "Music"), true, mMusicEntryDown);
+        if (mApp->IsRunMode())
+            SeatUi::Button(g, RunSettingsEntryRect(), ModText::Tr("开局设定", "Setup"), true, mRunSettingsEntryDown);
+        if (mApp->mOnlineSession && mApp->mOnlineSession->IsPausedByPeer())
+            PvzpDrawString(g, ModText::Tr("队友暂停了游戏", "Teammate paused the game"), mWidth / 2, 96,
+                FONT_DWARVENTODCRAFT18, Color(255, 220, 100), DS_ALIGN_CENTER);
+        else if (mApp->mBoard && mApp->mBoard->mKeyboardControlsUsed && mApp->mBoard->HasPlantKeyboardControls())
+            PvzpDrawString(g, ModText::Tr("1-9/0 选卡  Q 铲子  H/J 血量", "1-9/0 Cards  Q Shovel  H/J Health"),
+                mWidth / 2, 96, ModText::FontFor(FONT_DWARVENTODCRAFT18, 16),
+                Color(205, 205, 190), DS_ALIGN_CENTER);
+        return;
+    }
 	g->DrawImage(IMAGE_OPTIONS_MENUBACK, 0, 0);
 
-	int aMusicOffset = 0;
 	int aSfxOffset = 0;
 	int a3DAccelOffset = 0;
 	int aFullScreenOffset = 0;
 	if (mFromGameSelector)
 	{
-		aMusicOffset = 5;
 		aSfxOffset = 10;
 		a3DAccelOffset = 15;
 		aFullScreenOffset = 20;
@@ -192,12 +291,23 @@ void NewOptionsDialog::Draw(Sexy::Graphics* g)
 	float aFontScale = static_cast<float>(mApp->GetDouble("OPTION_DLG_LABEL_FONT_SCALE", 1.0));
 	if (aFontScale != 1.0f)
 		g->SetScale(aFontScale, aFontScale, 0.0f, 0.0f);
-	PvzpDrawString(g, mApp->GetString("OPTIONS_MUSIC_LABEL", "Music"), aSliderLabelsX, 140 + aMusicOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 	PvzpDrawString(g, mApp->GetString("OPTIONS_SOUNDFX", "Sound FX"), aSliderLabelsX, 167 + aSfxOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
+#ifndef __ANDROID__
 	PvzpDrawString(g, mApp->GetString("OPTIONS_3D_ACCELERATION", "3D Acceleration"), aCheckboxLabelsX, 197 + a3DAccelOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
+#endif
 	PvzpDrawString(g, mApp->GetString("OPTIONS_FULL_SCREEN", "Full Screen"), aCheckboxLabelsX, 229 + aFullScreenOffset, FONT_DWARVENTODCRAFT18, aTextColor, DrawStringJustification::DS_ALIGN_RIGHT);
 	if (aFontScale != 1.0f)
 		g->SetScale(1.0f, 1.0f, 0.0f, 0.0f);
+    SeatUi::Button(g, MusicEntryRect(), ModText::Tr("音乐", "Music"), true, mMusicEntryDown);
+    if (mApp->IsRunMode())
+        SeatUi::Button(g, RunSettingsEntryRect(), ModText::Tr("开局设定", "Setup"), true, mRunSettingsEntryDown);
+    if (!mFromGameSelector && mApp->mBoard && mApp->mBoard->mKeyboardControlsUsed &&
+        mApp->mBoard->HasPlantKeyboardControls())
+    {
+        PvzpDrawString(g, ModText::Tr("1-9/0 选卡  Q 铲子  H/J 血量", "1-9/0 Cards  Q Shovel  H/J Health"),
+            mWidth / 2, 106, ModText::FontFor(FONT_DWARVENTODCRAFT18, 16),
+            aTextColor, DrawStringJustification::DS_ALIGN_CENTER);
+    }
 }
 
 void NewOptionsDialog::SliderVal(int theId, double theVal)
@@ -282,6 +392,34 @@ void NewOptionsDialog::CheckboxChecked(int theId, bool checked)
 
 void NewOptionsDialog::KeyDown(Sexy::KeyCode theKey)
 {
+    if (mWidgetManager && mWidgetManager->mIsKeyRepeat &&
+        (theKey == KEYCODE_ESCAPE || theKey == KEYCODE_SPACE || theKey == KEYCODE_RETURN)) return;
+    if (mMusicOpen) {
+        if (theKey == KeyCode::KEYCODE_ESCAPE) CloseRunInfo();
+        else if (theKey == KeyCode::KEYCODE_PRIOR || theKey == KeyCode::KEYCODE_LEFT ||
+            theKey == KeyCode::KEYCODE_NEXT || theKey == KeyCode::KEYCODE_RIGHT) {
+            mMusicView.Flip(theKey == KeyCode::KEYCODE_NEXT || theKey == KeyCode::KEYCODE_RIGHT ? 1 : -1);
+            MarkDirty();
+        }
+        return;
+    }
+    if (mRunSettingsOpen) {
+        if (theKey == KeyCode::KEYCODE_ESCAPE) CloseRunInfo();
+        else if (theKey == KeyCode::KEYCODE_PRIOR || theKey == KeyCode::KEYCODE_LEFT ||
+            theKey == KeyCode::KEYCODE_NEXT || theKey == KeyCode::KEYCODE_RIGHT) {
+            mRunSettingsView.Flip(theKey == KeyCode::KEYCODE_NEXT || theKey == KeyCode::KEYCODE_RIGHT ? 1 : -1,
+                mApp->GetRunState());
+            MarkDirty();
+        }
+        return;
+    }
+    if (mRunInfoOpen) {
+        if (theKey == KeyCode::KEYCODE_PRIOR || theKey == KeyCode::KEYCODE_LEFT ||
+            theKey == KeyCode::KEYCODE_NEXT || theKey == KeyCode::KEYCODE_RIGHT)
+            RunInfoFlipPage(theKey == KeyCode::KEYCODE_NEXT || theKey == KeyCode::KEYCODE_RIGHT ? 1 : -1);
+        else if (theKey == KeyCode::KEYCODE_ESCAPE) CloseRunInfo();
+        return;
+    }
 	if (mApp->mBoard)
 	{
 		mApp->mBoard->DoTypingCheck(theKey);
@@ -304,6 +442,8 @@ void NewOptionsDialog::ButtonPress([[maybe_unused]] int theId)
 
 void NewOptionsDialog::ButtonDepress(int theId)
 {
+    if (mMusicOpen || mRunInfoOpen || mRunSettingsOpen) return;
+    if (theId == NewOptionsDialog_Help) { OpenRunInfo(); return; }
 	Dialog::ButtonDepress(theId);
 
 	switch (theId)
@@ -387,4 +527,229 @@ void NewOptionsDialog::ButtonDepress(int theId)
 		mApp->CheckForUpdates();
 		break;
 	}
+}
+
+
+bool NewOptionsDialog::RunInfoAvailable() { return true; }
+Sexy::Rect NewOptionsDialog::RunInfoEntryRect() {
+    if (!mFromGameSelector) return Rect(mApp->IsRunMode() ? 390 : 312, 264, 156, 46);
+    return Rect(ModText::IsChinese() ? 96 : 50, 226, 76, 34);
+}
+void NewOptionsDialog::RunInfoFlipPage(int delta) {
+    mRunInfoView.Flip(delta, mApp->IsRunMode() ? mApp->GetRunState() : nullptr);
+    MarkDirty();
+}
+void NewOptionsDialog::MouseDown(int x, int y, int theClickCount) {
+    if (mRunSettingsOpen) {
+        mRunInfoDown = theClickCount > 0 ? mRunSettingsView.Hit(x, y, mApp->GetRunState()) : -1;
+        MarkDirty();
+        return;
+    }
+    if (mMusicOpen) {
+        mRunInfoDown = theClickCount > 0 ? mMusicView.Hit(x, y) : -1;
+        MarkDirty();
+        return;
+    }
+    if (mRunInfoOpen) {
+        mRunInfoDown = theClickCount > 0 ? mRunInfoView.Hit(x, y,
+            mApp->IsRunMode() ? mApp->GetRunState() : nullptr, mApp->mBoard != nullptr, mApp->IsOnlineGame()) : -1;
+        MarkDirty();
+        return;
+    }
+    if (theClickCount > 0 && mApp->IsRunMode() && RunSettingsEntryRect().Contains(x, y)) {
+        mRunSettingsEntryDown = true;
+        MarkDirty();
+        return;
+    }
+    if (theClickCount > 0 && MusicEntryRect().Contains(x, y)) {
+        mMusicEntryDown = true;
+        MarkDirty();
+        return;
+    }
+    Dialog::MouseDown(x, y, theClickCount);
+}
+void NewOptionsDialog::MouseUp(int x, int y, int theClickCount) {
+    if (mRunSettingsOpen) {
+        const int action = mRunInfoDown;
+        mRunInfoDown = -1;
+        if (theClickCount > 0 && action >= 0 && action == mRunSettingsView.Hit(x, y, mApp->GetRunState())) {
+            if (action == 100) CloseRunInfo();
+            else mRunSettingsView.Act(action, mApp->GetRunState());
+        }
+        MarkDirty();
+        return;
+    }
+    if (mMusicOpen) {
+        const int action = mRunInfoDown;
+        mRunInfoDown = -1;
+        if (theClickCount > 0 && action >= 0 && action == mMusicView.Hit(x, y)) MusicAction(action);
+        MarkDirty();
+        return;
+    }
+    if (!mRunInfoOpen) {
+        bool music = mMusicEntryDown && theClickCount > 0 && MusicEntryRect().Contains(x, y);
+        const bool settings = mRunSettingsEntryDown && theClickCount > 0 && RunSettingsEntryRect().Contains(x, y);
+        const bool entryPressed = mMusicEntryDown || mRunSettingsEntryDown;
+        mMusicEntryDown = false;
+        mRunSettingsEntryDown = false;
+        MarkDirty();
+        if (settings) OpenRunSettings();
+        else if (music) OpenMusic();
+        else if (!entryPressed) Dialog::MouseUp(x, y, theClickCount);
+        return;
+    }
+    auto* run = mApp->IsRunMode() ? mApp->GetRunState() : nullptr;
+    int action = mRunInfoDown;
+    mRunInfoDown = -1;
+    if (theClickCount <= 0 || action < 0 ||
+        action != mRunInfoView.Hit(x, y, run, mApp->mBoard != nullptr, mApp->IsOnlineGame())) return;
+    if (action == 100) { CloseRunInfo(); return; }
+    if (const char* url = RunInfoView::CreatorUrl(action)) {
+#ifdef __ANDROID__
+        const bool opened = SDL_OpenURL(url) == 0;
+#else
+        const bool opened = mApp->OpenURL(url, false);
+#endif
+        if (!opened) mApp->LawnMessageBox(DIALOG_MESSAGE, ModText::Tr("打开链接", "Open link"),
+            ModText::Tr("无法打开浏览器，请使用页面显示的网址。", "Could not open a browser. Use the URL shown on this page."), "OK", "", Dialog::BUTTONS_FOOTER);
+        return;
+    }
+    mRunInfoView.Act(action, run);
+    if (action == 500) {
+#ifdef __ANDROID__
+        if (!ModText::SetLanguageSetting((ModText::GetLanguageSetting() + 1) % 3))
+            mApp->LawnMessageBox(DIALOG_MESSAGE, ModText::Tr("保存失败", "Save failed"),
+                ModText::Tr("无法保存语言选项。", "Cannot save language."), "OK", "", Dialog::BUTTONS_FOOTER);
+#else
+        ModText::SetLanguageSetting((ModText::GetLanguageSetting() + 1) % 3);
+#endif
+    }
+    if (action == 501 && mApp->mBoard) mApp->mBoard->SetPlantHealthVisible(!mApp->mBoard->PlantHealthVisible());
+    if (action == 502 && mApp->mBoard) mApp->mBoard->SetZombieHealthVisible(!mApp->mBoard->ZombieHealthVisible());
+    if (action == 503) {
+        bool next = !mApp->mSlideCollect;
+#ifdef __ANDROID__
+        bool saved = ModText::SaveSlideCollect(next);
+#else
+        bool saved = ModText::RegWriteDword("ModSlideCollect", next ? 1 : 0);
+#endif
+        if (saved) mApp->mSlideCollect = next;
+        else mApp->LawnMessageBox(DIALOG_MESSAGE, ModText::Tr("保存失败", "Save failed"),
+            ModText::Tr("无法保存划取选项。", "Cannot save collection setting."), "OK", "", Dialog::BUTTONS_FOOTER);
+    }
+    if (action == 504) { CloseRunInfo(); mApp->ShowCoopPlay(); return; }
+    MarkDirty();
+}
+void NewOptionsDialog::LostFocus() {
+    mMusicEntryDown = false;
+    mRunSettingsEntryDown = false;
+    if (mMusicOpen && mApp->mMusic) {
+        mApp->mMusic->StopMusicPreview();
+        mMusicView.mStatus.clear();
+        mMusicView.mError = false;
+    }
+    mRunInfoDown = -1;
+    Dialog::LostFocus();
+}
+void NewOptionsDialog::MouseWheel(int delta) {
+    if (mRunSettingsOpen) {
+        if (delta) mRunSettingsView.Flip(delta < 0 ? 1 : -1, mApp->GetRunState());
+        MarkDirty();
+        return;
+    }
+    if (mMusicOpen) { if (delta) mMusicView.Flip(delta < 0 ? 1 : -1); MarkDirty(); return; }
+    if (mRunInfoOpen) { if (delta) RunInfoFlipPage(delta < 0 ? 1 : -1); return; }
+    Dialog::MouseWheel(delta);
+}
+void NewOptionsDialog::DrawRunInfo(Sexy::Graphics* graphics) {
+#ifdef __ANDROID__
+    std::string language = ModText::SettingName();
+#else
+    const char* languages[] = {ModText::Tr("自动", "Auto"), ModText::Tr("中文", "Chinese"), "English"};
+    std::string language = languages[ModText::GetLanguageSetting()];
+#endif
+    mRunInfoView.Draw(graphics, mApp->IsRunMode() ? mApp->GetRunState() : nullptr,
+        mApp->mBoard != nullptr, mApp->IsOnlineGame(),
+        mApp->mBoard && mApp->mBoard->PlantHealthVisible(),
+        mApp->mBoard && mApp->mBoard->ZombieHealthVisible(), mApp->mSlideCollect, language, mRunInfoDown);
+}
+
+Sexy::Rect NewOptionsDialog::MusicEntryRect() {
+    if (!mFromGameSelector) return Rect(mApp->IsRunMode() ? 54 : 132, 264, 156, 46);
+    return Rect(94, 117, 96, 34);
+}
+void NewOptionsDialog::OpenMusic() {
+    if (!mApp->mMusic || mMusicOpen || mRunInfoOpen || mRunSettingsOpen) return;
+    mApp->mMusic->LoadBattleMusicSettings();
+    mMusicView = MusicSelectionView();
+    mMusicView.mTune = mApp->mBattleMusic.mSelectedTune;
+    mMusicView.mBossMusic = mApp->mBattleMusic.mBossMusic;
+    mMusicView.mPage = mMusicView.mTune > 6 ? 1 : 0;
+    OpenOptionsPage(true);
+}
+void NewOptionsDialog::MusicAction(int action) {
+    if (action == 100) { CloseRunInfo(); return; }
+    if (action == 201) {
+        const bool playing = mApp->mMusic->StartMusicPreview(static_cast<MusicTune>(mMusicView.mTune));
+        mMusicView.mError = !playing;
+        mMusicView.mStatus = playing ? ModText::Tr("正在试听；返回或应用结束试听。", "Previewing. Back or Apply ends preview.") :
+            ModText::Tr("音乐暂不可用；请检查音乐音量与资源。", "Music unavailable. Check music volume and resources.");
+    } else if (action == 202) {
+        const bool saved = mApp->mMusic->SaveBattleMusicSettings(mMusicView.mTune, mMusicView.mBossMusic);
+        mMusicView.mError = !saved;
+        mMusicView.mStatus = saved ? ModText::Tr("已应用，仅本机战斗生效。", "Applied to battles on this device.") :
+            ModText::Tr("保存失败，原设置未更改。", "Save failed. Previous settings are unchanged.");
+    } else {
+        mMusicView.mStatus.clear();
+        mMusicView.mError = false;
+        if (action == 200 || (action >= 300 && action < 306)) {
+            mApp->mMusic->StopMusicPreview();
+            mMusicView.mTune = action == 200 ? 0 : mMusicView.mPage * 6 + action - 299;
+        }
+        if (action == 203) mMusicView.mBossMusic = !mMusicView.mBossMusic;
+        if (action == 204 || action == 205) mMusicView.Flip(action == 204 ? -1 : 1);
+    }
+}
+void NewOptionsDialog::OpenRunInfo() {
+    OpenOptionsPage(false);
+}
+Sexy::Rect NewOptionsDialog::RunSettingsEntryRect() {
+    if (!mFromGameSelector) return Rect(222, 264, 156, 46);
+    return Rect(96, 185, 112, 34);
+}
+void NewOptionsDialog::OpenRunSettings() {
+    if (mApp->IsRunMode()) OpenOptionsPage(false, true);
+}
+void NewOptionsDialog::OpenOptionsPage(bool music, bool settings) {
+    if (mRunInfoOpen || mMusicOpen || mRunSettingsOpen) return;
+    Sexy::Widget* widgets[] = {mMusicVolumeSlider.get(), mSfxVolumeSlider.get(), mFullscreenCheckbox.get(), mHardwareAccelerationCheckbox.get(), mAlmanacButton.get(), mRestartButton.get(), mBackToMainButton.get(), mBackToGameButton.get(), mHelpButton.get()};
+    for (int index = 0; index < 9; ++index) {
+        mRunInfoWidgetVis[index] = widgets[index]->mVisible;
+        widgets[index]->SetVisible(false);
+    }
+    mOptionsRect = Sexy::Rect(mX, mY, mWidth, mHeight);
+    mRunInfoOpen = !music && !settings;
+    mMusicOpen = music;
+    mRunSettingsOpen = settings;
+    mMusicEntryDown = false;
+    mRunSettingsEntryDown = false;
+    mRunInfoDown = -1;
+    mRunInfoView = RunInfoView();
+    mRunSettingsView = RunSettingsView();
+    Dialog::Resize(20, 20, 760, 560);
+    if (mWidgetManager) mWidgetManager->SetFocus(this);
+    MarkDirty();
+}
+void NewOptionsDialog::CloseRunInfo() {
+    if (!mRunInfoOpen && !mMusicOpen && !mRunSettingsOpen) return;
+    if (mMusicOpen && mApp->mMusic) mApp->mMusic->StopMusicPreview();
+    Sexy::Widget* widgets[] = {mMusicVolumeSlider.get(), mSfxVolumeSlider.get(), mFullscreenCheckbox.get(), mHardwareAccelerationCheckbox.get(), mAlmanacButton.get(), mRestartButton.get(), mBackToMainButton.get(), mBackToGameButton.get(), mHelpButton.get()};
+    for (int index = 0; index < 9; ++index)
+        widgets[index]->SetVisible(mRunInfoWidgetVis[index]);
+    mRunInfoOpen = false;
+    mMusicOpen = false;
+    mRunSettingsOpen = false;
+    mRunInfoDown = -1;
+    Dialog::Resize(mOptionsRect.mX, mOptionsRect.mY, mOptionsRect.mWidth, mOptionsRect.mHeight);
+    MarkDirty();
 }

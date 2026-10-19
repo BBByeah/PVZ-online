@@ -1,0 +1,17 @@
+{
+  "modBuild": 61,
+  "date": "2026-10-17",
+  "previousOverlay": "docs/compatibility/updates/build60-firstwave-range-working-tree.json",
+  "sourceState": "uncommitted implementation; PC and Android native builds and focused PC/wire probes passed; no full game, mobile runtime, visual acceptance, packaging or deployment",
+  "checkpointVersion": 18,
+  "protocolVersion": 1,
+  "startLevelPayloadBytes": 43,
+  "onlineGameReady": false,
+  "changes": [
+    "Split ID5 hard-control immunity from appended ID8 soft-control duration resistance, max one each, excluded from both ballot candidate paths once acquired.",
+    "All marked run bosses accept half-duration slows; buff and boss resistance do not multiply. Include vehicle translation and all direct slow-counter consumers.",
+    "Marked/relayed Football bosses ignore Ghostwalk and still stop to chew plants with existing bite damage.",
+    "Share nine-stack array count across wire/checkpoint/game state, allow new vote ID8, keep readyEpoch aligned and preserve old v14..17 progress through v18 migration."
+  ],
+  "report": "docs/CONTROL-SPLIT-BUILD61-2026-10-17.md"
+}

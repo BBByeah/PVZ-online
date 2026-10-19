@@ -1,3 +1,7 @@
+#include "MobileCoopDraw.h"
+#include "RunInfoView.h"
+#include "../Run/RunBuffs.h"
+#include <vector>
 /*
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
@@ -35,6 +39,19 @@
 #include "../System/ReanimationLawn.h"
 #include "../../PvzpLib/PvzpStringFile.h"
 #include "widget/WidgetManager.h"
+
+static Rect AlmanacEntryArrow(bool right) { return Rect(right ? 562 : 222, 552, 90, 44); }
+
+static std::vector<int> MobileAlmanacEntries(SeedType seed)
+{
+    std::vector<int> entries;
+    int first=RunPlantUpgradeIndexFor(seed);
+    if(first>=0 && RunPlantUpgradeInPool(seed)) entries.push_back(RUN_BUFF_COUNT+first);
+    for(int i=0;i<RUN_PLANT_BUFF2_COUNT;++i)
+        if(GetRunPlantBuff2Def(i).mPlant==seed && RunPlantBuff2InPool(i))
+            entries.push_back(RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT+i);
+    return entries;
+}
 
 bool gZombieDefeated[NUM_ZOMBIE_TYPES] = { false };
 
@@ -139,6 +156,7 @@ void AlmanacDialog::RemovedFromManager(WidgetManager* theWidgetManager)
 void AlmanacDialog::SetupPlant()
 {
 	ClearPlantsAndZombies();
+    Plant::PreloadPlantResources(mSelectedSeed);
 
 	float aPosX = ALMANAC_PLANT_POSITION_X;
 	float aPosY = ALMANAC_PLANT_POSITION_Y;
@@ -159,6 +177,7 @@ void AlmanacDialog::SetupPlant()
 void AlmanacDialog::SetupZombie()
 {
 	ClearPlantsAndZombies();
+    Zombie::PreloadZombieResources(mSelectedZombie);
 
 	mZombie = std::make_unique<Zombie>();
 	mZombie->mBoard = nullptr;
@@ -279,26 +298,15 @@ void AlmanacDialog::DrawPlants(Graphics* g)
 	PvzpDrawString(g, "[SUBURBAN_ALMANAC_PLANTS]", BOARD_WIDTH / 2, 48, Sexy::FONT_HOUSEOFTERROR20, Color(213, 159, 43), DrawStringJustification::DS_ALIGN_CENTER);
 
 	SeedType aSeedMouseOn = SeedHitTest(mApp->mWidgetManager->mLastMouseX, mApp->mWidgetManager->mLastMouseY);
-	for (SeedType aSeedType = SeedType::SEED_PEASHOOTER; aSeedType < NUM_ALMANAC_SEEDS; aSeedType = (SeedType)(aSeedType + 1))
-	{
-		int aPosX, aPosY;
-		GetSeedPosition(aSeedType, aPosX, aPosY);
-		if (mApp->HasSeedType(aSeedType))
-		{
-			if (aSeedType == SeedType::SEED_IMITATER)
-			{
-				if (aSeedType == aSeedMouseOn)
-					g->DrawImage(Sexy::IMAGE_ALMANAC_IMITATER, aPosX, aPosY);
-				g->DrawImage(Sexy::IMAGE_ALMANAC_IMITATER, aPosX, aPosY);
-			}
-			else
-			{
-				DrawSeedPacket(g, aPosX, aPosY, aSeedType, SeedType::SEED_NONE, 0, 255, true, false);
-				if (aSeedType == aSeedMouseOn)
-					g->DrawImage(Sexy::IMAGE_SEEDPACKETFLASH, aPosX, aPosY);
-			}
-		}
-	}
+    // @pvz-online: encyclopedia discovery is independent of battle plant ownership.
+    for(int seed=SEED_PEASHOOTER;seed<NUM_ALMANAC_SEEDS;++seed) {
+        auto type=(SeedType)seed;int x,y;GetSeedPosition(type,x,y);
+        if(type==SEED_IMITATER)g->DrawImage(Sexy::IMAGE_ALMANAC_IMITATER,x,y);
+        else {
+            DrawSeedPacket(g,x,y,type,SEED_NONE,0,255,true,false);
+            if(type==aSeedMouseOn)g->DrawImage(Sexy::IMAGE_SEEDPACKETFLASH,x,y);
+        }
+    }
 
 	if (mSelectedSeed == SeedType::SEED_LILYPAD || mSelectedSeed == SeedType::SEED_TANGLEKELP ||
 		mSelectedSeed == SeedType::SEED_CATTAIL || mSelectedSeed == SeedType::SEED_SEASHROOM)
@@ -336,12 +344,53 @@ void AlmanacDialog::DrawPlants(Graphics* g)
 	std::string aName = Plant::GetNameString(mSelectedSeed, SEED_NONE);
 	std::string aDescriptionName = std::format("[{}_DESCRIPTION]", aPlantDef.mPlantName);
 	PvzpDrawString(g, aName, 617, 288, Sexy::FONT_DWARVENTODCRAFT18YELLOW, Color::White, DS_ALIGN_CENTER);
-	PvzpDrawStringWrapped(g, aDescriptionName, Rect(485, 309, 258, 230), Sexy::FONT_BRIANNETOD12, Color(40, 50, 90), DS_ALIGN_LEFT);
+
+    auto entries = MobileAlmanacEntries(mSelectedSeed);
+    std::string description(PvzpStringTranslate(aDescriptionName));
+    for (size_t begin = description.find('{'); begin != std::string::npos; begin = description.find('{')) {
+        size_t end = description.find('}', begin);
+        if (end == std::string::npos) break;
+        description.erase(begin, end - begin + 1);
+    }
+    auto introLines = RunInfoView::Wrap(description, 258, 18);
+    std::vector<std::vector<std::string>> pages;
+    std::vector<std::string> summary;
+    for (int index = 0; index < std::min(3, static_cast<int>(introLines.size())); ++index)
+        summary.push_back(introLines[index] + (index == 2 && introLines.size() > 3 ? "..." : ""));
+    summary.push_back(ModText::Tr("可获得词条（非本局）", "Available boosts (not owned)"));
+    if (entries.empty()) summary.push_back(ModText::Tr("暂无可获得词条", "No available boosts"));
+    else for (int index = 0; index < std::min(3, static_cast<int>(entries.size())); ++index)
+        summary.push_back(GetRunChoiceDisplayName(entries[index]));
+    summary.push_back(ModText::Tr("翻页查看完整说明与词条", "Next: full info and boosts"));
+    pages.push_back(summary);
+    auto appendPages = [&](const std::string& title, const std::vector<std::string>& lines) {
+        for (int first = 0; first < std::max(1, static_cast<int>(lines.size())); first += 7) {
+            std::vector<std::string> page{title};
+            for (int index = first; index < std::min(first + 7, static_cast<int>(lines.size())); ++index)
+                page.push_back(lines[index]);
+            pages.push_back(page);
+        }
+    };
+    appendPages(ModText::Tr("植物说明", "Plant information"), introLines);
+    for (int id : entries) {
+        std::string title = GetRunChoiceDisplayName(id);
+        for (int star = 0; star < GetRunChoiceRarity(id); ++star) title += " ★";
+        appendPages(title, RunInfoView::Wrap(GetRunChoiceDesc(id), 258, 18));
+    }
+    mRunEntryPageCount = static_cast<int>(pages.size());
+    mRunEntryPage = std::clamp(mRunEntryPage, 0, mRunEntryPageCount - 1);
+    const auto& lines = pages[mRunEntryPage];
+    for (int index = 0; index < static_cast<int>(lines.size()); ++index)
+        PvzpDrawStringWrapped(g, lines[index], Rect(485, 309 + index * 24, 258, 24),
+            Sexy::FONT_BRIANNETOD12, Color(40, 50, 90), DS_ALIGN_LEFT);
+    DrawMobileStone(g, AlmanacEntryArrow(false), ModText::Tr("上一页", "Prev"), mRunEntryDown == -1, mRunEntryPage > 0);
+    DrawMobileStone(g, AlmanacEntryArrow(true), ModText::Tr("下一页", "Next"), mRunEntryDown == 1, mRunEntryPage + 1 < mRunEntryPageCount);
+    SeatUi::Text(g, std::to_string(mRunEntryPage + 1) + "/" + std::to_string(mRunEntryPageCount), 322, 581, 230, 20, Color(40, 50, 90), true);
 
 	if (mSelectedSeed != SeedType::SEED_IMITATER)
 	{
 		std::string aCostStr = PvzpReplaceString(std::format("{{KEYWORD}}{{COST}}:{{STAT}} {}", aPlantDef.mSeedCost), "{COST}", "[COST]");
-		PvzpDrawStringWrapped(g, aCostStr, Rect(485, 520, 134, 50), Sexy::FONT_BRIANNETOD12, Color::White, DS_ALIGN_LEFT);
+		PvzpDrawStringWrapped(g, aCostStr, Rect(485, 510, 134, 38), Sexy::FONT_BRIANNETOD12, Color(40,50,90), DS_ALIGN_LEFT);
 
 		std::string aRechargeStr = PvzpReplaceString(
 			"{KEYWORD}{WAIT_TIME}: {STAT}{WAIT_TIME_LENGTH}",
@@ -349,7 +398,7 @@ void AlmanacDialog::DrawPlants(Graphics* g)
 			aPlantDef.mRefreshTime == 750 ? "[WAIT_TIME_SHORT]" : aPlantDef.mRefreshTime == 3000 ? "[WAIT_TIME_LONG]" : "[WAIT_TIME_VERY_LONG]"
 		);
 		aRechargeStr = PvzpReplaceString(aRechargeStr, "{WAIT_TIME}", "[WAIT_TIME]");
-		PvzpDrawStringWrapped(g, aRechargeStr, Rect(600, 520, 139, 50), Sexy::FONT_BRIANNETOD12, Color(40, 50, 90), DS_ALIGN_RIGHT);
+		PvzpDrawStringWrapped(g, aRechargeStr, Rect(600, 510, 139, 38), Sexy::FONT_BRIANNETOD12, Color(40, 50, 90), DS_ALIGN_RIGHT);
 	}
 }
 
@@ -530,80 +579,30 @@ void AlmanacDialog::GetSeedPosition(SeedType theSeedType, int& x, int& y)
 	}
 }
 
-SeedType AlmanacDialog::SeedHitTest(int x, int y)
+SeedType AlmanacDialog::SeedHitTest(int x,int y)
 {
-	if (mMouseVisible && mOpenPage == AlmanacPage::ALMANAC_PAGE_PLANTS)
-	{
-		for (SeedType aSeedType = SeedType::SEED_PEASHOOTER; aSeedType < NUM_ALMANAC_SEEDS; aSeedType = (SeedType)(aSeedType + 1))
-		{
-			if (mApp->HasSeedType(aSeedType))
-			{
-				int aSeedX, aSeedY;
-				GetSeedPosition(aSeedType, aSeedX, aSeedY);
-				Rect aSeedRect = aSeedType == SeedType::SEED_IMITATER ? Rect(aSeedX, aSeedY, 34, 46) : Rect(aSeedX, aSeedY, SEED_PACKET_WIDTH, SEED_PACKET_HEIGHT);
-				if (aSeedRect.Contains(x, y)) return aSeedType;
-			}
-		}
-	}
-	return SeedType::SEED_NONE;
+    if(mMouseVisible && mOpenPage==ALMANAC_PAGE_PLANTS)
+        for(int seed=SEED_PEASHOOTER;seed<NUM_ALMANAC_SEEDS;++seed) {
+            auto type=(SeedType)seed;int sx,sy;GetSeedPosition(type,sx,sy);
+            Rect box=type==SEED_IMITATER?Rect(sx,sy,34,46):Rect(sx,sy,SEED_PACKET_WIDTH,SEED_PACKET_HEIGHT);
+            if(box.Contains(x,y))return type;
+        }
+    return SEED_NONE;
 }
 
 bool AlmanacDialog::ZombieHasSilhouette(ZombieType theZombieType)
 {
-	// only the Yeti can be a silhouette, and not once it can spawn
-	if (theZombieType != ZombieType::ZOMBIE_YETI || mApp->CanSpawnYetis())
-		return false;
-
-	// the silhouette shows once adventure is finished or the Yeti's debut level is passed
-	return mApp->HasFinishedAdventure() || mApp->mPlayerInfo->GetLevel() > GetZombieDefinition(ZombieType::ZOMBIE_YETI).mStartingLevel;
+    return false; // @pvz-online: encyclopedia access does not depend on the campaign.
 }
 
 bool AlmanacDialog::ZombieIsShown(ZombieType theZombieType)
 {
-	// trial mode only shows zombies up to the Snorkel Zombie
-	if (mApp->IsTrialStageLocked() && theZombieType > ZombieType::ZOMBIE_SNORKEL)
-		return false;
-
-	// the Yeti is shown once it can spawn, or earlier as a silhouette
-	if (theZombieType == ZombieType::ZOMBIE_YETI)
-		return mApp->CanSpawnYetis() || ZombieHasSilhouette(ZombieType::ZOMBIE_YETI);
-
-	// zombies encountered in adventure mode
-	if (theZombieType <= ZombieType::ZOMBIE_BOSS)
-	{
-		// once adventure is finished, every zombie is shown
-		if (mApp->HasFinishedAdventure())
-			return true;
-
-		int aLevel = mApp->mPlayerInfo->GetLevel();
-		int aStart = GetZombieDefinition(theZombieType).mStartingLevel;
-		// must have reached the zombie's debut level; spawn-only zombies also require passing it or defeating the zombie once
-		return aStart <= aLevel && (aStart != aLevel || !Board::IsZombieTypeSpawnedOnly(theZombieType) || gZombieDefeated[theZombieType]);
-	}
-
-	return false;
+    return true;
 }
 
 bool AlmanacDialog::ZombieHasDescription(ZombieType theZombieType)
 {
-	int aLevel = mApp->mPlayerInfo->GetLevel();
-	int aStart = GetZombieDefinition(theZombieType).mStartingLevel;
-
-	if (theZombieType == ZombieType::ZOMBIE_YETI)
-	{
-		// no description until the Yeti can spawn
-		if (!mApp->CanSpawnYetis())
-			return false;
-		// from the third playthrough on, the description always shows
-		if (mApp->mPlayerInfo->mFinishedAdventure >= 2)
-			return true;
-	}
-	// other zombies always show their description once adventure is finished
-	else if (mApp->HasFinishedAdventure())
-		return true;
-
-	// otherwise require reaching the zombie's debut level, plus passing it or defeating the zombie
-	return aStart <= aLevel && (aStart != aLevel || gZombieDefeated[theZombieType]);
+    return true;
 }
 
 void AlmanacDialog::GetZombiePosition(ZombieType theZombieType, int& x, int& y)
@@ -636,8 +635,23 @@ ZombieType AlmanacDialog::ZombieHitTest(int x, int y)
 	return ZombieType::ZOMBIE_INVALID;
 }
 
-void AlmanacDialog::MouseUp([[maybe_unused]] int x, [[maybe_unused]] int y, [[maybe_unused]] int theClickCount)
+void AlmanacDialog::LostFocus()
 {
+    mRunEntryDown = 0;
+    Dialog::LostFocus();
+}
+
+void AlmanacDialog::MouseUp(int x, int y, int theClickCount)
+{
+    int direction = mRunEntryDown;
+    mRunEntryDown = 0;
+    if (direction) {
+        if (theClickCount > 0 && mOpenPage == ALMANAC_PAGE_PLANTS &&
+            AlmanacEntryArrow(direction > 0).Contains(x, y))
+            mRunEntryPage = std::clamp(mRunEntryPage + direction, 0, mRunEntryPageCount - 1);
+        MarkDirty();
+        return;
+    }
 	if (mPlantButton->IsMouseOver())		SetPage(ALMANAC_PAGE_PLANTS);
 	else if (mZombieButton->IsMouseOver())	SetPage(ALMANAC_PAGE_ZOMBIES);
 	else if (mCloseButton->IsMouseOver())	mApp->KillAlmanacDialog();
@@ -646,6 +660,13 @@ void AlmanacDialog::MouseUp([[maybe_unused]] int x, [[maybe_unused]] int y, [[ma
 
 void AlmanacDialog::MouseDown(int x, int y, [[maybe_unused]] int theClickCount)
 {
+    mRunEntryDown = 0;
+    if (theClickCount > 0 && mOpenPage == ALMANAC_PAGE_PLANTS) {
+        if (AlmanacEntryArrow(false).Contains(x, y) && mRunEntryPage > 0) mRunEntryDown = -1;
+        if (AlmanacEntryArrow(true).Contains(x, y) && mRunEntryPage + 1 < mRunEntryPageCount) mRunEntryDown = 1;
+        if (mRunEntryDown) { MarkDirty(); return; }
+    }
+
 	if (mPlantButton->IsMouseOver() || mCloseButton->IsMouseOver() || mIndexButton->IsMouseOver())
 		mApp->PlaySample(Sexy::SOUND_TAP);
 	if (mZombieButton->IsMouseOver())
@@ -655,6 +676,7 @@ void AlmanacDialog::MouseDown(int x, int y, [[maybe_unused]] int theClickCount)
 	if (aSeedType != SeedType::SEED_NONE && aSeedType != mSelectedSeed)
 	{
 		mSelectedSeed = aSeedType;
+        mRunEntryPage=0;
 		SetupPlant();
 		mApp->PlaySample(Sexy::SOUND_TAP);
 	}

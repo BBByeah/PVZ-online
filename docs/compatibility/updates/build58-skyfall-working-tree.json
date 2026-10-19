@@ -1,0 +1,13 @@
+{
+  "modBuild": 58,
+  "date": "2026-10-16",
+  "sourceState": "reviewed working-tree overlay; not a new committed PC baseline",
+  "previousOverlay": "docs/compatibility/updates/build57-purple-working-tree.json",
+  "change": "Board::UpdateSunSpawning treats zero and negative countdowns as due, allowing Skyfall selected after night/fog board creation and recovering affected saved countdowns.",
+  "pcFile": "Lawn/Board.cpp",
+  "androidFile": "src/Lawn/Board.cpp",
+  "gameplayRate": "unchanged; Skyfall halves the interval once regardless of legacy stack count",
+  "checkpointVersion": 17,
+  "protocolVersion": 1,
+  "onlineGameReady": false
+}

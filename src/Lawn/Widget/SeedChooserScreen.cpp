@@ -1,3 +1,4 @@
+#include "../CoopPlay.h"
 /*
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
@@ -199,7 +200,7 @@ SeedChooserScreen::SeedChooserScreen()
 		aStarFruit.mSeedIndexInBank = 0;
 		mSeedsInBank++;
 	}
-	if (mApp->IsAdventureMode() && !mApp->IsFirstTimeAdventureMode())
+	if (mApp->IsAdventureMode() && !mApp->IsFirstTimeAdventureMode() && !mApp->IsRunMode())
 		CrazyDavePickSeeds();
 	UpdateImitaterButton();
 }
@@ -224,6 +225,7 @@ int SeedChooserScreen::PickFromWeightedArrayUsingSpecialRandSeed(PvzpWeightedArr
 
 void SeedChooserScreen::CrazyDavePickSeeds()
 {
+	if (mApp->IsRunMode()) return;
 	PvzpWeightedArray aSeedArray[NUM_SEED_TYPES];
 	for (SeedType aSeedType = SEED_PEASHOOTER; aSeedType < NUM_SEEDS_IN_CHOOSER; aSeedType = (SeedType)(aSeedType + 1))
 	{
@@ -274,6 +276,7 @@ void SeedChooserScreen::CrazyDavePickSeeds()
 
 bool SeedChooserScreen::Has7Rows()
 {
+    if (mApp->IsOnlineGame() || mApp->IsRunMode()) return true;
 	// PlayerInfo* aPlayer = mApp->mPlayerInfo; // unused
 	if (mApp->HasFinishedAdventure() || mApp->mPlayerInfo->mPurchases[STORE_ITEM_PLANT_GATLINGPEA]) return true;
 	for (SeedType aSeedType = SEED_TWINSUNFLOWER; aSeedType < SEED_COBCANNON; aSeedType = (SeedType)(aSeedType + 1))
@@ -428,6 +431,7 @@ void SeedChooserScreen::Draw(Graphics* g)
 	aBoardFrameG.mTransY -= mY;
 	mMenuButton->Draw(&aBoardFrameG);
 	mToolTip->Draw(g);
+    if(mApp->mCoopPlay)mApp->mCoopPlay->DrawEntry(g,640,70);
 }
 
 void SeedChooserScreen::UpdateViewLawn()
@@ -597,7 +601,7 @@ bool SeedChooserScreen::FlyProtectionCurrentlyPlanted()
 
 bool SeedChooserScreen::CheckSeedUpgrade(SeedType theSeedTypeTo, SeedType theSeedTypeFrom)
 {
-	if (mApp->IsSurvivalMode() || !PickedPlantType(theSeedTypeTo) || PickedPlantType(theSeedTypeFrom))
+	if (mApp->IsRunMode() || mApp->IsSurvivalMode() || !PickedPlantType(theSeedTypeTo) || PickedPlantType(theSeedTypeFrom))
 		return true;
 
 	std::string aWarning(PvzpStringTranslate("[SEED_CHOOSER_UPGRADE_WARNING]"));
@@ -975,6 +979,7 @@ void SeedChooserScreen::UpdateImitaterButton()
 
 void SeedChooserScreen::MouseDown(int x, int y, int theClickCount)
 {
+    if(theClickCount>0 && Rect(640,70,140,40).Contains(x,y) && mApp->IsOnlineGame()){mApp->ShowCoopPlay();return;}
 	Widget::MouseDown(x, y, theClickCount);
 
 	if (mSeedsInFlight > 0)
@@ -1087,6 +1092,8 @@ bool SeedChooserScreen::PickedPlantType(SeedType theSeedType)
 
 void SeedChooserScreen::CloseSeedChooser()
 {
+    if(mApp->mCoopPlay && mApp->mCoopPlay->Blocking())return;
+	if (!(mApp->GetRunState() && mApp->GetRunState()->mAdmission.phase==Admission::DECK) && mApp->TryHoldSeedChooserForTeammates()) return;
 	DBG_ASSERT(mBoard->mSeedBank->mNumPackets == mBoard->GetNumSeedsInBank());
 	for (int anIndex = 0; anIndex < mBoard->mSeedBank->mNumPackets; anIndex++)
 	{
@@ -1097,16 +1104,20 @@ void SeedChooserScreen::CloseSeedChooser()
 		if (aChosenSeed.mRefreshing)
 		{
 			aSeedPacket.mRefreshCounter = aChosenSeed.mRefreshCounter;
-			aSeedPacket.mRefreshTime = Plant::GetRefreshTime(aSeedPacket.mPacketType, aSeedPacket.mImitaterType);
+			aSeedPacket.mRefreshTime = (int)(Plant::GetRefreshTime(aSeedPacket.mPacketType, aSeedPacket.mImitaterType) *
+                mApp->RunBuffMul(RUN_BUFF_FASTSEED)*mApp->RunPlantUpgradeMulKind(aSeedPacket.mPacketType,RUN_UPGRADE_KIND_COOLDOWN)*
+                mApp->RunCoffeeBeanRefreshMul(aSeedPacket.mPacketType,aSeedPacket.mImitaterType));
 			aSeedPacket.mRefreshing = true;
 			aSeedPacket.mActive = false;
 		}
 	}
+    if(mApp->GetRunState() && mApp->GetRunState()->mAdmission.phase==Admission::DECK){mApp->BeginAdmissionBuilding();return;}
 	mBoard->mCutScene->EndSeedChooser();
 }
 
 void SeedChooserScreen::KeyDown(KeyCode theKey)
 {
+    if(theKey=='B'){mApp->ShowCoopPlay();return;}
 	mBoard->DoTypingCheck(theKey);
 
 	if (mChooseState == CHOOSE_VIEW_LAWN && (theKey == KeyCode::KEYCODE_SPACE || theKey == KeyCode::KEYCODE_RETURN || theKey == KeyCode::KEYCODE_ESCAPE))

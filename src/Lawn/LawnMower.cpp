@@ -49,7 +49,8 @@ void LawnMower::LawnMowerInitialize(int theRow)
 		mMowerType = LawnMowerType::LAWNMOWER_ROOF;
 		aReanimType = ReanimationType::REANIM_ROOF_CLEANER;
 	}
-	else if (mBoard->mPlantRow[mRow] == PlantRowType::PLANTROW_POOL && mApp->mPlayerInfo->mPurchases[StoreItem::STORE_ITEM_POOL_CLEANER])
+	else if (mBoard->mPlantRow[mRow] == PlantRowType::PLANTROW_POOL &&
+		(mApp->IsRunMode() || mApp->mPlayerInfo->mPurchases[StoreItem::STORE_ITEM_POOL_CLEANER]))
 	{
 		mMowerType = LawnMowerType::LAWNMOWER_POOL;
 		aReanimType = ReanimationType::REANIM_POOL_CLEANER;
@@ -152,6 +153,7 @@ void LawnMower::MowZombie(Zombie* theZombie)
 		mChompCounter = 50;
 	}
 
+	if (mBoard->IsRunBossZombie(theZombie)) return;
 	if (mMowerType == LawnMowerType::LAWNMOWER_POOL)
 	{
 		mApp->PlayFoley(FoleyType::FOLEY_SHOOP);
@@ -368,6 +370,7 @@ void LawnMower::Draw(Graphics* g)
 
 void LawnMower::Die()
 {
+	mBoard->NoteMowerConsumed(mRow);
 	mDead = true;
 	mApp->RemoveReanimation(mReanimID);
 	if (mBoard->mBonusLawnMowersRemaining > 0 && !mBoard->HasLevelAwardDropped())
@@ -386,6 +389,7 @@ void LawnMower::StartMower()
 		return;
 	}
 
+	mBoard->NoteMowerConsumed(mRow);
 	Reanimation* aMowerReanim = mApp->ReanimationGet(mReanimID);
 	if (mMowerType == LawnMowerType::LAWNMOWER_POOL)
 	{

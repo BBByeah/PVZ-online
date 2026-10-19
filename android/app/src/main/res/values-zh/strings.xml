@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="status_ready">已找到游戏资源，可以开始游戏！</string>
+    <string name="status_missing">未找到游戏资源。\n请先导入 main.pak 和 properties/ 文件夹。</string>
+    <string name="section_import_resources">导入游戏资源</string>
+    <string name="import_help">选择包含你合法购买的 main.pak 和 properties/ 文件夹的 ZIP 或目录。使用中文时，请一并导入 PC 的 pvz_zh.pak 汉化覆盖包。</string>
+    <string name="btn_pick_zip">选择 ZIP 文件</string>
+    <string name="btn_pick_dir">选择资源文件夹</string>
+    <string name="section_save_data">导入或导出存档（可选）</string>
+    <string name="btn_export_save">导出存档</string>
+    <string name="btn_import_save_zip">导入存档 ZIP</string>
+    <string name="btn_import_save_dir">导入存档文件夹</string>
+    <string name="btn_launch_game">开始游戏</string>
+    <string name="import_success">导入完成！</string>
+    <string name="import_failed">导入失败：%1$s</string>
+    <string name="export_success">存档已导出！</string>
+    <string name="export_failed">导出失败：%1$s</string>
+    <string name="no_save_data">没有可导出的存档。</string>
+    <string name="shortcut_manage_data">数据管理</string>
+    <string name="shortcut_manage_data_long">管理资源与存档</string>
+    <string name="bundled_preparing">首次启动正在准备游戏…\n只需等待一次，完成后会自动进入。</string>
+    <string name="bundled_failed">游戏准备未完成，请确认手机剩余空间充足后重试。</string>
+    <string name="bundled_retry">重试</string>
+</resources>

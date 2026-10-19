@@ -107,6 +107,7 @@ enum AwardType : int32_t
 	AWARD_HELP_ZOMBIENOTE,
 	AWARD_ACHIEVEMENTONLY,
 	AWARD_PRECREDITS_ZOMBIENOTE,
+	AWARD_RUN_COMPLETE,
 };
 enum BackgroundType : int32_t
 {
@@ -320,7 +321,16 @@ enum Dialogs : int32_t
 	DIALOG_PURCHASE_PACKET_SLOT,                // 50
 	DIALOG_ZOMBATAR_TOS,                        // 51: terms of service
 	DIALOG_ZOMBATAR_DELETE,                     // 52
-	NUM_DIALOGS
+	DIALOG_ONLINE,
+	DIALOG_ONLINE_START,
+	DIALOG_ONLINE_RECONNECT,
+    DIALOG_ZOMBIE_VOTE,
+	DIALOG_COOP_PLAY,
+    DIALOG_ONLINE_SWAP,                         // @pvz-online: 大厅换位选人框（任选队友 + 换后预览），2026-10-15
+    DIALOG_ROOM_DIRECTORY,                     // @pvz-online: public live room browser.
+    DIALOG_RUN_HISTORY,                        // @pvz-online: local per-profile recent runs.
+    DIALOG_SERVER_SELECT,                      // @pvz-online: explicit relay node selection.
+    NUM_DIALOGS
 };
 enum DebugTextMode : int32_t
 {
@@ -1373,6 +1383,15 @@ enum ZombieType : int32_t
 	ZOMBIE_SQUASH_HEAD,
 	ZOMBIE_TALLNUT_HEAD,
 	ZOMBIE_REDEYE_GARGANTUAR,
+	ZOMBIE_ZOMBATAR,
+	ZOMBIE_PAIL_DOOR,
+	ZOMBIE_CONE_NEWSPAPER,
+	ZOMBIE_PAIL_NEWSPAPER,
+	ZOMBIE_PEA_HEAD_DOOR,
+	ZOMBIE_WALLNUT_HEAD_DOOR,
+	ZOMBIE_JALAPENO_HEAD_DOOR,
+	ZOMBIE_GATLING_HEAD_DOOR,
+	ZOMBIE_SQUASH_HEAD_DOOR,
 	NUM_ZOMBIE_TYPES,
 	ZOMBIE_CACHED_POLEVAULTER_WITH_POLE,
 	NUM_CACHED_ZOMBIE_TYPES

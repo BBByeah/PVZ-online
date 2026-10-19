@@ -1,0 +1,15 @@
+{
+  "pcModBuild": 81,
+  "description": "Invite clients in Zen Garden or Wisdom Tree before combat-state guards. Acceptance disposes and saves the local scene before run alignment without clearing START/ACK/RUN_GO. Decline retains the local scene. Both run and single-level starts supported.",
+  "status": "working-tree",
+  "validation": {
+    "pcNativeBuildPassed": true,
+    "androidArm64NativeBuildPassed": true,
+    "pcGardenFlowChecks": 33,
+    "pcGardenFlowFailures": 0,
+    "androidInstalled": false,
+    "publicServerTested": false,
+    "pcRejoinRegressionChecks": 30,
+    "pcRejoinRegressionFailures": 0
+  }
+}

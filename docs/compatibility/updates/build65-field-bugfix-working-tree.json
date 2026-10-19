@@ -1,0 +1,22 @@
+{
+  "modBuild": 65,
+  "date": "2026-10-18",
+  "previousOverlay": "docs/compatibility/updates/build65-buff-strength-working-tree.json",
+  "sourceState": "uncommitted shared workspace; PC x86 and Android API24 arm64 native builds and 37 network plus 27 production-engine targeted checks passed; no mobile device, full game, visual, packaging or deployment acceptance",
+  "checkpointVersion": 20,
+  "protocolVersion": 1,
+  "levelDonePayloadBytes": [3, 7],
+  "levelDoneEpochMinimumBuild": 64,
+  "onlineGameReady": false,
+  "changes": [
+    "Guard aquarium moves and expired attached effects; preserve original artwork and plant data.",
+    "Display garden sale quotes in the existing ten-times currency denomination without changing ledger amounts.",
+    "Add cancel-ready and restore preparation loan availability and seed bank refresh.",
+    "Expose pending sun aid as direct lawn buttons using existing receipt transactions.",
+    "Consume zombie vote OPEN and RESULT messages in original arrival order.",
+    "Recover interrupted relay and direct host connections; freeze transitions during reconnect.",
+    "Make all binary zombie buffs single-pick and synchronize descriptions.",
+    "Deduplicate consumed starts and scope completion messages to the current level generation."
+  ],
+  "report": "docs/FIELD-BUGFIX-2026-10-18.md"
+}

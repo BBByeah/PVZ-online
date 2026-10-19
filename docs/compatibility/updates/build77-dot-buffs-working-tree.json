@@ -1,0 +1,13 @@
+{
+  "pcModBuild": 77,
+  "description": "Butter Heavy: independent 8s coating, current body HP 1% per second capped at 2000, immune targets remain mobile. Scorched Earth: 3s current body HP 1% per stack per second, minimum 300. New two-star Embers: independent 3s burn with the same percentage and floor. DOT timers persist in optional save trailers without changing old zombie or portable save layouts. Includes Build76 rejoin waiting.",
+  "status": "working-tree",
+  "validation": {
+    "pcNativeBuildPassed": true,
+    "androidArm64NativeBuildPassed": true,
+    "pcEngineChecks": 42,
+    "pcEngineFailures": 0,
+    "androidInstalled": false,
+    "fivePlayerCombatTested": false
+  }
+}

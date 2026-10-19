@@ -174,6 +174,7 @@ public:
 
 public:
 	virtual void			GenerateActiveFontLayers();
+	bool NeedsCjkFallback(std::string_view text);
 	virtual void			DrawStringEx(Graphics* g, int theX, int theY, std::string_view theString, const Color& theColor, RectList* theDrawnAreas, int* theWidth);
 
 public:

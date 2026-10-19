@@ -1,3 +1,5 @@
+#include <memory>
+class CoopPlay;
 /*
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
@@ -23,6 +25,9 @@
 #define __LAWNAPP_H__
 
 #include "ConstEnums.h"
+#include "Lawn/System/BattleMusicState.h"
+#include "Lawn/System/DamageStats.h"
+#include "Lawn/Online/NetProtocol.h"
 #include "SexyAppFramework/SexyApp.h"
 #include "PvzpLib/PvzpFoley.h"
 #include <memory>
@@ -48,6 +53,10 @@ class TitleScreen;
 class ChallengeScreen;
 class StoreScreen;
 class AlmanacDialog;
+#include "Lawn/Run/RunBuffs.h"
+class RunState;
+class NetSession;
+class RunFlowScreen;
 class TypingCheck;
 
 namespace Sexy
@@ -72,7 +81,131 @@ public:
 class LawnApp : public SexyApp
 {
 public:
+    std::unique_ptr<CoopPlay> mCoopPlay;
+    BattleMusicState mBattleMusic;
+    DamageStats mDamageStats;
+    bool SendCoopQuickChat(uint8_t id);
+    void UpdateCoopPlay();void ShowCoopPlay();void ExpireCoopLoan();
+
+    int RunExtraBuffCount(RunPlantBuff2Id index) const;
+    void AwardRunRerollVoucher();
+    void RefreshRunChoicePlants(int id, int before);
+
 	Board*							mBoard;
+	// @pvz-online: run progress is independent of the original adventure profile.
+	std::unique_ptr<RunState> mRunState;
+	std::unique_ptr<RunFlowScreen> mRunFlowScreen;
+
+    std::unique_ptr<NetSession> mOnlineSession;
+    bool mSlideCollect = true;
+    bool mHasOnlineStart = false, mOnlineWasConnected = false, mOnlineWaitingStartAck = false;
+    int mOnlineStartLevel = 0, mOnlineStartSeed = 0, mOnlineStartWaitFrames = 0;
+    bool mOnlineRunStartHeld = false, mOnlineRunGo = false, mRunIntroHeld = false;
+    bool mOnlineStartPromptActive = false, mOnlineSeedsHeld = false, mOnlineWaitingAdviceOn = false;
+    bool mPauseMenuWasOpen = false, mPauseMenuFromPeer = false;
+    NetProto::MsgStartLevel mOnlineStartPromptMsg{};
+    int mOnlineStartPromptFrames = 0;
+    std::string mOnlineAddress = "127.0.0.1", mOnlineServer = "101.200.131.182", mOnlineRoomCode;
+    bool IsLocalOnlyMode(GameMode mode) const;
+    bool IsOnlineStartLobby() const;
+    void LeaveLocalSceneForOnlineStart();
+    bool mZombieVoteActive = false;
+    int mZombieVoteLevel = -1, mZombieVoteMyChoice = -1, mZombieVoteFrames = 0;
+    unsigned char mZombieVoteCandidates[3]{};
+    int mZombieVoteVotes[3]{}, mZombieVoteAbstains = 0, mZombieVoteVotedSeats = 0;
+    unsigned int mZombieVoteSeatMask = 0;
+    int mZombieVoteRoundsDone = 0;   // 本场景已结的票数（两屏制 MOD_BUILD 56：档 2 结第一票后仍 <2，路口再开第二屏；重开游戏归 0——配合 mZombieVotedLevel 区分"恢复"与"待第二屏"）
+    unsigned char mZombieVoteBannerIds[2]{};  // 本场景结果横幅累积（每屏各记 1 条，全结后合成一条横幅推）
+    int mZombieVoteBannerCount = 0;
+    std::string mZombieVotePendingBanner;
+    bool TryOpenZombieVote();
+    void UpdateZombieVote();
+    void ZombieVoteChosen(int choice);
+    std::string ZombieVoteStatusText();
+    void ZombieVoteOpenLocal(int level, const unsigned char* candidates);
+    void ZombieVoteRegister(int seat, int choice);
+    unsigned int ZombieVoteRequiredSeatMask();
+    int ZombieVoteExpectedVoters();
+    void ZombieVoteResolve();
+    void ZombieVoteCloseUI();
+    void ResetZombieVote();
+    void DisconnectOnline();
+    void AlignRunToHost(int seed, int index, int mode, int difficulty, int scale, int tempo,
+        int zombotany, int scene, int boss, int buffMult, int ladder, int zombieBuff, const uint8_t* stacks,int speedTier=0, int firstWave=0, int endlessOptions=0);
+    bool IsOnlineGame();
+    bool IsOnlineStartAllowed();
+    bool IsOnlineClient();
+    bool WillWaitForStartAck();
+    void SetOnlineStartOverride(int theLevel, int theSeed);
+    bool GetOnlineStartOverride(int& theLevel, int& theSeed);
+    void ClearOnlineStartOverride();
+    void UpdateOnlineStart();
+    void OnlineStartWaitCancelled();
+    void OnlineReconnectCancelled();
+    void EnterOnlineStart(const NetProto::MsgStartLevel& theMsg);
+    void ShowOnlineStartPrompt(const NetProto::MsgStartLevel& theMsg);
+    void OnlineStartPromptAnswer(bool theAccepted);
+    void DismissOnlineStartPrompt(bool theSendAck);
+    bool TryHoldSeedChooserForTeammates();
+    bool FinalizePreparationSeats();
+    int mAdmissionIdentityProfile=-1,mAdmissionReportTicks=100;
+    bool mAdmissionDirty=false,mAdmissionPressed=false;
+    void InitializeAdmissionIdentity();
+    void UpdateEndlessAdmission();
+    void ApplyAdmissionOffer(int targetIndex);
+    void SendAdmissionStart(uint8_t seat);
+    bool AdmissionBuilding() const;
+    void BeginAdmissionBuilding();
+    void FinishAdmissionBuilding();
+    void StartAdmissionFastPicks();
+    // @pvz-online: preparation metadata lives outside the raw-serialized Board layout.
+    int mPreparationBuiltSeat=0,mPreparationBuiltSunBonus=0,mPreparationBuiltMultiplier=0;
+    bool mPreparationRulesApplied=false,mPreparationSaved=false;
+    bool mPreparationEditRequested=false;
+    uint32_t mPreparationConfiguredRevision=0;
+    void ToggleOnlineSeedsReady();
+    void UpdateOnlineSeeds();
+    void UpdateOnlineRelay();
+    void UpdateOnlineLevelExit();
+    void UpdateOnlinePause();
+    void UpdateOnlineEvents();
+    void UpdateOnlineEnd();
+    void RetryOnlineLevel();
+    void EnterRunLevel();
+    bool TryKeepEndlessLawn();
+    void ReleaseRunIntro();
+    void UpdateRunPick();
+    int OnlineSeatMultiplier();
+    int OnlineSeatMultiplierForSeat(uint8_t theSeat);   // @pvz-online: 按席位号查同一条顺位曲线（换位预览用），2026-10-15
+    int OnlineStartSunBonus();
+    int OnlineStartSunBonusForSeat(uint8_t theSeat);    // @pvz-online: 换位预览用
+    void DoOnlineDialog();
+
+	void ShowRunMenu(int endlessScene=-1);
+	void StartRun(int mode, int buffMult = 0, int difficulty = 1, int scale = 1, int tempo = 1, int zombotany = 0, int endlessScene = 0, int bossFlag = 2, int ladder = 0, int zombieBuff = 1,int speedTier=0, int firstWave=0, int endlessOptions=141);
+	void RunPickPaidReroll();
+	void ResumeRun(int mode=-1, int scene=0);
+	void ShowRunPicks();
+	void StartRunLevel();
+	void RetryRunLevel();
+	void NoteRunFailure();
+	void KillRunFlowScreen();
+	float RunBuffMul(int id) const;
+    bool RunSkySunAtNight() const;
+    float RunSkySunIntervalMul() const;
+    int RunMirrorStacks() const;
+    int RunBuffAdd(int theBuffId) const;
+    float RunPlantUpgradeMul(SeedType thePlant) const;
+    int RunPlantUpgradeCount(SeedType thePlant) const;
+    float RunPlantUpgradeMulKind(SeedType thePlant, RunPlantUpgradeKind theKind) const;
+    int RunPlantUpgradeCountKind(SeedType thePlant, RunPlantUpgradeKind theKind) const;
+    float RunPlantBuff2Mul(SeedType thePlant) const;
+    int RunPlantBuff2Count(SeedType thePlant) const;
+    float RunPlantBuff2MulKind(SeedType thePlant, RunPlantUpgradeKind theKind) const;
+    int RunPlantBuff2CountKind(SeedType thePlant, RunPlantUpgradeKind theKind) const;
+    float RunCoffeeBeanRefreshMul(SeedType thePlant, SeedType theImitaterType) const;
+    inline bool IsRunMode() const { return mRunState != nullptr; }
+    inline RunState* GetRunState() const { return mRunState.get(); }
 	std::unique_ptr<TitleScreen>	mTitleScreen;
 	std::unique_ptr<GameSelector>	mGameSelector;
 	std::unique_ptr<SeedChooserScreen>	mSeedChooserScreen;
@@ -186,7 +319,7 @@ public:
 	void							ShowSeedChooserScreen();
 	void							KillSeedChooserScreen();
 	void							DoHighScoreDialog();
-	void							DoBackToMain();
+	void							DoBackToMain(bool notifyOnline = true);
 	void							DoConfirmBackToMain();
 	void							DoNewOptions(bool theFromGameSelector);
 	void							ShowZombatarTOS();

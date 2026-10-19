@@ -69,6 +69,8 @@ void Coin::CoinInitialize(int theX, int theY, CoinType theCoinType, CoinMotion t
 	mHasBouncyArrow = false;
 	mHitGround = false;
 	mTimesDropped = 0;
+    mVisualOnly = false;
+    mRunSunBonus = 0;
 	mPottedPlantSpec.InitializePottedPlant(SeedType::SEED_NONE);
 
 	if (IsSun())
@@ -434,7 +436,7 @@ void Coin::ScoreCoin()
 {
 	Die();
 
-	if (IsSun())
+	if (IsSun() && !mVisualOnly)
 	{
 		int aSunValue = GetSunValue();
 		mBoard->AddSunMoney(aSunValue);
@@ -568,6 +570,7 @@ void Coin::UpdateFall()
 		{
 			mHitGround = true;
 			PlayGroundSound();
+            if (mVisualOnly) Collect();
 		}
 
 		mPosY = mGroundY;
@@ -1070,6 +1073,7 @@ void Coin::Collect()
 			mBoard->DisplayAdvice("[ADVICE_FOUND_PLANT]", MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_NONE);
 			mApp->AddPvzpParticle(mPosX + 30.0f, mPosY + 30.0f, mRenderOrder + 1, ParticleEffect::PARTICLE_PRESENT_PICKUP);
 			mApp->mZenGarden->AddPottedPlant(&mPottedPlantSpec);
+            mApp->WriteCurrentUserConfig(); // @pvz-online: persist rare rewards at collection.
 		}
 
 		mDisappearCounter = 0;
@@ -1146,7 +1150,9 @@ void Coin::Collect()
 		mDisappearCounter = 0;
 		StartFade();
 
-		if (aIsEndlessAward)
+		// @pvz-online: do not lose collected inventory on a mobile/process exit.
+        mApp->WriteCurrentUserConfig();
+        if (aIsEndlessAward)
 		{
 			AttachmentDetachCrossFadeParticleType(mAttachmentID, ParticleEffect::PARTICLE_AWARD_PICKUP_ARROW, nullptr);
 			mBoard->FadeOutLevel();
@@ -1296,7 +1302,7 @@ float Coin::GetSunScale()
 
 int Coin::GetSunValue()
 {
-	return mType == CoinType::COIN_SUN ? 25 : mType == CoinType::COIN_SMALLSUN ? 15 : mType == CoinType::COIN_LARGESUN ? 50 : 0;
+	return (mType == CoinType::COIN_SUN ? 25 : mType == CoinType::COIN_SMALLSUN ? 15 : mType == CoinType::COIN_LARGESUN ? 50 : 0) + mRunSunBonus;
 }
 
 int Coin::GetCoinValue(CoinType theCoinType)

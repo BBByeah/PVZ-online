@@ -20,6 +20,8 @@
  */
 
 #include "AchievementsScreen.h"
+#include "../ModText.h"
+#include <format>
 #include "../Board.h"
 #include "GameButton.h"
 #include "GameSelector.h"
@@ -62,6 +64,23 @@ constinit const AchievementItem gAchievementList[MAX_ACHIEVEMENTS] = {
 	{ "Towering Wisdom", "Grow the Tree of Wisdom to 100 feet." },
 	{ "Mustache Mode", "Enable Mustache Mode" }
 };
+
+// PC LawnStrings uses symbolic achievement IDs rather than the English sentences.
+static constexpr const char* kAchievementKeys[MAX_ACHIEVEMENTS] = {
+	"HOME_SECURITY", "NOBEL_PEAS_PRIZE", "BETTER_OFF_DEAD", "CHINA_SHOP", "SPUDOW",
+	"EXPLODONATOR", "MORTICULTURALIST", "DONT_PEA_IN_POOL", "ROLL_SOME_HEADS", "GROUNDED",
+	"ZOMBOLOGIST", "PENNY_PINCHER", "SUNNY_DAYS", "POPCORN_PARTY", "GOOD_MORNING",
+	"NO_FUNGUS_AMONG_US", "BEYOND_THE_GRAVE", "IMMORTAL", "TOWERING_WISDOM", "MUSTACHE_MODE"
+};
+
+std::string GetAchievementName(LawnApp* app, int id)
+{
+	return app->GetString(std::format("ACHIEVEMENT_{}_TITLE", kAchievementKeys[id]), gAchievementList[id].name);
+}
+std::string GetAchievementDescription(LawnApp* app, int id)
+{
+	return app->GetString(std::format("ACHIEVEMENT_{}_DESCRIPTION", kAchievementKeys[id]), gAchievementList[id].description);
+}
 
 AchievementsWidget::AchievementsWidget(LawnApp* theApp) {
 	mApp = theApp;
@@ -149,7 +168,7 @@ void AchievementsWidget::Draw(Graphics* g) {
 		g->SetFont(FONT_DWARVENTODCRAFT15);
 		g->SetColor(Color(21, 175, 0));
 
-		std::string aName = mApp->GetString(gAchievementList[i].name, gAchievementList[i].name);
+		std::string aName = GetAchievementName(mApp, i);
 		g->DrawString(aName, aTextXPos, aTextYPos);
 
 		// Achievement descriptions
@@ -158,7 +177,7 @@ void AchievementsWidget::Draw(Graphics* g) {
 		g->SetFont(FONT_DWARVENTODCRAFT12);
 		g->SetColor(Color(255, 255, 255));
 
-		std::string aDesc = mApp->GetString(gAchievementList[i].description, gAchievementList[i].description);
+		std::string aDesc = GetAchievementDescription(mApp, i);
 		g->WriteWordWrapped(aPos, aDesc, 12);
 	}
 
@@ -220,7 +239,7 @@ void AchievementsWidget::MouseWheel(int theDelta) {
 }
 
 void ReportAchievement::GiveAchievement(LawnApp* theApp, int theAchievement, bool theForceGive) {
-	if (!theApp->mPlayerInfo)
+	if (!theApp || !theApp->mPlayerInfo || theApp->mRunState || theAchievement < 0 || theAchievement >= MAX_ACHIEVEMENTS)
 		return;
 
 	if (theApp->mPlayerInfo->mEarnedAchievements[theAchievement])
@@ -231,8 +250,8 @@ void ReportAchievement::GiveAchievement(LawnApp* theApp, int theAchievement, boo
 	if (!theForceGive)
 		return;
 
-	std::string aAchievementName = theApp->GetString(gAchievementList[theAchievement].name, gAchievementList[theAchievement].name);
-	std::string aMessage = theApp->GetFormattedString("%s Achievement!", "%s Achievement!", aAchievementName.c_str());
+	std::string aAchievementName = GetAchievementName(theApp, theAchievement);
+	std::string aMessage = ModText::Format("{} 成就达成！", "{} Achievement!", aAchievementName);
 
 	if (theApp->mBoard) {
 		theApp->mBoard->DisplayAdvice(aMessage, MESSAGE_STYLE_ACHIEVEMENT, AdviceType::ADVICE_NONE);

@@ -1,0 +1,18 @@
+{
+  "modBuild": 64,
+  "date": "2026-10-17",
+  "previousOverlay": "docs/compatibility/updates/build63-damage-release-working-tree.json",
+  "sourceState": "uncommitted implementation; PC x86 and Android API24 arm64 native builds passed; 45 next-wave and 58 endless regression checks passed; native button preview verified; no device acceptance, packaging or deployment",
+  "checkpointVersion": 20,
+  "protocolVersion": 1,
+  "startLevelPayloadBytes": 44,
+  "onlineGameReady": false,
+  "changes": [
+    "Add a local next-wave button and N key to finite and endless runs; manual spawning reuses the normal wave and boss bookkeeping.",
+    "Enforce a ten-second active real-time cooldown, key-release rearming, pointer-release activation, stale-wave cancellation and interaction gates.",
+    "Keep cooldown outside Board native layout and persist an optional twelve-byte extension before the existing damage-statistics footer; old lawn saves remain readable.",
+    "Reset cooldown when preparing a new wave table, including retained endless lawns, and suspend it on pause or focus loss.",
+    "Complete the existing Android ToggleOnlineSeedsReady declaration required by the current working tree."
+  ],
+  "report": "docs/NEXT-WAVE-BUILD64-2026-10-17.md"
+}

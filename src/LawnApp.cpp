@@ -1,3 +1,7 @@
+#include "Lawn/Widget/NextWaveControl.h"
+#include "Lawn/Widget/OnlineSeatDialog.h"
+#include "Lawn/Run/EndlessLawn.h"
+#include "Lawn/CoopPlay.h"
 /*
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
@@ -24,9 +28,20 @@
 #include <cstdio>
 #include <format>
 #include "LawnApp.h"
+#include "Lawn/Run/RunHistory.h"
+#include "Lawn/Online/NetSession.h"
+#include "Lawn/Online/NetworkLog.h"
+#include "Lawn/Widget/OnlineStartDialog.h"
 #include "Resources.h"
 #include "Lawn/LawnCommon.h"
 #include "Lawn/Board.h"
+#include "Lawn/Run/RunState.h"
+#include "Lawn/ModText.h"
+#include "graphics/CjkFont.h"
+#include "Lawn/Run/RunBuffs.h"
+#include "Lawn/Run/RunPortSupport.h"
+#include "Lawn/Widget/RunFlowScreen.h"
+#include <cmath>
 #include "Lawn/Plant.h"
 #include "Lawn/Zombie.h"
 #include "Lawn/Cutscene.h"
@@ -170,6 +185,8 @@ LawnApp::LawnApp()
 
 LawnApp::~LawnApp()
 {
+	if (mOnlineSession) mOnlineSession->Close();
+	KillRunFlowScreen();
 	while (!mDialogMap.empty())
 	{
 		KillDialog(mDialogMap.begin()->first);
@@ -222,6 +239,7 @@ LawnApp::~LawnApp()
 	UpdateRegisterInfo();
 
 	mResourceManager->DeleteResources("");
+	Sexy::ClearCjkFonts();
 }
 
 void LawnApp::Shutdown()
@@ -255,7 +273,7 @@ void LawnApp::KillBoard()
 	KillSeedChooserScreen();
 	if (mBoard)
 	{
-		if (mPlayerInfo && (
+		if (!mRunState && mPlayerInfo && (
 			mBoardResult == BoardResult::BOARDRESULT_WON ||
 			mBoardResult == BoardResult::BOARDRESULT_LOST ||
 			mBoardResult == BoardResult::BOARDRESULT_RESTART ||
@@ -267,6 +285,7 @@ void LawnApp::KillBoard()
 			EraseFile(aLegacyFileName);
 		}
 
+        mDamageStats.Detach(mBoard);
 		mBoard->DisposeBoard();
 		mWidgetManager->RemoveWidget(mBoard);
 		SafeDeleteWidget(mBoard);
@@ -302,6 +321,15 @@ void LawnApp::GotFocus()
 
 void LawnApp::LostFocus()
 {
+    NextWaveControl::Suspend(mBoard);
+    if (mBoard)
+    {
+        mBoard->CloseQuickChatPanel();
+        mBoard->mSunGiftSelectFrames = 0;
+        mBoard->mCoopToolsOpen = false;
+        mBoard->mCoopTouchCaptured = false;
+        mBoard->mCoopTouchAction = -1;
+    }
 #if (defined(__ANDROID__) && !defined(__TERMUX__)) || defined(__IPHONEOS__)
 	if (!mCheatKeys && CanPauseNow())
 	{
@@ -324,6 +352,7 @@ void LawnApp::WriteToRegistry()
 void LawnApp::ReadFromRegistry()
 {
 	SexyApp::ReadFromRegistry();
+    mSlideCollect = ModText::ReadSlideCollect();
 }
 
 bool LawnApp::WriteCurrentUserConfig()
@@ -336,6 +365,13 @@ bool LawnApp::WriteCurrentUserConfig()
 
 void LawnApp::PreNewGame(GameMode theGameMode, bool theLookForSavedGame)
 {
+	// A run retry must not erase or load the player's adventure save.
+	if (mRunState && theGameMode == GAMEMODE_ADVENTURE)
+	{
+		if (IsOnlineGame() && mBoardResult != BOARDRESULT_LOST) return;
+		RetryRunLevel();
+		return;
+	}
 	//if (NeedRegister())
 	//{
 	//	ShowGameSelector();
@@ -343,6 +379,76 @@ void LawnApp::PreNewGame(GameMode theGameMode, bool theLookForSavedGame)
 	//}
 
 	mGameMode = theGameMode;
+    if (IsLocalOnlyMode(theGameMode))
+    {
+        mOnlineWaitingStartAck = false;
+        KillDialog(DIALOG_ONLINE);
+        EraseFile(GetSavedGameName(mGameMode, mPlayerInfo->mId));
+        NewGame();
+        return;
+    }
+	if (mOnlineSession && mOnlineSession->IsActive()
+		&& mOnlineSession->GetState() != NetSession::State::DEAD)
+	{
+		// 上一次开局还在等队友回应：这次的请求按下不表（不然等待期间每触发一次就重发一条
+		// START_LEVEL，对面收到一串）。等出头了再说。
+		if (mOnlineWaitingStartAck)
+		{
+			NetworkLog("PreNewGame: still waiting for the teammate's answer, ignored");
+			return;
+		}
+
+		// 棋盘还在就来开新局（暂停菜单里的 Restart Level）：联机不给重开——两边棋盘各跑各的，
+		// 重开必然对不上。C 里把菜单上那颗按钮收掉，这儿是兜底。
+		if (mBoard != nullptr)
+		{
+			NetworkLog("PreNewGame: online game, restarting a level is not allowed, ignored");
+			return;
+		}
+
+		if (!IsOnlineStartAllowed())
+		{
+			// 开不了（没连上 / 客户端）。要是主菜单已经被拆掉（点了开局又赶上队友掉线），
+			// 就地补一个回来：拆了菜单又没有棋盘，屏幕上就什么都不剩了。
+			if (mGameScene == GameScenes::SCENE_MENU && mGameSelector == nullptr)
+			{
+				ShowGameSelector();
+			}
+			NetworkLog("PreNewGame: online session cannot start right now, ignored");
+			return;
+		}
+
+		// 房里就我一个（队友还没来）：没有要通知的人，也就没有 ACK 可等——直接进场。
+		// 摆"本机的数要和广播出去的一致"那套覆盖值也免了：没广播，就无所谓一致不一致。
+		// 队友之后中途进来会被主机当场拉进这一关（见 UpdateOnlineEvents）。
+		if (!WillWaitForStartAck())
+		{
+			NetworkLog("[net] no one else in the room - entering the level right away");
+			KillDialog(Dialogs::DIALOG_ONLINE);
+			KillGameSelector();
+			NewGame();
+			return;
+		}
+
+		// 主场先广播、后进场：队友没收到命令的话，主机一个人开着关跑下去是最糟的结局。
+		// 广播要带关卡和种子，可这时候棋盘还没建（要等 ACK 才建）——所以按 Board 的算式
+		// 在这儿算一份，设成覆盖值；等 ACK 到了 NewGame()，InitLevel 和 GetLevelRandSeed
+		// 读的就是同一份覆盖值，和广播出去的完全一致。
+		//
+		// 生存模式的棋盘随机数取的是 Rand()（见 Board 构造函数），那种模式下这套算法对不上；
+		// 好在生存已经整段裁剪（IsPvzModeCulled），联机局开不出生存来。
+		int aLevel = IsAdventureMode() ? mPlayerInfo->mLevel : 0;
+		int aSeed = Board::ComputeLevelRandSeed(mAppRandSeed, IsAdventureMode(), mPlayerInfo->mId,
+			mPlayerInfo->mFinishedAdventure, aLevel, 0, (int)mGameMode);
+
+		SetOnlineStartOverride(aLevel, aSeed);
+		mOnlineWaitingStartAck = true;
+		mOnlineStartWaitFrames = 0;
+		NetworkLog("[net] host picked level %d, waiting for the teammate before entering", aLevel);
+		mOnlineSession->SendStartLevel((uint8_t)mGameMode, (uint32_t)aLevel, aSeed);
+		return;
+	}
+
 	if (theLookForSavedGame && TryLoadGame())
 		return;
 
@@ -365,9 +471,20 @@ void LawnApp::MakeNewBoard()
 
 void LawnApp::StartPlaying()
 {
+	if(mRunState && mRunState->mAdmission.phase==Admission::PREPARED)mRunState->mAdmission.phase=Admission::PLAYED;
 	KillSeedChooserScreen();
 	mBoard->StartLevel();
 	mGameScene = GameScenes::SCENE_PLAYING;
+    EndlessLawn::RememberLineup(mBoard);
+    if(mRunState && mRunState->IsNewEndless()) {
+        if(EndlessLawn::Capture(mBoard,true))mRunState->Save(mPlayerInfo->mId);
+        const int n=mRunState->mLevelIndex+1,p=mRunState->EndlessBossPeriod();
+        std::string text=ModText::Tr("阶段主题：","Stage theme: ")+std::string(RunState::EndlessThemeName(mRunState->EndlessTheme()));
+        if(mRunState->GetZombieBuffPerScene()>0 && mRunState->HasZombieBuffChoices())text+=ModText::Tr(" · 下次强化："," / Next boost: ")+std::to_string((mRunState->mLevelIndex/5+1)*5+1);
+        if(p)text+=ModText::Tr(" · BOSS：第"," / Boss: level ")+std::to_string(((n-1)/p+1)*p);
+        mBoard->PushCustomBanner(text.c_str());
+    }
+
 }
 
 bool LawnApp::SaveFileExists()
@@ -430,13 +547,48 @@ void LawnApp::NewGame()
 	mBoardResult = BoardResult::BOARDRESULT_NONE;
 	mGameScene = GameScenes::SCENE_LEVEL_INTRO;
 
+	// @pvz-online: 选卡等队友（SEEDS_READY）：新一轮从"草坪刚建好"这一刻算起，先报
+	// "我还没选好"。报在这儿而不是选卡界面打开时：这一关欠着三选一（含补发追赶）的机器
+	// 可能过很久才轮到选卡，中间这段不能让对面以为"他早就选好了"（那会直接放行、白等一场）。
+	// 真选好了（按 Let's Rock / 这一关不用选卡）再报 1，见 TryHoldSeedChooserForTeammates
+	// 与 ShowSeedChooserScreen。
+	if (IsOnlineGame() && !IsLocalOnlyMode(mGameMode)) mOnlineSession->SendSeedsReady(false);
+
+	// @pvz-online: 联机闯关（R6）：草坪先建、选项后做——这一关还欠着三选一（含补发追赶）
+	// 的时候，把"选卡 + 开场"压住：人先站在自己的新草坪上，选项屏盖在草坪上做完，
+	// 才由 UpdateRunPick 放开（见那边的 ①）。单关局 / 非闯关一条路都不变。
+	mRunIntroHeld = false;
+	if (IsRunMode() && (mRunState->HasPendingPick() || mRunState->IsCatchingUp() ||
+        (IsOnlineGame() && !mBoard->ChooseSeedsOnCurrentLevel() && mOnlineSession->HasOtherSeats())))
+	{
+		mRunIntroHeld = true;
+		NetworkLog("[run] the lawn is up before the picks - the intro is held");
+		return;
+	}
+
 	ShowSeedChooserScreen();
 	mBoard->mCutScene->StartLevelIntro();
 }
 
 void LawnApp::ShowGameSelector()
 {
+    if(mRunState && mRunState->IsNewEndless() && mBoard && !mRunState->Save(mPlayerInfo->mId)) {
+        LawnMessageBox(Dialogs::DIALOG_MESSAGE,ModText::Tr("保存失败","Save failed"),
+            ModText::Tr("本次草坪尚未保存，游戏已留在当前画面。请检查可用空间后重试返回菜单。","The lawn could not be saved. The game remains open. Check storage and retry returning to the menu."),"OK","",Sexy::Dialog::BUTTONS_FOOTER);
+        return;
+    }
+
+    ResetZombieVote();
+	KillDialog(DIALOG_GAME_OVER);
+	KillRunFlowScreen();
 	KillBoard();
+    RunHistory::Capture(this,RunHistory::LEFT);
+	mRunState.reset();
+    ClearOnlineStartOverride();
+    if (mOnlineSession) { mOnlineSession->EndPreparation(); mOnlineSession->DiscardLevelPackets(); }
+    mOnlineRunStartHeld = mOnlineRunGo = mRunIntroHeld = mOnlineSeedsHeld = false;
+    mOnlineWaitingStartAck = mOnlineStartPromptActive = false;
+    KillDialog(DIALOG_ONLINE_START);
 	//UpdateRegisterInfo();
 	if (mGameSelector)
 	{
@@ -545,8 +697,26 @@ void LawnApp::KillStoreScreen()
 
 void LawnApp::ShowSeedChooserScreen()
 {
+    if(mRunState && mRunState->IsNewEndless() && mBoard) {
+        std::string preview=ModText::Format("无尽第 {} 关 · ","Endless level {} / ",mRunState->GetPlayingLevelIndex()+1);
+        preview+=RunState::EndlessThemeName(mRunState->EndlessTheme());
+        if(mRunState->IsEndlessBossLevel())preview+=ModText::Tr(" · 本关 BOSS"," / BOSS this level");
+        mBoard->PushCustomBanner(preview.c_str());
+    }
+
 	PVZP_ASSERT(mSeedChooserScreen == nullptr);
 
+	mOnlineSeedsHeld = false;
+	if (IsOnlineGame() && !IsLocalOnlyMode(mGameMode) && mBoard) {
+        // @pvz-online: rewards finish before entry; even auto-filled decks require explicit readiness.
+        const bool intermission=mRunState && mRunState->GetPlayingLevelIndex()>0 && mOnlineSession->BeginPreparation(true);
+        mPreparationRulesApplied=false;mPreparationSaved=false;mPreparationConfiguredRevision=0;mPreparationEditRequested=false;
+        if(intermission && mRunState->IsEndless()) {mPreparationBuiltSeat=mOnlineSession->GetLocalSeat();mPreparationBuiltMultiplier=OnlineSeatMultiplier();}
+        mOnlineSession->SendSeedsReady(!intermission && !mBoard->ChooseSeedsOnCurrentLevel());
+        if(intermission && !mBoard->ChooseSeedsOnCurrentLevel()) {
+            mOnlineSeedsHeld=true;mRunIntroHeld=true;
+        }
+    }
 	mSeedChooserScreen = std::make_unique<SeedChooserScreen>();
 	mSeedChooserScreen->Resize(0, 0, mWidth, mHeight);
 	mWidgetManager->AddWidget(mSeedChooserScreen.get());
@@ -564,6 +734,10 @@ void LawnApp::KillSeedChooserScreen()
 
 void LawnApp::EndLevel()
 {
+    if(mRunState && mRunState->IsNewEndless()) {
+        mBoardResult=BoardResult::BOARDRESULT_LOST;
+        EndlessLawn::Enter(this);return;
+    }
 	KillBoard();
 	if (IsAdventureMode())
 	{
@@ -580,8 +754,16 @@ void LawnApp::EndLevel()
 	mBoard->mCutScene->StartLevelIntro();
 }
 
-void LawnApp::DoBackToMain()
+void LawnApp::DoBackToMain(bool notifyOnline)
 {
+    if(mRunState && mRunState->IsNewEndless() && mBoard && !mRunState->Save(mPlayerInfo->mId)) {
+        LawnMessageBox(Dialogs::DIALOG_MESSAGE,ModText::Tr("保存失败","Save failed"),
+            ModText::Tr("本次草坪尚未保存，游戏已留在当前画面。请检查可用空间后重试返回菜单。","The lawn could not be saved. The game remains open. Check storage and retry returning to the menu."),"OK","",Sexy::Dialog::BUTTONS_FOOTER);
+        return;
+    }
+
+	KillDialog(DIALOG_GAME_OVER);
+	if (notifyOnline && IsOnlineGame() && !IsLocalOnlyMode(mGameMode)) mOnlineSession->SendLevelExit();
 	mMusic->StopAllMusic();
 	mSoundSystem->CancelPausedFoley();
 	WriteCurrentUserConfig();
@@ -612,7 +794,8 @@ void LawnApp::DoNewOptions(bool theFromGameSelector)
 	//FinishModelessDialogs();
 
 	NewOptionsDialog* aDialog = new NewOptionsDialog(this, theFromGameSelector);
-	CenterDialog(aDialog, IMAGE_OPTIONS_MENUBACK->mWidth, IMAGE_OPTIONS_MENUBACK->mHeight);
+	CenterDialog(aDialog, theFromGameSelector ? IMAGE_OPTIONS_MENUBACK->mWidth : NewOptionsDialog::PAUSE_WIDTH,
+        theFromGameSelector ? IMAGE_OPTIONS_MENUBACK->mHeight : NewOptionsDialog::PAUSE_HEIGHT);
 	AddDialog(Dialogs::DIALOG_NEWOPTIONS, aDialog);
 	mWidgetManager->SetFocus(aDialog);
 }
@@ -1164,6 +1347,9 @@ void LawnApp::Init()
 	if (mShutdown) // MakeWindow() failed
 		return;
 
+	// Load the optional PC Chinese overlay before parsing resources or caching fonts/images.
+	ModText::Initialize();
+
 	if (mRecordingDemoBuffer || mPlayingDemoBuffer)
 		mAppRandSeed = mRandSeed; // demo sessions derive the app-level seed from the recorded one
 
@@ -1395,8 +1581,36 @@ bool LawnApp::UpdatePlayerProfileForFinishingLevel()
 
 void LawnApp::CheckForGameEnd()
 {
+	if (IsOnlineGame()) return;
 	if (mBoard == nullptr || !mBoard->mLevelComplete)
 		return;
+	if (mRunState)
+	{
+        if (mRunIntroHeld || mRunState->HasPendingPick()) return;
+        AwardRunRerollVoucher();
+        ExpireCoopLoan();
+        if(EndlessLawn::StopAtLimit(this))return;
+        EndlessLawn::RememberLineup(mBoard);
+        mRunState->AdvanceLevel();
+        mBoardResult = BOARDRESULT_NONE;
+        mGameScene = SCENE_LEVEL_INTRO;
+        if (mRunState->IsEndless()) mBoard->mBoardFadeOutCounter = -1;
+        else KillBoard();
+        if (mRunState->IsComplete())
+        {
+            RunHistory::Capture(this,RunHistory::COMPLETE);
+            RunState::DeleteCheckpoint(mPlayerInfo->mId);
+            ShowAwardScreen(AWARD_RUN_COMPLETE, false);
+        }
+        else
+        {
+            mRunState->BeginLevelEndPicks();
+                if(mRunState->IsEndless() && mBoard)mRunIntroHeld=true;
+                mRunState->Save(mPlayerInfo->mId);
+            if (mBoard) mRunIntroHeld = true;
+        }
+        return;
+    }
 
 	bool aUnlockedNewChallenge = UpdatePlayerProfileForFinishingLevel();
 
@@ -1550,6 +1764,54 @@ void LawnApp::UpdatePlayTimeStats()
 
 void LawnApp::UpdateFrames()
 {
+    mDamageStats.Update(this);
+	if (mOnlineSession)
+	{
+		// @pvz-online 语言批：会话层的状态/提示文案跟着 UI 语言走，但那一层要能脱开
+		// 框架单测（nettest 直接编译它的 .cpp），不能自己引用 ModText——语言由这儿每帧
+		// 注入，注入后再 Update（状态行每帧在 Update 末尾重算，改语言下一帧就生效）。
+		mOnlineSession->SetTextChinese(ModText::IsChinese());
+        mOnlineSession->SetDirectoryStarted(mBoard!=nullptr || mRunState!=nullptr || mOnlineWaitingStartAck);
+		mOnlineSession->Update();
+        if (mBoard && mOnlineSession->RelayBattleHeld() && !mOnlineSession->IsReconnecting() && !GetDialog(Dialogs::DIALOG_ONLINE))
+            DoOnlineDialog();
+        UpdateCoopPlay();
+
+        // @pvz-online: the room now contains Start/Seats; keep it open after connection
+        // so joining does not require opening the same page a second time.
+        bool aConnected = mOnlineSession->IsConnected();
+		mOnlineWasConnected = aConnected;
+
+		// @pvz-online: 对面问换位：把面板叫出来让玩家按同意/拒绝（面板开着别的地方
+		// 点不着，但主循环照跑——等答复不会把心跳等断）。正在关卡里就直接回绝：
+		// 顺位开局那一下就定死了，不该在棋盘上被问这事。
+		if (mOnlineSession->HasIncomingSwapRequest())
+		{
+            if(mBoard && mOnlineSession->IsPreparationActive()) {
+                if(!GetDialog(Dialogs::DIALOG_ONLINE_SWAP)) {
+                    KillDialog(Dialogs::DIALOG_ONLINE_START);
+                    AddDialog(Dialogs::DIALOG_ONLINE_SWAP,new OnlineSeatDialog(this,mOnlineSeedsHeld));
+                }
+            }
+            else if (mBoard != nullptr)
+                mOnlineSession->AnswerSwapRequest(false);
+			else if (GetDialog(Dialogs::DIALOG_ONLINE) == nullptr)
+				DoOnlineDialog();
+		}
+	}
+	// 开局要换场景、动一堆 UI，所以也放在循环外、widget 更新之前——收包链里干了迟早出事。
+	UpdateEndlessAdmission();
+	UpdateOnlineStart();
+	UpdateOnlineRelay();
+	UpdateOnlineLevelExit();
+	UpdateOnlinePause();
+	UpdateOnlineEvents();
+	UpdateOnlineEnd();
+	// 选卡等队友（SEEDS_READY）：门口拦下的那次等对面也选好，齐了撤框、重新关屏。
+	UpdateOnlineSeeds();
+	UpdateZombieVote();
+	UpdateRunPick();
+
 	if ((!mActive || mMinimized) && mBoard)
 	{
 		mBoard->ResetFPSStats();
@@ -1644,6 +1906,9 @@ void LawnApp::LoadingThreadProc()
 	LoadProperties("properties/default.xml", false, false);
 	LoadProperties("properties/Layout.xml", false, false);
 	LoadProperties("properties/pvz-portable.xml", false, false);
+	// Apply Chinese last so English default.xml cannot overwrite the translated strings.
+	if (ModText::IsChinese())
+		PvzpStringListReadFile("properties/LawnStrings_zh.txt");
 
 	if (mTitleScreen)
 	{
@@ -2073,11 +2338,13 @@ bool LawnApp::IsIZombieLevel()
 
 bool LawnApp::IsShovelLevel()
 {
+    if (mRunState) return false;
 	return mBoard && mGameMode == GameMode::GAMEMODE_CHALLENGE_SHOVEL;
 }
 
 bool LawnApp::IsWallnutBowlingLevel()
 {
+    if (mRunState) return false;
 	if (mBoard == nullptr)
 		return false;
 
@@ -2094,6 +2361,7 @@ bool LawnApp::IsSlotMachineLevel()
 
 bool LawnApp::IsWhackAZombieLevel()
 {
+    if (mRunState) return false;
 	if (mBoard == nullptr)
 		return false;
 
@@ -2105,11 +2373,13 @@ bool LawnApp::IsWhackAZombieLevel()
 
 bool LawnApp::IsLittleTroubleLevel()
 {
+    if (mRunState) return false;
 	return (mBoard && (mGameMode == GameMode::GAMEMODE_CHALLENGE_LITTLE_TROUBLE || (mGameMode == GameMode::GAMEMODE_ADVENTURE && mBoard->mLevel == 25)));
 }
 
 bool LawnApp::IsScaryPotterLevel()
 {
+    if (mRunState) return false;
 	if (mGameMode >= GameMode::GAMEMODE_SCARY_POTTER_1 && mGameMode <= GameMode::GAMEMODE_SCARY_POTTER_ENDLESS)
 		return true;
 
@@ -2118,6 +2388,7 @@ bool LawnApp::IsScaryPotterLevel()
 
 bool LawnApp::IsStormyNightLevel()
 {
+    if (mRunState) return false;
 	if (mBoard == nullptr)
 		return false;
 
@@ -2129,6 +2400,7 @@ bool LawnApp::IsStormyNightLevel()
 
 bool LawnApp::IsBungeeBlitzLevel()
 {
+    if (mRunState) return false;
 	if (mBoard == nullptr)
 		return false;
 
@@ -2140,6 +2412,7 @@ bool LawnApp::IsBungeeBlitzLevel()
 
 bool LawnApp::IsMiniBossLevel()
 {
+    if (mRunState) return false;
 	if (mBoard == nullptr)
 		return false;
 
@@ -2256,6 +2529,7 @@ SeedType LawnApp::GetAwardSeedForLevel(int theLevel)
 
 int LawnApp::GetSeedsAvailable()
 {
+	if (mRunState) return NUM_SEEDS_IN_CHOOSER;
 	int aLevel = mPlayerInfo->GetLevel();
 	if (HasFinishedAdventure() || aLevel > 50)
 	{
@@ -2268,6 +2542,7 @@ int LawnApp::GetSeedsAvailable()
 
 bool LawnApp::HasSeedType(SeedType theSeedType)
 {
+	if (mRunState) return mRunState->HasUsablePlant(theSeedType);
 	if (IsTrialStageLocked() && theSeedType >= SeedType::SEED_JALAPENO)
 		return false;
 
@@ -2389,7 +2664,7 @@ bool LawnApp::CanShowAlmanac()
 	if (mPlayerInfo == nullptr)
 		return false;
 
-	return HasFinishedAdventure() || mPlayerInfo->mLevel >= 15;
+	return true; // @pvz-online: shared features do not require the campaign.
 }
 
 bool LawnApp::CanShowStore()
@@ -2400,7 +2675,7 @@ bool LawnApp::CanShowStore()
 	if (mPlayerInfo == nullptr)
 		return false;
 
-	return HasFinishedAdventure() || mPlayerInfo->mHasSeenUpsell || mPlayerInfo->mLevel >= 25;
+	return true; // @pvz-online: shared features do not require the campaign.
 }
 
 bool LawnApp::CanShowZenGarden()
@@ -2411,7 +2686,7 @@ bool LawnApp::CanShowZenGarden()
 	if (IsTrialStageLocked())
 		return false;
 
-	return HasFinishedAdventure() || mPlayerInfo->mLevel >= 45;
+	return true; // @pvz-online: shared features do not require the campaign.
 }
 
 bool LawnApp::CanSpawnYetis()
@@ -2449,6 +2724,7 @@ bool LawnApp::HasFinishedAdventure()
 
 bool LawnApp::IsFirstTimeAdventureMode()
 {
+	if (mRunState) return false;
 	return IsAdventureMode() && !HasFinishedAdventure();
 }
 
@@ -3266,3 +3542,16 @@ void LawnApp::UpdateRegisterInfo()
 {
 
 }
+
+void LawnApp::DisconnectOnline()
+{
+    const bool inLevel = mBoard != nullptr;
+    if (mOnlineSession) mOnlineSession->Close();
+    KillDialog(DIALOG_ONLINE);
+    if (inLevel || mOnlineWaitingStartAck || mOnlineStartPromptActive) DoBackToMain(false);
+    mOnlineWasConnected = false;
+}
+
+void LawnApp::UpdateCoopPlay(){if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->Update();}
+void LawnApp::ShowCoopPlay(){if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->Show();}
+void LawnApp::ExpireCoopLoan(){if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->ExpireLoan();}

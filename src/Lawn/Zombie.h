@@ -74,6 +74,8 @@ class PvzpParticleSystem;
 class Zombie : public GameObject
 {
 public:
+    static const int RUN_BOSS_MARKER = -1; // fixed PC marker
+
 	enum
 	{
 		ZOMBIE_WAVE_DEBUG = -1,
@@ -158,7 +160,16 @@ public:
 	bool                            mIsFireBall;
 	ReanimationID                   mMoweredReanimID;
 	ReanimationID                   mZombatarHeadReanimID;
+	ReanimationID                   mPaperHelmReanimID = ReanimationID::REANIMATIONID_NULL;
 	int32_t                         mLastPortalX;
+	int32_t mFetidSlowCounter = 0;
+	int32_t mScorchedCounter = 0;
+	int32_t mFrostArmorCounter = 0;
+	bool mIceShroomTrap = false;
+	static constexpr unsigned int RUN_FIXED_COUNTER_DAMAGE = 0x80000000U;
+	int32_t mRunBarbedCounter=0;
+	bool mHeartguardUsed=false;
+	bool mControlImmune = false; // Hard-control immunity only; keep optional v4 chunk 104 layout.
 
 public:
 	Zombie();
@@ -177,7 +188,7 @@ public:
 //  void                            DrawZombieWithParts(Graphics* g, const ZombieDrawPosition& theDrawPos);
 	void                            DrawZombiePart(Graphics* g, Image* theImage, int theFrame, int theRow, const ZombieDrawPosition& theDrawPos);
 	void                            DrawBungeeCord(Graphics* g, int theOffsetX);
-	void                            TakeDamage(int theDamage, unsigned int theDamageFlags);
+	void                            TakeDamage(int theDamage, unsigned int theDamageFlags, int theFixedBonus = 0);
 	void                 SetRow(int theRow);
 	float                           GetPosYBasedOnRow(int theRow);
 	void                            ApplyChill(bool theIsIceTrap);
@@ -257,6 +268,7 @@ public:
 	int                             TakeHelmDamage(int theDamage, unsigned int theDamageFlags);
 	void                            TakeBodyDamage(int theDamage, unsigned int theDamageFlags);
 	void                            AttachShield();
+	void                            AttachPaperHelmReanim();
 	void                            DetachShield();
 	void                            UpdateReanim();
 	void                            GetTrackPosition(const char* theTrackName, float& thePosX, float& thePosY);
@@ -274,7 +286,7 @@ public:
 	void                            UpdateClimbingLadder();
 	void                            UpdateZombieGargantuar();
 	int                             GetBodyDamageIndex();
-	void                            ApplyBurn();
+	void                            ApplyBurn(int theDirectDamage = 0);
 	void                            UpdateBurn();
 	bool                            ZombieNotWalking();
 	Zombie*                         FindZombieTarget();
@@ -290,7 +302,8 @@ public:
 	bool                 IsOnBoard();
 	void                            DrawButter(Graphics* g, const ZombieDrawPosition& theDrawPos);
 	bool                            IsImmobilizied();
-	void                            ApplyButter();
+	void                            ApplyButter(int theFrames = 400);
+	void SwitchLanes();
 	float                           ZombieTargetLeadX(float theTime);
 	void                            UpdateZombieImp();
 	void                            SquishAllInSquare(int theX, int theY, ZombieAttackType theAttackType);
@@ -302,6 +315,7 @@ public:
 	void                            BobsledBurn();
 	bool                            IsBobsledTeamWithSled();
 	bool                            CanBeFrozen();
+	int                             SoftControlDuration(int theFrames);
 	bool                            CanBeChilled();
 	void                            UpdateZombieSnorkel();
 	void                            ReanimIgnoreClipRect(const char* theTrackName, bool theIgnoreClipRect);

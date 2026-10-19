@@ -1,8 +1,10 @@
 # 两人协作与任务交接
 
+2026-10-13 更新：同伴暂时无法参加，按用户要求独立推进。任务 A 已由主开发者完成，报告和生成脚本已提交；任务 B 的中英文资源与语言联动也已由主开发者接入。以下分支/PR 流程供同伴恢复参与时使用，旧任务不再重复分配。
+
 ## 共享仓库
 
-最终采用单独 Android 仓库，用户新建空仓库后提供链接。临时同步位置为 `https://github.com/Not-a-Different-Name/PVZ-online/tree/android-port`；不要将此 Portable 底座分支整支合入 Windows 的 pvz-online。以下命令暂使用临时位置，新仓库就绪后替换 origin URL。
+共享仓库为 `https://github.com/Not-a-Different-Name/PVZ-online-android`，整合分支为 `android-port`。此前 Windows 仓库里的同名分支仅为迁移前的临时副本；后续 Android 工作全部推到新仓库。
 
 GitHub 操作：打开上述仓库 → Settings → Collaborators → Add people → 输入同伴 GitHub 用户名。对方接受邀请后可推自己的分支。仓库公开或私有由所有者决定；源码许可证与归属说明都必须保留。
 
@@ -17,10 +19,10 @@ GitHub 操作：打开上述仓库 → Settings → Collaborators → Add people
 - 每次开始从最新 android-port 拉分支，一项任务一个 PR。PR 写改了什么、依据/验证、仍需主开发者处理的问题。
 - 同伴不直接推 android-port；主开发者查看差异后合入。若同伴需要修改约定之外的文件，先在 PR/Issue 中解释原因并调整分工。
 
-对方接取 A 的命令（把仓库 URL 换成实际链接）：
+对方接取 A 的命令：
 
 ```powershell
-git clone --branch android-port https://github.com/Not-a-Different-Name/PVZ-online.git pvz-online-android
+git clone --branch android-port https://github.com/Not-a-Different-Name/PVZ-online-android.git pvz-online-android
 cd pvz-online-android
 git switch -c collab/enum-audit
 # 完成报告后，只提交报告文件
@@ -72,6 +74,6 @@ git push -u origin collab/enum-audit
 
 ## 当前共享基线的能力
 
-2026-10-13 已生成原样 Portable 底座 APK（仅开发包标识/构建配置适配），在 MuMu Android 15 安装启动并读入本机资源。尚未迁入 PvZ Online 闯关、增益和联机功能。APK 位于开发机仓库外，不把它误称为完成的手机版 mod。
+2026-10-13 已生成 ARM64 APK，在 MuMu Android 15 运行，包含拖放修复、单机闯关原型、三种增益和中英文资源切换。合作联机与完整 PC 规则仍未迁入。APK 和玩家资源保留在仓库外，不把原型误称为完成的手机版 mod。
 
 官方协作操作参考：https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/repository-access-and-collaboration/inviting-collaborators-to-a-personal-repository

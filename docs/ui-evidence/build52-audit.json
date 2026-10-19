@@ -1,0 +1,127 @@
+{
+  "date": "2026-10-15",
+  "androidBaseline": "1ea2a20",
+  "evidenceType": "Existing screenshots reviewed; no game launched or modified UI rendered.",
+  "coordinateMapping": {
+    "scale": 1.8,
+    "screenshotHeight": 1080,
+    "logicalSize": [
+      800,
+      600
+    ],
+    "screenshotWidth": 1920,
+    "gameRect": [
+      240,
+      0,
+      1440,
+      1080
+    ]
+  },
+  "colorMethod": "sRGB relative luminance: sampled button background vs source ink, no glyph-edge sampling.",
+  "currentInkRgb": [
+    30,
+    75,
+    15
+  ],
+  "proposedInkRgb": [
+    245,
+    230,
+    165
+  ],
+  "samples": [
+    {
+      "screenshotPixel": [
+        366,
+        351
+      ],
+      "backgroundRgb": [
+        95,
+        97,
+        129
+      ],
+      "currentContrast": 1.699,
+      "proposedContrast": 4.766
+    },
+    {
+      "screenshotPixel": [
+        400,
+        375
+      ],
+      "backgroundRgb": [
+        95,
+        97,
+        129
+      ],
+      "currentContrast": 1.699,
+      "proposedContrast": 4.766
+    },
+    {
+      "screenshotPixel": [
+        850,
+        350
+      ],
+      "backgroundRgb": [
+        95,
+        97,
+        129
+      ],
+      "currentContrast": 1.699,
+      "proposedContrast": 4.766
+    },
+    {
+      "screenshotPixel": [
+        850,
+        380
+      ],
+      "backgroundRgb": [
+        94,
+        96,
+        128
+      ],
+      "currentContrast": 1.673,
+      "proposedContrast": 4.838
+    }
+  ],
+  "evidence": [
+    {
+      "pathRelativeToArtifacts": "coop52/loan-ui.png",
+      "width": 1920,
+      "height": 1080,
+      "bytes": 524366,
+      "sha256": "8EAF6347AEADB360EF2790DCC32B0256896900ED490695044755D3F742D5F367"
+    },
+    {
+      "pathRelativeToArtifacts": "coop52/loan-result.png",
+      "width": 1920,
+      "height": 1080,
+      "bytes": 513288,
+      "sha256": "9FF303E77FA5D9CA77A2FF07BCE03F09A103AB3D001E47B4AC1EDB8EBB095F7F"
+    },
+    {
+      "pathRelativeToArtifacts": "coop52/battle.png",
+      "width": 1920,
+      "height": 1080,
+      "bytes": 2054313,
+      "sha256": "4B63B2003152E73642400B9005F858550456A485DCC230F89DDE548A45EF068A"
+    },
+    {
+      "pathRelativeToArtifacts": "build51-sync/room-final.png",
+      "width": 1920,
+      "height": 1080,
+      "bytes": 456586,
+      "sha256": "66A065C201CBC4EB0CC73ED8AB1641FD60532BD4547408D372B81097FC2515E7"
+    },
+    {
+      "pathRelativeToArtifacts": "build51-sync/menu.png",
+      "width": 1920,
+      "height": 1080,
+      "bytes": 1551834,
+      "sha256": "C465187A592D6B5526F5B06C7802DA168366C66058B15C4B16D2179E1BE8E873"
+    }
+  ],
+  "limits": [
+    "No complete texture contrast audit.",
+    "No post-change screenshot.",
+    "Build52 rewards/mode/resource/watch pages are source-only inspection."
+  ]
+}

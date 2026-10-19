@@ -10,6 +10,8 @@ configurations.all {
 
 // -PusePrebuiltLibs=true packages prebuilt jniLibs (CI); otherwise build via CMake.
 def prebuilt = project.hasProperty('usePrebuiltLibs') && project.usePrebuiltLibs.toBoolean()
+// @pvz-online: player packages carry local resources outside the source repository.
+def bundledGameAssets = project.findProperty('bundledGameAssets')
 
 // Version from git, mirroring archlinux/PKGBUILD's pkgver(); fall back to 0.1/1 without git or tags.
 def gitVersionName = {
@@ -35,6 +37,13 @@ def gitVersionCode = {
     }
 }()
 
+// @pvz-online: Android's package screen must distinguish incompatible multiplayer builds.
+def onlineBuild = (file('../../src/Lawn/Online/NetProtocol.h').text =~ /MOD_BUILD\s*=\s*(\d+)\s*;/)[0][1]
+def sourceRevision = 'unknown'
+try {
+    sourceRevision = providers.exec { commandLine 'git', 'rev-parse', '--short=8', 'HEAD' }.standardOutput.asText.get().trim()
+} catch (Exception ignored) { }
+
 android {
     // @pvz-online: keep Gradle aligned with the native build instead of downloading its default NDK.
     ndkVersion '28.2.13676358'
@@ -43,11 +52,11 @@ android {
 
     defaultConfig {
         // @pvz-online: use a separate development app and data directory from the community APK.
-        applicationId "io.github.pvzonline.android"
+        applicationId (project.findProperty('testApplicationId') ?: "io.github.pvzonline.android")
         minSdk 24
         targetSdk 36
-        versionCode gitVersionCode
-        versionName gitVersionName
+        versionCode Math.max(gitVersionCode, onlineBuild.toInteger())
+        versionName "${gitVersionName}-online${onlineBuild}.${sourceRevision}${bundledGameAssets ? '-full' : ''}"
 
         ndk {
             abiFilters 'arm64-v8a'
@@ -97,6 +106,7 @@ android {
 
     sourceSets {
         main {
+            if (bundledGameAssets) assets.srcDir(file(bundledGameAssets))
             java.srcDirs = [
                 'src/main/java',
                 "${project.rootDir}/../sdl2-src/android-project/app/src/main/java"

@@ -55,6 +55,8 @@ public:
 	LawnApp*							mApp;
 	int									mFadeInCounter;
 	AwardType							mAwardType;				//+0xB8
+	int mRunLevelCount = 0;
+	bool mRunReturnPressed = false;
 	std::unique_ptr<GameButton>		mContinueButton;		//+0xA8
 	bool								mShowStartButtonAfterAchievements;	//+0xAC
 	bool								mShowMenuButtonAfterAchievements;	//+0xAD
@@ -70,6 +72,8 @@ public:
 	void				Resize(int theX, int theY, int theWidth, int theHeight) override { Widget::Resize(theX, theY, theWidth, theHeight); }
 	static void			DrawBottom(Graphics* g, std::string_view theTitle, std::string_view theAward, std::string_view theMessage);
 	void				DrawAwardSeed(Graphics* g);
+	void DrawRunComplete(Graphics* g);
+	void LostFocus() override;
 	void				Draw(Graphics* g) override;
 	void				Update() override;
 	void				AddedToManager(WidgetManager* theWidgetManager) override { Widget::AddedToManager(theWidgetManager); }

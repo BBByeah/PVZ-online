@@ -153,6 +153,58 @@ public:
 		return std::default_sentinel;
 	}
 
+	// PC effect code uses a cursor; keep the same ascending live-slot order as range iteration.
+	bool DataArrayIterate(T*& theItem)
+	{
+		unsigned int index = theItem ? static_cast<unsigned int>(static_cast<DataArrayItem*>(theItem) - mItems.get()) + 1U : 0U;
+		while (index < mMaxUsedCount && !(mItemIds[index] & DATA_ARRAY_KEY_MASK)) ++index;
+		theItem = index < mMaxUsedCount ? &mItems[index] : nullptr;
+		return theItem != nullptr;
+	}
+
+	// Checked allocation is opt-in until every legacy caller handles failure.
+	bool DataArrayCanAllocate(unsigned int theCount = 1) const
+	{
+		if (mMaxUsedCount > mMaxSize || mSize > mMaxUsedCount || mFreeListHead > mMaxUsedCount)
+			return false;
+		if ((mFreeListHead == mMaxUsedCount) != (mSize == mMaxUsedCount)) return false;
+		return theCount <= mMaxSize - mSize;
+	}
+
+	T* DataArrayTryAlloc()
+	{
+		if (!DataArrayCanAllocate()) return nullptr;
+		if (!mItems || !mItemIds) return nullptr;
+		if (mFreeListHead < mMaxUsedCount &&
+			(mItemIds[mFreeListHead] > mMaxUsedCount || mItemIds[mFreeListHead] == mFreeListHead)) return nullptr;
+		return DataArrayAlloc();
+	}
+
+	// Validate loaded IDs/free links before callers can iterate or allocate.
+	bool DataArrayValidateState() const
+	{
+		if (!DataArrayCanAllocate(0) || mNextKey == 0 || mNextKey >= DATA_ARRAY_MAX_SIZE) return false;
+		unsigned int aLive = 0;
+		for (unsigned int i = 0; i < mMaxUsedCount; ++i)
+		{
+			const unsigned int aId = mItemIds[i];
+			if (aId & DATA_ARRAY_KEY_MASK)
+			{
+				if ((aId & DATA_ARRAY_INDEX_MASK) != i) return false;
+				++aLive;
+			}
+			else if (aId > mMaxUsedCount) return false;
+		}
+		if (aLive != mSize) return false;
+		unsigned int aNext = mFreeListHead;
+		for (unsigned int n = 0; n < mMaxUsedCount - mSize; ++n)
+		{
+			if (aNext >= mMaxUsedCount) return false;
+			aNext = mItemIds[aNext];
+		}
+		return aNext == mMaxUsedCount;
+	}
+
 	T* DataArrayAlloc()
 	{
 		PVZP_ASSERT(mSize < mMaxSize, "Data array full: {}", mName);
@@ -176,7 +228,7 @@ public:
 
 	T* DataArrayTryToGet(unsigned int theId)
 	{
-		if (!theId || (theId & DATA_ARRAY_INDEX_MASK) >= mMaxSize)
+		if (!theId || !(theId & DATA_ARRAY_KEY_MASK) || (theId & DATA_ARRAY_INDEX_MASK) >= mMaxUsedCount)
 			return nullptr;
 
 		unsigned int anIndex = theId & DATA_ARRAY_INDEX_MASK;

@@ -50,6 +50,15 @@ file(GLOB SOURCES CONFIGURE_DEPENDS
 	src/Lawn/Widget/*.cpp
 	src/Lawn/System/*.cpp
 )
+# @pvz-online: fixed PC run model and cross-platform session transport.
+list(APPEND SOURCES src/Lawn/Run/RunState.cpp src/Lawn/Run/RunCheckpointIO.cpp src/Lawn/Run/RunHistory.cpp src/Lawn/Run/RunBuffs.cpp src/Lawn/Run/RunFlow.cpp src/Lawn/Run/RunZombieRoster.cpp src/Lawn/Online/NetSession.cpp)
+if(WIN32)
+	list(APPEND SOURCES src/Lawn/Online/NetLinkWin32.cpp)
+elseif(ANDROID OR (UNIX AND NOT EMSCRIPTEN))
+	list(APPEND SOURCES src/Lawn/Online/NetLinkPosix.cpp)
+else()
+	list(APPEND SOURCES src/Lawn/Online/NetLinkOffline.cpp)
+endif()
 
 option(LOW_MEMORY "Enable low memory mode" OFF)
 if(NINTENDO_SWITCH)

@@ -1,0 +1,17 @@
+{
+  "modBuild": 65,
+  "date": "2026-10-17",
+  "previousOverlay": "docs/compatibility/updates/build64-next-wave-working-tree.json",
+  "sourceState": "uncommitted implementation; PC x86 and Android API24 arm64 native builds passed; 27 production-engine targeted checks passed; no full game, device, visual, packaging or deployment acceptance",
+  "checkpointVersion": 20,
+  "protocolVersion": 1,
+  "startLevelPayloadBytes": 44,
+  "onlineGameReady": false,
+  "changes": [
+    "Raise Scaredy Heart-Eroding Spores bonus cap from 800 to 5000, retaining five percent current body HP and fixed bonus semantics.",
+    "Raise lonely Gloom emotional damage from x3 to x5 and per-hit healing from two to four percent maximum HP.",
+    "Raise Winter Melon Glacial Advance frequency from every six to every three primary attacks and wave damage from 120 to 240, retaining one-second freeze and hit deduplication.",
+    "Synchronize Chinese and English descriptions without changing buff IDs, rarity, stack limits, save format or network payloads."
+  ],
+  "report": "docs/BUFF-STRENGTH-BUILD65-2026-10-17.md"
+}

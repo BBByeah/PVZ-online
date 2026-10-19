@@ -1,0 +1,98 @@
+Id,Table,Plant,NameZh,NameEn,EffectZh,MaxStacks,Kind,PCInPool,AndroidStatus,PCSource,Consumers
+0,gRunBuffDefs,,火力,Firepower,所有子弹伤害 +30%,0,GLOBAL,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Projectile::DoImpact; Projectile::DoSplashDamage
+1,gRunBuffDefs,,扎根,Deep Roots,所有植物血量 +75%,0,GLOBAL,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::PlantInitialize
+2,gRunBuffDefs,,丰饶,Abundance,产阳光间隔逐层 ×0.75,4,GLOBAL,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::PlantInitialize; Plant::UpdateProductionPlant
+3,gRunBuffDefs,,急袭,Swift Strikes,植物攻击间隔逐层 ×0.75,4,GLOBAL,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateShooter; Plant::UpdateShooting; PlantShootSpeed
+4,gRunBuffDefs,,速种,Quick Seeds,种植冷却逐层 ×0.8,0,GLOBAL,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,SeedPacket::WasPlanted
+5,gRunBuffDefs,,天降,Skyfall,夜晚也降阳光，降阳光速率 ×2,1,GLOBAL,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Board::InitLevel; Board::UpdateSunSpawning
+6,gRunBuffDefs,,爆破,Demolition,一次性植物伤害 +60%,0,GLOBAL,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Board::KillAllZombiesInRadius; Plant::DoSquashDamage; Zombie::ApplyBurn
+7,gRunBuffDefs,,精准,Precision,所有伤害 +15%,0,GLOBAL,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Zombie::TakeDamage
+8,gRunBuffDefs,,排山倒海,Mirror Rows,种下植物时，上下相邻的空格 / 免费种上一株同款,1,GLOBAL,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Board::MouseDownWithPlant
+9,gRunPlantUpgradeDefs,SEED_PEASHOOTER,连发,Pea Volley,豌豆射手每次多发 1 颗 / （每层）,0,RUN_UPGRADE_KIND_SHOTCOUNT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::Fire
+10,gRunPlantUpgradeDefs,SEED_SUNFLOWER,丰收,Harvest,种下立即产 1 次阳光 / 每轮 50% 概率多产 1 阳光,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::PlantInitialize; Plant::UpdateProductionPlant
+11,gRunPlantUpgradeDefs,SEED_CHERRYBOMB,巨爆,Wide Blast,樱桃炸弹爆炸范围 +50% / （每层）,0,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::DoSpecial
+12,gRunPlantUpgradeDefs,SEED_WALLNUT,耐砸,Thick Shell,巨人砸击时像地刺王一样耐砸 / （每次 -200 血）,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Zombie::UpdateZombieGargantuar
+13,gRunPlantUpgradeDefs,SEED_POTATOMINE,震雷,Seismic Mine,爆炸眩晕半径内僵尸 2 秒 / （每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::DoSpecial
+14,gRunPlantUpgradeDefs,SEED_SNOWPEA,冰西瓜化,Blizzard,发射冰西瓜,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::Fire
+15,gRunPlantUpgradeDefs,SEED_CHOMPER,狼吞,Ravenous,咀嚼时间减半,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateChomper
+16,gRunPlantUpgradeDefs,SEED_REPEATER,弹幕,Pea Barrage,每次射击多发 2 颗 / （每层）,0,RUN_UPGRADE_KIND_SHOTCOUNT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::Fire
+17,gRunPlantUpgradeDefs,SEED_PUFFSHROOM,孢子弹幕,Spore Volley,每次多发 2 颗 / （每层）,0,RUN_UPGRADE_KIND_SHOTCOUNT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::Fire
+18,gRunPlantUpgradeDefs,SEED_SUNSHROOM,亮顶,Bright Cap,产阳光间隔逐层 ×0.75,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::PlantInitialize; Plant::UpdateProductionPlant
+19,gRunPlantUpgradeDefs,SEED_FUMESHROOM,疾雾,Fume Rush,攻击间隔 ×0.5 / （每层）,0,RUN_UPGRADE_KIND_RHYTHM,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateShooter; Plant::UpdateShooting; PlantShootSpeed
+20,gRunPlantUpgradeDefs,SEED_GRAVEBUSTER,掘金,Quick Dig,吞掉墓碑额外产 25 阳光 / （每层）,2,RUN_UPGRADE_KIND_EFFECT,False,已保留PC存量效果；不进池,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateGraveBuster
+21,gRunPlantUpgradeDefs,SEED_HYPNOSHROOM,倒戈,Devotion,被魅惑僵尸咬到的僵尸也变友军 / （魅惑菇冷却 ×6）,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::GetRefreshTime; Zombie::EatZombie
+22,gRunPlantUpgradeDefs,SEED_SCAREDYSHROOM,无畏,Bravery,敌人贴近时不再缩头,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateScaredyShroom
+23,gRunPlantUpgradeDefs,SEED_ICESHROOM,深冻,Deep Freeze,全场冰冻 +6 秒 / （每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Zombie::HitIceTrap
+24,gRunPlantUpgradeDefs,SEED_DOOMSHROOM,湮灭,Annihilation,爆炸造成 6000 伤害,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::DoSpecial
+25,gRunPlantUpgradeDefs,SEED_LILYPAD,厚叶,Tough Pad,血量 +150% / （每层）,2,RUN_UPGRADE_KIND_HEALTH,False,已保留PC存量效果；不进池,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::PlantInitialize
+26,gRunPlantUpgradeDefs,SEED_SQUASH,连砸,Heavy Squash,砸击次数 +2 / （每层）,0,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateSquash
+27,gRunPlantUpgradeDefs,SEED_THREEPEATER,齐射,Triple Volley,每条道多发 1 颗,1,RUN_UPGRADE_KIND_SHOTCOUNT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::Fire
+28,gRunPlantUpgradeDefs,SEED_TANGLEKELP,多缠,Entangle,多缠 1 只僵尸 / （每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateTanglekelp
+29,gRunPlantUpgradeDefs,SEED_JALAPENO,炼狱,Inferno,种植冷却逐层 ×0.8 / （每层）,3,RUN_UPGRADE_KIND_COOLDOWN,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,SeedPacket::WasPlanted
+30,gRunPlantUpgradeDefs,SEED_SPIKEWEED,倒刺,Barbed Spikes,扎过的僵尸减速 +3 秒 / （每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::DoRowAreaDamage
+31,gRunPlantUpgradeDefs,SEED_TORCHWOOD,引燃,Kindling,火弹伤害加成 +50% / （每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,KindlingFireballDamage
+32,gRunPlantUpgradeDefs,SEED_TALLNUT,耐砸,Iron Shell,巨人砸击时像地刺王一样耐砸 / （每次 -200 血）,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Zombie::UpdateZombieGargantuar
+33,gRunPlantUpgradeDefs,SEED_SEASHROOM,盐孢,Brine Spore,种植冷却逐层 ×0.8 / （每层）,3,RUN_UPGRADE_KIND_COOLDOWN,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,SeedPacket::WasPlanted
+34,gRunPlantUpgradeDefs,SEED_PLANTERN,灯火,Lantern Light,照亮范围 +1 格 / （每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Board::UpdateFog; PlantInLanternLight
+35,gRunPlantUpgradeDefs,SEED_CACTUS,锐刺,Prickly,尖刺无限穿透,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::Fire
+36,gRunPlantUpgradeDefs,SEED_BLOVER,余风,Gale,吹风后全场僵尸减速 5 秒 / （每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::BlowAwayFliers
+37,gRunPlantUpgradeDefs,SEED_SPLITPEA,背刺,Backspike,背向豌豆每次 +1 颗 / （每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::Fire
+38,gRunPlantUpgradeDefs,SEED_STARFRUIT,追踪星,Homing Stars,子弹变为追踪弹,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::StarFruitFire
+39,gRunPlantUpgradeDefs,SEED_PUMPKINSHELL,硬壳,Hard Rind,血量 +150% / （每层）,2,RUN_UPGRADE_KIND_HEALTH,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::PlantInitialize
+40,gRunPlantUpgradeDefs,SEED_MAGNETSHROOM,充磁,Magnet Pull,吸取间隔逐层 ×0.8 / （每层）,3,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,MagnetShroomRechargeFrames
+41,gRunPlantUpgradeDefs,SEED_CABBAGEPULT,免投,Free Toss,种植费用变为 0,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::GetCost
+42,gRunPlantUpgradeDefs,SEED_FLOWERPOT,沃土,Rich Soil,血量 +150% / （每层）,2,RUN_UPGRADE_KIND_HEALTH,False,已保留PC存量效果；不进池,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::PlantInitialize
+43,gRunPlantUpgradeDefs,SEED_KERNELPULT,加农炮转化,Artillery,种下后变为玉米加农炮,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Board::CanPlantAt; Board::MouseDownWithPlant
+44,gRunPlantUpgradeDefs,SEED_INSTANT_COFFEE,醇香,Rich Roast,唤醒产阳光 +25 / （每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::DoSpecial
+45,gRunPlantUpgradeDefs,SEED_GARLIC,铁蒜,Iron Clove,巨人砸击时像地刺王一样耐砸,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Zombie::UpdateZombieGargantuar
+46,gRunPlantUpgradeDefs,SEED_UMBRELLA,华盖,Canopy,血量 +150% / （每层）,2,RUN_UPGRADE_KIND_HEALTH,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::PlantInitialize
+47,gRunPlantUpgradeDefs,SEED_MARIGOLD,鎏金,Golden Bloom,每次多产 1 枚 / （每层）,3,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateProductionPlant
+48,gRunPlantUpgradeDefs,SEED_MELONPULT,瓜幕,Melon Barrage,每次多发 1 个西瓜 / （每层）,0,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::Fire
+49,gRunPlantUpgradeDefs,SEED_GATLINGPEA,超频,Overclock,攻击间隔 ×0.5,1,RUN_UPGRADE_KIND_RHYTHM,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateShooter; Plant::UpdateShooting; PlantShootSpeed
+50,gRunPlantUpgradeDefs,SEED_TWINSUNFLOWER,绽放,Twin Bloom,每轮固定多产 2 阳光 / （每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateProductionPlant
+51,gRunPlantUpgradeDefs,SEED_GLOOMSHROOM,幽环,Gloom,光环范围 +1 格,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::DoRowAreaDamage; Plant::GetPlantAttackRect
+52,gRunPlantUpgradeDefs,SEED_CATTAIL,快爪,Quick Claw,每层多1针，优先不同目标，不足补打主目标,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；Native构建通过，完整设备对局未验收,Build57 reviewed working-tree overlay; base 4ec113e,Plant::UpdateShooting
+53,gRunPlantUpgradeDefs,SEED_WINTERMELON,极寒爆裂,Arctic Burst,真冰瓜3×3区域每名敌人80伤及冰缓，不分摊,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；Native构建通过，完整设备对局未验收,Build57 reviewed working-tree overlay; base 4ec113e,Projectile::IsZombieHitBySplash; Projectile::DoSplashDamage
+54,gRunPlantUpgradeDefs,SEED_GOLD_MAGNET,镀金,Gilded Pull,吸取间隔逐层 ×0.8 / （每层）,3,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateGoldMagnetShroom
+55,gRunPlantUpgradeDefs,SEED_SPIKEROCK,棘冠,Royal Thorns,血量 +150% / （每层）,2,RUN_UPGRADE_KIND_HEALTH,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::PlantInitialize
+56,gRunPlantUpgradeDefs,SEED_COBCANNON,速装,Rapid Reload,装填时间逐层 ×0.8 / （每层）,3,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,CobCannonArmFrames
+57,gRunPlantBuff2Defs,SEED_PEASHOOTER,穿刺豌豆,Piercing Pea,豌豆无限穿透,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::Fire
+58,gRunPlantBuff2Defs,SEED_SUNFLOWER,初阳,First Light,种下立即产 1 次阳光,1,RUN_UPGRADE_KIND_EFFECT,False,保持PC停用，不进入抽取池,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,PC无启用消费者
+59,gRunPlantBuff2Defs,SEED_CHERRYBOMB,焦土,Scorched Earth,被炸中的僵尸持续燃烧 / 每秒 300 伤害，共 3 秒（每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::DoSpecial; Zombie::UpdatePlaying
+60,gRunPlantBuff2Defs,SEED_WALLNUT,荆棘之壁,Thorn Wall,啃食者每秒受 40 伤害 / （每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Zombie::EatPlant
+61,gRunPlantBuff2Defs,SEED_POTATOMINE,自动补雷,Mine Regrow,引爆后 3 秒原位重新埋雷 / 每层可多补 1 次,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::PlantInitialize
+62,gRunPlantBuff2Defs,SEED_SNOWPEA,寒冰贯通,Frost Pierce,雪豆无限穿透,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::Fire
+63,gRunPlantBuff2Defs,SEED_CHOMPER,连锁吞,Chain Bite,吞完后范围内仍有僵尸立即再咬 / （每层多连锁 1 次）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateChomper
+64,gRunPlantBuff2Defs,SEED_REPEATER,火力压制,Suppress Fire,攻击间隔 ×0.7 / （每层）,2,RUN_UPGRADE_KIND_RHYTHM,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateShooter; Plant::UpdateShooting; PlantShootSpeed
+65,gRunPlantBuff2Defs,SEED_PUFFSHROOM,亡语孢子,Death Spore,被啃掉时原地爆炸 / 900 伤害（每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::Fire
+66,gRunPlantBuff2Defs,SEED_SUNSHROOM,催长,Boosted Grow,种下后第二次产阳光前长大 / （首产 15、此后 25）,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateProductionPlant
+67,gRunPlantBuff2Defs,SEED_FUMESHROOM,腐臭之息,Fetid Breath,命中减速 20%，持续 3 秒,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::DoRowAreaDamage; Zombie::ApplyAnimRate
+68,gRunPlantBuff2Defs,SEED_GRAVEBUSTER,疾掘,Swift Dig,吞噬速度 ×0.5,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateGraveBuster
+69,gRunPlantBuff2Defs,SEED_HYPNOSHROOM,迷魂香,Fragrance,被魅惑僵尸的血量与伤害 ×2 / （每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Zombie::EatZombie; Zombie::StartMindControlled
+70,gRunPlantBuff2Defs,SEED_SCAREDYSHROOM,磐石,Bedrock,血量变为 4000,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::Fire
+71,gRunPlantBuff2Defs,SEED_ICESHROOM,霜甲,Frost Armor,冰冻结束后全场减速 35% / 持续 20 秒,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Zombie::UpdatePlaying
+72,gRunPlantBuff2Defs,SEED_DOOMSHROOM,灭世半径,Doom Radius,爆炸半径 +50% / （每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::DoSpecial
+73,gRunPlantBuff2Defs,SEED_SQUASH,飞跃震击,Leap Shock,砸击次数 ×2（每层） / 并可跳砸上下行,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::FindSquashTarget; Plant::UpdateSquash
+74,gRunPlantBuff2Defs,SEED_THREEPEATER,贯穿,Trident,三线子弹无限穿透,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::Fire; Plant::UpdateShooter
+75,gRunPlantBuff2Defs,SEED_JALAPENO,连烧,Chain Burn,爆炸次数 +1 / （间隔 1 秒）,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::DoSpecial
+76,gRunPlantBuff2Defs,SEED_SPIKEWEED,伤口加深,Open Wound,被扎的僵尸受全伤害 +30%,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Zombie::TakeDamage
+77,gRunPlantBuff2Defs,SEED_TORCHWOOD,烈焰溅射,Flame Splash,过火子弹命中溅射 / 造成原伤 1/3,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Projectile::DoSplashDamage; Projectile::IsZombieHitBySplash
+78,gRunPlantBuff2Defs,SEED_SEASHROOM,亡语孢子,Death Brine,被啃掉时原地爆炸 / 900 伤害（每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::Fire
+79,gRunPlantBuff2Defs,SEED_PLANTERN,暮光,Twilight,照亮格内植物攻速 ×0.75,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateShooter; PlantInLanternLight; PlantShootSpeed
+80,gRunPlantBuff2Defs,SEED_CACTUS,三向尖刺,Tri-Spike,改为三行发射 / （本行与上下各一行）,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::FindTargetAndFire; Plant::Fire
+81,gRunPlantBuff2Defs,SEED_BLOVER,狂风,Gale Force,吹风把全场僵尸推离 1 格 / （每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::BlowAwayFliers
+82,gRunPlantBuff2Defs,SEED_SPLITPEA,免植,Free Plant,种植费用变为 0,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::GetCost
+83,gRunPlantBuff2Defs,SEED_PUMPKINSHELL,再生,Regrow,每 15 秒回复 10% 血量,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateAbilities
+84,gRunPlantBuff2Defs,SEED_MAGNETSHROOM,卸甲飞掷,Magnet Throw,吸到的防具就地掷回 / 1200 伤害（每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::MagnetShroomAttactItem
+85,gRunPlantBuff2Defs,SEED_CABBAGEPULT,重投,Heavy Toss,伤害 +50%,3,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Projectile::DoImpact
+86,gRunPlantBuff2Defs,SEED_KERNELPULT,黄油盛宴,Butter Feast,黄油概率 +25% / 黄油时长 +1 秒（每层）,2,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::FindTargetAndFire; Projectile::DoImpact
+87,gRunPlantBuff2Defs,SEED_GARLIC,引路蒜,Guide Garlic,血量仅 20 / 被吃时全行僵尸换道,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Zombie::EatPlant
+88,gRunPlantBuff2Defs,SEED_MARIGOLD,富贵,Fortune,+10% 概率产金币/钻石 / （每层）,3,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::UpdateProductionPlant
+89,gRunPlantBuff2Defs,SEED_MELONPULT,滚爆,Rolling Burst,落地后向前滚 1 格 / 并再炸一次,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；运行覆盖按机制记录,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Projectile::DoImpact
+90,gRunPlantBuff2Defs,SEED_GATLINGPEA,概率瓜弹,Melon Rounds,25%子弹替换为直射西瓜，80伤及普通溅射,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；Native构建通过，完整设备对局未验收,Build57 reviewed working-tree overlay; base 4ec113e,Plant::Fire; Projectile::DoImpact
+91,gRunPlantBuff2Defs,SEED_TWINSUNFLOWER,聚光增幅,Solar Focus,本体每5秒自动收阳光；自动拾取价值+20%，多株不叠增值,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；Native构建通过，完整设备对局未验收,Build57 reviewed working-tree overlay; base 4ec113e,Plant::UpdatePurpleBuffs; Coin::GetSunValue
+92,gRunPlantBuff2Defs,SEED_GLOOMSHROOM,耐砸,Rock Flesh,基础血量1000可受生命加成 / 普通巨人每砸扣200,1,RUN_UPGRADE_KIND_EFFECT,True,Build59工作区已同步；未编译验收,61c37d625ccb3cb7cecaed2422798e8ec5746cbf,Plant::PlantInitialize; Plant::CoopMaxHealth; Zombie::UpdateZombieGargantuar
+93,gRunPlantBuff2Defs,SEED_WINTERMELON,冰川推进,Glacial Advance,每3次主攻击释放一道三行冰浪，240伤、冻结1秒,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；Native构建通过，完整设备对局未验收,Build57 reviewed working-tree overlay; base 4ec113e,Plant::Fire; Projectile::UpdatePurpleWave
+94,gRunPlantBuff2Defs,SEED_GOLD_MAGNET,点石成金,Golden Alchemy,银必转金，每枚吸取钱币额外10阳光,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；Native构建通过，完整设备对局未验收,Build57 reviewed working-tree overlay; base 4ec113e,Plant::UpdateGoldMagnetShroom
+95,gRunPlantBuff2Defs,SEED_COBCANNON,战略轰炸,Strategic Bombardment,十字五点普通玉米炮各1800伤，0.2秒错峰，与玉米转炮双向降权,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；Native构建通过，完整设备对局未验收,Build57 reviewed working-tree overlay; base 4ec113e,Plant::Fire; RunState::GetChoiceWeight
+112,gRunPlantBuff2Defs,SEED_CATTAIL,追猎,Hunter Needle,每第4枚针80伤，最多追击3名不同敌人,1,RUN_UPGRADE_KIND_EFFECT,True,已迁入；Native构建通过，完整设备对局未验收,Build57 reviewed working-tree overlay; base 4ec113e,Plant::Fire; Projectile::DoImpact; Projectile::FindHuntTarget

@@ -1,0 +1,24 @@
+{
+  "modBuild": 59,
+  "date": "2026-10-16",
+  "sourceState": "uncommitted source changes only; no build, tests, acceptance or deployment in this batch",
+  "previousOverlay": "docs/compatibility/updates/build58-skyfall-working-tree.json",
+  "changes": [
+    "Confirmed loans can be removed during preparation; matching lender reservations are released through retried RETURN_LOAN/RETURN_RESULT receipts while the lender is still preparing.",
+    "Restore missing Zamboni run boss from historical ce053f96 without reverting later changes: one of three types, red-eye x2 / football x4.5 / Zamboni x6, boss relay whitelist and spike rules.",
+    "Run bosses survive both MowDown and direct pool-mower kills; mower activation remains unchanged.",
+    "Gravekeeper-created gravestones begin visibly grown instead of waiting on a disabled native grave timer.",
+    "Gloom loneliness ignores flowerpots and lily pads; gargantuar durability branches agree on Gloom -200 and steel pumpkin -200.",
+    "Blover Gale Force caps rightward displacement using the body rectangle right offset, synchronizes mX, and never pulls off-board entrants into the lawn; native flying-zombie blow-away remains unchanged.",
+    "Run and endless seed selection skip the obsolete upgrade-without-base warning while preserving original-mode requirements.",
+    "First Aid is available on garden store page 2 at the original price without campaign completion; store navigation uses the actual visible-page count, not the hidden upgrade-page unlock. The user explicitly allows this permanent purchase on the purchaser's run/endless board, including online. The existing Wall-nut trait remains.",
+    "Gloom Rock Flesh uses base 1000 before health multipliers in initialization and CoopMaxHealth; loaded run Glooms refresh max HP proportionally. Ordinary smashes remain 200 HP.",
+    "Run/endless water rows use pool cleaners regardless of profile purchase. Loaded live READY/ROLLING_IN water lawn mowers convert without resetting position or state; triggered, squished and consumed mowers are not replenished. Original-mode purchase rules and relay-seat mower eligibility remain unchanged.",
+    "Cherry Scorched Ground exits living updates immediately after lethal periodic damage; outer updates skip living animations and bungee/pogo actions after death. Legacy zero-HP Gargantuars re-enter native death handling without resetting loot state. Damage and duration remain unchanged."
+  ],
+  "emoteStatus": "Android DrawNotice already preserves the emote ID and draws a seed icon in the working tree; PC now matches it. Installed mobile behavior remains unverified and must not be reported as fixed on-device.",
+  "report": "docs/FIELD-FEEDBACK-BUILD59-2026-10-16.md",
+  "checkpointVersion": 17,
+  "protocolVersion": 1,
+  "onlineGameReady": false
+}

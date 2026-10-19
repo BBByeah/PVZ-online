@@ -1,0 +1,11 @@
+{
+  "pcModBuild": 79,
+  "description": "Nut Bowling changes Wall-nut base recharge from 15 seconds to 3 seconds, including Imitater copies. Existing global cooldown modifiers apply afterwards. Chinese and English descriptions updated. Includes Build78.",
+  "status": "working-tree",
+  "validation": {
+    "pcNativeBuildPassed": true,
+    "androidArm64NativeBuildPassed": true,
+    "bowlingRechargeConfigurationChecked": true,
+    "androidInstalled": false
+  }
+}

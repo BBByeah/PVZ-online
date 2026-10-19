@@ -1,0 +1,24 @@
+{
+  "modBuild": 71,
+  "date": "2026-10-18",
+  "previousOverlay": "docs/compatibility/updates/build70-chomper-working-tree.json",
+  "includesPreviousUncommittedBuild": 70,
+  "checkpointVersion": 21,
+  "protocolVersion": 1,
+  "onlineGameReady": false,
+  "sourceState": "PC x86 and Android ARM64 native builds passed; 17 PC production-engine capacity boundary checks passed. Runtime update waits for the currently running Build70 to exit safely.",
+  "changes": [
+    "Reserve all four sled zombies before allocation while retaining the existing spare slot",
+    "Reserve a bungee carrier and payload together",
+    "Handle failed zombie allocation in Boss, challenges and cutscenes",
+    "Record high-load pool counts every 500 game ticks"
+  ],
+  "pcReport": "re-plants-vs-zombies/docs/CROWD-CRASH-BUILD71-2026-10-18.md",
+  "pending": [
+    "Actual affected player's Build63 logs or dump",
+    "Full multiplayer density soak",
+    "Physical Android runtime check",
+    "Animation, projectile, coin and attachment capacity policy remains separate follow-up; not fixed by zombie guards",
+    "Safe local runtime update after Build70 exits"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "modBuild": 62,
+  "date": "2026-10-17",
+  "previousOverlay": "docs/compatibility/updates/build61-control-split-working-tree.json",
+  "sourceState": "uncommitted implementation; PC and Android native builds and focused engine/UI probes passed; six-player endurance, device recovery, balance acceptance, packaging and deployment not run",
+  "checkpointVersion": 19,
+  "protocolVersion": 1,
+  "startLevelPayloadBytes": 44,
+  "onlineGameReady": false,
+  "changes": [
+    "Separate endless setup and advanced pages from finite runs; expose periodic bosses, five-level growth, themes and lineup preferences.",
+    "Share deterministic endless rules and new option byte across START_LEVEL; preserve legacy endless rules and Build 61 crowd-control/Football boss behavior.",
+    "Save finite and five scene-specific endless slots with migration, atomic backups, validated current lawn and stage baseline, RNG, reward and vote phases.",
+    "Restore solo current lawn paused, retry from stage baseline, and restart online stages from local baseline with explicit missing-lawn notices.",
+    "Fix fractional solo budgets, exhausted zombie-buff candidates, boss rewards, level-limit settlement and Android stage seed overrides.",
+    "Display saved level and local save time at the endless continue entry."
+  ],
+  "report": "docs/ENDLESS-BUILD62-2026-10-17.md"
+}

@@ -21,9 +21,14 @@
 
 #ifndef __BOARD_H__
 #define __BOARD_H__
+#include <unordered_set>
+#include <unordered_map>
+#include "Run/RunDotState.h"
+#include "Run/WaveHealthState.h"
 
 #include <cstdint>
 #include <memory>
+#include "Online/NetSession.h"
 
 #include "../ConstEnums.h"
 #include "../PvzpLib/DataArray.h"
@@ -41,7 +46,8 @@ using namespace Sexy;
 
 constexpr const int MAX_GRID_SIZE_X = 9;
 constexpr const int MAX_GRID_SIZE_Y = 6;
-constexpr const int MAX_ZOMBIES_IN_WAVE = 50;
+constexpr const int WAVE_ZOMBIE_CAP_BASE = 50;
+constexpr const int MAX_ZOMBIES_IN_WAVE = WAVE_ZOMBIE_CAP_BASE * 32;
 constexpr const int MAX_ZOMBIE_WAVES = 100;
 constexpr const int MAX_GRAVE_STONES = MAX_GRID_SIZE_X * MAX_GRID_SIZE_Y;
 constexpr const int MAX_POOL_GRID_SIZE = 10;
@@ -112,6 +118,8 @@ void						ZombiePickerInit(ZombiePicker* theZombiePicker);
 
 struct PlantsOnLawn
 {
+	Plant* mLilypadPlant;
+	Plant* mFlowerPotPlant;
 	Plant*							mUnderPlant;
 	Plant*							mPumpkinPlant;
 	Plant*							mFlyingPlant;
@@ -127,6 +135,79 @@ struct BungeeDropGrid
 class Board : public Widget, public ButtonListener
 {
 public:
+    bool PlantHealthVisible() const;
+    bool ZombieHealthVisible() const;
+    void SetPlantHealthVisible(bool visible);
+    void SetZombieHealthVisible(bool visible);
+    // @pvz-online: online-only presentation metadata avoids changing native zombie save layout.
+    std::unordered_set<unsigned int> mRelayedZombieIds;
+    std::unordered_map<unsigned int,RunDotState> mRunDotStates;
+    // Exact wave accounting stays before mPaused: preserve the legacy raw-save suffix.
+    WaveHealthState mWaveHealth;
+    void SyncLegacyWaveHealth();
+    void RestoreLegacyWaveHealth();
+    void MarkRelayedZombie(Zombie* zombie);
+    bool IsRelayedZombie(Zombie* zombie);
+    void DrawRelayedZombieMarkers(Sexy::Graphics* g);
+
+    // @pvz-online: snapshot-only mobile spectator state is transient.
+    NetSession::ViewSnapshot mRemoteSnapshot{};
+    bool mMobileWatchOpen=false, mHasRemoteSnapshot=false;
+    int mWatchSnapshotTicker=0;
+    int BuildBoardSnapshot(uint8_t* buffer, int capacity);
+    void UpdateBoardWatch();
+    void CycleMobileWatch();
+    void StopMobileWatch();
+    void DrawMobileWatch(Graphics* g);
+    bool QuickChatAvailable();
+    void CloseQuickChatPanel();
+    bool HandleQuickChatKey(KeyCode key);
+    bool HandleSunGiftKey(KeyCode key);
+    bool TrySendSunGift(uint8_t seat);
+    void UpdateQuickChat();
+    void PushQuickChatBanner(uint8_t seat, uint8_t id);
+    void PushCustomBanner(const char* text);
+    void DrawCoopUI(Sexy::Graphics* g);
+    int CoopHit(int x, int y);
+    void CoopAction(int action);
+    bool CoopMouseDown(int x, int y, int clicks);
+    bool CoopMouseUp(int x, int y, int clicks);
+    enum { QUICK_CHAT_BANNER_MAX=3, QUICK_CHAT_BANNER_FRAMES=500, QUICK_CHAT_PANEL_TIMEOUT=1000, QUICK_CHAT_KEY_COOLDOWN=18 };
+    struct QuickChatBanner { uint8_t mSeat=0, mId=0; int mFrames=0; char mCustom[192]{}; };
+    QuickChatBanner mChatBanners[3]{};
+    int mChatBannerCount=0, mChatPanelTimer=0, mChatInputCooldown=0;
+    bool mChatPanelOpen=false, mChatEmotePage=false;
+    int mSunGiftCooldownFrames=0, mSunGiftSelectFrames=0;
+    // @pvz-online: 接力怪入场来源批（2026-10-15，docs/09 §五）：同源同行漏怪在合并窗内并批，
+    // 窗口到期才推一条「来源席 + 行号 + 数量」横幅；高密度漏怪不再逐只刷屏。
+    struct RelayBatchNotice { int mSrcSeat=0, mRow=0, mCount=0, mFrames=0; };
+    enum { RELAY_BATCH_MAX=6, RELAY_BATCH_FRAMES=250 };
+    void NoteRelayedZombie(int theSrcSeat, int theRow);
+    void UpdateRelayBatches();
+    RelayBatchNotice mRelayBatches[RELAY_BATCH_MAX];
+    int mRelayBatchCount=0;
+    bool mCoopToolsOpen=false; // Transient touch UI; outside the saved Board range.
+    bool mCoopTouchCaptured=false;
+    int mCoopTouchAction=-1;
+    // Keep the PC raw-save suffix alignment unchanged; this token is transient.
+    uint32_t mCoopTouchPeerLow=0,mCoopTouchPeerHigh=0;
+    void FillSeedBankFromRunPool();
+    bool TryRelayEscapedZombie(Zombie* zombie);
+    Zombie* AddRelayedZombie(int row, ZombieType type, int body, int helm, int shield, int flying, uint8_t flags, int bodyMax, int helmMax, int shieldMax, int flyingMax, int srcSeat=0);
+    bool OnlineWaitingForTeam();
+    void NoteMowerConsumed(int row);
+    void GiveSunGift(int amount, uint8_t seat);
+    static int ComputeLevelRandSeed(int boardSeed, bool adventure, int playerId, int finished, int level, int stage, int mode);
+	bool mOnlineBoard = false;
+	ZombieID mRunBossZombieID = ZombieID::ZOMBIEID_NULL;
+	void SpawnRunBoss();
+	void InitEndlessRunStage();
+	bool IsRunBossZombie(Zombie* zombie);
+    bool IteratePlants(Plant*& p) { return mPlants.DataArrayIterate(p); }
+    bool IterateZombies(Zombie*& p) { return mZombies.DataArrayIterate(p); }
+    bool IterateProjectiles(Projectile*& p) { return mProjectiles.DataArrayIterate(p); }
+    bool IterateCoins(Coin*& p) { return mCoins.DataArrayIterate(p); }
+    bool IterateGridItems(GridItem*& p) { return mGridItems.DataArrayIterate(p); }
 	LawnApp*						mApp;
 	DataArray<Zombie>				mZombies;
 	DataArray<Plant>				mPlants;
@@ -141,6 +222,12 @@ public:
 	std::unique_ptr<GameButton>			mMenuButton;
 	std::unique_ptr<GameButton>			mStoreButton;
 	bool							mIgnoreMouseUp;
+	// Transient input preference, before the legacy saved Board tail.
+#ifdef __ANDROID__
+	bool                            mKeyboardControlsUsed = false;
+#else
+	bool                            mKeyboardControlsUsed = true;
+#endif
 #ifdef __ANDROID__
 	// @pvz-online: distinguish an actual seed drag from tap-to-select on the phone.
 	bool                            mTouchSeedDrag;
@@ -262,6 +349,8 @@ public:
 
 	void							DisposeBoard();
 	int								CountSunBeingCollected();
+	int                             GetRenderListCapacity() const;
+	int                             BuildRenderList(RenderItem* theRenderList, int theCapacity);
 	void							DrawGameObjects(Graphics* g);
 	void							ClearCursor();
 	bool					AreEnemyZombiesOnScreen();
@@ -290,8 +379,11 @@ public:
 	void							MouseDown(int x, int y, int theClickCount) override;
 	void							MouseUp(int x, int y, int theClickCount) override;
 	void							KeyChar(char theChar) override;
-	void							KeyUp(KeyCode) override {}
+	void							KeyUp(KeyCode theKey) override;
 	void							KeyDown(KeyCode theKey) override;
+	bool                            HasPlantKeyboardControls();
+	bool                            HandlePlantKeyboardKey(KeyCode theKey);
+	void                            DrawKeyboardHint(Graphics* g, int slot, int x, int y);
 	void							Update() override;
 	void							UpdateLayers();
 	void							Draw(Graphics* g) override;
@@ -340,7 +432,7 @@ public:
 	int								GetSeedPacketPositionX(int theIndex);
 	void							AddGraveStones(int theGridX, int theCount, MTRand& theLevelRNG);
 	int								GetGraveStoneCount();
-	void							ZombiesWon(Zombie* theZombie = nullptr);
+	void							ZombiesWon(Zombie* theZombie = nullptr, bool theFromPeer = false);
 	void							DrawLevel(Graphics* g);
 	void							DrawShovel(Graphics* g);
 	void							UpdateZombieSpawning();
@@ -348,7 +440,7 @@ public:
 	void					ClearAdvice(AdviceType theHelpIndex);
 	bool							RowCanHaveZombieType(int theRow, ZombieType theZombieType);
 	int					NumberZombiesInWave(int theWaveIndex);
-	int								TotalZombiesHealthInWave(int theWaveIndex);
+	int64_t								TotalZombiesHealthInWave(int theWaveIndex);
 	void							DrawDebugText(Graphics* g);
 	void							DrawUICoinBank(Graphics* g);
 	void					ShowCoinBank(int theDuration = 1000);
@@ -424,7 +516,7 @@ public:
 	bool							IsValidCobCannonSpot(int theGridX, int theGridY);
 	bool							IsValidCobCannonSpotHelper(int theGridX, int theGridY);
 	void							MouseDownCobcannonFire(int x, int y, int theClickCount);
-	int								KillAllZombiesInRadius(int theRow, int theX, int theY, int theRadius, int theRowRange, bool theBurn, int theDamageRangeFlags);
+	int								KillAllZombiesInRadius(int theRow, int theX, int theY, int theRadius, int theRowRange, bool theBurn, int theDamageRangeFlags, int theDirectDamage = 0, bool theExpandRadius = false);
 	int					GetSeedBankExtraWidth();
 	bool							IsFlagWave(int theWaveNumber);
 	void							DrawHouseDoorTop(Graphics* g);

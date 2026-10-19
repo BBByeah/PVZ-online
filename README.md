@@ -1,11 +1,15 @@
 # PvZ Online Android（移植中）
 
-此 `android-port` 分支是 PvZ Online 的 Android 移植底座，当前已在 MuMu Android 15 启动，尚未迁入合作联机与肉鸽玩法。
+此 `android-port` 分支是 PvZ Online 的 Android 移植工程，当前已在 MuMu Android 15 运行，包含单机闯关、中英文资源切换、48 种常规植物、完整 PC buff 消费者、增益倍选、金币重摇和失败重打。规则来源固定为 PC Build 46 / `8bfc67e`；防具变体、高级选项、无尽、首领及五档场景阶梯已接入。主菜单已开放联机开发入口，房间、开局就绪屏障、漏怪与团队结算挂点已迁入；真实 APK 与固定 Windows 原生会话端完成双向检查，完整 PC 游戏客户端验收仍待完成，见 [联机结果](docs/NETWORK-GAME-STATUS.md)。消息、表情、送阳光三个触屏入口及僵尸投票已接入，有限验证见 [手机协作结果](docs/MOBILE-COOP-STATUS.md)。原版风格替换范围已记录在 [UI 盘点](docs/UI-STYLE-AUDIT.md)，整体美术与手机专项继续推进。PC 持续更新见 [同步流程](docs/PC-SYNC-WORKFLOW.md)；完整 buff 覆盖见 [迁移结果](docs/BUFF-PORT-STATUS.md)，当前交付及后续顺序见 [进度](PORTING-STATUS.md) 与 [批次 D 计划](docs/BATCH-D-PLAN.md)。
 
 - 两人协作与同伴任务：[docs/COLLABORATION.md](docs/COLLABORATION.md)
 - 开发入口：[DEVELOPMENT.md](DEVELOPMENT.md)
 - 移植进度：[PORTING-STATUS.md](PORTING-STATUS.md)
 - 移植计划：[docs/ANDROID-PORT-PLAN.md](docs/ANDROID-PORT-PLAN.md)
+- 下一批任务：[docs/NEXT-BATCH.md](docs/NEXT-BATCH.md)
+- 种子栏与铲子快捷键计划：[docs/KEYBOARD-CONTROLS-PLAN.md](docs/KEYBOARD-CONTROLS-PLAN.md)
+- Android 快捷键已实现：1–9/0 植物卡，Q 铲子；[交付与验证](docs/KEYBOARD-CONTROLS-STATUS.md)
+- 中英文资源与语言选项：[docs/LOCALIZATION.md](docs/LOCALIZATION.md)
 
 源码固定来源、许可和原版资源要求见上述记录与下方上游说明。PR 目标为 `android-port`，不要把整个分支合入 Windows 的 `pvz-online` 分支。
 

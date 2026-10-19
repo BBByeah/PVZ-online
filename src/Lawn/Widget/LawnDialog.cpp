@@ -187,7 +187,7 @@ void LawnDialog::Update()
 	Dialog::Update();
 	if (!mButtonDelay)
 	{
-		if (mLawnYesButton) mLawnYesButton->SetDisabled(false);
+		if (mLawnYesButton) mLawnYesButton->SetDisabled(mId == DIALOG_GAME_OVER && mApp->IsOnlineClient());
 		if (mLawnNoButton) mLawnNoButton->SetDisabled(false);
 	}
 	MarkDirty();
@@ -453,6 +453,7 @@ GameOverDialog::GameOverDialog(const std::string& theMessage, bool theShowChalle
 {
 	mMenuButton = nullptr;
 	mLawnYesButton->SetLabel("[TRY_AGAIN]");
+	if (mApp->IsOnlineClient()) mLawnYesButton->SetDisabled(true);
 	if (theShowChallengeName)
 	{
 		mDialogHeader = PvzpStringTranslate(mApp->GetCurrentChallengeDef().mChallengeName);
@@ -488,6 +489,18 @@ void GameOverDialog::KeyDown(KeyCode theKey)
 
 void GameOverDialog::ButtonDepress(int theId)
 {
+    if (mApp->IsOnlineGame())
+    {
+        if (theId == 1) { mApp->KillDialog(DIALOG_GAME_OVER); mApp->DoBackToMain(); return; }
+        if (theId == Dialog::ID_FOOTER)
+        {
+            if (mApp->IsOnlineClient()) return;
+            mApp->KillDialog(DIALOG_GAME_OVER);
+            mApp->RetryOnlineLevel();
+            return;
+        }
+    }
+
 	if (theId == 1)
 	{
 		mApp->KillDialog(Dialogs::DIALOG_GAME_OVER);
@@ -511,6 +524,11 @@ void GameOverDialog::ButtonDepress(int theId)
 	}
 	else if (theId == Dialog::ID_FOOTER)
 	{
+		if (mApp->mRunState)
+		{
+			mApp->RetryRunLevel();
+			return;
+		}
 		mApp->KillDialog(Dialogs::DIALOG_GAME_OVER);
 		mApp->EndLevel();
 	}

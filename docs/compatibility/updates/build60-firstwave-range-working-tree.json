@@ -1,0 +1,29 @@
+{
+  "modBuild": 60,
+  "date": "2026-10-16",
+  "sourceState": "uncommitted source changes only; no compilation, tests, acceptance, packaging or deployment",
+  "previousOverlay": "docs/compatibility/updates/build59-field-feedback-working-tree.json",
+  "pcWorkingTreeHead": "678b7190fe32401cc409a720240abc8345600b5a",
+  "androidWorkingTreeHead": "c01ab12b5bc39a7c155424d0fd1c688481c5bd27",
+  "changes": [
+    "Restore first-wave choices 18/30/60 seconds, default 30, for finite runs only, with both native option UIs, start flow, START_LEVEL, authoritative alignment, cached reconnect and checkpoint persistence.",
+    "Keep checkpoint version 17; use free option bits 14..15 instead of conflicting speed-growth bits 12..13. Existing mainline checkpoints default to 30 seconds; invalid values normalize to default.",
+    "Expand START_LEVEL from 41 to 42 bytes; preserve readyEpoch and zombie stacks, and set both peer builds to 60.",
+    "Allow upgraded Cherry Bomb and Doom-shroom circles to extend vertically past native row prefilters; match Cherry Scorched Ground tagging to the same geometry.",
+    "Expanded explosions remove ladders by circle overlap rather than a whole-board grid range; native unupgraded explosions keep existing grid rules.",
+    "Use double for circle-corner squared distances to avoid overflow from unlimited Cherry radius stacking.",
+    "Review active area/neighbor effects, retain later replacement rules, and move Android advanced-page explanatory text below the added option."
+  ],
+  "report": "docs/FIRST-WAVE-RANGE-AUDIT-BUILD60-2026-10-16.md",
+  "followUpDate": "2026-10-17",
+  "followUpReport": "docs/FEEDBACK-FOLLOWUP-BUILD60-2026-10-17.md",
+  "followUpChanges": [
+    "Render fixed compact cooperation controls with original artwork fonts, preserve arbitrary player-name text, and use covered first-wave units without modifying assets.",
+    "Align Android's five endless cards, unlock display and selected-scene entry with current run endless; fix both platforms' obsolete trophy-needed display.",
+    "Advance existing stalled gravestones during active run/endless gameplay using their original rise counter; preserve native modes and preparation behavior."
+  ],
+  "checkpointVersion": 17,
+  "protocolVersion": 1,
+  "startLevelPayloadBytes": 42,
+  "onlineGameReady": false
+}

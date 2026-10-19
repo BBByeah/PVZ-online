@@ -1,0 +1,33 @@
+{
+  "modBuild": 68,
+  "date": "2026-10-18",
+  "previousOverlay": "docs/compatibility/updates/build67-endless-admission-working-tree.json",
+  "includesPreviousUncommittedBuild": 67,
+  "checkpointVersion": 21,
+  "protocolVersion": 1,
+  "onlineGameReady": false,
+  "sourceState": "Shared uncommitted workspace; native builds, relay race suite, 36 PC core/network/history, 27 admission, 50 preparation, Android ARM64 network and native PC UI checks passed. No packaging, installed app update or production deployment.",
+  "changes": [
+    "Public room directory with bounded short requests",
+    "Host visibility ACK and stale directory join guard",
+    "Code-only endless intermission admission retained",
+    "Per-profile latest 50 local run records with filtering/details",
+    "Validated backup recovery and independent atomic history file"
+  ],
+  "pcReport": "re-plants-vs-zombies/docs/LOBBY-HISTORY-BUILD68-2026-10-18.md",
+  "pending": [
+    "physical Android UI/touch",
+    "full six-player long game",
+    "production capacity and deployment",
+    "full player package and fresh startup acceptance"
+  ],
+  "localPCVerification": {
+    "build": 68,
+    "runtimeUpdated": true,
+    "gameOpenedForUser": true,
+    "savedGamesPreserved": true,
+    "record": "tools/audit/runtime68-deployment-result.json",
+    "androidInstalled": false,
+    "productionDeployed": false
+  }
+}

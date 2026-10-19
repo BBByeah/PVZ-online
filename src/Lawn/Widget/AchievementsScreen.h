@@ -25,6 +25,7 @@
 #include "../../ConstEnums.h"
 #include "widget/Widget.h"
 #include <string_view>
+#include <string>
 
 class LawnApp;
 
@@ -61,6 +62,8 @@ public:
 };
 
 extern const AchievementItem gAchievementList[MAX_ACHIEVEMENTS];
+std::string GetAchievementName(LawnApp* app, int id);
+std::string GetAchievementDescription(LawnApp* app, int id);
 
 class AchievementsWidget : public Widget {
 public:

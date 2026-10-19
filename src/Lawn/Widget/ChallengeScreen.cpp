@@ -26,6 +26,7 @@
 #include "../../Resources.h"
 #include "../ToolTipWidget.h"
 #include "../System/PlayerInfo.h"
+#include "../Run/RunState.h"
 #include "../../PvzpLib/PvzpDebug.h"
 #include "../../PvzpLib/PvzpFoley.h"
 #include "../../PvzpLib/PvzpCommon.h"
@@ -47,11 +48,11 @@ constinit const ChallengeDefinition gChallengeDefs[NUM_CHALLENGE_MODES] = {
 	{ .mChallengeMode = GameMode::GAMEMODE_SURVIVAL_HARD_STAGE_3, .mChallengeIconIndex = 7, .mPage = ChallengePage::CHALLENGE_PAGE_SURVIVAL, .mRow = 1, .mCol = 2, .mChallengeName = "[SURVIVAL_POOL_HARD]" },
 	{ .mChallengeMode = GameMode::GAMEMODE_SURVIVAL_HARD_STAGE_4, .mChallengeIconIndex = 8, .mPage = ChallengePage::CHALLENGE_PAGE_SURVIVAL, .mRow = 1, .mCol = 3, .mChallengeName = "[SURVIVAL_FOG_HARD]" },
 	{ .mChallengeMode = GameMode::GAMEMODE_SURVIVAL_HARD_STAGE_5, .mChallengeIconIndex = 9, .mPage = ChallengePage::CHALLENGE_PAGE_SURVIVAL, .mRow = 1, .mCol = 4, .mChallengeName = "[SURVIVAL_ROOF_HARD]" },
-	{ .mChallengeMode = GameMode::GAMEMODE_SURVIVAL_ENDLESS_STAGE_1, .mChallengeIconIndex = 10, .mPage = ChallengePage::CHALLENGE_PAGE_LIMBO, .mRow = 3, .mCol = 0, .mChallengeName = "[SURVIVAL_DAY_ENDLESS]" },
-	{ .mChallengeMode = GameMode::GAMEMODE_SURVIVAL_ENDLESS_STAGE_2, .mChallengeIconIndex = 10, .mPage = ChallengePage::CHALLENGE_PAGE_LIMBO, .mRow = 3, .mCol = 1, .mChallengeName = "[SURVIVAL_NIGHT_ENDLESS]" },
+	{ .mChallengeMode = GameMode::GAMEMODE_SURVIVAL_ENDLESS_STAGE_1, .mChallengeIconIndex = 10, .mPage = ChallengePage::CHALLENGE_PAGE_SURVIVAL, .mRow = 2, .mCol = 0, .mChallengeName = "[SURVIVAL_DAY_ENDLESS]" },
+	{ .mChallengeMode = GameMode::GAMEMODE_SURVIVAL_ENDLESS_STAGE_2, .mChallengeIconIndex = 10, .mPage = ChallengePage::CHALLENGE_PAGE_SURVIVAL, .mRow = 2, .mCol = 1, .mChallengeName = "[SURVIVAL_NIGHT_ENDLESS]" },
 	{ .mChallengeMode = GameMode::GAMEMODE_SURVIVAL_ENDLESS_STAGE_3, .mChallengeIconIndex = 10, .mPage = ChallengePage::CHALLENGE_PAGE_SURVIVAL, .mRow = 2, .mCol = 2, .mChallengeName = "[SURVIVAL_POOL_ENDLESS]" },
-	{ .mChallengeMode = GameMode::GAMEMODE_SURVIVAL_ENDLESS_STAGE_4, .mChallengeIconIndex = 10, .mPage = ChallengePage::CHALLENGE_PAGE_LIMBO, .mRow = 3, .mCol = 2, .mChallengeName = "[SURVIVAL_FOG_ENDLESS]" },
-	{ .mChallengeMode = GameMode::GAMEMODE_SURVIVAL_ENDLESS_STAGE_5, .mChallengeIconIndex = 10, .mPage = ChallengePage::CHALLENGE_PAGE_LIMBO, .mRow = 3, .mCol = 3, .mChallengeName = "[SURVIVAL_ROOF_ENDLESS]" },
+	{ .mChallengeMode = GameMode::GAMEMODE_SURVIVAL_ENDLESS_STAGE_4, .mChallengeIconIndex = 10, .mPage = ChallengePage::CHALLENGE_PAGE_SURVIVAL, .mRow = 2, .mCol = 3, .mChallengeName = "[SURVIVAL_FOG_ENDLESS]" },
+	{ .mChallengeMode = GameMode::GAMEMODE_SURVIVAL_ENDLESS_STAGE_5, .mChallengeIconIndex = 10, .mPage = ChallengePage::CHALLENGE_PAGE_SURVIVAL, .mRow = 2, .mCol = 4, .mChallengeName = "[SURVIVAL_ROOF_ENDLESS]" },
 	{ .mChallengeMode = GameMode::GAMEMODE_CHALLENGE_WAR_AND_PEAS, .mChallengeIconIndex = 0, .mPage = ChallengePage::CHALLENGE_PAGE_CHALLENGE, .mRow = 0, .mCol = 0, .mChallengeName = "[WAR_AND_PEAS]" },
 	{ .mChallengeMode = GameMode::GAMEMODE_CHALLENGE_WALLNUT_BOWLING, .mChallengeIconIndex = 6, .mPage = ChallengePage::CHALLENGE_PAGE_CHALLENGE, .mRow = 0, .mCol = 1, .mChallengeName = "[WALL_NUT_BOWLING]" },
 	{ .mChallengeMode = GameMode::GAMEMODE_CHALLENGE_SLOT_MACHINE, .mChallengeIconIndex = 2, .mPage = ChallengePage::CHALLENGE_PAGE_CHALLENGE, .mRow = 0, .mCol = 2, .mChallengeName = "[SLOT_MACHINE]" },
@@ -168,7 +169,8 @@ ChallengeScreen::ChallengeScreen(LawnApp* theApp, ChallengePage thePage)
 		if (aChlDef.mPage == CHALLENGE_PAGE_CHALLENGE || aChlDef.mPage == CHALLENGE_PAGE_LIMBO || aChlDef.mPage == CHALLENGE_PAGE_PUZZLE)
 			aChallengeButton->Resize(38 + aChlDef.mCol * 155, 93 + aChlDef.mRow * 119, 104, 115);
 		else
-			aChallengeButton->Resize(38 + aChlDef.mCol * 155, 125 + aChlDef.mRow * 145, 104, 115);
+			aChallengeButton->Resize(38 + aChlDef.mCol * 155,
+				mApp->IsSurvivalEndless(aChlDef.mChallengeMode) ? 93 : 125 + aChlDef.mRow * 145, 104, 115);
 		if (MoreTrophiesNeeded(aChallengeMode))
 		{
 			aChallengeButton->mDoFinger = false;
@@ -260,6 +262,7 @@ int ChallengeScreen::MoreTrophiesNeeded(int theChallengeIndex)
 	{
 		return aDef.mChallengeMode == GAMEMODE_CHALLENGE_FINAL_BOSS ? 1 : 0;
 	}
+	if (mApp->IsSurvivalEndless(aDef.mChallengeMode)) return 0;
 
 	if (mApp->IsTrialStageLocked())
 	{
@@ -362,7 +365,8 @@ bool ChallengeScreen::ShowPageButtons()
 void ChallengeScreen::UpdateButtons()
 {
 	for (int aChallengeMode = 0; aChallengeMode < NUM_CHALLENGE_MODES; aChallengeMode++)
-		mChallengeButtons[aChallengeMode]->mVisible = GetChallengeDefinition(aChallengeMode).mPage == mPageIndex;
+		mChallengeButtons[aChallengeMode]->mVisible = GetChallengeDefinition(aChallengeMode).mPage == mPageIndex &&
+			(mPageIndex != CHALLENGE_PAGE_SURVIVAL || mApp->IsSurvivalEndless(GetChallengeDefinition(aChallengeMode).mChallengeMode));
 	for (int aPage = 0; aPage < MAX_CHALLANGE_PAGES; aPage++)
 	{
 		ButtonWidget* aPageButton = mPageButton[aPage].get();
@@ -387,8 +391,7 @@ int ChallengeScreen::AccomplishmentsNeeded(int theChallengeIndex)
 {
 	int aTrophiesNeeded = MoreTrophiesNeeded(theChallengeIndex);
 	GameMode aGameMode = GetChallengeDefinition(theChallengeIndex).mChallengeMode;
-	if (mApp->IsSurvivalEndless(aGameMode) && aTrophiesNeeded <= 3 && mApp->GetNumTrophies(CHALLENGE_PAGE_SURVIVAL) < 10 &&
-		mApp->HasFinishedAdventure() && !mApp->IsTrialStageLocked()) aTrophiesNeeded = 1;
+	if (mApp->IsSurvivalEndless(aGameMode)) return 0;
 	return mCheatEnableChallenges ? 0 : aTrophiesNeeded;
 }
 
@@ -654,6 +657,15 @@ void ChallengeScreen::ButtonDepress(int theId)
 	int aChallengeMode = theId - ChallengeScreen::ChallengeScreen_Mode;
 	if (aChallengeMode >= 0 && aChallengeMode < NUM_CHALLENGE_MODES)
 	{
+		const GameMode mode = GetChallengeDefinition(aChallengeMode).mChallengeMode;
+		if (mApp->IsSurvivalEndless(mode))
+		{
+			const int scene = static_cast<int>(mode) - static_cast<int>(GameMode::GAMEMODE_SURVIVAL_ENDLESS_STAGE_1);
+			mApp->KillChallengeScreen();
+			mApp->DoBackToMain();
+			mApp->ShowRunMenu(scene);
+			return;
+		}
 		mApp->KillChallengeScreen();
 		mApp->PreNewGame((GameMode)(aChallengeMode + 1), true);
 	}

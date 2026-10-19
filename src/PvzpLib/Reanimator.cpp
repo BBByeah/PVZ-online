@@ -1452,10 +1452,16 @@ void Reanimation::UpdateAttacherTrack(int theTrackIndex)
 	if (aAttachReanim == nullptr || aAttachReanim->mReanimationType != aReanimationType)
 	{
 		AttachmentDie(aTrackInstance->mAttachmentID);
+		if (!gEffectSystem->mReanimationHolder->mReanimations.DataArrayCanAllocate()) return;
 		aAttachReanim = gEffectSystem->mReanimationHolder->AllocReanimation(0.0f, 0.0f, 0, aReanimationType);
 		aAttachReanim->mLoopType = aAttacherInfo.mLoopType;
 		aAttachReanim->mAnimRate = aAttacherInfo.mAnimRate;
-		AttachReanim(aTrackInstance->mAttachmentID, aAttachReanim, 0.0f, 0.0f);
+		if (AttachReanim(aTrackInstance->mAttachmentID, aAttachReanim, 0.0f, 0.0f) == nullptr)
+		{
+			// This node owns the newly created animation; retry after capacity is released.
+			aAttachReanim->ReanimationDie();
+			return;
+		}
 		mFrameBasePose = NO_BASE_POSE;  // with an attachment set, this reanim has no base pose frame
 	}
 

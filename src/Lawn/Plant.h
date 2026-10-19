@@ -164,6 +164,10 @@ class PvzpParticleSystem;
 class Plant : public GameObject
 {
 public:
+    int CoopMaxHealth();
+    void RefreshRunMaxHealth();
+    float CoopAttackPeriod();
+
 	SeedType                mSeedType;
 	int32_t                 mPlantCol;
 	int32_t                 mAnimCounter;
@@ -211,6 +215,17 @@ public:
 	bool                    mIsAsleep;
 	bool                    mIsOnBoard;
 	bool                    mHighlighted;
+	// PC build 44 effect state; serialized explicitly by the portable save path.
+	ZombieID mExtraTanglekelpIDs[2] = {};
+	int32_t mExtraTanglekelpCount = 0;
+	int32_t mSquashSmashesLeft = -1;
+	float mSquashFromX = 0.0f;
+	float mSquashFromY = 0.0f;
+	int32_t mRunDispatchCursor = 0, mRunAliveTicks = 0, mRunGarlicCooldown = 0;
+    // @pvz-online: purple ability cadence survives portable snapshots.
+    int32_t mRunPurpleShots = 0, mRunSunCollectTicks = 0;
+	int32_t mMineregrowsLeft = 0;
+	int32_t mChainBitesLeft = 0;
 
 public:
 	Plant();
@@ -222,7 +237,10 @@ public:
 	void                    MouseDown(int x, int y, int theClickCount);
 	void                    DoSpecial();
 	void                    Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon = PlantWeapon::WEAPON_PRIMARY);
-	Zombie*                 FindTargetZombie(int theRow, PlantWeapon thePlantWeapon = PlantWeapon::WEAPON_PRIMARY);
+	Zombie*                 FindTargetZombie(int theRow, PlantWeapon thePlantWeapon = PlantWeapon::WEAPON_PRIMARY, Zombie* theExclude1 = nullptr, Zombie* theExclude2 = nullptr);
+	static int SpikeweedCycleFrames(LawnApp* theApp, SeedType theSeedType);
+	void AttachTanglekelpGrab(Zombie* theZombie);
+	bool IsTangleKelpTargeting(ZombieID theZombieID);
 	void                    Die();
 	void                    UpdateProductionPlant();
 	void                    UpdateShooter();
@@ -239,6 +257,7 @@ public:
 	static bool  IsFlying(SeedType theSeedtype);
 	static bool  IsUpgrade(SeedType theSeedtype);
 	void                    UpdateAbilities();
+    void UpdatePurpleBuffs();
 	void                    Squish();
 	void                    DoRowAreaDamage(int theDamage, unsigned int theDamageFlags);
 	int                     GetDamageRangeFlags(PlantWeapon thePlantWeapon = PlantWeapon::WEAPON_PRIMARY);

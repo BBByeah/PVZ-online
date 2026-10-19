@@ -20,6 +20,7 @@
  */
 
 #include "../Plant.h"
+#include "../ModText.h"
 #include "../Board.h"
 #include "GameButton.h"
 #include "StoreScreen.h"
@@ -36,6 +37,7 @@
 #include "../../PvzpLib/PvzpCommon.h"
 #include "../../PvzpLib/PvzpStringFile.h"
 #include "AchievementsScreen.h"
+#include "../Run/RunState.h"
 
 AwardScreen::AwardScreen(LawnApp* theApp, AwardType theAwardType, bool theShowingAchievements)
 {
@@ -97,7 +99,7 @@ AwardScreen::AwardScreen(LawnApp* theApp, AwardType theAwardType, bool theShowin
 		mLoadedResourceNames.push_back("DelayLoad_ZombieNote");
 		mLoadedResourceNames.push_back("DelayLoad_ZombieNoteHelp");
 	}
-	else if (mApp->IsAdventureMode())
+	else if (mAwardType != AWARD_RUN_COMPLETE && mApp->IsAdventureMode())
 	{
 		if (aLevel == 10)
 		{
@@ -202,6 +204,13 @@ AwardScreen::AwardScreen(LawnApp* theApp, AwardType theAwardType, bool theShowin
 		mMenuButton->mBtnNoDraw = true;
 		mMenuButton->mDisabled = true;
 	}
+	else if (mAwardType == AWARD_RUN_COMPLETE)
+	{
+		mRunLevelCount = mApp->mRunState ? mApp->mRunState->GetLevelCount() : 0;
+		mStartButton->SetLabel("[MAIN_MENU_BUTTON]");
+		mMenuButton->mBtnNoDraw = true;
+		mMenuButton->mDisabled = true;
+	}
 	else if (!mApp->IsAdventureMode())
 	{
 		mStartButton->SetLabel("[MAIN_MENU_BUTTON]");
@@ -222,7 +231,7 @@ AwardScreen::AwardScreen(LawnApp* theApp, AwardType theAwardType, bool theShowin
 	else
 		mStartButton->SetLabel("[NEXT_LEVEL_BUTTON]");
 
-	if (mApp->IsAdventureMode() && mApp->EarnedGoldTrophy()) {
+	if (mAwardType != AWARD_RUN_COMPLETE && mApp->IsAdventureMode() && mApp->EarnedGoldTrophy()) {
 		ReportAchievement::GiveAchievement(mApp, NovelPeasPrize, false);
 	}
 
@@ -256,6 +265,7 @@ AwardScreen::~AwardScreen() = default;
 
 bool AwardScreen::IsPaperNote()
 {
+	if (mAwardType == AWARD_RUN_COMPLETE) return false;
 	if (mAwardType == AWARD_CREDITS_ZOMBIENOTE || mAwardType == AWARD_HELP_ZOMBIENOTE)
 		return true;
 
@@ -269,6 +279,13 @@ void AwardScreen::DrawBottom(Graphics* g, std::string_view theTitle, std::string
 	PvzpDrawString(g, theTitle, BOARD_WIDTH / 2, 58, Sexy::FONT_DWARVENTODCRAFT24, Color(213, 159, 43), DS_ALIGN_CENTER);
 	PvzpDrawString(g, theAward, BOARD_WIDTH / 2, 326, Sexy::FONT_DWARVENTODCRAFT18YELLOW, Color::White, DS_ALIGN_CENTER);
 	PvzpDrawStringWrapped(g, theMessage, Rect(285, 360, 230, 90), Sexy::FONT_BRIANNETOD16, Color(40, 50, 90), DS_ALIGN_CENTER_VERTICAL_MIDDLE);
+}
+
+void AwardScreen::DrawRunComplete(Graphics* g)
+{
+	DrawBottom(g, ModText::Tr("恭喜通关！", "Run Complete!"), ModText::Tr("奖杯", "TROPHY"),
+		ModText::Format("你打完了全部 {} 关！", "All {} levels cleared!", mRunLevelCount));
+	g->DrawImage(Sexy::IMAGE_TROPHY_HI_RES, BOARD_WIDTH / 2 - Sexy::IMAGE_TROPHY_HI_RES->mWidth / 2, 137);
 }
 
 void AwardScreen::DrawAwardSeed(Graphics* g)
@@ -311,6 +328,8 @@ void AwardScreen::Draw(Graphics* g)
 		g->DrawImage(Sexy::IMAGE_ZOMBIE_NOTE, 80, 80);
 		g->DrawImage(Sexy::IMAGE_ZOMBIE_NOTE_HELP, 131, 132);
 	}
+	else if (mAwardType == AWARD_RUN_COMPLETE)
+		DrawRunComplete(g);
 	else if (mAwardType != AWARD_ACHIEVEMENTONLY)
 	{
 		if (!mApp->IsAdventureMode())
@@ -475,6 +494,12 @@ void AwardScreen::StartButtonPressed()
 {
 	if (mApp->GetDialog(DIALOG_STORE))
 		return;
+	if (mAwardType == AWARD_RUN_COMPLETE)
+	{
+		mApp->KillAwardScreen();
+		mApp->ShowGameSelector();
+		return;
+	}
 
 	if (mAwardType == AWARD_CREDITS_ZOMBIENOTE)
 	{
@@ -574,6 +599,13 @@ void AwardScreen::StartButtonPressed()
 
 void AwardScreen::MouseDown([[maybe_unused]] int x, [[maybe_unused]] int y, int theClickCount)
 {
+	if (mAwardType == AWARD_RUN_COMPLETE)
+	{
+		mRunReturnPressed = theClickCount == 1 && Rect(mStartButton->mX, mStartButton->mY,
+			mStartButton->mWidth, mStartButton->mHeight).Contains(x, y);
+		if (mRunReturnPressed) mApp->PlaySample(Sexy::SOUND_TAP);
+		return;
+	}
 	if (theClickCount == 1) {
 		if (mStartButton->IsMouseOver() || mMenuButton->IsMouseOver() || mContinueButton->IsMouseOver())
 			mApp->PlaySample(Sexy::SOUND_TAP);
@@ -582,6 +614,14 @@ void AwardScreen::MouseDown([[maybe_unused]] int x, [[maybe_unused]] int y, int 
 
 void AwardScreen::MouseUp([[maybe_unused]] int x, [[maybe_unused]] int y, int theClickCount)
 {
+	if (mAwardType == AWARD_RUN_COMPLETE)
+	{
+		bool activate = mRunReturnPressed && theClickCount == 1 && Rect(mStartButton->mX, mStartButton->mY,
+			mStartButton->mWidth, mStartButton->mHeight).Contains(x, y);
+		mRunReturnPressed = false;
+		if (activate) StartButtonPressed();
+		return;
+	}
 	if (theClickCount == 1)
 	{
 		if (mStartButton->IsMouseOver())
@@ -596,6 +636,12 @@ void AwardScreen::MouseUp([[maybe_unused]] int x, [[maybe_unused]] int y, int th
 	}
 }
 
+void AwardScreen::LostFocus()
+{
+	mRunReturnPressed = false;
+	Widget::LostFocus();
+}
+
 void AwardScreen::DrawAchievements(Graphics* g) {
 	g->SetColorizeImages(true);
 	// Rect aTextWrap = Rect(0, 0, 0, 77); // unused
@@ -608,9 +654,9 @@ void AwardScreen::DrawAchievements(Graphics* g) {
 	PvzpDrawString(g, mApp->GetString("ACHIEVEMENTS_TITLE", "ACHIEVEMENTS"), BOARD_WIDTH / 2, 58, FONT_HOUSEOFTERROR28, Color(220, 220, 220), DS_ALIGN_CENTER);
 
 	for (size_t i = 0; i < mAchievementItems.size(); i++) {
-		std::string aAchievementName = std::string(gAchievementList[mAchievementItems[i].mId].name);
-		std::string aAchievementDesc = std::string(gAchievementList[mAchievementItems[i].mId].description);
-		aAchievementName.append(" Earned!");
+		std::string aAchievementName = GetAchievementName(mApp, mAchievementItems[i].mId);
+		std::string aAchievementDesc = GetAchievementDescription(mApp, mAchievementItems[i].mId);
+		aAchievementName.append(ModText::Tr(" 成就达成！", " Earned!"));
 
 		Rect aSrcRect = Rect(70 * (mAchievementItems[i].mId % 7), 70 * (mAchievementItems[i].mId / 7), 70, 70);
 		Rect aDestRect = Rect(220, mAchievementItems[i].mY + 10, 70, 70);

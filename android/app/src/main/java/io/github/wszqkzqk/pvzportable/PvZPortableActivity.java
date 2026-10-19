@@ -51,7 +51,7 @@ public class PvZPortableActivity extends SDLActivity {
 
         if (!hasGameResources(extDir)) {
             super.onCreate(savedInstanceState);
-            startActivity(new Intent(this, ResourceImportActivity.class));
+            startActivity(new Intent(this, GameLaunchActivity.class));
             finish();
             return;
         }
@@ -154,9 +154,6 @@ public class PvZPortableActivity extends SDLActivity {
     }
 
     private static boolean hasGameResources(File dir) {
-        if (dir == null || !dir.isDirectory()) return false;
-        File pak = new File(dir, "main.pak");
-        File props = new File(dir, "properties");
-        return pak.exists() && props.isDirectory();
+        return BundledGameResources.hasResources(dir);
     }
 }

@@ -30,6 +30,7 @@ constexpr const int MAX_ZOMBATAR_HEADS = 100;
 #include <cstdint>
 #include <ctime>
 #include <vector>
+#include <vector>
 #include "../../ConstEnums.h"
 #include "../../SexyAppFramework/Common.h"
 
@@ -117,6 +118,8 @@ public:
 	void                DeleteUserFiles();
 	void                LoadDetails();
 	void                SaveDetails();
+    bool                SaveDetailsChecked();
+    std::vector<unsigned char> EncodeDetails();
 	inline int          GetLevel() const { return mLevel; }
 	inline void         SetLevel(int theLevel) { mLevel = theLevel; }
 	void     ResetChallengeRecord(GameMode theGameMode);

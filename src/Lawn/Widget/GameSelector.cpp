@@ -1,3 +1,5 @@
+#include "../Online/RoomPresentation.h"
+#include "MobileCoopDraw.h"
 /*
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
  *
@@ -20,6 +22,7 @@
  */
 
 #include "../Board.h"
+#include "../ModText.h"
 #include "../LawnCommon.h"
 #include "GameButton.h"
 #include "StoreScreen.h"
@@ -53,6 +56,30 @@ void GameSelectorOverlay::Draw(Graphics* g)
 	mParent->DrawOverlay(g);
 }
 
+namespace {
+class MobileRoomStatus : public MobileStoneButton {
+    LawnApp* app;
+public:
+    MobileRoomStatus(LawnApp* a,ButtonListener* listener):MobileStoneButton(5003,listener),app(a){Resize(12,8,330,52);SetVisible(false);}
+    void Update() override {
+        ButtonWidget::Update();auto* session=RoomPresentation::Session(app);
+        SetVisible(session&&session->IsActive());MarkDirty();
+    }
+    void Draw(Graphics* g) override {
+        auto* session=RoomPresentation::Session(app);if(!session)return;
+        DrawMobileStrip(g,Rect(0,0,mWidth,mHeight));
+        auto* font=ModText::FontFor(FONT_DWARVENTODCRAFT18,18);g->SetFont(font);
+        g->SetColor(Color(245,230,165));
+        std::string title=RoomPresentation::Summary(app);
+        if(session->IsRelay()&&!session->GetRoomCode().empty())title+=ModText::Tr(" · 房间 "," · Room ")+session->GetRoomCode();
+        g->DrawString(MobileTextLine(font,title,mWidth-16),8,22);
+        g->SetColor(Color(210,225,235));
+        std::string line=RoomPresentation::CompactRoster(session);
+        g->DrawString(MobileTextLine(font,line,mWidth-16),8,45);
+    }
+};
+}
+
 GameSelectorOverlay::GameSelectorOverlay(GameSelector* theGameSelector)
 {
 	mParent = theGameSelector;
@@ -73,6 +100,24 @@ GameSelector::GameSelector(LawnApp* theApp)
 	mLoading = false;
 	mHasTrophy = false;
 	mToolTip = std::make_unique<ToolTipWidget>();
+	// @pvz-online: keep the existing adventure entry while the new run flow is ported.
+	auto* runButton = new MobileStoneButton(5001, this);
+	runButton->mLabel = ModText::Tr("闯关", "Run");
+	runButton->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 28));
+	runButton->SetLabelColor(Sexy::Color(245, 230, 165));
+	runButton->SetLabelHiliteColor(Sexy::Color::White);
+	runButton->SetBkgColor(Sexy::Color(37, 83, 55));
+	runButton->Resize(30, 330, 112, 55);
+	AddWidget(runButton);
+    AddWidget(new MobileRoomStatus(theApp,this));
+
+    auto* onlineButton = new MobileStoneButton(5002, this);
+    onlineButton->mLabel = ModText::Tr("组队", "Co-op");
+    onlineButton->SetFont(ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, 28));
+    onlineButton->SetLabelColor(Sexy::Color(245, 230, 165));
+    onlineButton->SetBkgColor(Sexy::Color(37, 83, 55));
+    onlineButton->Resize(152, 330, 113, 55);
+    AddWidget(onlineButton);
 
 	mAdventureButton = MakeNewButton(
 		GameSelector::GameSelector_Adventure,
@@ -735,6 +780,7 @@ void GameSelector::UpdateTooltip()
 
 void GameSelector::Update()
 {
+	if (mOnlineMenuLocked) { Widget::Update(); MarkDirty(); return; }
 	Widget::Update();
 	MarkDirty();
 	UpdateTooltip();
@@ -1175,8 +1221,15 @@ bool GameSelector::ShouldDoZenTuturialBeforeAdventure()
 
 void GameSelector::ButtonDepress(int theId)
 {
+    if (mOnlineMenuLocked) return;
+    if (theId == 5002 || theId == 5003) { mApp->DoOnlineDialog(); return; }
 	if (mSlideCounter > 0)
 		return;
+	if (theId == 5001)
+	{
+		mApp->ShowRunMenu();
+		return;
+	}
 
 	if (theId == GameSelector::GameSelector_Minigame && mMinigamesLocked)
 	{
@@ -1245,8 +1298,7 @@ void GameSelector::ButtonDepress(int theId)
 	case GameSelector::GameSelector_ZenGarden:
 		mApp->KillGameSelector();
 		mApp->PreNewGame(GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN, false);
-		if (ShouldDoZenTuturialBeforeAdventure())
-			mApp->mZenGarden->SetupForZenTutorial();
+		// @pvz-online: manual garden access must not trigger the campaign tutorial.
 		break;
 	case GameSelector::GameSelector_Zombatar:
 		ShowZombatarScreen();
@@ -1385,4 +1437,11 @@ void GameSelector::ShowAchievementsScreen()
 {
 	SlideTo(0, -mApp->mHeight);
 	mWidgetManager->SetFocus(mAchievementsWidget.get());
+}
+
+void GameSelector::SetMenuButtonsDisabled(bool disabled)
+{
+    mOnlineMenuLocked = disabled;
+    for (auto* widget : mWidgets) widget->mDisabled = disabled;
+    MarkDirty();
 }

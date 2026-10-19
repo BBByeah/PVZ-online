@@ -342,7 +342,8 @@ bool ZenGarden::IsZenGardenFull(bool theIncludeDroppedPresents)
 
 bool ZenGarden::CanDropPottedPlantLoot()
 {
-	return mApp->HasFinishedAdventure() && !IsZenGardenFull(true);
+	// @pvz-online: garden access is independent of campaign completion.
+    return mApp->CanShowZenGarden() && !IsZenGardenFull(true);
 }
 
 void ZenGarden::FindOpenZenGardenSpot(int& theSpotX, int& theSpotY)
@@ -466,7 +467,7 @@ void ZenGarden::MouseDownWithMoneySign(Plant* thePlant)
 
 	PottedPlant* aPottedPlant = PottedPlantFromIndex(thePlant->mPottedPlantIndex);
 	std::string aMessageText = mApp->GetCrazyDaveText(1700);
-	aMessageText = PvzpReplaceNumberString(aMessageText, "{SELL_PRICE}", aPrice);
+	aMessageText = PvzpReplaceNumberString(aMessageText, "{SELL_PRICE}", aPrice * 10);
 
 	std::string aPlantName;
 	if (thePlant->mSeedType == SeedType::SEED_SPROUT && aPottedPlant->mSeedType == SeedType::SEED_MARIGOLD)
@@ -523,6 +524,8 @@ void ZenGarden::MouseDownWithMoneySign(Plant* thePlant)
 		mApp->PlayFoley(FoleyType::FOLEY_USE_SHOVEL);
 		//mApp->PlaySample(SOUND_PLANT2);
 		RemovePottedPlant(aSellPlant);
+        mApp->WriteCurrentUserConfig(); // @pvz-online: save the completed sale.
+
 	}
 }
 
@@ -760,12 +763,14 @@ void ZenGarden::RemoveHappyEffect(Plant* thePlant)
 	if (aFlowerPot)
 	{
 		aParticleSystem = mApp->ParticleTryToGet(aFlowerPot->mParticleID);
+        aFlowerPot->mParticleID = ParticleSystemID::PARTICLESYSTEMID_NULL;
 	}
 	else
 	{
 		aParticleSystem = mApp->ParticleTryToGet(thePlant->mParticleID);
+        thePlant->mParticleID = ParticleSystemID::PARTICLESYSTEMID_NULL;
 	}
-	if (aParticleSystem)
+	if (aParticleSystem && !aParticleSystem->mDead)
 	{
 		aParticleSystem->ParticleSystemDie();
 	}
@@ -1133,16 +1138,22 @@ void ZenGarden::MouseDownWithTool(int x, int y, CursorType theCursorType)
 
 void ZenGarden::MovePlant(Plant* thePlant, int theGridX, int theGridY)
 {
-	if (mApp->mGameMode != GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN)
+	if (mApp->mGameMode != GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN ||
+        !mBoard || !thePlant || thePlant->mBoard != mBoard || thePlant->mDead || thePlant->mPottedPlantIndex < 0 ||
+        thePlant->mPottedPlantIndex >= mApp->mPlayerInfo->mNumPottedPlants ||
+        theGridX < 0 || theGridY < 0)
 	{
 		return;
 	}
 
 	int aPosX = mBoard->GridToPixelX(theGridX, theGridY);
 	int aPosY = mBoard->GridToPixelY(theGridX, theGridY);
-	PVZP_ASSERT(mBoard->GetTopPlantAt(theGridX, theGridY, PlantPriority::TOPPLANT_ANY) == nullptr);
+    if (aPosX < 0 || aPosY < 0) return;
+	if (mBoard->GetTopPlantAt(theGridX, theGridY, PlantPriority::TOPPLANT_ANY) != nullptr)
+        return;
 
-	//bool aIsSleeping = thePlant->mIsAsleep; // unused
+    if (thePlant->mState == PlantState::STATE_ZEN_GARDEN_HAPPY)
+        RemoveHappyEffect(thePlant);
 	thePlant->SetSleeping(false);
 	Plant* aTopPlantAtGrid = mBoard->GetTopPlantAt(thePlant->mPlantCol, thePlant->mRow, PlantPriority::TOPPLANT_ONLY_UNDER_PLANT);
 	if (aTopPlantAtGrid)
@@ -1162,10 +1173,14 @@ void ZenGarden::MovePlant(Plant* thePlant, int theGridX, int theGridY)
 	thePlant->mRenderOrder = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PLANT, 0, aPosY + 1);
 
 	PvzpParticleSystem* aParticle = mApp->ParticleTryToGet(thePlant->mParticleID);
-	if (aParticle && aParticle->mEmitterList.mSize)
+    if (aParticle && !aParticle->mDead)
 	{
-		PvzpParticleEmitter* aEmitter = aParticle->mParticleHolder->mEmitters.DataArrayGet(static_cast<unsigned int>(aParticle->mEmitterList.GetHead()->mValue));
-		aParticle->SystemMove(aEmitter->mSystemCenter.x + aDeltaX, aEmitter->mSystemCenter.y + aDeltaY);
+        for (auto* emitterNode = aParticle->mEmitterList.mHead; emitterNode; emitterNode = emitterNode->mNext)
+        {
+            auto* emitter = aParticle->mParticleHolder->mEmitters.DataArrayTryToGet(static_cast<unsigned int>(emitterNode->mValue));
+            if (emitter && !emitter->mDead)
+                emitter->SystemMove(emitter->mSystemCenter.x + aDeltaX, emitter->mSystemCenter.y + aDeltaY);
+        }
 	}
 
 	PottedPlant* aPottedPlant = PottedPlantFromIndex(thePlant->mPottedPlantIndex);
@@ -1173,7 +1188,6 @@ void ZenGarden::MovePlant(Plant* thePlant, int theGridX, int theGridY)
 	aPottedPlant->mY = theGridY;
 	if (thePlant->mState == PlantState::STATE_ZEN_GARDEN_HAPPY)
 	{
-		RemoveHappyEffect(thePlant);
 		AddHappyEffect(thePlant);
 	}
 
@@ -1923,7 +1937,8 @@ void ZenGarden::GotoNextGarden()
 void ZenGarden::MouseDownWithFullWheelBarrow(int x, int y)
 {
 	PottedPlant* aPottedPlant = GetPottedPlantInWheelbarrow();
-	PVZP_ASSERT(aPottedPlant);
+	if (!aPottedPlant || !mBoard)
+        return;
 
 	if (mApp->mZenGarden->mGardenType == GardenType::GARDEN_AQUARIUM && !Plant::IsAquatic(aPottedPlant->mSeedType))
 	{

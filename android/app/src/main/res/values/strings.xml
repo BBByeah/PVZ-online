@@ -7,7 +7,7 @@
     <string name="status_missing">Game resources not found.\nPlease import main.pak + properties/ to continue.</string>
 
     <string name="section_import_resources">Import Game Resources</string>
-    <string name="import_help">Select a ZIP file or a folder that contains legally purchased copy of main.pak and the properties/ directory.</string>
+    <string name="import_help">Select a ZIP file or a folder containing your legally purchased main.pak and properties/ directory. For Chinese, also include your PC pvz_zh.pak overlay.</string>
     <string name="btn_pick_zip">Select ZIP File</string>
     <string name="btn_pick_dir">Select Resource Folder</string>
 
@@ -25,4 +25,7 @@
     <string name="no_save_data">No save data found to export.</string>
     <string name="shortcut_manage_data">Manage Data</string>
     <string name="shortcut_manage_data_long">Manage Resources &amp; Saves</string>
+    <string name="bundled_preparing">Preparing the game for the first launch…\nThis happens only once. The game will start automatically.</string>
+    <string name="bundled_failed">Could not prepare the game. Check that your device has enough free space, then tap Retry.</string>
+    <string name="bundled_retry">Retry</string>
 </resources>

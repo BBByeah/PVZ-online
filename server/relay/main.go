@@ -14,6 +14,7 @@ import (
 func main() {
 	port := flag.Int("port", 27777, "TCP listen port")
 	admin := flag.String("admin", defaultAdminAddress, "local-only status HTTP address; empty disables status")
+	configPath := flag.String("config", "", "operations JSON config; validated changes reload within one second")
 	status := flag.Bool("status", false, "print running relay status and exit (does not start a server)")
 	statusJSON := flag.Bool("status-json", false, "print running relay status as JSON and exit")
 	version := flag.Bool("version", false, "print relay release and exit")
@@ -33,6 +34,13 @@ func main() {
 	logger := log.New(os.Stdout, "", log.LstdFlags)
 	srv := newServer(func(format string, args ...any) { logger.Printf(format, args...) })
 	srv.gamePort = *port
+	if *configPath != "" {
+		if err := srv.reloadOperations(*configPath); err != nil {
+			logger.Fatalf("config: %v", err)
+		}
+	}
+	srv.startSampling(*configPath)
+	defer srv.stopSampling()
 	go srv.sweepLoop()
 
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))

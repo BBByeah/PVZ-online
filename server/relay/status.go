@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const relayRelease = "2026-10-19-multinode1"
+const relayRelease = "2026-10-20-operations1"
 const defaultAdminAddress = "127.0.0.1:27778"
 const connectionLimit = 512
 const roomLimit = 256
@@ -40,6 +40,7 @@ type processResources struct {
 }
 
 type relayStatus struct {
+	Operations                operationsStatus `json:"operations"`
 	Release                   string           `json:"release"`
 	Protocol                  int              `json:"protocol"`
 	PID                       int              `json:"pid"`
@@ -89,6 +90,7 @@ type relayStatus struct {
 type statusCache struct {
 	mu          sync.Mutex
 	value       relayStatus
+	history     []trendSample
 	previousCPU *float64
 }
 
@@ -190,6 +192,7 @@ func (s *Server) sampleStatus(now time.Time) relayStatus {
 			v.CPUPercentOneCore = &percent
 		}
 	}
+	v.Operations = s.summarizeOperations(v)
 	s.status.previousCPU = v.Process.CPUSeconds
 	s.status.value = v
 	return v
@@ -227,6 +230,9 @@ func (s *Server) statusHandler() http.Handler {
 		case "/status":
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(s.sampleStatus(time.Now()))
+		case "/history":
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(s.historySnapshot())
 		case "/healthz":
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			io.WriteString(w, "ok\n")
@@ -254,18 +260,7 @@ func (s *Server) startStatus(address string) (*http.Server, error) {
 			s.logf("status HTTP stopped: %v", err)
 		}
 	}()
-	go func() {
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				s.sampleStatus(time.Now())
-			case <-done:
-				return
-			}
-		}
-	}()
+	s.startSampling("")
 	return server, nil
 }
 

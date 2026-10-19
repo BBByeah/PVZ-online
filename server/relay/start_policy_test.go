@@ -1,9 +1,35 @@
 package main
 
 import (
+	"bytes"
 	"testing"
 	"time"
 )
+
+// Relay understands seats and start authority, not the versioned game snapshot.
+// Both old clients (44 bytes) and the next rules snapshot (45) retain every byte.
+func TestStartSnapshotLengthsForwardWithoutRewriting(t *testing.T) {
+	_, addr := startTestServer(t, nil)
+	host, guest := newTestClient(t, addr), newTestClient(t, addr)
+	welcome := decodeWelcome(t, host.create(protocolVersion, 82, "host"))
+	decodeWelcome(t, guest.join(protocolVersion, 82, "guest", welcome.code))
+	host.next(time.Second)
+	for _, length := range []int{44, 45} {
+		payload := make([]byte, length)
+		for i := range payload {
+			payload[i] = byte(i * 7)
+		}
+		payload[0], payload[1] = 1, 2
+		host.send(3, payload)
+		got := guest.next(time.Second)
+		for got.typ >= srvFrameBase {
+			got = guest.next(time.Second)
+		}
+		if got.typ != 3 || !bytes.Equal(got.payload, payload) {
+			t.Fatalf("snapshot length %d changed: %#v", length, got)
+		}
+	}
+}
 
 func TestServerRoomCountsLivePlayers(t *testing.T) {
 	host, guest := &Conn{}, &Conn{}

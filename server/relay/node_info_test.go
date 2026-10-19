@@ -2,10 +2,22 @@ package main
 
 import (
 	"encoding/binary"
+	"math"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestBoundedNodeInfoRates(t *testing.T) {
+	for _, item := range []struct {
+		value float64
+		want  uint32
+	}{{-1, 0}, {math.NaN(), 0}, {1000, 1000}, {1e12, math.MaxUint32}, {math.Inf(1), math.MaxUint32}} {
+		if got := boundedRate(item.value); got != item.want {
+			t.Fatalf("rate %v: %d != %d", item.value, got, item.want)
+		}
+	}
+}
 
 func TestNodeInfoBoundedAndIndependent(t *testing.T) {
 	_, addr := startTestServer(t, nil)
@@ -60,7 +72,7 @@ func TestIndependentNodesMayHaveSameRoomCode(t *testing.T) {
 }
 
 func TestNodeInfoMalformed(t *testing.T) {
-	for _, p := range [][]byte{nil, {1}, {2, 0}, {1, 0, 0}} {
+	for _, p := range [][]byte{nil, {1}, {3, 0}, {1, 0, 0}} {
 		_, addr := startTestServer(t, nil)
 		c := newTestClient(t, addr)
 		c.send(msgCliNodeInfo, p)

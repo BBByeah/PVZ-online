@@ -156,6 +156,8 @@ func (s *Server) handle(c *Conn, typ uint16, payload []byte) {
 			return
 		}
 		switch typ {
+		case msgCliNodeCatalog:
+			s.handleNodeCatalog(c, payload)
 		case msgCliNodeInfo:
 			s.handleNodeInfo(c, payload)
 		case msgCliPublish:

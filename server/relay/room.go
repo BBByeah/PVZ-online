@@ -105,6 +105,7 @@ type Server struct {
 	connections sync.Map
 	stats       relayCounters
 	status      statusCache
+	ops         operationsState
 	startedAt   time.Time
 	gamePort    int
 
@@ -172,7 +173,7 @@ func (s *Server) handleCreate(c *Conn, version, build uint16, name []byte) {
 		s.enqueue(c, encodeFrame(msgSrvReject, encodeReject(rejectProtocolVersion)))
 		return
 	}
-	if len(s.rooms) >= roomLimit {
+	if !s.operations().Config.AcceptNewRooms || len(s.rooms) >= roomLimit {
 		s.enqueue(c, encodeFrame(msgSrvReject, encodeReject(rejectServerBusy)))
 		return
 	}

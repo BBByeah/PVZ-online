@@ -1163,10 +1163,49 @@ void ReanimationHolder::InitializeHolder()
 	mReanimations.DataArrayInitialize(1024U, "reanims");
 }
 
+// Optional effects leave four slots for a complete Threepeater planting.
+static bool ReanimationMayOmit(ReanimationType type)
+{
+    switch (type)
+    {
+    case ReanimationType::REANIM_SPLASH: case ReanimationType::REANIM_PUFF:
+    case ReanimationType::REANIM_DIGGER_DIRT: case ReanimationType::REANIM_JALAPENO_FIRE:
+    case ReanimationType::REANIM_ZOMBIE_CHARRED: case ReanimationType::REANIM_ZOMBIE_CHARRED_IMP:
+    case ReanimationType::REANIM_ZOMBIE_CHARRED_DIGGER: case ReanimationType::REANIM_ZOMBIE_CHARRED_ZAMBONI:
+    case ReanimationType::REANIM_ZOMBIE_CHARRED_CATAPULT: case ReanimationType::REANIM_ZOMBIE_CHARRED_GARGANTUAR:
+    case ReanimationType::REANIM_LAWN_MOWERED_ZOMBIE: case ReanimationType::REANIM_SLEEPING:
+    case ReanimationType::REANIM_SUN: case ReanimationType::REANIM_COIN_SILVER:
+    case ReanimationType::REANIM_COIN_GOLD: case ReanimationType::REANIM_DIAMOND:
+    case ReanimationType::REANIM_FIRE_PEA:
+        return true;
+    default: return false;
+    }
+}
+
+bool ReanimationHolder::MakeRoomForPlant(unsigned int count)
+{
+    mPlantReservation = count > 4 ? count : 4;
+    if (!count) return true;
+    if (mReanimations.mMaxSize == 0 || !mReanimations.DataArrayCanAllocate(0) || count > mReanimations.mMaxSize) return false;
+    if (mReanimations.DataArrayCanAllocate(count)) return true;
+    // Reclaim only known standalone cosmetic effects. Live actor bodies and rewards stay intact.
+    Reanimation* effect = nullptr;
+    while (mReanimations.DataArrayIterate(effect))
+    {
+        if (effect->mIsAttachment || !ReanimationMayOmit(effect->mReanimationType)) continue;
+        effect->ReanimationDie();
+        mReanimations.DataArrayFree(effect);
+        if (mReanimations.DataArrayCanAllocate(count)) return true;
+    }
+    return false;
+}
+
 Reanimation* ReanimationHolder::AllocReanimation(float theX, float theY, int theRenderOrder, ReanimationType theReanimationType)
 {
-	PVZP_ASSERT(mReanimations.mSize != mReanimations.mMaxSize);
-	Reanimation* aReanim = mReanimations.DataArrayAlloc();
+    if (ReanimationMayOmit(theReanimationType) && !mReanimations.DataArrayCanAllocate(mPlantReservation + 1)) return nullptr;
+	// Release builds must enforce the boundary, including damaged free-list metadata.
+	Reanimation* aReanim = mReanimations.DataArrayTryAlloc();
+	if (aReanim == nullptr) return nullptr;
 	aReanim->mRenderOrder = theRenderOrder;
 	aReanim->mReanimationHolder = this;
 	aReanim->ReanimationInitializeType(theX, theY, theReanimationType);
@@ -1454,6 +1493,7 @@ void Reanimation::UpdateAttacherTrack(int theTrackIndex)
 		AttachmentDie(aTrackInstance->mAttachmentID);
 		if (!gEffectSystem->mReanimationHolder->mReanimations.DataArrayCanAllocate()) return;
 		aAttachReanim = gEffectSystem->mReanimationHolder->AllocReanimation(0.0f, 0.0f, 0, aReanimationType);
+		if (aAttachReanim == nullptr) return; // Keep the attacher pending for a later update.
 		aAttachReanim->mLoopType = aAttacherInfo.mLoopType;
 		aAttachReanim->mAnimRate = aAttacherInfo.mAnimRate;
 		if (AttachReanim(aTrackInstance->mAttachmentID, aAttachReanim, 0.0f, 0.0f) == nullptr)

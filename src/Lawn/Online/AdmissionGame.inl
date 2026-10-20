@@ -111,7 +111,7 @@ void LawnApp::SendAdmissionStart(uint8_t seat) {
         true,run->mRunSeed,(uint16_t)run->mLevelIndex,seat,(uint8_t)run->mMode,(uint8_t)run->mDiff,
         (uint8_t)run->mScale,(uint8_t)run->mTempo,(uint8_t)run->mZombotany,(uint8_t)run->mEndlessScene,(uint8_t)run->mBossFlag,
         (uint8_t)run->mBuffMult,(uint8_t)run->mLadder,(uint8_t)run->mZombieBuffMode,run->mZombieBuffStacks,
-        (uint8_t)run->mSpeedTier,(uint8_t)run->mFirstWave,(uint8_t)run->mEndlessOptions);
+        (uint8_t)run->mSpeedTier,(uint8_t)run->mFirstWave,(uint8_t)run->mEndlessOptions,(uint8_t)run->mCrowdRule);
 }
 
 void LawnApp::UpdateEndlessAdmission() {

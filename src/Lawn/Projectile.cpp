@@ -716,8 +716,23 @@ void Projectile::UpdateLobMotion()
 	}
 }
 
+// @pvz-online: no new projectile/save fields; all copies and torchwood conversions retain the rule.
+static bool FollowsRoofSlope(const Projectile* projectile)
+{
+    return projectile->mBoard->StageHasRoof() &&
+        (projectile->mProjectileType == ProjectileType::PROJECTILE_PEA ||
+         projectile->mProjectileType == ProjectileType::PROJECTILE_SNOWPEA ||
+         projectile->mProjectileType == ProjectileType::PROJECTILE_FIREBALL) &&
+        (projectile->mMotionType == ProjectileMotion::MOTION_STRAIGHT ||
+         projectile->mMotionType == ProjectileMotion::MOTION_BACKWARDS ||
+         projectile->mMotionType == ProjectileMotion::MOTION_THREEPEATER) &&
+        projectile->mApp->RunExtraBuffCount(RUN_BUFF2_ROOF_PEAS) > 0;
+}
+
 void Projectile::UpdateNormalMotion()
 {
+    const bool followsRoof = FollowsRoofSlope(this);
+    const float oldRoofY = followsRoof ? mBoard->GetPosYBasedOnRow(mPosX, mRow) : 0.0f;
 	if (mMotionType == ProjectileMotion::MOTION_BACKWARDS)
 	{
 		mPosX -= 3.33f;
@@ -811,6 +826,12 @@ void Projectile::UpdateNormalMotion()
 		mPosY += mVelZ;
 	}
 
+    // Move both the pea and its shadow before collision, including on the tick crossing the ridge.
+    if (followsRoof) {
+        const float slopeChange = mBoard->GetPosYBasedOnRow(mPosX, mRow) - oldRoofY;
+        mPosY += slopeChange;
+        mShadowY += slopeChange;
+    }
 	CheckForCollision();
 	CheckForHighGround();
 }
@@ -848,7 +869,7 @@ void Projectile::UpdateMotion()
 		mPosY += aSlopeHeightChange;
 		mPosZ -= aSlopeHeightChange;
 	}
-	mShadowY += aSlopeHeightChange;
+	if (!FollowsRoofSlope(this)) mShadowY += aSlopeHeightChange; // Roof peas already moved before collision.
 	mX = static_cast<int>(mPosX);
 	mY = static_cast<int>(mPosY + mPosZ);
 }
@@ -1032,9 +1053,12 @@ void Projectile::DoImpact(Zombie* theZombie)
 		if (IsSplashDamage(theZombie))
 		{
 			Reanimation* aFireReanim = mApp->AddReanimation(mPosX + 38.0f, mPosY - 20.0f, mRenderOrder + 1, ReanimationType::REANIM_JALAPENO_FIRE);
-			aFireReanim->mAnimTime = 0.25f;
-			aFireReanim->mAnimRate = 24.0f;
-			aFireReanim->OverrideScale(0.7f, 0.4f);
+			if (aFireReanim)
+			{
+				aFireReanim->mAnimTime = 0.25f;
+				aFireReanim->mAnimRate = 24.0f;
+				aFireReanim->OverrideScale(0.7f, 0.4f);
+			}
 		}
 	}
 	else if (mProjectileType == ProjectileType::PROJECTILE_STAR)
@@ -1263,7 +1287,7 @@ void Projectile::Draw(Graphics* g)
 		aImage = IMAGE_PROJECTILESNOWPEA;
 		break;
 	case ProjectileType::PROJECTILE_FIREBALL:
-		aImage = nullptr;
+		aImage = !FindReanimAttachment(mAttachmentID) ? IMAGE_PROJECTILEPEA : nullptr;
 		break;
 	case ProjectileType::PROJECTILE_SPIKE:
 		aImage = IMAGE_PROJECTILECACTUS;
@@ -1479,6 +1503,7 @@ void Projectile::ConvertToFireball(int theGridX)
 	float aOffsetX = -25.0f;
 	float aOffsetY = -25.0f;
 	Reanimation* aFirePeaReanim = mApp->AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_FIRE_PEA);
+	if (!aFirePeaReanim) return; // Damage/type conversion above still takes effect.
 	if (mMotionType == ProjectileMotion::MOTION_BACKWARDS)
 	{
 		aFirePeaReanim->OverrideScale(-1.0f, 1.0f);

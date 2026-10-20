@@ -50,6 +50,7 @@ file(GLOB SOURCES CONFIGURE_DEPENDS
 	src/Lawn/Widget/*.cpp
 	src/Lawn/System/*.cpp
 )
+list(APPEND SOURCES src/Lawn/Online/RelayCatalog.cpp third_party/ed25519/src/fe.c third_party/ed25519/src/ge.c third_party/ed25519/src/sc.c third_party/ed25519/src/sha512.c third_party/ed25519/src/verify.c)
 # @pvz-online: fixed PC run model and cross-platform session transport.
 list(APPEND SOURCES src/Lawn/Run/RunState.cpp src/Lawn/Run/RunCheckpointIO.cpp src/Lawn/Run/RunHistory.cpp src/Lawn/Run/RunBuffs.cpp src/Lawn/Run/RunFlow.cpp src/Lawn/Run/RunZombieRoster.cpp src/Lawn/Online/NetSession.cpp)
 if(WIN32)

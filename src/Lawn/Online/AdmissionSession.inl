@@ -3,11 +3,11 @@ bool NetSession::RequestRoomGate(bool open) {
     if(mTransport!=Transport::RELAY || mRole!=Role::HOST || !mHasCredential || !IsConnected())return true;
     if(mGateWanted!=int(open) || mGateEpoch!=(mReadyEpoch?mReadyEpoch:1)) {
         mGateWanted=int(open);mGateEpoch=mReadyEpoch?mReadyEpoch:1;++mGateRequest;
-        uint8_t bytes[9];NetProto::Writer w(bytes,9);w.U32(mGateRequest);w.U32(mGateEpoch);w.U8(open?1:0);
-        if(!SendRaw(0xF017,bytes,9))return false;
+        uint8_t bytes[13];const int size=mFlowEnabled?13:9;NetProto::Writer w(bytes,size);w.U32(mGateRequest);w.U32(mGateEpoch);w.U8(open?1:0);if(mFlowEnabled)w.U32(mFlowTerm);
+        if(!SendRaw(0xF017,bytes,size))return false;
     }
     if(mGateAck!=mGateRequest && ++mGateRetry>=100) {
-        mGateRetry=0;uint8_t bytes[9];NetProto::Writer w(bytes,9);w.U32(mGateRequest);w.U32(mGateEpoch);w.U8(open?1:0);SendRaw(0xF017,bytes,9);
+        mGateRetry=0;uint8_t bytes[13];const int size=mFlowEnabled?13:9;NetProto::Writer w(bytes,size);w.U32(mGateRequest);w.U32(mGateEpoch);w.U8(open?1:0);if(mFlowEnabled)w.U32(mFlowTerm);SendRaw(0xF017,bytes,size);
     }
     return mGateAck==mGateRequest;
 }

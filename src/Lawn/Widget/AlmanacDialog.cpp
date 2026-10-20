@@ -1,6 +1,8 @@
 #include "MobileCoopDraw.h"
 #include "RunInfoView.h"
 #include "../Run/RunBuffs.h"
+#include "../../PvzpLib/EffectSystem.h"
+#include "../../PvzpLib/Reanimator.h"
 #include <vector>
 /*
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
@@ -27,6 +29,7 @@
 #include "../Board.h"
 #include "../Plant.h"
 #include "../Zombie.h"
+#include "../Run/AnimationAdmission.h"
 #include "GameButton.h"
 #include "../SeedPacket.h"
 #include "../../LawnApp.h"
@@ -54,6 +57,109 @@ static std::vector<int> MobileAlmanacEntries(SeedType seed)
 }
 
 bool gZombieDefeated[NUM_ZOMBIE_TYPES] = { false };
+
+// Preview construction is synchronous, just like Board admission. Keep the plant
+// reservation and existing actors intact; a missing cosmetic preview can retry.
+static bool AlmanacCanCreatePreview(LawnApp* app, unsigned int count)
+{
+    if (!app || !app->mEffectSystem || !app->mEffectSystem->mReanimationHolder) return false;
+    ReanimationHolder* holder = app->mEffectSystem->mReanimationHolder.get();
+    auto& pool = holder->mReanimations;
+    if (!pool.mMaxSize || count > pool.mMaxSize || holder->mPlantReservation > pool.mMaxSize - count)
+        return false;
+    return pool.DataArrayCanAllocate(count + holder->mPlantReservation) && pool.DataArrayValidateState();
+}
+
+static void AlmanacDeletePlant(std::unique_ptr<Plant>& plant)
+{
+    if (!plant) return;
+    plant->Die();
+    plant.reset();
+}
+
+static void AlmanacDeleteZombie(std::unique_ptr<Zombie>& zombie)
+{
+    if (!zombie) return;
+    zombie->DieNoLoot();
+    zombie.reset();
+}
+
+static void AlmanacRefreshPreviews(AlmanacDialog* dialog)
+{
+    const bool index = dialog->mOpenPage == AlmanacPage::ALMANAC_PAGE_INDEX;
+    const bool plants = dialog->mOpenPage == AlmanacPage::ALMANAC_PAGE_PLANTS;
+    const bool zombies = dialog->mOpenPage == AlmanacPage::ALMANAC_PAGE_ZOMBIES;
+    if (!index && !plants && !zombies) return;
+    if (zombies) AlmanacDeletePlant(dialog->mPlant);
+    if (plants) AlmanacDeleteZombie(dialog->mZombie);
+
+    if (index || plants)
+    {
+        const SeedType seed = index ? SeedType::SEED_SUNFLOWER : dialog->mSelectedSeed;
+        if (!dialog->mPlant || dialog->mPlant->mSeedType != seed)
+        {
+            unsigned int need = GetPlantDefinition(seed).mReanimationType == ReanimationType::REANIM_NONE ? 0U : 1U;
+            switch (seed)
+            {
+            case SeedType::SEED_PEASHOOTER: case SeedType::SEED_SNOWPEA:
+            case SeedType::SEED_REPEATER: case SeedType::SEED_LEFTPEATER: case SeedType::SEED_GATLINGPEA: ++need; break;
+            case SeedType::SEED_SPLITPEA: need += 2; break;
+            case SeedType::SEED_THREEPEATER: need += 3; break;
+            default: break;
+            }
+            // Off-board previews do not allocate sleeping indicators.
+            if (AlmanacCanCreatePreview(dialog->mApp, need))
+            {
+                Plant::PreloadPlantResources(seed);
+                auto replacement = std::make_unique<Plant>();
+                replacement->mBoard = nullptr;
+                replacement->mIsOnBoard = false;
+                replacement->PlantInitialize(0, 0, seed, SeedType::SEED_NONE);
+                AlmanacDeletePlant(dialog->mPlant);
+                dialog->mPlant = std::move(replacement);
+            }
+        }
+        if (dialog->mPlant && dialog->mPlant->mSeedType == seed)
+        {
+            float x = index ? ALMANAC_INDEXPLANT_POSITION_X : ALMANAC_PLANT_POSITION_X;
+            float y = index ? ALMANAC_INDEXPLANT_POSITION_Y : ALMANAC_PLANT_POSITION_Y;
+            if (!index)
+            {
+                if (seed == SEED_TALLNUT) y += 18;
+                else if (seed == SEED_COBCANNON) x -= 40;
+                else if (seed == SEED_FLOWERPOT) y -= 20;
+                else if (seed == SEED_INSTANT_COFFEE) y += 20;
+                else if (seed == SEED_GRAVEBUSTER) y += 55;
+            }
+            dialog->mPlant->mX = x;
+            dialog->mPlant->mY = y;
+        }
+    }
+    if (index || zombies)
+    {
+        const ZombieType type = index ? ZombieType::ZOMBIE_NORMAL : dialog->mSelectedZombie;
+        if (!dialog->mZombie || dialog->mZombie->mZombieType != type)
+        {
+            const ZombieType admittedType = type;
+            if (AlmanacCanCreatePreview(dialog->mApp, AnimationAdmission::ZombieOne(admittedType)))
+            {
+                Zombie::PreloadZombieResources(type);
+                auto replacement = std::make_unique<Zombie>();
+                replacement->mBoard = nullptr;
+                replacement->ZombieInitialize(0, type, false, nullptr, Zombie::ZOMBIE_WAVE_UI);
+                AlmanacDeleteZombie(dialog->mZombie);
+                dialog->mZombie = std::move(replacement);
+            }
+        }
+        if (dialog->mZombie && dialog->mZombie->mZombieType == type)
+        {
+            dialog->mZombie->mPosX = index ? ALMANAC_INDEXZOMBIE_POSITION_X : ALMANAC_ZOMBIE_POSITION_X;
+            dialog->mZombie->mPosY = index ? ALMANAC_INDEXZOMBIE_POSITION_Y : ALMANAC_ZOMBIE_POSITION_Y;
+        }
+    }
+}
+
+
 
 AlmanacDialog::AlmanacDialog(LawnApp* theApp) : LawnDialog(theApp, DIALOG_ALMANAC, true, theApp->GetString("ALMANAC_HEADER", "Almanac"), "", "", BUTTONS_NONE)
 {
@@ -155,56 +261,21 @@ void AlmanacDialog::RemovedFromManager(WidgetManager* theWidgetManager)
 
 void AlmanacDialog::SetupPlant()
 {
-	ClearPlantsAndZombies();
-    Plant::PreloadPlantResources(mSelectedSeed);
-
-	float aPosX = ALMANAC_PLANT_POSITION_X;
-	float aPosY = ALMANAC_PLANT_POSITION_Y;
-	if (mSelectedSeed == SEED_TALLNUT)				aPosY += 18;
-	else if (mSelectedSeed == SEED_COBCANNON)		aPosX -= 40;
-	else if (mSelectedSeed == SEED_FLOWERPOT)		aPosY -= 20;
-	else if (mSelectedSeed == SEED_INSTANT_COFFEE)	aPosY += 20;
-	else if (mSelectedSeed == SEED_GRAVEBUSTER)		aPosY += 55;
-
-	mPlant = std::make_unique<Plant>();
-	mPlant->mBoard = nullptr;
-	mPlant->mIsOnBoard = false;
-	mPlant->PlantInitialize(0, 0, mSelectedSeed, SEED_NONE);
-	mPlant->mX = aPosX;
-	mPlant->mY = aPosY;
+    AlmanacRefreshPreviews(this);
 }
 
 void AlmanacDialog::SetupZombie()
 {
-	ClearPlantsAndZombies();
-    Zombie::PreloadZombieResources(mSelectedZombie);
-
-	mZombie = std::make_unique<Zombie>();
-	mZombie->mBoard = nullptr;
-	mZombie->ZombieInitialize(0, mSelectedZombie, false, nullptr, Zombie::ZOMBIE_WAVE_UI);
-	mZombie->mPosX = ALMANAC_ZOMBIE_POSITION_X;
-	mZombie->mPosY = ALMANAC_ZOMBIE_POSITION_Y;
+    AlmanacRefreshPreviews(this);
 }
 
 void AlmanacDialog::SetPage(AlmanacPage thePage)
 {
 	mOpenPage = thePage;
-	ClearPlantsAndZombies();
 
 	if (mOpenPage == AlmanacPage::ALMANAC_PAGE_INDEX)
 	{
-		mPlant = std::make_unique<Plant>();
-		mPlant->mBoard = nullptr;
-		mPlant->mIsOnBoard = false;
-		mPlant->PlantInitialize(0, 0, SeedType::SEED_SUNFLOWER, SeedType::SEED_NONE);
-		mPlant->mX = ALMANAC_INDEXPLANT_POSITION_X;
-		mPlant->mY = ALMANAC_INDEXPLANT_POSITION_Y;
-
-		mZombie = std::make_unique<Zombie>();
-		mZombie->mBoard = nullptr;
-		mZombie->ZombieInitialize(0, ZombieType::ZOMBIE_NORMAL, false, nullptr, Zombie::ZOMBIE_WAVE_UI);
-		mZombie->mPosX = ALMANAC_INDEXZOMBIE_POSITION_X;
-		mZombie->mPosY = ALMANAC_INDEXZOMBIE_POSITION_Y;
+        AlmanacRefreshPreviews(this);
 
 		mIndexButton->mBtnNoDraw = true;
 		mPlantButton->mBtnNoDraw = false;
@@ -242,6 +313,7 @@ void AlmanacDialog::Update()
 	mIndexButton->Update();
 	mPlantButton->Update();
 	mZombieButton->Update();
+    AlmanacRefreshPreviews(this);
 	if (mPlant) mPlant->Update();
 	if (mZombie) mZombie->Update();
 	for (const std::unique_ptr<Zombie>& aZombie : mZombiePerfTest)
@@ -278,13 +350,13 @@ void AlmanacDialog::DrawIndex(Graphics* g)
 	g->DrawImage(Sexy::IMAGE_ALMANAC_INDEXBACK, 0, 0);
 	PvzpDrawString(g, "[SUBURBAN_ALMANAC_INDEX]", BOARD_WIDTH / 2, 60, Sexy::FONT_HOUSEOFTERROR28, Color(220, 220, 220), DrawStringJustification::DS_ALIGN_CENTER);
 
-	if (mPlant)
+	if (mPlant && mPlant->mSeedType == SeedType::SEED_SUNFLOWER)
 	{
 		Graphics aPlantGraphics = Graphics(*g);
 		mPlant->BeginDraw(&aPlantGraphics);
 		mPlant->Draw(&aPlantGraphics);
 	}
-	if (mZombie)
+	if (mZombie && mZombie->mZombieType == ZombieType::ZOMBIE_NORMAL)
 	{
 		Graphics aZombieGraphics = Graphics(*g);
 		mZombie->BeginDraw(&aZombieGraphics);
@@ -332,7 +404,7 @@ void AlmanacDialog::DrawPlants(Graphics* g)
 		);
 	}
 
-	if (mPlant)
+	if (mPlant && mPlant->mSeedType == mSelectedSeed)
 	{
 		Graphics aPlantGraphics = Graphics(*g);
 		mPlant->BeginDraw(&aPlantGraphics);
@@ -482,9 +554,9 @@ void AlmanacDialog::DrawZombies(Graphics* g)
 		}
 	}
 
-	g->DrawImage(mZombie->mZombieType == ZombieType::ZOMBIE_ZAMBONI || mZombie->mZombieType == ZombieType::ZOMBIE_BOBSLED ?
+	g->DrawImage(mSelectedZombie == ZombieType::ZOMBIE_ZAMBONI || mSelectedZombie == ZombieType::ZOMBIE_BOBSLED ?
 		Sexy::IMAGE_ALMANAC_GROUNDICE : Sexy::IMAGE_ALMANAC_GROUNDDAY, 518, 110);
-	if (mZombie && !ZombieHasSilhouette(mZombie->mZombieType))
+	if (mZombie && mZombie->mZombieType == mSelectedZombie && !ZombieHasSilhouette(mZombie->mZombieType))
 	{
 		Graphics aZombieGraphics = Graphics(*g);
 		mZombie->BeginDraw(&aZombieGraphics);

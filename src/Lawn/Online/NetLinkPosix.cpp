@@ -134,7 +134,7 @@ struct Worker
         NetLink::Packet packet{};
         if (!ReceiveExact(packet.mData, NetProto::HEADER_SIZE)) return;
         int payload = packet.mData[2] | (packet.mData[3] << 8);
-        if (payload > NetProto::MAX_PAYLOAD) { Fail("A player sent a malformed packet."); return; }
+        if (payload > NetProto::MAX_WIRE_PAYLOAD) { Fail("A player sent a malformed packet."); return; }
         if (payload && !ReceiveExact(packet.mData + NetProto::HEADER_SIZE, payload)) return;
         packet.mSize = NetProto::HEADER_SIZE + payload;
         std::lock_guard lock(queueMutex);

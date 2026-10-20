@@ -89,7 +89,7 @@ public:
 public:
 	Challenge();
 
-	void                    StartLevel();
+	bool                    StartLevel();
 	void                    BeghouledPopulateBoard();
 	void                    LoadBeghouledBoardState(BeghouledBoardState* theState);
 	SeedType                BeghouledPickSeed(int theGridX, int theGridY, BeghouledBoardState* theBoardState, int theAllowMatches);
@@ -136,6 +136,7 @@ public:
 	void                    MouseDownWhackAZombie(int theX, int theY);
 	void                    DrawStormNight(Graphics* g);
 	void                    UpdateStormyNight();
+    bool CompleteInitPlants();
 	void                    InitLevel();
 	void                    SpawnZombieWave();
 	void                    GraveDangerSpawnRandomGrave();
@@ -144,7 +145,7 @@ public:
 	void                    BeghouledScore(int theGridX, int theGridY, int theNumPlants, int theIsHorizontal);
 	void                    DrawStormFlash(Graphics* g, int theTime, int theMaxAmount);
 	void                    UpdateRainingSeeds();
-	void         PlayBossEnter();
+	bool         PlayBossEnter();
 	void                    UpdateConveyorBelt();
 	void                    PortalStart();
 	void                    UpdatePortalCombat();
@@ -166,7 +167,7 @@ public:
 	void                    ZombiquariumMouseDown(int x, int y);
 	void                    ZombiquariumDropBrain(int x, int y);
 	void                    ZombiquariumUpdate();
-	void         ShovelAddWallnuts();
+	bool         ShovelAddWallnuts();
 	void                    ScaryPotterPlacePot(ScaryPotType theScaryPotType, ZombieType theZombieType, SeedType theSeedType, int theCount, PvzpWeightedGridArray* theGridArray, int theGridArrayCount);
 	void                    ScaryPotterStart();
 	void                    ScaryPotterUpdate();
@@ -176,7 +177,7 @@ public:
 	void                    ScaryPotterChangePotType(GridItemState thePotType, int theCount);
 	void                    ScaryPotterPopulate();
 	void         ScaryPotterDontPlaceInCol(int theCol, PvzpWeightedGridArray* theGridArray, int theGridArrayCount);
-	void                    ScaryPotterFillColumnWithPlant(int theCol, SeedType theSeedType, PvzpWeightedGridArray* theGridArray, int theGridArrayCount);
+	bool                    ScaryPotterFillColumnWithPlant(int theCol, SeedType theSeedType, PvzpWeightedGridArray* theGridArray, int theGridArrayCount);
 	void                    PuzzleNextStageClear();
 	void                    ScaryPotterMalletPot(GridItem* theScaryPot);
 	static ZombieType       IZombieSeedTypeToZombieType(SeedType theSeedType);
@@ -189,7 +190,7 @@ public:
 	void                    IZombieSetPlantFilterEffect(Plant* thePlant, FilterEffect theFilterEffect);
 	int          ScaryPotterCountSunInPot(GridItem* theScaryPot);
 	int                     ScaryPotterCountPots();
-	void                    IZombieInitLevel();
+	bool                    IZombieInitLevel();
 	void                    DrawRain(Graphics* g);
 	void                    DrawWeather(Graphics* g);
 	void                    SquirrelUpdate();
@@ -221,7 +222,7 @@ public:
 	void         BeghouledCancelMatchFlashing();
 	void                    BeghouledStartFalling(ChallengeState theState);
 	void                    BeghouledFillHoles(BeghouledBoardState* theBoardState, int theAllowMatches);
-	void         BeghouledMakeStartBoard();
+	bool         BeghouledMakeStartBoard();
 	void                    BeghouledCreatePlants(BeghouledBoardState* theOldBoardState, BeghouledBoardState* theNewBoardState);
 	void                    PuzzlePhaseComplete(int theGridX, int theGridY);
 	int         PuzzleIsAwardStage();

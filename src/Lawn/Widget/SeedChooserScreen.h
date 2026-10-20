@@ -129,7 +129,8 @@ public:
 	void                    UpdateImitaterButton();
 	void                    MouseDown(int x, int y, int theClickCount) override;
 	bool         PickedPlantType(SeedType theSeedType);
-	void                    CloseSeedChooser();
+    void                    CloseSeedChooser();
+    void                    ResumeSelectionForEditing();
 	void                    KeyDown(KeyCode theKey) override;
 	void                    KeyChar(char theChar) override;
 	void                    UpdateAfterPurchase();

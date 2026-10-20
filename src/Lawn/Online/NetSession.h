@@ -23,6 +23,11 @@
 class NetSession
 {
 public:
+    // Initial create retry information; never infer it from localized text.
+    bool mRoomCreateAttempted=false,mRoomCreateBusyRejected=false,mRoomCreateWelcomed=false;
+    bool RoomCreateRequestAttempted()const{return mRoomCreateAttempted;}
+    bool CanRetryRoomCreate()const{return mTransport==Transport::RELAY&&mRole==Role::HOST&&mState==State::DEAD&&!mRoomCreateWelcomed&&(!mRoomCreateAttempted||mRoomCreateBusyRejected);}
+    void FailUnsentRoomCreate();
     // @pvz-online: desired visibility is acknowledged by the relay before the UI calls it public.
     bool mDirectoryPublic=false,mDirectoryStarted=false,mDirectoryConfirmed=false,mDirectoryJoin=false;
     int mDirectoryRetry=0;
@@ -101,6 +106,7 @@ public:
 		RECONNECTING,	// 本机掉线，开始自动重连（UI 弹重连框）
 		RECONNECTED,	// 本机重连成功、坐回原席（UI 收框；不重跑任何开局链）
 		PEER_OFFLINE,	// 某席位掉线、进了保留期（mSeat；名册上还占着位，等他回来）
+		HOST_CHANGED, // Relay elected a new host; old authority and preparation consent expire.
 		PEER_BACK		// 掉线的那位回来了（mSeat）
 	};
 
@@ -167,7 +173,7 @@ public:
 	// 服务器最迟 30+60=90 秒才释放席位——客户端的判决永远先于席位释放落地，
 	// "重连到一个已经没了的席位"不会发生。
 	static const int	RECONNECT_SILENCE_FRAMES	= 1500;	// 中继：15 秒收不到任何东西才按掉线办（直连仍是 TIMEOUT_FRAMES）
-	static const int	RECONNECT_WINDOW_FRAMES		= 4500;	// 重连总窗口 45 秒，超了判死
+	static const int	RECONNECT_WINDOW_FRAMES		= 6000;	// 重连总窗口 60 秒，超了判死
 	static const int	REJOIN_WAIT_FRAMES			= 500;	// 单次 REJOIN 发出后等 WELCOME 的时限（5 秒），超时重开再试
 
 public:
@@ -257,7 +263,9 @@ public:
 	// 默认 0（单关局与非闯关路径不传）。
 	// theRunLadder（MOD_BUILD 45）= 场景难度阶梯档（RunState::RUN_LADDER_*，0 = 现状 ×1.33）；
 	// theRunZombieBuff（MOD_BUILD 45）= 僵尸 buff 档 0/1/2；theZombieStacks（MOD_BUILD 45）
-	// = 8 条强化层数快照（nullptr = 全 0，单关局与非闯关路径不传）。
+	// = 8 条强化层数快照（nullptr = 全 0，单关局与非闯关路径不传）；theRunBossFlag
+	// （2026-10-16 起三档：0 关 / 1 仅末关 / 2 末关+场景 3）；theRunSpeedTier（2026-10-16）
+	// = 僵尸移速成长档 0/1/2（默认 0 = 无）。
 	// theTargetSeat 默认 SEAT_UNSET = 发给所有队友；中途拉一个人进关必须点名单发——
 	// 扇出会把已经在打的人重新点名一遍（那会重建棋盘）。
 	bool			SendStartLevel(uint8_t theGameMode, uint32_t theLevel, int32_t theLevelSeed,
@@ -268,7 +276,7 @@ public:
 						uint8_t theRunEndlessScene = 0, uint8_t theRunBossFlag = 0,
 						uint8_t theRunBuffMult = 0, uint8_t theRunLadder = 0,
 						uint8_t theRunZombieBuff = 0, const uint8_t* theZombieStacks = nullptr,
-						uint8_t theRunSpeedTier = 0, uint8_t theRunFirstWave = 0, uint8_t theEndlessOptions = 0);
+						uint8_t theRunSpeedTier = 0, uint8_t theRunFirstWave = 0, uint8_t theEndlessOptions = 0, uint8_t theCrowdRule = CrowdRules::LEGACY);
 
 	// 客户端侧：取出主机发来的开局命令（同时清掉）。没有就返回 false。
 	// 单槽而不是队列：开局命令只有"最新那条"有意义，堆着旧的开局命令没有用处。
@@ -522,7 +530,30 @@ public:
 
 	bool			PollEvent(Event& theEvent);
 
+public:
+ bool HasRoundFlow() const { return mFlowEnabled; }
+ bool HasCompletedRound() const { return mAllDoneTaken; }
+ bool NeedsRoundRejoin() const { return mFlowDeferred; }
+ void FinishRoundRejoin() { mFlowDeferred=false; }
+ enum class ReadyCancelState { NONE, PENDING, CONFIRMED, TOO_LATE };
+ bool RequestSeedsReadyCancel();
+ ReadyCancelState GetReadyCancelState() const { return mReadyCancelState; }
+ void ClearReadyCancelResult() { if(mReadyCancelState!=ReadyCancelState::PENDING)mReadyCancelState=ReadyCancelState::NONE; }
+ bool CanCancelSeedsReady() const;
+ bool NeedsHostStartRecovery() const { return mFlowHostStartRecovery; }
+ void FinishHostStartRecovery() { mFlowHostStartRecovery=false; }
 private:
+ bool mFlowSupported=false,mFlowEnabled=false,mFlowHelloSent=false,mFlowDeferred=false;
+ bool mFlowDoneValue=false,mFlowStartPending=false,mFlowHostStartRecovery=false,mFlowLost=false;
+ ReadyCancelState mReadyCancelState=ReadyCancelState::NONE;
+ uint32_t mReadyCancelEpoch=0,mReadyCancelTerm=0,mReadyCancelRevision=0;
+ void UpdateReadyCancelState();
+ uint32_t mFlowTerm=0,mFlowEpoch=0,mFlowGeneration=0,mFlowAcked=0,mFlowDoneEpoch=0;
+ uint8_t mFlowPhase=0;int mFlowStartTicks=0;
+ bool SendFlowProgress(uint8_t op,bool value,uint32_t generation=0);
+ bool SendFlowStart(const NetProto::MsgStartLevel& msg);
+ bool SendFlowLevelDone(bool clear);
+ void HandleFlowState(const uint8_t* bytes,int size);
 	// 一个席位上的人和他在这一局里的状态（0 号位不用）。
 	// 自己那格的两条状态身兼两职：既是本地记的值，也是"上次发出去的值"——发送去重
 	// 就靠它。换位时整格跟着人走，所以"我报过什么"换过位置也不会丢。

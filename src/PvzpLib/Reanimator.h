@@ -131,6 +131,8 @@ public:
 
 	void                            InitializeHolder();
 	void                            DisposeHolder();
+    unsigned int                    mPlantReservation = 4; // Transient; the holder is not serialized.
+    bool                            MakeRoomForPlant(unsigned int count);
 	Reanimation*                    AllocReanimation(float theX, float theY, int theRenderOrder, ReanimationType theReanimationType);
 };
 

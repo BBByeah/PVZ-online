@@ -69,10 +69,14 @@ def build_overrides(strings):
     if "{SELL_PRICE}" not in sell_price:
         raise ValueError("CRAZY_DAVE_1700 does not contain {SELL_PRICE}")
 
+    # ZenGarden already converts ledger units to the displayed amount (price * 10).
+    # Older compatibility overlays appended zeros here; keep one conversion only.
+    sell_price = re.sub(r"(\{SELL_PRICE\})0+", r"\1", sell_price)
+
     overrides = {
         "RESTART_LEVEL": strings["RESTART_LEVEL_BUTTON"],
         "NOT_ENCOUNTERED_YET": strings["NOT_ENCOUNTERED_YET_DESCRIPTION"],
-        "CRAZY_DAVE_1700": sell_price.replace("{SELL_PRICE}", "{SELL_PRICE}0", 1),
+        "CRAZY_DAVE_1700": sell_price,
     }
 
     header_keys = sorted(key for key in strings if key.endswith("_DESCRIPTION_HEADER"))

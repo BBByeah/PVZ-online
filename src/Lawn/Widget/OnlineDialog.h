@@ -2,7 +2,7 @@
 #include "widget/Dialog.h"
 #include "widget/EditListener.h"
 #include <memory>
-#include "../Online/AutomaticRooms.h"
+#include "../Online/RoomCreateAttempt.h"
 #include <vector>
 class LawnApp;
 namespace Sexy { class EditWidget; class ButtonWidget; }
@@ -21,6 +21,9 @@ private:
     std::unique_ptr<Sexy::EditWidget> mAddress, mCode;
     std::vector<std::unique_ptr<Sexy::ButtonWidget>> mButtons;
     RelayNodes::Allocator mAllocator;
+    RelayNodes::RoomCreateAttempt mCreation;
+    RelayNodes::CatalogDiscovery mJoinLookup;
+    std::string mPendingJoinCode;
     std::string mInputError;
     std::string mLocalIp;
     std::string mShownRoomCode;

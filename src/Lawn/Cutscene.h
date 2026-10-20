@@ -74,7 +74,7 @@ public:
 	bool                        CanZombieGoInGridSpot(ZombieType theZombieType, int theGridX, int theGridY, bool theZombieGrid[5][5]);
 	bool             IsSurvivalRepick();
 	bool             IsAfterSeedChooser();
-	void                        AddFlowerPots();
+	bool                        AddFlowerPots();
 	void                        UpdateZombiesWon();
 	void                        StartZombiesWon();
 	bool             ShowZombieWalking();

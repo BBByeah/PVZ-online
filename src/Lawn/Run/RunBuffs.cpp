@@ -263,7 +263,7 @@ static const RunPlantUpgradeDef gRunPlantUpgradeDefs[RUN_PLANT_UPGRADE_COUNT] =
 	{ SeedType::SEED_DOOMSHROOM,   "Annihilation", "湮灭", "爆炸造成 6000 伤害",                "Blast deals 6000 damage",                            0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_LILYPAD,      "Tough Pad", "厚叶",    "血量 +150%\n（每层）",              "Health +150%\n(per stack)",                          1.50f, 2, false, RUN_UPGRADE_KIND_HEALTH, 2 },
 	{ SeedType::SEED_SQUASH,       "Heavy Squash", "连砸", "砸击次数 +2\n（每层）",             "Smashes 2 extra times\n(per stack)",                 0.00f, 0, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_THREEPEATER,  "Triple Volley", "齐射", "每条道多发 1 颗",                  "1 extra pea per lane",                               0.00f, 1, false, RUN_UPGRADE_KIND_SHOTCOUNT, 2 },
+	{ SeedType::SEED_THREEPEATER,  "Triple Volley", "齐射", "每条道多发 1 颗\n（每层）",                  "1 extra pea per lane\n(per stack)",                  0.00f, 0, false, RUN_UPGRADE_KIND_SHOTCOUNT, 2 },
 	{ SeedType::SEED_TANGLEKELP,   "Entangle", "多缠",     "多缠 1 只僵尸\n（每层）",           "Grabs 1 extra zombie\n(per stack)",                  0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_JALAPENO,     "Inferno", "炼狱",      "种植冷却逐层 ×0.8\n（每层）",       "Planting cooldown ×0.8/stack",                       -0.20f, 3, true, RUN_UPGRADE_KIND_COOLDOWN, 2 },
 	{ SeedType::SEED_SPIKEWEED,    "Barbed Spikes", "倒刺", "扎过的僵尸减速 +3 秒\n（每层）",   "Zombies it pricks slowed +3 sec\n(per stack)",       0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
@@ -351,7 +351,7 @@ static const RunPlantUpgradeDef gRunPlantBuff2Defs[RUN_PLANT_BUFF2_COUNT] =
 	{ SeedType::SEED_KERNELPULT,    "Butter Feast", "黄油盛宴",  "黄油概率 +25%\n黄油时长 +1 秒（每层）",  "Butter chance +25%\nButter duration +1 sec (per stack)", 0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_GARLIC,        "Guide Garlic", "引路蒜",  "血量仅 20\n被吃时全行僵尸换道",         "Only 20 HP\nZombies in the row switch lanes when bitten", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_MARIGOLD,      "Fortune", "富贵",       "+10% 概率产金币/钻石\n（每层）",        "+10% chance of gold/diamond\n(per stack)",            0.00f, 3, false, RUN_UPGRADE_KIND_EFFECT, 1 },
-	{ SeedType::SEED_MELONPULT,     "Rolling Burst", "滚爆", "落地后向前滚 1 格\n并再炸一次",         "Rolls 1 tile and bursts again",                       0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
+	{ SeedType::SEED_MELONPULT,     "Rolling Burst", "滚爆", "落地后向前滚 1 格\n并再炸一次",         "Rolls 1 tile and bursts again",                       0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_GATLINGPEA, "Melon Rounds", "概率瓜弹", "每颗子弹有25%概率变为直射西瓜\n80直伤及普通西瓜溅射", "25% of bullets become straight melons\n80 damage + melon splash", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_TWINSUNFLOWER, "Solar Focus", "聚光增幅", "每5秒自动拾取全场阳光\n拾取阳光价值+20%，多株不叠加", "Auto-collect sun every 5 sec\nCollected sun +20%; no stacking", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_GLOOMSHROOM,   "Rock Flesh", "耐砸",    "基础血量变为1000，可受血量加成\n普通巨人砸击每次扣200",   "Base health becomes 1000; health buffs apply\nOrdinary Gargantuar smashes deal 200 HP", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
@@ -388,6 +388,10 @@ static const RunPlantUpgradeDef gRunPlantBuff2Defs[RUN_PLANT_BUFF2_COUNT] =
     { SeedType::SEED_CHOMPER, "Giant Bite", "噬巨", "对巨人和Boss每口造成10000伤害\n可连锁重咬，结束或咬死后进入消化", "Bites giants and bosses for 10000\nChains bites; digests after the round or a kill", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
     { SeedType::SEED_KERNELPULT, "Butter Heavy", "黄油重击", "黄油附着8秒，每秒当前本体生命1%\n每跳上限2000；盛宴每层附着+2秒", "Butter coats for 8s: 1% current body HP/sec\nCapped at 2000; Feast adds 2s per stack", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
     { SeedType::SEED_JALAPENO, "Embers", "余焰", "每次燃烧后附加3秒灼烧\n每秒当前本体生命1%，最低300", "Each burn adds 3s of embers\n1% current body HP/sec, minimum 300", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+    // Family traits use SEED_NONE so they never masquerade as a single plant's second upgrade.
+    { SeedType::SEED_NONE, "Dense Fumes", "浓雾", "大喷菇和忧郁菇攻击伤害+35%\n每层线性叠加，无层数上限", "Fume-shroom and Gloom-shroom damage +35%\nAdditive per stack; unlimited stacks", 0.35f, 0, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+    { SeedType::SEED_NONE, "Roof Peas", "顺坡豌豆", "普通、冰和火豌豆沿屋顶坡面前进\n适用于全部豌豆射手", "Ordinary, ice and fire peas follow roof slopes\nApplies to all pea shooters", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+    { SeedType::SEED_GARLIC, "Garlic Pulse", "蒜气冲击", "种下时使本行所有敌人换至相邻可通行道路\n包括冰车和巨人；Boss和免硬控者除外", "On planting, redirect all enemies in this row\nIncludes Zomboni and giants; bosses and control immunity resist", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 };
 
 const RunPlantUpgradeDef& GetRunPlantBuff2Def(int theIndex)
@@ -587,6 +591,20 @@ SeedType GetRunChoicePlant(int theId)
 	return SeedType::SEED_NONE;
 }
 
+// @pvz-online: one saved family trait can belong to several plants without duplicate pool entries.
+uint64_t GetRunChoicePlantMask(int theId)
+{
+    const int base = RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT;
+    if (theId == base + RUN_BUFF2_SHARED_FUMES)
+        return (uint64_t(1) << SEED_FUMESHROOM) | (uint64_t(1) << SEED_GLOOMSHROOM);
+    if (theId == base + RUN_BUFF2_ROOF_PEAS)
+        return (uint64_t(1) << SEED_PEASHOOTER) | (uint64_t(1) << SEED_SNOWPEA) |
+            (uint64_t(1) << SEED_REPEATER) | (uint64_t(1) << SEED_THREEPEATER) |
+            (uint64_t(1) << SEED_SPLITPEA) | (uint64_t(1) << SEED_GATLINGPEA);
+    SeedType plant = GetRunChoicePlant(theId);
+    return plant >= 0 && plant < 64 ? uint64_t(1) << plant : 0;
+}
+
 // 经济条清单（经济权重批 2026-10-09，用户拍板）：享受经济系数 e 的条目——产阳光三件套
 // （向日葵/阳光菇/双子）+ 丰饶/速种/天降 + 咖啡豆/卷心菜。金盏花/吸金磁不列（冻结条保持
 // 照旧——照常进池、不吃 e）。第二 buff 批 9（同日）：第二表段补「免植」（分裂豌豆 #28——
@@ -714,6 +732,9 @@ const char* GetRunPlantName(SeedType thePlant)
 
 const char* GetRunChoicePlantName(int theId)
 {
+    const int base = RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT;
+    if (theId == base + RUN_BUFF2_SHARED_FUMES) return ModText::Tr("大喷菇 / 忧郁菇", "Fume / Gloom");
+    if (theId == base + RUN_BUFF2_ROOF_PEAS) return ModText::Tr("豌豆类", "Pea shooters");
 	SeedType aPlant = GetRunChoicePlant(theId);
 	if (aPlant == SeedType::SEED_NONE) return NULL;
 	return GetRunPlantName(aPlant);

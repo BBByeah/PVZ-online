@@ -24,6 +24,9 @@
 #include "../Board.h"
 #include "../Run/RunDotEffects.h"
 #include "../Run/WaveHealthSave.h"
+#include "../Run/WaveSpawnRetrySave.h"
+#include "../Run/DeferredZombieSpawnSave.h"
+#include "../Run/DeferredPlantSetupSave.h"
 #include "../Widget/NextWaveControl.h"
 #include "../Challenge.h"
 #include "../SeedPacket.h"
@@ -2466,6 +2469,9 @@ static bool LawnLoadGameV4(Board* theBoard, const std::string& theFilePath)
 
 	FixBoardAfterLoad(theBoard);
 	if (!WaveHealthSave::LoadTrailer(theBoard, aBuffer.GetDataPtr(), static_cast<size_t>(aBuffer.GetDataLen()))) return false;
+	if (!WaveSpawnRetrySave::LoadTrailer(theBoard, aBuffer.GetDataPtr(), static_cast<size_t>(aBuffer.GetDataLen()))) return false;
+	if (!DeferredZombieSpawnSave::LoadTrailer(theBoard, aBuffer.GetDataPtr(), static_cast<size_t>(aBuffer.GetDataLen()))) return false;
+	if (!DeferredPlantSetupSave::LoadTrailer(theBoard, aBuffer.GetDataPtr(), static_cast<size_t>(aBuffer.GetDataLen()))) return false;
 	NextWaveControl::LoadTrailer(theBoard, aBuffer.GetDataPtr(), static_cast<size_t>(aBuffer.GetDataLen()));
 	theBoard->mApp->mDamageStats.LoadSaveTrailer(theBoard, aBuffer.GetDataPtr(), static_cast<size_t>(aBuffer.GetDataLen()));
 	if (!RunDotEffects::LoadTrailer(theBoard, aBuffer.GetDataPtr(), static_cast<size_t>(aBuffer.GetDataLen()))) return false;
@@ -2975,6 +2981,9 @@ bool LawnLoadGame(Board* theBoard, const std::string& theFilePath)
 	PvzpLogLn("Loaded save game (legacy)");
 	FixBoardAfterLoad(theBoard);
 	if (!WaveHealthSave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
+	if (!WaveSpawnRetrySave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
+	if (!DeferredZombieSpawnSave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
+	if (!DeferredPlantSetupSave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
 	NextWaveControl::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()));
 	theBoard->mApp->mDamageStats.LoadSaveTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()));
 	if (!RunDotEffects::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
@@ -3026,6 +3035,12 @@ bool LawnSaveGame(Board* theBoard, const std::string& theFilePath)
 	memcpy(aOutBuffer.data(), &aHeader, sizeof(aHeader));
 	memcpy(aOutBuffer.data() + sizeof(aHeader), aPayload.data(), aPayload.size());
 
+	const auto retry=WaveSpawnRetrySave::SaveTrailer(theBoard);
+	aOutBuffer.insert(aOutBuffer.end(),retry.begin(),retry.end());
+	const auto auxiliary=DeferredZombieSpawnSave::SaveTrailer(theBoard);
+	aOutBuffer.insert(aOutBuffer.end(),auxiliary.begin(),auxiliary.end());
+	const auto plants=DeferredPlantSetupSave::SaveTrailer(theBoard);
+	aOutBuffer.insert(aOutBuffer.end(),plants.begin(),plants.end());
 	const auto health=WaveHealthSave::SaveTrailer(theBoard);
 	aOutBuffer.insert(aOutBuffer.end(),health.begin(),health.end());
 	const auto dots=RunDotEffects::SaveTrailer(theBoard);

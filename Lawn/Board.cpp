@@ -6046,7 +6046,7 @@ void Board::PuzzleSaveStreak()
 // 2026-10-11 用户定案）——闯关最后一关的**第一次大波（旗波）**时在第一席棋盘刷一只
 // 巨型 boss：红眼巨人、橄榄球、冰车随机出一只，慢慢走过全场当关底。2026-10-16 用户令
 // 升级高级选项三档（mBossFlag 0/1/2）：0 关、1 仅末关、2 末关+场景 3 末关（完整第 15/
-// 普通第 6 关；快速档场景 3 跳过）——两处同一套血量/体尺口径，各关只刷一次。可调值都在这一处：
+// 普通第 6 关；2026-10-20 起快速第 3 关）——两处同一套血量/体尺口径，各关只刷一次。可调值都在这一处：
 //   体尺 2.0（视觉×2；碰撞矩形不随之放大，同原版迷你僵尸口径——小僵尸也没缩矩形）；
 //   血量 = 原血量 × 一号位乘数 × 关卡基数 × 各类型因子，其中关卡基数（难度千分比）在
 //   ZombieInitialize 的闯关插桩段已经乘过，这里只补一号位乘数与类型因子；橄榄球连头盔
@@ -6077,9 +6077,9 @@ bool Board::SpawnRunBoss()
 	int aBossTier = aRun->IsEndless() ? (aRun->IsEndlessBossLevel()?1:0) : ((aRun->mBossFlag > 0 && aRun->mBossFlag <= 2) ? aRun->mBossFlag : 0);	// 消费端钳（2026-10-16 起三档）
 	if (aBossTier <= 0) return true;
 	if (aRun->IsEndless() && !aRun->IsEndlessBossLevel()) return true;		// 无尽档没有关底
-	// 末关（档 1/2 都出）或场景 3 末关（仅档 2，2026-10-16 用户令；快速档不加）。
+	// 末关（档 1/2 都出）或场景 3 末关（仅档 2；2026-10-20 起快速第 3 关同样出场）。
 	bool aFinalLevel = aRun->GetPlayingLevelIndex() + 1 >= aRun->GetLevelCount();
-	bool aScene3Final = aBossTier >= 2 && aRun->mMode != RunState::RUN_MODE_QUICK
+	bool aScene3Final = aBossTier >= 2
 		&& aRun->GetPlayingLevelIndex() + 1 == RunState::LevelsPerScene(aRun->mMode) * 3;
 	if (!aFinalLevel && !aScene3Final && !aRun->IsEndlessBossLevel()) return true;
 	if (mRunBossZombieID != ZombieID::ZOMBIEID_NULL) return true;	// 一关一只（旗波钩子每旗都会来问）

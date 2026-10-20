@@ -45,6 +45,10 @@ void NetSession::HandleFlowState(const uint8_t* bytes,int size) {
         if(mSeats[s].mOffline || (waiting&(1u<<s)))mSeats[s].mAwaitingAck=false;
         if(epoch==mReadyEpoch)mSeats[s].mLevelDone=(done&(1u<<s))!=0;
     }
+    // A late escape can revoke a clear even when the board kills it within one frame.
+    // Ask the app to re-report only after its next real board recheck, never here.
+    if(epoch==mReadyEpoch && mFlowDoneEpoch==epoch && mFlowDoneValue &&
+        !(done&(1u<<mLocalSeat)))mFlowDoneEpoch=0;
     if(waiting&(1u<<mLocalSeat))mFlowDeferred=true;
     else if(phase==1 && epoch==mReadyEpoch && mConsumedStartEpoch==epoch)mFlowDeferred=false;
     mHostSeat=host;mRole=mLocalSeat==host?Role::HOST:Role::CLIENT;

@@ -97,7 +97,7 @@ inline void Draw(Board* b,Graphics* g) {
         // Finite bosses use their original milestone/seat checks in SpawnRunBoss.
         auto* run=b->mApp->GetRunState();
         if(!run->IsEndless())boss=run->mBossFlag>0 && (run->GetPlayingLevelIndex()+1>=run->GetLevelCount() ||
-            (run->mBossFlag>=2 && run->mMode!=RunState::RUN_MODE_QUICK && run->GetPlayingLevelIndex()+1==RunState::LevelsPerScene(run->mMode)*3));
+            (run->mBossFlag>=2 && run->GetPlayingLevelIndex()+1==RunState::LevelsPerScene(run->mMode)*3));
         boss=boss && b->IsFlagWave(b->mCurrentWave) && b->mRunBossZombieID==ZombieID::ZOMBIEID_NULL &&
             (!b->mApp->IsOnlineGame() || b->mApp->mOnlineSession->GetLocalSeat()==NetProto::SEAT_HOST);
         detail=(boss?"BOSS ":"")+std::to_string(b->mCurrentWave+1)+"/"+std::to_string(b->mNumWaves);

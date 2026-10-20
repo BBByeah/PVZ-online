@@ -31,6 +31,8 @@ protected:
 		NewOptionsDialog_Fullscreen,
 		NewOptionsDialog_HardwareAcceleration,
         NewOptionsDialog_Help,
+        NewOptionsDialog_Bilibili,
+        NewOptionsDialog_Afdian,
 	};
 
 public:
@@ -45,8 +47,11 @@ public:
 	NewLawnButton*			mBackToGameButton;					//+0x178
 	bool					mFromGameSelector;					//+0x17C
     bool mRunInfoOpen;
-    bool mRunInfoWidgetVis[9]{};
+    bool mRunInfoWidgetVis[11]{};
     LawnStoneButton* mHelpButton;
+    LawnStoneButton* mBilibiliButton;
+    LawnStoneButton* mAfdianButton;
+    void OpenCreatorLink(int action);
 
 public:
     static constexpr int PAUSE_WIDTH = 600;

@@ -808,7 +808,8 @@ bool NetSession::TakePendingStartLevel(NetProto::MsgStartLevel& theMsg)
 	mHasPendingStart = false;
     mConsumedStartEpoch = theMsg.mReadyEpoch;
 	ClearPauseState();		// 这就进场了：上一局的暂停态不带进新棋盘
-	ClearLevelDoneState();	// "谁清完了"同理
+    // The network already adopted this epoch and may have received its clear reports.
+    // Consuming START must not erase those current-round reports.
 	return true;
 }
 
@@ -3397,6 +3398,7 @@ bool NetSession::SendRunGo(uint8_t theTargetSeat)
 void NetSession::AdoptReadyEpoch(uint32_t epoch)
 {
     if(mReadyEpoch==epoch)return;
+    ClearLevelDoneState(); // Reset once at network epoch adoption, before new-round packets.
     mRoundWaitMask=0;mRoundWaitTicks=0;
     mPreparation=PreparationWire::StateData{};
     mReadyCancelState=mReadyCancelState==ReadyCancelState::PENDING ? ReadyCancelState::TOO_LATE : ReadyCancelState::NONE;

@@ -1613,22 +1613,6 @@ void LawnApp::UpdateOnlineEnd()
 			bool aClear = localClear;
 			mOnlineSession->SendLevelDone(aClear);
 
-			// 单方先清完：棋盘上挂一句"等队友们"，别让人以为卡住了。这条消息自己会过期
-			// （15 秒），所以在快到期时续一次，让等待期间一直看得见。房里没别人时不挂
-			//（等的是不存在的队友，紧接着就按"全队清完"收摊）。
-			bool aWaiting = aClear && mOnlineSession->HasOtherSeats()
-				&& !mOnlineSession->IsPeerLevelDone();
-			if (aWaiting && (!mBoard->mAdvice->IsBeingDisplayed() || mBoard->mAdvice->mDuration < 50))
-			{
-				mBoard->DisplayAdvice(_S("Waiting for the teammates..."),
-					MessageStyle::MESSAGE_STYLE_BIG_MIDDLE, AdviceType::ADVICE_NONE);
-				mOnlineWaitingAdviceOn = true;
-			}
-			else if (!aWaiting && mOnlineWaitingAdviceOn)
-			{
-				mBoard->ClearAdvice(AdviceType::ADVICE_NONE);
-				mOnlineWaitingAdviceOn = false;
-			}
 		}
 	}
 

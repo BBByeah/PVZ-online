@@ -54,6 +54,8 @@ protected:
 		NewOptionsDialog_Fullscreen,
 		NewOptionsDialog_HardwareAcceleration,
         NewOptionsDialog_Help,
+        NewOptionsDialog_Bilibili,
+        NewOptionsDialog_Afdian,
 	};
 
 public:
@@ -70,8 +72,11 @@ public:
 
 public:
     bool mRunInfoOpen = false;
-    bool mRunInfoWidgetVis[9]{};
+    bool mRunInfoWidgetVis[11]{};
     std::unique_ptr<LawnStoneButton> mHelpButton;
+    std::unique_ptr<LawnStoneButton> mBilibiliButton;
+    std::unique_ptr<LawnStoneButton> mAfdianButton;
+    void OpenCreatorLink(int action);
     bool RunInfoAvailable();
     Sexy::Rect RunInfoEntryRect();
     void OpenRunInfo();

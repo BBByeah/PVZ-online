@@ -77,6 +77,10 @@ NewOptionsDialog::NewOptionsDialog(LawnApp* theApp, bool theFromGameSelector) :
 	mRestartButton = MakeButton(NewOptionsDialog::NewOptionsDialog_Restart, this, "[RESTART_LEVEL_BUTTON]");
 	mBackToMainButton = MakeButton(NewOptionsDialog::NewOptionsDialog_MainMenu, this, "[MAIN_MENU_BUTTON]");
     mHelpButton = std::make_unique<OptionsHelpButton>(NewOptionsDialog_Help, this);
+    mBilibiliButton = MakeButton(NewOptionsDialog_Bilibili, this, ModText::Tr("B站主页", "Bilibili"));
+    mAfdianButton = MakeButton(NewOptionsDialog_Afdian, this, ModText::Tr("爱发电", "Afdian"));
+    mBilibiliButton->SetVisible(mFromGameSelector);
+    mAfdianButton->SetVisible(mFromGameSelector);
 
 	mBackToGameButton = MakeNewButton(
 		Dialog::ID_OK,
@@ -167,6 +171,8 @@ void NewOptionsDialog::AddedToManager(Sexy::WidgetManager* theWidgetManager)
 	AddWidget(mFullscreenCheckbox.get());
 	AddWidget(mBackToGameButton.get());
     AddWidget(mHelpButton.get());
+    AddWidget(mBilibiliButton.get());
+    AddWidget(mAfdianButton.get());
 }
 
 void NewOptionsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
@@ -182,6 +188,8 @@ void NewOptionsDialog::RemovedFromManager(Sexy::WidgetManager* theWidgetManager)
 	RemoveWidget(mBackToGameButton.get());
 	RemoveWidget(mRestartButton.get());
     RemoveWidget(mHelpButton.get());
+    RemoveWidget(mBilibiliButton.get());
+    RemoveWidget(mAfdianButton.get());
 }
 
 void NewOptionsDialog::Resize(int theX, int theY, int theWidth, int theHeight)
@@ -217,6 +225,8 @@ void NewOptionsDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 	mRestartButton->Resize(mAlmanacButton->mX, mAlmanacButton->mY + 43, 209, 46);
 	mBackToMainButton->Resize(mRestartButton->mX, mRestartButton->mY + 43, 209, 46);
 	mBackToGameButton->Resize(30, 381, mBackToGameButton->mWidth, mBackToGameButton->mHeight);
+    mBilibiliButton->Resize(76, 272, 132, 42);
+    mAfdianButton->Resize(218, 272, 132, 42);
     const Rect help = RunInfoEntryRect();
     mHelpButton->Resize(help.mX, help.mY, help.mWidth, help.mHeight);
 
@@ -243,16 +253,15 @@ void NewOptionsDialog::Draw(Sexy::Graphics* g)
     }
     if (mRunInfoOpen) { DrawRunInfo(g); return; }
     if (!mFromGameSelector) {
-        SeatUi::Panel(g, Rect(0, 0, mWidth, mHeight));
-        PvzpDrawString(g, ModText::Tr("菜单", "Game Menu"), mWidth / 2, 64,
-            FONT_DWARVENTODCRAFT24, Color(245, 230, 165), DS_ALIGN_CENTER);
+        g->DrawImage(IMAGE_OPTIONS_MENUBACK, Rect(0, 0, mWidth, mHeight),
+            Rect(0, 0, IMAGE_OPTIONS_MENUBACK->mWidth, IMAGE_OPTIONS_MENUBACK->mHeight));
         PvzpDrawString(g, ModText::Tr("音乐音量", "Music Volume"), 274, 138,
-            FONT_DWARVENTODCRAFT18, Color(245, 230, 165), DS_ALIGN_RIGHT);
+            FONT_DWARVENTODCRAFT18, Color(107, 109, 145), DS_ALIGN_RIGHT);
         PvzpDrawString(g, ModText::Tr("音效音量", "Sound Volume"), 274, 182,
-            FONT_DWARVENTODCRAFT18, Color(245, 230, 165), DS_ALIGN_RIGHT);
+            FONT_DWARVENTODCRAFT18, Color(107, 109, 145), DS_ALIGN_RIGHT);
 #ifndef __ANDROID__
         PvzpDrawString(g, ModText::Tr("3D 加速", "3D"), 212, 228,
-            FONT_DWARVENTODCRAFT18, Color(245, 230, 165), DS_ALIGN_RIGHT);
+            FONT_DWARVENTODCRAFT18, Color(107, 109, 145), DS_ALIGN_RIGHT);
 #endif
 #ifdef __ANDROID__
         const int fullscreenLabelX = 330;
@@ -260,7 +269,7 @@ void NewOptionsDialog::Draw(Sexy::Graphics* g)
         const int fullscreenLabelX = 486;
 #endif
         PvzpDrawString(g, ModText::Tr("全屏", "Full Screen"), fullscreenLabelX, 228,
-            FONT_DWARVENTODCRAFT18, Color(245, 230, 165), DS_ALIGN_RIGHT);
+            FONT_DWARVENTODCRAFT18, Color(107, 109, 145), DS_ALIGN_RIGHT);
         SeatUi::Button(g, MusicEntryRect(), ModText::Tr("音乐", "Music"), true, mMusicEntryDown);
         if (mApp->IsRunMode())
             SeatUi::Button(g, RunSettingsEntryRect(), ModText::Tr("开局设定", "Setup"), true, mRunSettingsEntryDown);
@@ -443,6 +452,10 @@ void NewOptionsDialog::ButtonPress([[maybe_unused]] int theId)
 void NewOptionsDialog::ButtonDepress(int theId)
 {
     if (mMusicOpen || mRunInfoOpen || mRunSettingsOpen) return;
+    if (mFromGameSelector && (theId == NewOptionsDialog_Bilibili || theId == NewOptionsDialog_Afdian)) {
+        OpenCreatorLink(theId == NewOptionsDialog_Bilibili ? 510 : 511);
+        return;
+    }
     if (theId == NewOptionsDialog_Help) { OpenRunInfo(); return; }
 	Dialog::ButtonDepress(theId);
 
@@ -604,14 +617,8 @@ void NewOptionsDialog::MouseUp(int x, int y, int theClickCount) {
     if (theClickCount <= 0 || action < 0 ||
         action != mRunInfoView.Hit(x, y, run, mApp->mBoard != nullptr, mApp->IsOnlineGame())) return;
     if (action == 100) { CloseRunInfo(); return; }
-    if (const char* url = RunInfoView::CreatorUrl(action)) {
-#ifdef __ANDROID__
-        const bool opened = SDL_OpenURL(url) == 0;
-#else
-        const bool opened = mApp->OpenURL(url, false);
-#endif
-        if (!opened) mApp->LawnMessageBox(DIALOG_MESSAGE, ModText::Tr("打开链接", "Open link"),
-            ModText::Tr("无法打开浏览器，请使用页面显示的网址。", "Could not open a browser. Use the URL shown on this page."), "OK", "", Dialog::BUTTONS_FOOTER);
+    if (RunInfoView::CreatorUrl(action)) {
+        OpenCreatorLink(action);
         return;
     }
     mRunInfoView.Act(action, run);
@@ -639,6 +646,20 @@ void NewOptionsDialog::MouseUp(int x, int y, int theClickCount) {
     }
     if (action == 504) { CloseRunInfo(); mApp->ShowCoopPlay(); return; }
     MarkDirty();
+}
+void NewOptionsDialog::OpenCreatorLink(int action) {
+    const char* url = RunInfoView::CreatorUrl(action);
+    if (!url) return;
+#ifdef __ANDROID__
+    const bool opened = SDL_OpenURL(url) == 0;
+#else
+    const bool opened = mApp->OpenURL(url, false);
+#endif
+    if (!opened) {
+        const std::string message = std::string(ModText::Tr("无法打开浏览器，请访问：\n", "Could not open a browser. Visit:\n")) + url;
+        mApp->LawnMessageBox(DIALOG_MESSAGE, ModText::Tr("打开链接", "Open link"),
+            message.c_str(), "OK", "", Dialog::BUTTONS_FOOTER);
+    }
 }
 void NewOptionsDialog::LostFocus() {
     mMusicEntryDown = false;
@@ -722,8 +743,8 @@ void NewOptionsDialog::OpenRunSettings() {
 }
 void NewOptionsDialog::OpenOptionsPage(bool music, bool settings) {
     if (mRunInfoOpen || mMusicOpen || mRunSettingsOpen) return;
-    Sexy::Widget* widgets[] = {mMusicVolumeSlider.get(), mSfxVolumeSlider.get(), mFullscreenCheckbox.get(), mHardwareAccelerationCheckbox.get(), mAlmanacButton.get(), mRestartButton.get(), mBackToMainButton.get(), mBackToGameButton.get(), mHelpButton.get()};
-    for (int index = 0; index < 9; ++index) {
+    Sexy::Widget* widgets[] = {mMusicVolumeSlider.get(), mSfxVolumeSlider.get(), mFullscreenCheckbox.get(), mHardwareAccelerationCheckbox.get(), mAlmanacButton.get(), mRestartButton.get(), mBackToMainButton.get(), mBackToGameButton.get(), mHelpButton.get(), mBilibiliButton.get(), mAfdianButton.get()};
+    for (int index = 0; index < 11; ++index) {
         mRunInfoWidgetVis[index] = widgets[index]->mVisible;
         widgets[index]->SetVisible(false);
     }
@@ -743,8 +764,8 @@ void NewOptionsDialog::OpenOptionsPage(bool music, bool settings) {
 void NewOptionsDialog::CloseRunInfo() {
     if (!mRunInfoOpen && !mMusicOpen && !mRunSettingsOpen) return;
     if (mMusicOpen && mApp->mMusic) mApp->mMusic->StopMusicPreview();
-    Sexy::Widget* widgets[] = {mMusicVolumeSlider.get(), mSfxVolumeSlider.get(), mFullscreenCheckbox.get(), mHardwareAccelerationCheckbox.get(), mAlmanacButton.get(), mRestartButton.get(), mBackToMainButton.get(), mBackToGameButton.get(), mHelpButton.get()};
-    for (int index = 0; index < 9; ++index)
+    Sexy::Widget* widgets[] = {mMusicVolumeSlider.get(), mSfxVolumeSlider.get(), mFullscreenCheckbox.get(), mHardwareAccelerationCheckbox.get(), mAlmanacButton.get(), mRestartButton.get(), mBackToMainButton.get(), mBackToGameButton.get(), mHelpButton.get(), mBilibiliButton.get(), mAfdianButton.get()};
+    for (int index = 0; index < 11; ++index)
         widgets[index]->SetVisible(mRunInfoWidgetVis[index]);
     mRunInfoOpen = false;
     mMusicOpen = false;

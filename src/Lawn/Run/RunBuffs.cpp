@@ -351,7 +351,7 @@ static const RunPlantUpgradeDef gRunPlantBuff2Defs[RUN_PLANT_BUFF2_COUNT] =
 	{ SeedType::SEED_KERNELPULT,    "Butter Feast", "黄油盛宴",  "黄油概率 +25%\n黄油时长 +1 秒（每层）",  "Butter chance +25%\nButter duration +1 sec (per stack)", 0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_GARLIC,        "Guide Garlic", "引路蒜",  "血量仅 20\n被吃时全行僵尸换道",         "Only 20 HP\nZombies in the row switch lanes when bitten", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_MARIGOLD,      "Fortune", "富贵",       "+10% 概率产金币/钻石\n（每层）",        "+10% chance of gold/diamond\n(per stack)",            0.00f, 3, false, RUN_UPGRADE_KIND_EFFECT, 1 },
-	{ SeedType::SEED_MELONPULT,     "Rolling Burst", "滚爆", "落地后向前滚 1 格\n并再炸一次",         "Rolls 1 tile and bursts again",                       0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_MELONPULT,     "Rolling Burst", "滚爆", "落地后向前滚 1 格\n并再炸一次",         "Rolls 1 tile and bursts again",                       0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
 	{ SeedType::SEED_GATLINGPEA, "Melon Rounds", "概率瓜弹", "每颗子弹有25%概率变为直射西瓜\n80直伤及普通西瓜溅射", "25% of bullets become straight melons\n80 damage + melon splash", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_TWINSUNFLOWER, "Solar Focus", "聚光增幅", "每5秒自动拾取全场阳光\n拾取阳光价值+20%，多株不叠加", "Auto-collect sun every 5 sec\nCollected sun +20%; no stacking", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_GLOOMSHROOM,   "Rock Flesh", "耐砸",    "基础血量变为1000，可受血量加成\n普通巨人砸击每次扣200",   "Base health becomes 1000; health buffs apply\nOrdinary Gargantuar smashes deal 200 HP", 0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },

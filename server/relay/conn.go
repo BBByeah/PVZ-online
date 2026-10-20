@@ -6,6 +6,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -22,6 +23,7 @@ type outMsg struct {
 type Conn struct {
 	created      time.Time
 	credential   [16]byte
+	flow         bool
 	controlStart time.Time
 	controlCount int
 	srv          *Server
@@ -144,6 +146,10 @@ func (c *Conn) write(frame []byte) bool {
 
 // handle 收帧分发：控制帧服务器自己处理；游戏帧走转发。
 func (s *Server) handle(c *Conn, typ uint16, payload []byte) {
+	if typ == msgCliFlowGame {
+		s.handleFlowGame(c, payload)
+		return
+	}
 	if typ >= srvFrameBase {
 		if time.Since(c.controlStart) > time.Second {
 			c.controlStart = time.Now()
@@ -156,6 +162,12 @@ func (s *Server) handle(c *Conn, typ uint16, payload []byte) {
 			return
 		}
 		switch typ {
+		case msgCliFlow:
+			s.handleFlow(c, payload)
+		case msgCliFlowProgress:
+			s.handleFlowProgress(c, payload)
+		case msgCliFlowStart:
+			s.handleFlowStart(c, payload)
 		case msgCliNodeCatalog:
 			s.handleNodeCatalog(c, payload)
 		case msgCliNodeInfo:
@@ -200,12 +212,19 @@ func (s *Server) handle(c *Conn, typ uint16, payload []byte) {
 			}
 			s.handleRejoin(c, version, build, name, code, seat)
 		case msgCliSwapCommit:
+			var term, epoch, request uint32
+			if len(payload) == 14 {
+				term = binary.LittleEndian.Uint32(payload[2:])
+				epoch = binary.LittleEndian.Uint32(payload[6:])
+				request = binary.LittleEndian.Uint32(payload[10:])
+				payload = payload[:2]
+			}
 			a, b, ok := decodeSwapCommit(payload)
 			if !ok {
 				s.dropBadControl(c, typ)
 				return
 			}
-			s.handleSwapCommit(c, a, b)
+			s.handleSwapCommitWithTerm(c, a, b, term, epoch, request)
 		case msgCliPong:
 			if len(payload) != 0 {
 				s.dropBadControl(c, typ)

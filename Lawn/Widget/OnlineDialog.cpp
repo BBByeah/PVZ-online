@@ -1,3 +1,4 @@
+#include "../../SexyAppFramework/Common.h"
 #include "OnlineDialog.h"
 #include "RoomDirectoryDialog.h"
 #include "RunHistoryDialog.h"
@@ -110,7 +111,9 @@ OnlineDialog::OnlineDialog(LawnApp* theApp) :
 
 	mCodeEditWidget = CreateOnlineEditWidget(OnlineDialog::OnlineDialog_CodeEdit, this, this,
 		OnlineEditWidget::FILTER_CODE);
-	mCodeEditWidget->mMaxChars = 7;
+	mCodeEditWidget->mMaxChars = RelayNodes::MAX_SHARE_CODE_CHARS;
+    Sexy::MkDir(Sexy::GetAppDataFolder()+"userdata");
+    RelayNodes::SetCatalogCachePath(Sexy::GetAppDataFolder()+"userdata/relay-nodes.bin");
 
     mDirectoryButton=MakeOnlineButton(OnlineDialog_Directory,this,ModText::Tr("公开房间","Public rooms"));
     mHistoryButton=MakeOnlineButton(OnlineDialog_History,this,ModText::Tr("最近记录","Recent runs"));
@@ -126,6 +129,7 @@ OnlineDialog::OnlineDialog(LawnApp* theApp) :
 
 OnlineDialog::~OnlineDialog()
 {
+    if(mApp->mOnlineSession)mCreation.Cancel(*mApp->mOnlineSession);
     delete mLocalPageButton;delete mServerPageButton;delete mSoloButton;
 	delete mDirectoryButton;delete mHistoryButton;delete mVisibilityButton;
 	delete mHostButton;
@@ -208,13 +212,19 @@ void OnlineDialog::Update()
 	// （ResetToOff 现在会把 NetLink 收干净，所以从这里重开局是通的，见 T19。）
     mAllocator.Update();
     if(mAllocator.state==RelayNodes::Allocator::READY){
-        const auto endpoint=mAllocator.chosen;mAllocator.Cancel();
-        if(mPage==OnlineRoomLayout::SERVER&&!RoomPresentation::Active(aSession))aSession->StartRoomHost(endpoint.host.c_str(),endpoint.port);
+        const auto candidates=mAllocator.candidates;mAllocator.Cancel();
+        if(mPage==OnlineRoomLayout::SERVER&&!RoomPresentation::Active(aSession))mCreation.Start(*aSession,candidates);
     }else if(mAllocator.state==RelayNodes::Allocator::UNAVAILABLE){
         mAllocator.Cancel();mServerInputError=ModText::Tr("暂时无法创建房间，请稍后重试。","Could not create a room. Please retry shortly.");
     }
+    mCreation.Update(*aSession);mJoinLookup.Update();
+    if(!mPendingJoinCode.empty()&&!mJoinLookup.loading){
+        RelayNodes::Endpoint target;std::string code;const auto input=mPendingJoinCode;mPendingJoinCode.clear();
+        if(RelayNodes::ResolveCode(input,RelayNodes::Defaults().front().endpoint,target,code))aSession->StartRoomJoin(target.host.c_str(),code.c_str(),target.port);
+        else mServerInputError=ModText::Tr("暂时无法识别这个房间码，请核对或稍后重试。","Could not resolve this room code. Check it or retry shortly.");
+    }
     bool anActive=RoomPresentation::Active(aSession);
-    const bool allocating=mAllocator.state==RelayNodes::Allocator::LOADING;
+    const bool allocating=(mAllocator.state==RelayNodes::Allocator::LOADING||mCreation.Active()||mJoinLookup.loading);
 
 	// 中继：房间码一回来就写进 Code 框。房主那格是自己没有的（由服务器生成），
 	// 面板上是"我在哪个房间"最直白的一处；按码加入的人也能看到自己的码归一化后的样子。
@@ -271,7 +281,7 @@ void OnlineDialog::Draw(Graphics* g)
     else if(session&&session->IsConnected()&&!session->IsHostSeat())detail=ModText::Tr("等待房主选择模式并开始；可先查看席位。","Waiting for the host to choose a mode; you can view Seats.");
     OnlineRoomLayout::Draw(g,mApp,detail,mLocalIpText,mPage);
     if(!mServerInputError.empty()&&!RoomPresentation::Active(session))SeatUi::Text(g,mServerInputError,48,465,664,15,Color(255,175,120));
-    if(mAllocator.state==RelayNodes::Allocator::LOADING)SeatUi::Text(g,ModText::Tr("正在寻找可用房间…","Finding an available room..."),48,465,664,15,Color(210,220,195));
+    if((mAllocator.state==RelayNodes::Allocator::LOADING||mCreation.Active()||mJoinLookup.loading))SeatUi::Text(g,ModText::Tr("正在寻找可用房间…","Finding an available room..."),48,465,664,15,Color(210,220,195));
     if(!RoomPresentation::Active(session)) {
         for(auto* edit:{mIpEditWidget,mCodeEditWidget})if(edit->mVisible)DrawEditBox(g,edit);
     }
@@ -284,7 +294,7 @@ void OnlineDialog::ButtonDepress(int theId)
 {
     if(theId==OnlineDialog_LocalPage||theId==OnlineDialog_ServerPage) {
         if(RoomPresentation::Active(mApp->mOnlineSession))return;
-        mAllocator.Cancel();mServerInputError.clear();
+        mAllocator.Cancel();mCreation.Cancel(*mApp->mOnlineSession);mJoinLookup.Close();mPendingJoinCode.clear();mServerInputError.clear();
         mPage=theId==OnlineDialog_LocalPage?OnlineRoomLayout::LOCAL:OnlineRoomLayout::SERVER;
         mConfirmSolo=false;Update();mWidgetManager->SetFocus(this);return;
     }
@@ -298,7 +308,7 @@ void OnlineDialog::ButtonDepress(int theId)
 	switch (theId)
 	{
     case OnlineDialog_Directory:
-        if(!RoomPresentation::Active(mApp->mOnlineSession)&&mPage==OnlineRoomLayout::SERVER&&mAllocator.state!=RelayNodes::Allocator::LOADING)
+        if(!RoomPresentation::Active(mApp->mOnlineSession)&&mPage==OnlineRoomLayout::SERVER&&(mAllocator.state!=RelayNodes::Allocator::LOADING&&!mCreation.Active()&&!mJoinLookup.loading))
             mApp->AddDialog(DIALOG_ROOM_DIRECTORY,new RoomDirectoryDialog(mApp));
         return;
     case OnlineDialog_History:
@@ -418,17 +428,18 @@ void OnlineDialog::StartJoin()
 void OnlineDialog::StartRoomHost()
 {
     if(mPage!=OnlineRoomLayout::SERVER||RoomPresentation::Active(mApp->mOnlineSession)||!mApp->mOnlineSession)return;
-    if(mAllocator.state==RelayNodes::Allocator::LOADING)return;
+    if((mAllocator.state==RelayNodes::Allocator::LOADING||mCreation.Active()||mJoinLookup.loading))return;
     mShownRoomCode.clear();mServerInputError.clear();mAllocator.Start();
     mWidgetManager->SetFocus(this);Update();
 }
 
 void OnlineDialog::StartRoomJoin()
 {
-    if(mPage!=OnlineRoomLayout::SERVER||RoomPresentation::Active(mApp->mOnlineSession)||!mApp->mOnlineSession||mAllocator.state==RelayNodes::Allocator::LOADING)return;
+    if(mPage!=OnlineRoomLayout::SERVER||RoomPresentation::Active(mApp->mOnlineSession)||!mApp->mOnlineSession||(mAllocator.state==RelayNodes::Allocator::LOADING||mCreation.Active()||mJoinLookup.loading))return;
     RelayNodes::Endpoint target;std::string code;
     // Four-character codes from old clients retain their original destination.
-    if(!RelayNodes::ResolveCode(GetRoomCodeText(),RelayNodes::Catalog().front().endpoint,target,code)) {
+    if(!RelayNodes::ResolveCode(GetRoomCodeText(),RelayNodes::Defaults().front().endpoint,target,code)) {
+        if(mJoinLookup.Start(true)){mPendingJoinCode=GetRoomCodeText();mServerInputError.clear();return;}
         mServerInputError=ModText::Tr("请填写队友显示的完整房间码，例如 2-ABCD。","Enter your teammate's full room code, for example 2-ABCD.");return;
     }
     mShownRoomCode.clear();mServerInputError.clear();

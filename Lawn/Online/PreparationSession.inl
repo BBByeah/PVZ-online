@@ -22,7 +22,7 @@ bool NetSession::ConfirmPreparationConfiguration() {
 bool NetSession::CanChangePreparationSeats() const {
     if(!IsConnected() || !mPreparation.local || mPreparation.phase!=PreparationWire::OPEN)return false;
     for(uint8_t s=1;s<=NetProto::MAX_PLAYERS;++s)
-        if(IsSeatOccupied(s) && (IsSeatOffline(s) || !mCoopPeers[s] ||
+        if(IsSeatOccupied(s) && !(mFlowEnabled && (IsSeatOffline(s)||IsWaitingForNextRound(s))) && (IsSeatOffline(s) || !mCoopPeers[s] ||
             !(mPreparation.entered&(1u<<s)) || mSeats[s].mBuild!=NetProto::MOD_BUILD))return false;
     return HasOtherSeats();
 }
@@ -44,12 +44,12 @@ bool NetSession::SendPreparation(uint8_t op,uint8_t destination,uint64_t target,
 
 void NetSession::PublishPreparation() {
     // Apply the coordinator's state locally too, before any client can answer.
-    for(uint8_t s=1;s<=NetProto::MAX_PLAYERS;++s)if(IsSeatOccupied(s)) {
+    for(uint8_t s=1;s<=NetProto::MAX_PLAYERS;++s)if(IsSeatOccupied(s) && !(mFlowEnabled && (IsSeatOffline(s)||IsWaitingForNextRound(s)))) {
         mSeats[s].mSeedsReady=(mPreparation.ready&(1u<<s))!=0;
         mSeats[s].mSeedsReadyEpoch=mReadyEpoch;
         if(s!=mLocalSeat)SendPreparation(PreparationWire::STATE,s);
     }
-    mSeedsReadySent=false;
+    mSeedsReadySent=false;UpdateReadyCancelState();
 }
 
 void NetSession::HandlePreparation(const PreparationWire::Message& m) {
@@ -88,11 +88,11 @@ void NetSession::HandlePreparation(const PreparationWire::Message& m) {
         if(m.revision!=p.revision || m.request!=p.request)p.commitSent=false;
         p.revision=m.revision;p.request=m.request;p.actor=m.actor;p.target=m.target;
         p.phase=m.phase;p.entered=m.entered;p.ready=m.ready;p.a=m.a;p.b=m.b;
-        for(uint8_t s=1;s<=NetProto::MAX_PLAYERS;++s)if(IsSeatOccupied(s)) {
+        for(uint8_t s=1;s<=NetProto::MAX_PLAYERS;++s)if(IsSeatOccupied(s) && !(mFlowEnabled && (IsSeatOffline(s)||IsWaitingForNextRound(s)))) {
             if(m.players[s] && (finalCommit || !(m.phase==COMMIT && p.appliedRequest==p.request)))mCoopPeers[s]=m.players[s];
             mSeats[s].mSeedsReady=(p.ready&(1u<<s))!=0;mSeats[s].mSeedsReadyEpoch=mReadyEpoch;
         }
-        ClearSwapState();
+        ClearSwapState();UpdateReadyCancelState();
         if(p.phase==COMMIT && p.appliedRequest!=p.request) {
             if(mTransport==Transport::DIRECT)ApplySeatSwap(p.a,p.b);
             else if(p.actor==mCoopToken && !p.commitSent) {
@@ -139,7 +139,7 @@ void NetSession::HandlePreparation(const PreparationWire::Message& m) {
         }
         // Recheck both identities and connectivity at the point consent is committed.
         if(FindCoopSeat(p.actor)!=p.a || FindCoopSeat(p.target)!=p.b)return;
-        for(uint8_t s=1;s<=NetProto::MAX_PLAYERS;++s)if(IsSeatOccupied(s)&&IsSeatOffline(s))return;
+        for(uint8_t s=1;s<=NetProto::MAX_PLAYERS;++s)if(IsSeatOccupied(s)&&IsSeatOffline(s)&&!mFlowEnabled)return;
         ++p.revision;p.phase=COMMIT;p.acks=0;p.ready=0;p.commitSent=false;p.ticks=0;
         p.recovering=p.rejoinAlternate=p.rejoinRoster=false;p.recoveryReports=0;
         PublishPreparation();
@@ -148,13 +148,14 @@ void NetSession::HandlePreparation(const PreparationWire::Message& m) {
         return;
     }
     if(m.op==READY) {
-        if(!CanReadyPreparation() || !(p.entered&(1u<<m.src)))return;
+        if(!(p.entered&(1u<<m.src)) || (m.ready ? !CanReadyPreparation() : !(p.phase==OPEN || p.phase==SEAL)))return;
+        if(!m.ready && p.phase==SEAL){++p.revision;p.phase=OPEN;p.acks=0;p.configuredRevision=0;}
         if(m.ready)p.ready|=uint8_t(1u<<m.src);else p.ready&=uint8_t(~(1u<<m.src));
         PublishPreparation();return;
     }
     if(m.op==ACK && (p.phase==COMMIT || p.phase==SEAL) && m.request==p.request) {
         for(uint8_t s=1;s<=NetProto::MAX_PLAYERS;++s)
-            if(IsSeatOccupied(s) && m.players[s]!=(s==mLocalSeat?mCoopToken:mCoopPeers[s]))return;
+            if(IsSeatOccupied(s) && !(mFlowEnabled && (IsSeatOffline(s)||IsWaitingForNextRound(s))) && m.players[s]!=(s==mLocalSeat?mCoopToken:mCoopPeers[s]))return;
         p.acks|=uint8_t(1u<<m.src);
     }
 }
@@ -181,7 +182,7 @@ void NetSession::UpdatePreparation() {
     }
     if(mRole!=Role::HOST)return;
     uint8_t occupied=0;bool complete=true;
-    for(uint8_t s=1;s<=NetProto::MAX_PLAYERS;++s)if(IsSeatOccupied(s)) {
+    for(uint8_t s=1;s<=NetProto::MAX_PLAYERS;++s)if(IsSeatOccupied(s) && !(mFlowEnabled && (IsSeatOffline(s)||IsWaitingForNextRound(s)))) {
         occupied|=uint8_t(1u<<s);
         if(p.participants[s] && p.participants[s]!=mCoopPeers[s]) {
             p.entered&=uint8_t(~(1u<<s));p.ready=0;p.participants[s]=0;

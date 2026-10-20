@@ -18,7 +18,9 @@ MessageWidget::MessageWidget(LawnApp* theApp)
 	mLabelNext[0] = _S('\0');
 	mMessageStyleNext = MessageStyle::MESSAGE_STYLE_OFF;
 	mSlideOffTime = 100;
-	memset(mTextReanimID, (int)ReanimationID::REANIMATIONID_NULL, MAX_MESSAGE_LENGTH);
+	mReanimType = ReanimationType::REANIM_NONE;
+	mDisplayTime = 0;
+	for (auto& reanimID : mTextReanimID) reanimID = ReanimationID::REANIMATIONID_NULL;
 }
 
 //0x458FC0
@@ -30,8 +32,8 @@ void MessageWidget::ClearReanim()
 		if (aReanim)
 		{
 			aReanim->ReanimationDie();
-			mTextReanimID[i] = ReanimationID::REANIMATIONID_NULL;
 		}
+		mTextReanimID[i] = ReanimationID::REANIMATIONID_NULL;
 	}
 }
 
@@ -165,6 +167,12 @@ void MessageWidget::LayoutReanimText()
 
 		// 创建文字的动画
 		Reanimation* aReanimText = mApp->AddReanimation(aCurPosX, aCurPosY, 0, mReanimType);
+		if (!aReanimText)
+		{
+			ClearReanim();
+			mReanimType = ReanimationType::REANIM_NONE;
+			return;
+		}
 		aReanimText->mIsAttachment = true;
 		aReanimText->PlayReanim("anim_enter", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0.0f, 0.0f);
 		mTextReanimID[aCharNum] = mApp->ReanimationGetID(aReanimText);

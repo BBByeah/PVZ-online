@@ -2,7 +2,8 @@
 bool LawnApp::FinalizePreparationSeats() {
     if(!mOnlineSession || !mOnlineSession->IsPreparationActive())return true;
     const auto phase=mOnlineSession->GetPreparationPhase();
-    if(!mBoard || !mRunState || (phase!=PreparationWire::GO && phase!=PreparationWire::SEAL))return false;
+    if(!mBoard || (phase!=PreparationWire::GO && phase!=PreparationWire::SEAL))return false;
+    if(!mRunState)return true;
     const uint32_t revision=mOnlineSession->GetPreparationRevision();
     if(mPreparationConfiguredRevision!=revision) {
         mPreparationConfiguredRevision=revision;mPreparationRulesApplied=false;mPreparationSaved=false;

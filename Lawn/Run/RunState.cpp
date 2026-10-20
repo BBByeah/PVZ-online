@@ -67,7 +67,7 @@ static const unsigned int RUN_CHECKPOINT_MAGIC = 0x314E5552;	// 'RUN1'
 // v19: independent slots, endless rule bits, lineup mask, hashed lawn/retry snapshots,
 // snapshot phase and completed zombie ballot rounds. Older saves retain endless options 0.
 
-static const unsigned short RUN_CHECKPOINT_VERSION = 21;
+static const unsigned short RUN_CHECKPOINT_VERSION = 22; // @pvz-online: v22 appends the per-run crowd rule.
 
 static std::vector<unsigned char>& AppendU16(std::vector<unsigned char>& theData, unsigned int theValue)
 {
@@ -160,6 +160,7 @@ static void FillPoolWithAllPlants(std::vector<SeedType>& thePool)
 
 void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag, int theBuffMult, int theLadder, int theZombieBuff, int theSpeedTier, int theFirstWave, int theEndlessOptions)
 {
+    mCrowdRule = CrowdRules::CURRENT; // @pvz-online: new runs only; old checkpoints load LEGACY.
 	mEndlessOptions = theRunMode == RUN_MODE_ENDLESS && EndlessRules::Valid(theEndlessOptions) ? theEndlessOptions : 0;
     mEndlessFocusMask=0; mEndlessSnapshotLevel=-1; mEndlessSnapshotPhase=0;
     mEndlessVoteRounds=0;mEndlessVoteIds[0]=mEndlessVoteIds[1]=255;
@@ -516,7 +517,12 @@ void RunState::RollChoices(bool theReroll)
 		{
 			int aId = RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + i;
 			if (!RunPlantBuff2InPool(i)) continue;
-			if (!HasPlant(GetRunPlantBuff2Def(i).mPlant)) continue;
+            // @pvz-online: family traits appear once if any permanent pool member is eligible.
+            const uint64_t mask = GetRunChoicePlantMask(aId);
+            bool owned = false;
+            for (SeedType plant : mPool)
+                if (plant >= 0 && plant < 64 && (mask & (uint64_t(1) << plant))) { owned = true; break; }
+            if (!owned) continue;
 			int aCap = GetRunChoiceMaxStacks(aId);
 			if (aCap > 0 && GetBuffCount(aId) >= aCap) continue;
 			if (RunChoiceBlockedByCounterpart(this, aId)) continue;
@@ -587,28 +593,28 @@ void RunState::RollChoices(bool theReroll)
 			int aDrawTotal=aTotalW;
             bool aFocus=false;
             if(aSlot==0 && HasLineupPreference()) {
-                int sum=0;for(int j=0;j<aCount;++j)if(PrefersPlant(GetRunChoicePlant(aCandidates[j])))sum+=aWeights[j];
+                int sum=0;for(int j=0;j<aCount;++j)if((GetRunChoicePlantMask(aCandidates[j]) & mEndlessFocusMask) != 0)sum+=aWeights[j];
                 if(sum>0){aDrawTotal=sum;aFocus=true;}
             }
             int aPickW = (int)aRNG.Next((unsigned long)aDrawTotal);
 			int aPick = 0;
 			for (int i = 0; i < aCount; i++)
 			{
-				if(aFocus && !PrefersPlant(GetRunChoicePlant(aCandidates[i])))continue;
+				if(aFocus && (GetRunChoicePlantMask(aCandidates[i]) & mEndlessFocusMask) == 0)continue;
 				aPickW -= aWeights[i];
 				if (aPickW < 0) { aPick = i; break; }
 			}
 			mBuffChoices[aSlot] = (unsigned short)aCandidates[aPick];
-			SeedType aChoicePlant = GetRunChoicePlant(mBuffChoices[aSlot]);
+			const uint64_t aChoicePlants = GetRunChoicePlantMask(mBuffChoices[aSlot]);
 			aTotalW -= aWeights[aPick];
 			aCandidates[aPick] = aCandidates[aCount - 1];
 			aWeights[aPick] = aWeights[aCount - 1];
 			aCount--;
-			if (aChoicePlant != SeedType::SEED_NONE)
+			if (aChoicePlants != 0)
 			{
 				for (int i = aCount - 1; i >= 0; i--)
 				{
-					if (GetRunChoicePlant(aCandidates[i]) == aChoicePlant)
+					if ((GetRunChoicePlantMask(aCandidates[i]) & aChoicePlants) != 0)
 					{
 						aTotalW -= aWeights[i];
 						aCandidates[i] = aCandidates[aCount - 1];
@@ -1268,6 +1274,7 @@ std::vector<unsigned char> RunState::EncodeCheckpoint() const
     const auto admission=Admission::Encode(mAdmission);
     AppendI32(aData,static_cast<int>(admission.size()));aData.insert(aData.end(),admission.begin(),admission.end());
     AppendI32(aData,static_cast<int>(EndlessRules::Hash(admission.data(),admission.size())));
+    AppendU16(aData, static_cast<unsigned int>(mCrowdRule)); // @pvz-online: v22, validated on load.
     return aData;
 }
 
@@ -1335,7 +1342,7 @@ bool RunState::Load(int theProfileId, int theMode, int theScene, bool theBackup,
 	// v13 才有关底 boss 开关；v14 才有僵尸强化字段（位包 bit7..11 与尾追加 8×u16+u16）。
 	int aMode = RUN_MODE_FULL;
 	int aDiff = RUN_DIFF_STD;
-	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 20 && aVersion != 19 && aVersion != 18 && aVersion != 17 && aVersion != 16 && aVersion != 15 && aVersion != 14 && aVersion != 13 && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
+	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 21 && aVersion != 20 && aVersion != 19 && aVersion != 18 && aVersion != 17 && aVersion != 16 && aVersion != 15 && aVersion != 14 && aVersion != 13 && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
 	{
 		TodLog("[run] checkpoint magic/version mismatch, ignored");
 		return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
@@ -1594,9 +1601,14 @@ bool RunState::Load(int theProfileId, int theMode, int theScene, bool theBackup,
     else if(aVersion>=20) aReader.ReadStats(mDamageHistory);
     mAdmission=Admission::State{};
     if(aVersion>=21) {std::vector<unsigned char> bytes;if(!aReader.ReadBlob(bytes)||!Admission::Decode(bytes,mAdmission))return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);}
+    // @pvz-online: constructor/StartNew defaults cannot silently upgrade an older saved run.
+    unsigned int crowdRule = CrowdRules::LEGACY;
+    if (aVersion >= 22 && (!aReader.ReadU16(crowdRule) || !CrowdRules::Valid(crowdRule)))
+        return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
     if(theTeam && (mAdmission.run!=theTeam || mAdmission.phase==Admission::NONE))return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
     if(theMode==RUN_MODE_ENDLESS ? (aMode!=RUN_MODE_ENDLESS || (int)aEndlessScene!=theScene) : aMode==RUN_MODE_ENDLESS)return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 
+    mCrowdRule = static_cast<int>(crowdRule);
 	mRunSeed = aRunSeed;
 	mMode = aMode;
 	mDiff = aDiff;

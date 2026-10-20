@@ -3,6 +3,9 @@
 #include "../Board.h"
 #include "../Run/RunDotEffects.h"
 #include "../Run/WaveHealthSave.h"
+#include "../Run/WaveSpawnRetrySave.h"
+#include "../Run/DeferredZombieSpawnSave.h"
+#include "../Run/DeferredPlantSetupSave.h"
 #include "../Widget/NextWaveControl.h"
 #include "../Challenge.h"
 #include "../SeedPacket.h"
@@ -652,6 +655,9 @@ bool LawnLoadGame(Board* theBoard, const std::string& theFilePath)
 	TodTrace("Loaded save game");
 	FixBoardAfterLoad(theBoard);
 	if (!WaveHealthSave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
+	if (!WaveSpawnRetrySave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
+	if (!DeferredZombieSpawnSave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
+	if (!DeferredPlantSetupSave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
 	NextWaveControl::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()));
 	theBoard->mApp->mDamageStats.LoadSaveTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()));
 	if (!RunDotEffects::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
@@ -675,6 +681,12 @@ bool LawnSaveGame(Board* theBoard, const std::string& theFilePath)
 	aContext.SyncBytes(&aHeader, sizeof(aHeader));
 	SyncBoard(aContext, theBoard);
 	if (aContext.mFailed) return false;
+	const auto retry=WaveSpawnRetrySave::SaveTrailer(theBoard);
+	aContext.mBuffer.WriteBytes(retry.data(),static_cast<int>(retry.size()));
+	const auto auxiliary=DeferredZombieSpawnSave::SaveTrailer(theBoard);
+	aContext.mBuffer.WriteBytes(auxiliary.data(),static_cast<int>(auxiliary.size()));
+	const auto plants=DeferredPlantSetupSave::SaveTrailer(theBoard);
+	aContext.mBuffer.WriteBytes(plants.data(),static_cast<int>(plants.size()));
 	const auto health=WaveHealthSave::SaveTrailer(theBoard);
 	aContext.mBuffer.WriteBytes(health.data(),static_cast<int>(health.size()));
 	const auto dots=RunDotEffects::SaveTrailer(theBoard);

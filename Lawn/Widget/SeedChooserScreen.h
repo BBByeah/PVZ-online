@@ -107,6 +107,7 @@ public:
     virtual void            MouseDown(int x, int y, int theClickCount);
     /*inline*/ bool         PickedPlantType(SeedType theSeedType);
     void                    CloseSeedChooser();
+    void                    ResumeSelectionForEditing();
     virtual void            KeyDown(KeyCode theKey);
     virtual void            KeyChar(SexyChar theChar);
     void                    UpdateAfterPurchase();

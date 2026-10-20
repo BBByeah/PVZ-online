@@ -5,6 +5,7 @@
 #include <cstring>
 #include "../Run/ZombieBuffRules.h"
 #include "../Run/EndlessRules.h"
+#include "../Run/CrowdRules.h"
 
 // @pvz-online: 联机协议 v1（M2 直连 + M3 Go 中继共用）。
 //
@@ -210,7 +211,7 @@ const uint16_t	PROTOCOL_VERSION	= 1;
 // Build73: Football boss bites for 60; Ravenous retains normal growth.
 // Build75: lily pads and flower pots can share a tile in either planting order.
 // Build77: butter coating DOT, percentage Scorched Earth and Jalapeno Embers.
-const uint16_t	MOD_BUILD			= 82;
+const uint16_t	MOD_BUILD			= 83;
 // @pvz-online: Build61 splits control buffs; all peers need the new nine-stack snapshot.
 const int ZOMBIE_BUFF_COUNT = RunZombieBuffRules::COUNT;
 
@@ -235,7 +236,8 @@ const int		NAME_SIZE			= 16;
 
 const int		HEADER_SIZE			= 4;
 const int		MAX_PAYLOAD			= 256;
-const int		MAX_PACKET			= HEADER_SIZE + MAX_PAYLOAD;
+const int MAX_WIRE_PAYLOAD = MAX_PAYLOAD + 10; // Flow term/round/type envelope; original game bodies stay <=256.
+const int MAX_PACKET = HEADER_SIZE + MAX_WIRE_PAYLOAD;
 
 enum MessageType : uint16_t
 {
@@ -281,6 +283,9 @@ const int		ROOM_CODE_SIZE		= ROOM_CODE_LEN + 1;
 
 enum ControlType : uint16_t
 {
+ MSG_SRV_FLOW=0xF010, MSG_SRV_FLOW_GAME=0xF011,
+ MSG_CLI_FLOW=0xF01F, MSG_CLI_FLOW_GAME=0xF020,
+ MSG_CLI_FLOW_PROGRESS=0xF021, MSG_CLI_FLOW_START=0xF022,
 	MSG_SRV_WELCOME		= 0xF001,	// S→C 进房成功：你的席位 + 全量名册（含各席构建代次）
 	MSG_SRV_REJECT		= 0xF002,	// S→C 建房/加入被拒（原因见 RejectReason）
 	MSG_SRV_PEER_JOIN	= 0xF003,	// S→C 有人进来了（广播给房内其他人；新人自己的名册在 WELCOME 里）
@@ -497,6 +502,7 @@ struct MsgStartLevel
 	uint8_t			mRunSpeedTier;
 	uint8_t mRunFirstWave;
     uint8_t mRunEndlessOptions;
+    uint8_t mRunCrowdRule = CrowdRules::LEGACY; // @pvz-online: host authority, explicit legacy on old runs.
 	uint8_t			mZombieStacks[ZOMBIE_BUFF_COUNT];
     uint32_t mReadyEpoch; // @pvz-online: new starts, including retries, have distinct readiness generations.
 };
@@ -912,6 +918,7 @@ inline int EncodeStartLevel(uint8_t* theBuffer, int theCapacity, const MsgStartL
     aWriter.U8(theMsg.mRunEndlessOptions);
 	for (int i = 0; i < ZOMBIE_BUFF_COUNT; i++) aWriter.U8(theMsg.mZombieStacks[i]);
     aWriter.U32(theMsg.mReadyEpoch);
+    aWriter.U8(theMsg.mIsRun ? theMsg.mRunCrowdRule : CrowdRules::LEGACY);
 	return aWriter.Overflowed() ? -1 : aWriter.Size();
 }
 
@@ -942,6 +949,9 @@ inline bool DecodeStartLevel(const uint8_t* theData, int theSize, MsgStartLevel&
     if(!EndlessRules::Valid(theMsg.mRunEndlessOptions))return false;
 	for (int i = 0; i < ZOMBIE_BUFF_COUNT; i++) theMsg.mZombieStacks[i] = aReader.U8();
     theMsg.mReadyEpoch = aReader.U32();
+    theMsg.mRunCrowdRule = aReader.U8();
+    if (theSize != 36 + ZOMBIE_BUFF_COUNT || !CrowdRules::Valid(theMsg.mRunCrowdRule) ||
+        (!theMsg.mIsRun && theMsg.mRunCrowdRule != CrowdRules::LEGACY)) return false;
 	return !aReader.Overflowed();
 }
 

@@ -17,6 +17,7 @@ import (
 
 // seatHold 一个掉线席位的保留：谁（名字+构建）在什么时候之前可以坐回来。
 type seatHold struct {
+	flow       bool
 	credential [16]byte
 	name       [nameSize]byte
 	build      uint16
@@ -24,6 +25,7 @@ type seatHold struct {
 }
 
 type Room struct {
+	flow          roundFlow
 	public        bool
 	started       bool
 	gateManaged   bool
@@ -256,6 +258,10 @@ func (s *Server) handleJoinFrom(c *Conn, version, build uint16, name, rawCode []
 	r.bySeat[seat] = c
 	s.enqueue(c, encodeFrame(msgSrvWelcome, encodeWelcome(seat, r.hostSeat, code, r.roster())))
 	s.issueCredential(c)
+	if r.flow.started && r.flow.phase != flowSetup {
+		r.roundWaitMask |= 1 << seat
+	}
+	s.publishFlow(r)
 	r.broadcast(s, c, encodeFrame(msgSrvPeerJoin, encodePeerJoin(rosterEntry{seat: seat, build: build, name: c.name})))
 	s.logf("room %s: %s joined seat %d (build %d)", code, c.remoteAddr(), seat, build)
 }
@@ -263,10 +269,16 @@ func (s *Server) handleJoinFrom(c *Conn, version, build uint16, name, rawCode []
 // handleSwapCommit 换位落实：交换两席的连接映射，然后全房广播（含提交者自己）——
 // 所有人只认这条广播执行置换，天然免双重应用。
 func (s *Server) handleSwapCommit(c *Conn, a, b uint8) {
+	s.handleSwapCommitWithTerm(c, a, b, 0, 0, 0)
+}
+func (s *Server) handleSwapCommitWithTerm(c *Conn, a, b uint8, term, epoch, request uint32) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	r := c.room.Load()
-	if r == nil {
+	if r == nil || (r.flow.enabled && term != r.flow.term) {
+		return
+	}
+	if r.flow.enabled && (r.flow.phase != flowSetup || epoch != r.flow.epoch || request == 0 || request != r.flow.prepRequest || r.flow.prepPhase != 3 || r.flow.prepCommitted || !((a == r.flow.prepA && b == r.flow.prepB) || (a == r.flow.prepB && b == r.flow.prepA))) {
 		return
 	}
 	if a < 1 || a > maxPlayers || b < 1 || b > maxPlayers || a == b {
@@ -280,6 +292,9 @@ func (s *Server) handleSwapCommit(c *Conn, a, b uint8) {
 		s.logf("room %s: seat %d tried to swap seats %d/%d it doesn't own - dropped", r.code, c.seat, a, b)
 		return
 	}
+	if r.flow.enabled {
+		r.flow.prepCommitted = true
+	}
 	r.bySeat[a], r.bySeat[b] = cb, ca
 	waitA, waitB := r.roundWaitMask&(1<<a) != 0, r.roundWaitMask&(1<<b) != 0
 	r.roundWaitMask &^= (1 << a) | (1 << b)
@@ -289,6 +304,16 @@ func (s *Server) handleSwapCommit(c *Conn, a, b uint8) {
 	if waitB {
 		r.roundWaitMask |= 1 << a
 	}
+	for _, mask := range []*uint8{&r.flow.done, &r.flow.ack, &r.flow.applied} {
+		va, vb := *mask&(1<<a) != 0, *mask&(1<<b) != 0
+		*mask &^= (1 << a) | (1 << b)
+		if va {
+			*mask |= 1 << b
+		}
+		if vb {
+			*mask |= 1 << a
+		}
+	}
 	ca.seat, cb.seat = b, a
 	if r.hostSeat == a {
 		r.hostSeat = b
@@ -296,6 +321,9 @@ func (s *Server) handleSwapCommit(c *Conn, a, b uint8) {
 		r.hostSeat = a
 	}
 	r.broadcast(s, nil, encodeFrame(msgSrvSeatSwap, encodeSeatSwap(a, b)))
+	if r.flow.enabled {
+		s.publishFlow(r)
+	}
 	s.logf("room %s: seats %d and %d swapped", r.code, a, b)
 }
 
@@ -341,6 +369,7 @@ func (s *Server) handleRejoin(c *Conn, version, build uint16, name, rawCode []by
 		}
 		// 静默替换：旧连接退场时什么都不广播（removeConn 看 replaced；room 置空后
 		// 它连 removeConn 的主体都进不来）。
+		c.flow = old.flow
 		old.replaced.Store(true)
 		old.room.Store(nil)
 		old.close()
@@ -359,6 +388,7 @@ func (s *Server) handleRejoin(c *Conn, version, build uint16, name, rawCode []by
 			s.logf("room %s: rejoin seat %d rejected (identity mismatch on held seat)", r.code, seat)
 			return
 		}
+		c.flow = h.flow
 		r.holds[seat] = seatHold{} // 保留消费掉
 	}
 	c.build = build
@@ -366,11 +396,21 @@ func (s *Server) handleRejoin(c *Conn, version, build uint16, name, rawCode []by
 	c.seat = seat
 	c.room.Store(r)
 	r.bySeat[seat] = c
-	if seat == r.hostSeat {
+	if r.flow.started && r.flow.phase != flowSetup {
+		r.roundWaitMask |= 1 << seat
+	} else if r.flow.enabled {
+		r.roundWaitMask &^= 1 << seat
+	}
+	if r.flow.enabled && r.host == nil {
+		// An empty room can be rejoined through any protected held seat.
+		// Select an online authority even if its battle participation still waits.
+		s.electFlowHost(r)
+	} else if seat == r.hostSeat {
 		r.host = c // 房主归位（快慢路径都可能：房主掉线也进保留期）
 	}
 	s.enqueue(c, encodeFrame(msgSrvWelcome, encodeWelcome(seat, r.hostSeat, code, r.roster())))
 	s.issueCredential(c)
+	s.publishFlow(r)
 	r.broadcast(s, c, encodeFrame(msgSrvPeerBack, encodePeerBack(rosterEntry{seat: seat, build: build, name: c.name})))
 	if fast {
 		s.logf("room %s: seat %d reconnected on a live link (old conn replaced)", r.code, seat)
@@ -388,6 +428,9 @@ func (s *Server) forward(c *Conn, typ uint16, payload []byte) {
 	defer s.mu.Unlock()
 	r := c.room.Load()
 	if r == nil {
+		return
+	}
+	if r.flow.enabled && r.flow.started {
 		return
 	}
 	src := payload[0]
@@ -461,6 +504,15 @@ func (s *Server) removeConn(c *Conn, reason uint8) {
 		return
 	}
 	graceful := c.left.Load()
+	if r.flow.enabled {
+		r.flow.done &^= 1 << seat
+		r.flow.ack &^= 1 << seat
+		r.flow.applied &^= 1 << seat
+		if r.flow.started {
+			r.roundWaitMask |= 1 << seat
+		}
+		s.resetFlowBarrier(r)
+	}
 	if graceful {
 		r.roundWaitMask &^= 1 << seat
 	}
@@ -470,9 +522,14 @@ func (s *Server) removeConn(c *Conn, reason uint8) {
 			// 房主掉线：保留席位，等重连；房间暂时由服务器兜着开
 			r.host = nil
 			if seat >= 1 && seat <= maxPlayers {
-				r.holds[seat] = seatHold{name: c.name, build: c.build, credential: c.credential, until: time.Now().Add(s.holdDuration)}
+				r.holds[seat] = seatHold{flow: c.flow, name: c.name, build: c.build, credential: c.credential, until: time.Now().Add(s.holdDuration)}
 				s.logf("room %s: host (seat %d) dropped - holding the room %v for a rejoin", r.code, seat, s.holdDuration)
 				r.broadcast(s, nil, encodeFrame(msgSrvPeerOffline, encodePeerOffline(seat, s.holdGrace())))
+				if r.flow.enabled {
+					s.electFlowHost(r)
+					s.checkFlowBarrier(r)
+					s.publishFlow(r)
+				}
 			}
 			return
 		}
@@ -490,13 +547,21 @@ func (s *Server) removeConn(c *Conn, reason uint8) {
 	if graceful {
 		s.logf("room %s: seat %d left (reason %d)", r.code, seat, reason)
 		r.broadcast(s, c, encodeFrame(msgSrvPeerLeave, encodePeerLeave(seat, reason)))
+		if r.flow.enabled {
+			s.checkFlowBarrier(r)
+			s.publishFlow(r)
+		}
 		return
 	}
 	if seat >= 1 && seat <= maxPlayers {
-		r.holds[seat] = seatHold{name: c.name, build: c.build, credential: c.credential, until: time.Now().Add(s.holdDuration)}
+		r.holds[seat] = seatHold{flow: c.flow, name: c.name, build: c.build, credential: c.credential, until: time.Now().Add(s.holdDuration)}
 	}
 	s.logf("room %s: seat %d dropped (reason %d) - held %v for a rejoin", r.code, seat, reason, s.holdDuration)
 	r.broadcast(s, c, encodeFrame(msgSrvPeerOffline, encodePeerOffline(seat, s.holdGrace())))
+	if r.flow.enabled {
+		s.checkFlowBarrier(r)
+		s.publishFlow(r)
+	}
 }
 
 // sweepLoop 周期性结算过期保留（main 里起一条；测试直接调 sweepOnce，不开这个）。
@@ -522,12 +587,26 @@ func (s *Server) sweepOnce(now time.Time) {
 
 // sweepRoom 结算一个房间里过期的保留；返回 true = 这个房间该删了。调用方持 s.mu。
 func (s *Server) sweepRoom(r *Room, now time.Time) bool {
+	r.updateFlowRecovery(now, s.holdDuration)
+	if !r.flow.recoveryUntil.IsZero() && !now.Before(r.flow.recoveryUntil) {
+		// No empty-mask victory and no automatic restart. End only the stranded
+		// room and let the remaining clients explicitly create a new game.
+		for seat := 1; seat <= maxPlayers; seat++ {
+			if c := r.bySeat[seat]; c != nil {
+				c.room.Store(nil)
+				s.enqueueAndClose(c, encodeFrame(msgSrvRoomClosed, encodeRoomClosed(roomClosedNoBattlePlayers)))
+			}
+		}
+		s.logf("room %s closed (all combatants gone; reconnect grace ended)", r.code)
+		return true
+	}
 	for seat := 1; seat <= maxPlayers; seat++ {
 		h := r.holds[seat]
 		if h.until.IsZero() || now.Before(h.until) {
 			continue
 		}
 		r.holds[seat] = seatHold{}
+		r.roundWaitMask &^= 1 << seat
 		if r.bySeat[seat] != nil {
 			continue // 席位已被新人占用（join 的正常回收），保留作废就行
 		}
@@ -544,6 +623,10 @@ func (s *Server) sweepRoom(r *Room, now time.Time) bool {
 		}
 		s.logf("room %s: seat %d rejoin window expired - releasing the seat", r.code, seat)
 		r.broadcast(s, nil, encodeFrame(msgSrvPeerLeave, encodePeerLeave(uint8(seat), peerLeaveTimeout)))
+		if r.flow.enabled {
+			s.checkFlowBarrier(r)
+			s.publishFlow(r)
+		}
 	}
 	return r.empty()
 }

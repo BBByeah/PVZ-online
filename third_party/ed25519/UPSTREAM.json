@@ -1,0 +1,71 @@
+{
+  "upstream": "https://github.com/orlp/ed25519",
+  "commit": "b1f19fab4aebe607805620d25a5e42566ce46a0e",
+  "files": [
+    {
+      "path": "license.txt",
+      "sha256": "f68d76b9c1c2271422e55134ea94cf71f2ac3fc3ed6a7ec6b83a1a0538753214",
+      "bytes": 874
+    },
+    {
+      "path": "src/ed25519.h",
+      "sha256": "8b09800605ac592c1f7d6e701f3526f84156db15bbd68904d39ad398e7d7c8ce",
+      "bytes": 1251
+    },
+    {
+      "path": "src/fe.c",
+      "sha256": "71082937da43def6ecaf7811c23410bd8ea763969dfec67383f8129b12b1926d",
+      "bytes": 38843
+    },
+    {
+      "path": "src/fe.h",
+      "sha256": "0476ae2ebb86978d1e0b9fbeb63dcddd7566d6b74806db47dda7688df74aaafb",
+      "bytes": 980
+    },
+    {
+      "path": "src/fixedint.h",
+      "sha256": "451fd529865e7fc69156f4cbe7c548857704ae4913768ad9ed7103656efdfc17",
+      "bytes": 2518
+    },
+    {
+      "path": "src/ge.c",
+      "sha256": "c3bb834817edea83d843828a75af19867b93144d15140eadfd9784d40cf11409",
+      "bytes": 10373
+    },
+    {
+      "path": "src/ge.h",
+      "sha256": "b16be2ea1731d9212933e7beeaef6882145fdcdaebdff9996efb5cf97faa2651",
+      "bytes": 1683
+    },
+    {
+      "path": "src/precomp_data.h",
+      "sha256": "c7d63a8b7ecd7bc6a3ac2b826a540a69dee0fc7e8bf3b00ef5dd98ce00a7c224",
+      "bytes": 97800
+    },
+    {
+      "path": "src/sc.c",
+      "sha256": "c1bdb840416b34e79ceb7472d1a4ac4b1407c47b4c982cad981c72142ef42407",
+      "bytes": 22867
+    },
+    {
+      "path": "src/sc.h",
+      "sha256": "b0ef537b4d4dad7bd2910e2a663a02a7ac25b473511a929c3c609d82f9bdf87d",
+      "bytes": 267
+    },
+    {
+      "path": "src/sha512.c",
+      "sha256": "b34128b950036777c299943d624bd830a234a65932c394fdf455e4948258fb6d",
+      "bytes": 11088
+    },
+    {
+      "path": "src/sha512.h",
+      "sha256": "647ed5784d4dcd682b9c42add2e39107582efb4df9e1362c8e5120613eb9a0ce",
+      "bytes": 489
+    },
+    {
+      "path": "src/verify.c",
+      "sha256": "a2ca7197c5f6d193c9f526d432429dfb44a65853a7ec18e10a5761334bdcf48c",
+      "bytes": 1367
+    }
+  ]
+}

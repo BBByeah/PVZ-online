@@ -396,7 +396,7 @@ public:
 							int theRunScale = 1, int theRunTempo = 1, int theZombotany = 0,
 							int theEndlessScene = 0, int theBossFlag = 0, int theBuffMult = 0,
 							int theLadder = 0, int theZombieBuff = 0, const uint8_t* theZombieStacks = nullptr,
-							int theSpeedTier = 0, int theFirstWave = 0, int theEndlessOptions = 0);
+							int theSpeedTier = 0, int theFirstWave = 0, int theEndlessOptions = 0, int theCrowdRule = 0);
 	void							UpdateRunEnd();
 	// @pvz-online: 无尽局原地续关（无尽续草坪批）的两个分叉口：建新草坪前先问一句"这块
 	// 草坪能不能留着"（无尽局过关不清草坪，留则连波次重排一起安排）；放开开场（三选一

@@ -1,4 +1,5 @@
 #pragma once
+#include "../../SexyAppFramework/Common.h"
 #include "LawnDialog.h"
 #include "OnlineUiDraw.h"
 #include "../Online/AutomaticRooms.h"
@@ -27,7 +28,7 @@ class RoomDirectoryDialog : public LawnDialog {
 
 public:
     explicit RoomDirectoryDialog(LawnApp* a):LawnDialog(a,DIALOG_ROOM_DIRECTORY,true,"","","",Dialog::BUTTONS_NONE),app(a) {
-        Resize(0,0,800,600);browser.Refresh();
+        Resize(0,0,800,600);Sexy::MkDir(Sexy::GetAppDataFolder()+"userdata");RelayNodes::SetCatalogCachePath(Sexy::GetAppDataFolder()+"userdata/relay-nodes.bin");browser.Refresh();
     }
     void Update() override {LawnDialog::Update();browser.Update();MarkDirty();}
     void Draw(Graphics* g) override {

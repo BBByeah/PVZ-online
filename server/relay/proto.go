@@ -58,8 +58,9 @@ const (
 
 // ROOM_CLOSED 原因（与 NetProto::RoomClosedReason 对齐）
 const (
-	roomClosedHostLeft = 0
-	roomClosedServer   = 1
+	roomClosedHostLeft        = 0
+	roomClosedServer          = 1
+	roomClosedNoBattlePlayers = 3 // All combatants gone; grace ended; create a new game.
 )
 
 // PEER_LEAVE 原因（与 NetProto::PeerLeaveReason 对齐）
@@ -82,7 +83,7 @@ func readFrame(r io.Reader) (uint16, []byte, error) {
 	}
 	typ := binary.LittleEndian.Uint16(hdr[0:2])
 	n := binary.LittleEndian.Uint16(hdr[2:4])
-	if int(n) > maxPayload {
+	if int(n) > maxPayload && ((typ != msgCliFlowGame && typ != msgSrvFlowGame) || int(n) > maxPayload+10) {
 		return 0, nil, errMalformed
 	}
 	payload := make([]byte, n)

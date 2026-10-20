@@ -35,7 +35,7 @@ func (s *Server) issueCredential(c *Conn) bool {
 }
 
 func (s *Server) handleGate(c *Conn, p []byte) {
-	if len(p) != 9 || p[8] > 1 {
+	if (len(p) != 9 && len(p) != 13) || p[8] > 1 {
 		s.dropBadControl(c, msgCliGate)
 		return
 	}
@@ -43,6 +43,9 @@ func (s *Server) handleGate(c *Conn, p []byte) {
 	defer s.mu.Unlock()
 	r := c.room.Load()
 	if r == nil || r.host != c || c.build < secureBuild {
+		return
+	}
+	if r.flow.enabled && (len(p) != 13 || binary.LittleEndian.Uint32(p[9:]) != r.flow.term) {
 		return
 	}
 	request := binary.LittleEndian.Uint32(p)
@@ -54,7 +57,7 @@ func (s *Server) handleGate(c *Conn, p []byte) {
 		return
 	}
 	r.gateManaged, r.gateRequest, r.gateEpoch, r.joinOpen = true, request, epoch, p[8] != 0
-	response := append([]byte(nil), p...)
+	response := append([]byte(nil), p[:9]...)
 	mask := byte(0)
 	for seat := 1; seat <= maxPlayers; seat++ {
 		if r.bySeat[seat] != nil || r.holdActive(uint8(seat), time.Now()) {

@@ -81,7 +81,10 @@ public:
             int effective = run->GetEffectiveBuffCount(id);
             if (permanent <= 0 && borrowed <= 0 && effective <= 0) continue;
             std::string title = GetRunChoiceDisplayName(id);
-            if (tab == 2) title = std::string(GetRunPlantName(GetRunChoicePlant(id))) + " · " + title;
+            if (tab == 2) {
+                const char* plants = GetRunChoicePlantName(id);
+                if (plants) title = std::string(plants) + " · " + title;
+            }
             entries.push_back({id, permanent, borrowed, effective, title, GetRunChoiceDesc(id)});
         }
         return entries;

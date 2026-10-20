@@ -4,6 +4,7 @@
 
 #include "ZombieBuffRules.h"
 #include "EndlessRules.h"
+#include "CrowdRules.h"
 #include <string>
 #include <vector>
 #include "../../ConstEnums.h"
@@ -454,6 +455,9 @@ public:
 	int					GetPlayingLevelIndex() const;
 	int					GetSceneIndex() const;
 	int					GetDifficultyPermille() const;
+    // @pvz-online: only StartNew opts in; loading missing/old markers restores legacy rules.
+    int mCrowdRule = CrowdRules::LEGACY;
+    bool UsesCrowdCompression() const { return mCrowdRule == CrowdRules::ABOVE_80_HALF; }
 };
 
 // 池子 9 条的展示文案（投票框与结果横幅共用，2026-10-14）：名字按当前语言择一（中文档

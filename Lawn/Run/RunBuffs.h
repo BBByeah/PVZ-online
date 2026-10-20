@@ -2,6 +2,7 @@
 #define __RUNBUFFS_H__
 
 #include "../../ConstEnums.h"
+#include <cstdint>
 
 // @pvz-online: 闯关（肉鸽）增益目录，两类都在这：
 //   ① 全局增益（RUN_BUFF_*，对全部植物/整局生效）
@@ -97,7 +98,7 @@ enum RunPlantUpgradeId
 	RUN_UPGRADE_DOOMSHROOM,		// 毁灭菇：爆炸直伤 50000（只可选 1 层；2026-10-05 批八b 由半径族整条换掉）
 	RUN_UPGRADE_LILYPAD,		// 睡莲：血量 +150%/层（至多 2 层；2026-10-09 审计批删条不进池，表行保留供存量档）
 	RUN_UPGRADE_SQUASH,			// 窝瓜：砸击次数 +2/层（至多 2 层；2026-10-05 批八由眩晕族整条换掉，UpdateSquash 多段砸击）
-	RUN_UPGRADE_THREEPEATER,	// 三线射手：每条道多发 1 颗（只可选 1 层；2026-10-09 权重批 cap2→cap1）
+	RUN_UPGRADE_THREEPEATER,	// 三线射手：每条道每层多发1颗，无层数上限（2026-10-20用户定案）
 	RUN_UPGRADE_TANGLEKELP,		// 缠绕海草：每层多缠 1 只僵尸（至多 2 层）
 	RUN_UPGRADE_JALAPENO,		// 火爆辣椒：种植冷却 ×0.8/层（至多 3 层；2026-10-09 权重批 ×0.75→×0.8）
 	RUN_UPGRADE_SPIKEWEED,		// 地刺：扎过的僵尸减速 +3 秒/层（至多 2 层）
@@ -247,7 +248,7 @@ enum RunPlantBuff2Id
 	RUN_BUFF2_BUTTERFEAST,	// #34 玉米投手：黄油盛宴——黄油率 +25% 且时长 +1 秒/层（cap2，2★；与老条「加农炮转化」同株互斥，2026-10-10 起跨屏「持有即排除」）
 	RUN_BUFF2_GUIDE,		// #36 大蒜：引路蒜——血量仅 20，被吃时全行僵尸换道（cap1，2★；矛盾设计原型）
 	RUN_BUFF2_FORTUNE,		// #38 金盏花：富贵——+10%/层 概率产金/钻石币（cap3，1★；产币端可实现照落，钱用途待定）
-	RUN_BUFF2_ROLLING,		// #39 西瓜投手：滚爆——落地后向前滚 1 格并再炸一次（cap1，1★）
+	RUN_BUFF2_ROLLING,		// #39 西瓜投手：滚爆——落地后向前滚 1 格并再炸一次（cap1，2★）
 	RUN_BUFF2_FIREPEA, // 机枪射手：概率瓜弹，25%子弹变为直射西瓜（2星1层）
 	RUN_BUFF2_LEGACY, // 双子向日葵：聚光增幅，自动拾取阳光+20%（2星1层）
 	RUN_BUFF2_ROCKFLESH,	// #42 忧郁菇：耐砸——血量变为 1000、仅巨人砸击每次 -200，其余伤害正常结算（cap1，2★；2026-10-15 由 500/每击固定50 改版，坚果耐砸同款口径）
@@ -276,6 +277,10 @@ enum RunPlantBuff2Id
 	RUN_BUFF2_GIANT_BITE, // 大嘴花：噬巨，巨人/Boss每口10000，重咬结束进入消化，3星1层。
 	RUN_BUFF2_BUTTER_HEAVY, // 黄油重击：当前本体1%/秒，上限2000，8秒，2星1层。
 	RUN_BUFF2_EMBERS, // 余焰：燃烧后当前本体1%/秒，最低300，3秒，2星1层。
+	// @pvz-online: append-only family traits; existing saved IDs stay unchanged.
+	RUN_BUFF2_SHARED_FUMES, // Both fume/gloom damage +35% per stack, linear, unlimited, 2 stars.
+	RUN_BUFF2_ROOF_PEAS, // Ordinary/ice/fire peas follow roof slopes, one stack, 2 stars.
+	RUN_BUFF2_GARLIC_PULSE, // Garlic placement redirects the whole row; 2 stars, one stack.
 	RUN_PLANT_BUFF2_COUNT
 };
 
@@ -291,5 +296,7 @@ bool RunPlantBuff2InPool(int theIndex);
 // 同屏同株去重（一屏三张里同一株的老/新条至多出现 1 条）在 RunState::RollChoices
 // 抽中后摘除时用；§8.6.1 矛盾对另有跨屏「持有即排除」（候选构建期，2026-10-10 起）。
 SeedType GetRunChoicePlant(int theId);
+// A family trait is one candidate; this mask supplies eligibility, lineup preference and deduplication.
+uint64_t GetRunChoicePlantMask(int theId);
 
 #endif

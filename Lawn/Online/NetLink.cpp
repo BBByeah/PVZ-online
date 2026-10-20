@@ -299,7 +299,7 @@ struct NetLink::Impl
 		if (!RecvExact(aHeader, NetProto::HEADER_SIZE)) return;
 
 		uint16_t aPayloadSize = (uint16_t)(aHeader[2] | (aHeader[3] << 8));
-		if (aPayloadSize > NetProto::MAX_PAYLOAD)
+		if (aPayloadSize > NetProto::MAX_WIRE_PAYLOAD)
 		{
 			Fail("A player sent a malformed packet.");
 			return;

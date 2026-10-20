@@ -1,4 +1,6 @@
 #include "Coin.h"
+#include "../Sexy.TodLib/ReanimAtlas.h"
+#include "../Sexy.TodLib/EffectSystem.h"
 #include "Board.h"
 #include "Cutscene.h"
 #include "ZenGarden.h"
@@ -15,6 +17,53 @@
 #include "../Sexy.TodLib/Reanimator.h"
 #include "../Sexy.TodLib/Attachment.h"
 #include "Widget/AchievementsWidget.h"
+
+
+// Draw the first frame from existing resources without claiming an animation slot.
+// Decode atlas handles before accessing images; no per-coin state or save-layout change.
+static void DrawStaticSun(Graphics* g, float x, float y, float scale)
+{
+    ReanimatorEnsureDefinitionLoaded(ReanimationType::REANIM_SUN, false);
+    ReanimatorDefinition& def = gReanimatorDefArray[(int)ReanimationType::REANIM_SUN];
+    TodTriangleGroup triangles;
+    for (int i = 0; i < def.mTracks.count; ++i)
+    {
+        const ReanimatorTrack& track = def.mTracks.tracks[i];
+        if (!track.mTransforms.count) continue;
+        const ReanimatorTransform& frame = track.mTransforms.mTransforms[0];
+        if (frame.mFrame < 0 || frame.mAlpha <= 0 || !frame.mImage) continue;
+        Image* image = frame.mImage;
+        ReanimAtlasImage* entry = nullptr;
+        if (def.mReanimAtlas)
+        {
+            entry = def.mReanimAtlas->GetEncodedReanimAtlas(image);
+            if (entry) image = entry->mOriginalImage;
+        }
+        if (!image || image->mNumCols <= 0) continue;
+        SexyMatrix3 matrix, local, overlay;
+        matrix.LoadIdentity();
+        SexyMatrix3Translation(matrix, image->GetCelWidth() * 0.5f, image->GetCelHeight() * 0.5f);
+        Reanimation::MatrixFromTransform(frame, local);
+        SexyMatrix3Multiply(matrix, local, matrix);
+        overlay.LoadIdentity();
+        overlay.m00 = scale; overlay.m11 = scale; overlay.m02 = x; overlay.m12 = y;
+        SexyMatrix3Multiply(matrix, overlay, matrix);
+        SexyMatrix3Translation(matrix, g->mTransX - 0.5f, g->mTransY - 0.5f);
+        Color color = g->GetColorizeImages() ? g->GetColor() : Color::White;
+        color.mAlpha = ClampInt(FloatRoundToInt(color.mAlpha * frame.mAlpha), 0, 255);
+        const int cel = FloatRoundToInt(frame.mFrame) % image->mNumCols;
+        if (entry)
+            triangles.AddTriangle(g, def.mReanimAtlas->mMemoryImage, matrix, g->mClipRect, color, g->mDrawMode,
+                Rect(entry->mX, entry->mY, entry->mWidth, entry->mHeight));
+        else
+        {
+            triangles.DrawGroup(g);
+            TodBltMatrix(g, image, matrix, g->mClipRect, color, g->mDrawMode,
+                Rect(cel * image->GetCelWidth(), 0, image->GetCelWidth(), image->GetCelHeight()));
+        }
+    }
+    triangles.DrawGroup(g);
+}
 
 Coin::Coin()
 {
@@ -57,10 +106,13 @@ void Coin::CoinInitialize(int theX, int theY, CoinType theCoinType, CoinMotion t
         float aPosX = mWidth * 0.5f;
         float aPosY = mHeight * 0.5f;
         Reanimation* aSunReanim = mApp->AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_SUN);
-        aSunReanim->SetPosition(mPosX + aPosX, mPosY + aPosY);
-        aSunReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
-        aSunReanim->mAnimRate = 6.0f;
-        AttachReanim(mAttachmentID, aSunReanim, aPosX, aPosY);
+        if (aSunReanim)
+        {
+            aSunReanim->SetPosition(mPosX + aPosX, mPosY + aPosY);
+            aSunReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
+            aSunReanim->mAnimRate = 6.0f;
+            AttachReanim(mAttachmentID, aSunReanim, aPosX, aPosY);
+        }
     }
     else if (mType == CoinType::COIN_SILVER)
     {
@@ -70,11 +122,14 @@ void Coin::CoinInitialize(int theX, int theY, CoinType theCoinType, CoinMotion t
         float aPosX = 9.0f;
         float aPosY = 9.0f;
         Reanimation* aCoinReanim = mApp->AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_COIN_SILVER);
-        aCoinReanim->SetPosition(mPosX + aPosX, mPosY + aPosY);
-        aCoinReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
-        aCoinReanim->mAnimTime = RandRangeFloat(0.0f, 0.99f);
-        aCoinReanim->mAnimRate *= RandRangeFloat(0.6f, 1.0f);
-        AttachReanim(mAttachmentID, aCoinReanim, aPosX, aPosY);
+        if (aCoinReanim)
+        {
+            aCoinReanim->SetPosition(mPosX + aPosX, mPosY + aPosY);
+            aCoinReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
+            aCoinReanim->mAnimTime = RandRangeFloat(0.0f, 0.99f);
+            aCoinReanim->mAnimRate *= RandRangeFloat(0.6f, 1.0f);
+            AttachReanim(mAttachmentID, aCoinReanim, aPosX, aPosY);
+        }
     }
     else if (mType == CoinType::COIN_GOLD)
     {
@@ -84,11 +139,14 @@ void Coin::CoinInitialize(int theX, int theY, CoinType theCoinType, CoinMotion t
         float aPosX = 9.0f;
         float aPosY = 9.0f;
         Reanimation* aCoinReanim = mApp->AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_COIN_GOLD);
-        aCoinReanim->SetPosition(mPosX + aPosX, mPosY + aPosY);
-        aCoinReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
-        aCoinReanim->mAnimTime = RandRangeFloat(0.0f, 0.99f);
-        aCoinReanim->mAnimRate *= RandRangeFloat(0.6f, 1.0f);
-        AttachReanim(mAttachmentID, aCoinReanim, aPosX, aPosY);
+        if (aCoinReanim)
+        {
+            aCoinReanim->SetPosition(mPosX + aPosX, mPosY + aPosY);
+            aCoinReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
+            aCoinReanim->mAnimTime = RandRangeFloat(0.0f, 0.99f);
+            aCoinReanim->mAnimRate *= RandRangeFloat(0.6f, 1.0f);
+            AttachReanim(mAttachmentID, aCoinReanim, aPosX, aPosY);
+        }
     }
     else if (mType == CoinType::COIN_DIAMOND)
     {
@@ -98,11 +156,14 @@ void Coin::CoinInitialize(int theX, int theY, CoinType theCoinType, CoinMotion t
         float aPosX = -3.0f;
         float aPosY = 4.0f;
         Reanimation* aCoinReanim = mApp->AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_DIAMOND);
-        aCoinReanim->SetPosition(mPosX + aPosX, mPosY + aPosY);
-        aCoinReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
-        aCoinReanim->mAnimTime = RandRangeFloat(0.0f, 0.99f);
-        aCoinReanim->mAnimRate = RandRangeFloat(50.0f, 80.0f);
-        AttachReanim(mAttachmentID, aCoinReanim, aPosX, aPosY);
+        if (aCoinReanim)
+        {
+            aCoinReanim->SetPosition(mPosX + aPosX, mPosY + aPosY);
+            aCoinReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
+            aCoinReanim->mAnimTime = RandRangeFloat(0.0f, 0.99f);
+            aCoinReanim->mAnimRate = RandRangeFloat(50.0f, 80.0f);
+            AttachReanim(mAttachmentID, aCoinReanim, aPosX, aPosY);
+        }
     }
 
     if (mApp->IsStormyNightLevel())
@@ -842,12 +903,12 @@ void Coin::Draw(Graphics* g)
         AttachmentDraw(mAttachmentID, &theAttachmentGraphics, false);
     }
 
-    if ((mType == CoinType::COIN_SILVER || mType == CoinType::COIN_GOLD) && mHitGround && !mIsBeingCollected)
+    if ((mType == CoinType::COIN_SILVER || mType == CoinType::COIN_GOLD) && mHitGround && !mIsBeingCollected && mAttachmentID != AttachmentID::ATTACHMENTID_NULL)
     {
         return;
     }
 
-    if (mType == CoinType::COIN_DIAMOND)
+    if (mType == CoinType::COIN_DIAMOND && mAttachmentID != AttachmentID::ATTACHMENTID_NULL)
     {
         return;
     }
@@ -884,7 +945,15 @@ void Coin::Draw(Graphics* g)
     }
     else if (IsSun())
     {
+        if (mAttachmentID == AttachmentID::ATTACHMENTID_NULL)
+            DrawStaticSun(g, mPosX + mWidth * 0.5f, mPosY + mHeight * 0.5f, mScale);
         return;
+    }
+    else if (mType == CoinType::COIN_DIAMOND)
+    {
+        aImage = IMAGE_REANIM_DIAMOND;
+        aOffsetX = -3.0f;
+        aOffsetY = 4.0f;
     }
     else if (mType == CoinType::COIN_FINAL_SEED_PACKET)
     {

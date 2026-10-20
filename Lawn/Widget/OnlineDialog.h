@@ -3,7 +3,7 @@
 
 #include "LawnDialog.h"
 #include "widget/EditListener.h"
-#include "../Online/AutomaticRooms.h"
+#include "../Online/RoomCreateAttempt.h"
 
 class LawnApp;
 class LawnEditWidget;
@@ -73,6 +73,9 @@ public:
     LawnStoneButton *mDirectoryButton,*mHistoryButton,*mVisibilityButton;
     LawnStoneButton *mLocalPageButton,*mServerPageButton,*mSoloButton;
     RelayNodes::Allocator mAllocator;
+    RelayNodes::RoomCreateAttempt mCreation;
+    RelayNodes::CatalogDiscovery mJoinLookup;
+    std::string mPendingJoinCode;
     std::string mServerInputError;
     int mPage=0;
     bool mConfirmSolo=false;

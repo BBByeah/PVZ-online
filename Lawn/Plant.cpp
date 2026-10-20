@@ -67,8 +67,8 @@ PlantDefinition gPlantDefs[SeedType::NUM_SEED_TYPES] = {  //0x69F2B0
     { SeedType::SEED_GARLIC,            nullptr, ReanimationType::REANIM_GARLIC,        8,  50,     750,    PlantSubClass::SUBCLASS_NORMAL,     0,      _S("GARLIC") },
     { SeedType::SEED_UMBRELLA,          nullptr, ReanimationType::REANIM_UMBRELLALEAF,  23, 100,    750,    PlantSubClass::SUBCLASS_NORMAL,     0,      _S("UMBRELLA_LEAF") },
     { SeedType::SEED_MARIGOLD,          nullptr, ReanimationType::REANIM_MARIGOLD,      24, 50,     3000,   PlantSubClass::SUBCLASS_NORMAL,     2500,   _S("MARIGOLD") },
-    // @pvz-online: 降低西瓜体系的成型成本；闯关冰瓜直种费用也随底座价格降低。
-    { SeedType::SEED_MELONPULT,         nullptr, ReanimationType::REANIM_MELONPULT,     14, 175,    750,    PlantSubClass::SUBCLASS_SHOOTER,    300,    _S("MELON_PULT") },
+    // @pvz-online: 西瓜基础费用按2026-10-20用户定案改为225；直种升级费用沿用原合计规则。
+    { SeedType::SEED_MELONPULT,         nullptr, ReanimationType::REANIM_MELONPULT,     14, 225,    750,    PlantSubClass::SUBCLASS_SHOOTER,    300,    _S("MELON_PULT") },
     { SeedType::SEED_GATLINGPEA,        nullptr, ReanimationType::REANIM_GATLINGPEA,    5,  250,    3000,   PlantSubClass::SUBCLASS_SHOOTER,    150,    _S("GATLING_PEA") },
     { SeedType::SEED_TWINSUNFLOWER,     nullptr, ReanimationType::REANIM_TWIN_SUNFLOWER,1,  150,    3000,   PlantSubClass::SUBCLASS_NORMAL,     2500,   _S("TWIN_SUNFLOWER") },
     { SeedType::SEED_GLOOMSHROOM,       nullptr, ReanimationType::REANIM_GLOOMSHROOM,   27, 150,    3000,   PlantSubClass::SUBCLASS_SHOOTER,    200,    _S("GLOOM_SHROOM") },
@@ -683,10 +683,13 @@ void Plant::SetSleeping(bool theIsAsleep)
             aPosY -= 12.0f;
 
         Reanimation* aSleepReanim = mApp->AddReanimation(aPosX, aPosY, mRenderOrder + 2, ReanimationType::REANIM_SLEEPING);
-        aSleepReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
-        aSleepReanim->mAnimRate = RandRangeFloat(6.0f, 8.0f);
-        aSleepReanim->mAnimTime = RandRangeFloat(0.0f, 0.9f);
-        mSleepingReanimID = mApp->ReanimationGetID(aSleepReanim);
+        if (aSleepReanim)
+        {
+            aSleepReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
+            aSleepReanim->mAnimRate = RandRangeFloat(6.0f, 8.0f);
+            aSleepReanim->mAnimTime = RandRangeFloat(0.0f, 0.9f);
+            mSleepingReanimID = mApp->ReanimationGetID(aSleepReanim);
+        }
     }
     else
     {
@@ -831,6 +834,9 @@ static bool GloomIsLonely(Plant* thePlant)
 //0x45ED00
 void Plant::DoRowAreaDamage(int theDamage, unsigned int theDamageFlags)
 {
+    // @pvz-online: both normal volleys and Continuous Fumes pass this damage entrance once.
+    if (mSeedType == SeedType::SEED_FUMESHROOM || mSeedType == SeedType::SEED_GLOOMSHROOM)
+        theDamage = static_cast<int>(theDamage * (1.0f + 0.35f * mApp->RunExtraBuffCount(RUN_BUFF2_SHARED_FUMES)) + 0.5f);
     int aDamageRangeFlags = GetDamageRangeFlags(PlantWeapon::WEAPON_PRIMARY);
     Rect aAttackRect = GetPlantAttackRect(PlantWeapon::WEAPON_PRIMARY);
 
@@ -1558,15 +1564,20 @@ void Plant::UpdatePotato()
             float aRate = RandRangeFloat(12.0f, 15.0f);
             PlayBodyReanim("anim_armed", ReanimLoopType::REANIM_LOOP, 0, aRate);
 
-            Reanimation* aLightReanim = mApp->AddReanimation(0.0f, 0.0f, mRenderOrder + 2, GetPlantDefinition(mSeedType).mReanimationType);
-            aLightReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
-            aLightReanim->mAnimRate = aRate - 2.0f;
-            aLightReanim->SetFramesForLayer("anim_glow");
-            aLightReanim->mFrameCount = 10;
-            aLightReanim->ShowOnlyTrack("anim_glow");
-            aLightReanim->SetTruncateDisappearingFrames("anim_glow", false);
-            mLightReanimID = mApp->ReanimationGetID(aLightReanim);
-            aLightReanim->AttachToAnotherReanimation(aBodyReanim, "anim_light");
+            auto& holder = mApp->mEffectSystem->mReanimationHolder;
+            Reanimation* aLightReanim = holder->mReanimations.DataArrayCanAllocate(holder->mPlantReservation + 1) ?
+                mApp->AddReanimation(0.0f, 0.0f, mRenderOrder + 2, GetPlantDefinition(mSeedType).mReanimationType) : nullptr;
+            if (aLightReanim)
+            {
+                aLightReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
+                aLightReanim->mAnimRate = aRate - 2.0f;
+                aLightReanim->SetFramesForLayer("anim_glow");
+                aLightReanim->mFrameCount = 10;
+                aLightReanim->ShowOnlyTrack("anim_glow");
+                aLightReanim->SetTruncateDisappearingFrames("anim_glow", false);
+                mLightReanimID = mApp->ReanimationGetID(aLightReanim);
+                aLightReanim->AttachToAnotherReanimation(aBodyReanim, "anim_light");
+            }
 
             mState = PlantState::STATE_POTATO_ARMED;
             mBlinkCountdown = 400 + Sexy::Rand(4000);
@@ -1699,7 +1710,7 @@ void Plant::UpdateTanglekelp()
         {
             int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_PARTICLE, mRow, 0);
             Reanimation* aSplashReanim = mApp->AddReanimation(mX - 23, mY + 7, aRenderPosition, ReanimationType::REANIM_SPLASH);
-            aSplashReanim->OverrideScale(1.3f, 1.3f);
+            if (aSplashReanim) aSplashReanim->OverrideScale(1.3f, 1.3f);
 
             mApp->AddTodParticle(mX + 31, mY + 64, aRenderPosition, ParticleEffect::PARTICLE_PLANTING_POOL);
             mApp->PlayFoley(FoleyType::FOLEY_ZOMBIE_ENTERING_WATER);
@@ -3640,7 +3651,10 @@ Reanimation* Plant::AttachBlinkAnim(Reanimation* theReanimBody)
     if (!theReanimBody->TrackExists(aTrackToPlay))
         return nullptr;
 
+    auto& holder = aApp->mEffectSystem->mReanimationHolder;
+    if (!holder->mReanimations.DataArrayCanAllocate(holder->mPlantReservation + 1)) return nullptr;
     Reanimation* aBlinkReanim = aApp->mEffectSystem->mReanimationHolder->AllocReanimation(0.0f, 0.0f, 0, aPlantDef.mReanimationType);
+    if (!aBlinkReanim) return nullptr;
     aBlinkReanim->SetFramesForLayer(aTrackToPlay);
     aBlinkReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_FULL_LAST_FRAME_AND_HOLD;
     aBlinkReanim->mAnimRate = 15.0f;
@@ -5286,8 +5300,10 @@ void Plant::DoSpecial()
 //0x466B80
 void Plant::ImitaterMorph()
 {
+    if (!mBoard->PreparePlantAnimations(mImitaterType)) return;
     Die();
     Plant* aPlant = mBoard->AddPlant(mPlantCol, mRow, mImitaterType, SeedType::SEED_IMITATER);
+    if (!aPlant) return;
 
     FilterEffect aFilter = FilterEffect::FILTER_EFFECT_WASHED_OUT;
     if (mImitaterType == SeedType::SEED_HYPNOSHROOM || mImitaterType == SeedType::SEED_SQUASH || mImitaterType == SeedType::SEED_POTATOMINE ||
@@ -5687,9 +5703,18 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
     }
     for (int i = 0; i < aExtraShots; i++)
     {
-        Projectile* aExtraProjectile = mBoard->AddProjectile(aOriginX + 21 * (i + 1), aOriginY, mRenderOrder - 1, theRow, aProjectileType);
-        if (aExtraProjectile == nullptr) continue;
+        // Unbounded Threepeater stacks stay near the muzzle instead of spawning beyond the board.
+        const int extraOffset = 21 * (mSeedType == SeedType::SEED_THREEPEATER ? 1 + i % 4 : i + 1);
+        Projectile* aExtraProjectile = mBoard->AddProjectile(aOriginX + extraOffset, aOriginY, mRenderOrder - 1, theRow, aProjectileType);
+        if (aExtraProjectile == nullptr) break; // No slot can free during this volley; retain unlimited trait stacks.
         aExtraProjectile->mDamageRangeFlags = aProjectile->mDamageRangeFlags;
+        if (mBoard->StageHasRoof() && mApp->RunExtraBuffCount(RUN_BUFF2_ROOF_PEAS) > 0 &&
+            (aProjectileType == ProjectileType::PROJECTILE_PEA || aProjectileType == ProjectileType::PROJECTILE_SNOWPEA || aProjectileType == ProjectileType::PROJECTILE_FIREBALL)) {
+            const float slope = mBoard->GetPosYBasedOnRow(aExtraProjectile->mPosX, theRow) - mBoard->GetPosYBasedOnRow(aProjectile->mPosX, theRow);
+            aExtraProjectile->mPosY += slope;
+            aExtraProjectile->mY = static_cast<int>(aExtraProjectile->mPosY);
+            aExtraProjectile->mShadowY = aProjectile->mShadowY + slope;
+        }
         aExtraProjectile->mRunSourceSeed = mSeedType;
         aExtraProjectile->mRunIceSource = aProjectile->mRunIceSource;
         aExtraProjectile->mRunCactusSource = aProjectile->mRunCactusSource;
@@ -5757,7 +5782,7 @@ void Plant::Fire(Zombie* theTargetZombie, int theRow, PlantWeapon thePlantWeapon
             for (int i = 0, aExtra = mApp->RunPlantUpgradeCount(SeedType::SEED_MELONPULT); i < aExtra; i++)
             {
                 Projectile* aExtraProjectile = mBoard->AddProjectile(aOriginX + 21 * (i + 1), aOriginY, mRenderOrder - 1, theRow, aProjectileType);
-                if (aExtraProjectile == nullptr) continue;
+                if (aExtraProjectile == nullptr) break;
                 aExtraProjectile->mDamageRangeFlags = aProjectile->mDamageRangeFlags;
                 aExtraProjectile->mRunSourceSeed = mSeedType;
                 aExtraProjectile->mMotionType = ProjectileMotion::MOTION_LOBBED;

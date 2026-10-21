@@ -282,7 +282,7 @@ static const RunPlantUpgradeDef gRunPlantUpgradeDefs[RUN_PLANT_UPGRADE_COUNT] =
 	{ SeedType::SEED_KERNELPULT,   "Artillery", "加农炮转化",    "种下后变为玉米加农炮",              "Becomes a Cob Cannon when planted",                  0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 3 },
 	{ SeedType::SEED_INSTANT_COFFEE,"Rich Roast", "醇香",  "唤醒产阳光 +25\n（每层）",          "Waking sun +25\n(per stack)",                        0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 1 },
 	{ SeedType::SEED_GARLIC,       "Iron Clove", "铁蒜",   "普通巨人每次砸击扣50生命",        "Ordinary Gargantuar smashes deal 50 HP",       0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_UMBRELLA,     "Canopy", "华盖",       "血量 +150%\n（每层）",              "Health +150%\n(per stack)",                          1.50f, 2, false, RUN_UPGRADE_KIND_HEALTH, 2 },
+	{ SeedType::SEED_UMBRELLA, "Imp Rebound", "弹飞小鬼", "将飞入保护范围的巨人投掷小鬼弹出场\n不影响已落地的小鬼", "Bounce incoming Gargantuar-thrown imps off the lawn\nDoes not affect grounded imps", 0.0f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_MARIGOLD,     "Golden Bloom", "鎏金", "每次多产 1 枚\n（每层）",           "1 extra coin per cycle\n(per stack)",                0.00f, 3, false, RUN_UPGRADE_KIND_EFFECT, 1 },
 	{ SeedType::SEED_MELONPULT,    "Melon Barrage", "瓜幕","每次多发 1 个西瓜\n（每层）",       "Fires 1 extra melon per volley\n(per stack)",        0.00f, 0, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_GATLINGPEA,   "Overclock", "超频",    "攻击间隔 ×0.5",                     "Attack interval ×0.5",                               -0.50f, 1, false, RUN_UPGRADE_KIND_RHYTHM, 1 }, // @pvz-online: 基础射速强化降为一星，为机制词条留出高星定位。

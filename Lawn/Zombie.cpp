@@ -2592,6 +2592,8 @@ void Zombie::UpdateZombieImp()
 {
     if (mZombiePhase == ZombiePhase::PHASE_IMP_GETTING_THROWN)
     {
+        if (mHitUmbrella && mBlowingAway) return;
+
         mVelZ -= THOWN_ZOMBIE_GRAVITY;
         mAltitude += mVelZ;
         mPosX -= mVelX;
@@ -2599,6 +2601,31 @@ void Zombie::UpdateZombieImp()
         float aDiffY = GetPosYBasedOnRow(mRow) - mPosY;
         mPosY += aDiffY;
         mAltitude += aDiffY;
+        // Only descending Gargantuar-thrown imps can touch the umbrella canopy.
+        // Grounded imps and friendly throws retain their original behaviour.
+        if (!mMindControlled && mVelZ < 0.0f && mAltitude <= 80.0f &&
+            mApp->RunPlantUpgradeCount(SeedType::SEED_UMBRELLA) > 0)
+        {
+            int aCol = mBoard->PixelToGridX(mPosX + 57.0f, mPosY);
+            Plant* aUmbrella = mBoard->FindUmbrellaPlant(aCol, mRow);
+            if (aUmbrella)
+            {
+                aUmbrella->DoSpecial();
+                mApp->PlayFoley(FoleyType::FOLEY_UMBRELLA);
+                mApp->PlaySample(SOUND_BOING);
+                mApp->AddTodParticle(mPosX + 57.0f, mPosY + 80.0f - mAltitude,
+                    Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_TOP, 0, 1),
+                    ParticleEffect::PARTICLE_UMBRELLA_REFLECT);
+                mHitUmbrella = true;
+                mBlowingAway = true;
+                mVelX = mVelZ = 0.0f;
+                StopEating();
+                // Keep normal per-zombie loot on the lawn, rather than beyond its edge.
+                // DieWithLoot at the exit uses mDroppedLoot to avoid a second drop.
+                DropLoot();
+                return;
+            }
+        }
         if (mAltitude <= 0.0f)
         {
             mAltitude = 0.0f;
@@ -4925,6 +4952,18 @@ void Zombie::CheckForBoardEdge()
 //0x52B340
 void Zombie::UpdatePlaying()
 {
+    // Reflected imps remain airborne until removed. Bypass ground interaction and
+    // immobilisation so neither a landing nor a frozen imp can hold up clearing.
+    // All state used here already exists in both native and portable saves.
+    if (mZombieType == ZombieType::ZOMBIE_IMP &&
+        mZombiePhase == ZombiePhase::PHASE_IMP_GETTING_THROWN && mHitUmbrella && mBlowingAway)
+    {
+        mPosX += 12.0f;
+        mAltitude += 6.0f;
+        if (mPosX > 850.0f) DieWithLoot();
+        return;
+    }
+
     if (mBodyHealth <= 0 &&
         (mZombieType == ZombieType::ZOMBIE_GARGANTUAR || mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR))
     {

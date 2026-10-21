@@ -117,7 +117,7 @@ enum RunPlantUpgradeId
 	RUN_UPGRADE_KERNELPULT,		// 玉米投手：种下后变成玉米加农炮（只可选 1 层；2026-10-04 批 18 由黄油率族整条换掉）
 	RUN_UPGRADE_INSTANT_COFFEE,	// 咖啡豆：唤醒产阳光 +25/层（至多 2 层）
 	RUN_UPGRADE_GARLIC,			// 大蒜：巨人砸击时像地刺王一样耐砸（只可选 1 层；2026-10-04 批 18 由减速族整条换掉）
-	RUN_UPGRADE_UMBRELLA,		// 保护伞：血量 +150%/层（至多 2 层；2026-10-09 权重批 cap3→cap2）
+	RUN_UPGRADE_UMBRELLA,		// 保护伞：弹飞巨人投掷的飞行小鬼（2星，至多1层）
 	RUN_UPGRADE_MARIGOLD,		// 金盏花：每次多产 1 枚（每层，至多 3 层）
 	RUN_UPGRADE_MELONPULT,		// 西瓜投手：每次多发 1 个西瓜（无上限；2026-10-04 批 18 由溅射范围族整条换掉）
 	RUN_UPGRADE_GATLINGPEA,		// 机枪射手：攻击间隔 ×0.5（只可选 1 层；2026-10-04 批 18 由射击间隔族整条换掉）

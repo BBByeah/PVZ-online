@@ -1,6 +1,7 @@
 #pragma once
 #include "OnlineUiDraw.h"
 #include "CoopHud.h"
+#include "RunInfoView.h"
 #include "../System/DamageStats.h"
 #include <algorithm>
 #include <chrono>
@@ -8,6 +9,15 @@
 namespace DamageStatsView
 {
 using namespace Sexy;
+
+// Below the sun shortcut: keep the shovel and every seed slot unobstructed.
+inline Rect BuffEntry() { return Rect(752, 88, 44, 44); }
+inline RunInfoView& BuffView()
+{
+    // No board/run pointers are retained. Opening always resets this local-only view.
+    static RunInfoView view;
+    return view;
+}
 
 inline Rect SettingsEntry() { return Rect(184, 568, 54, 26); }
 inline Rect TotalEntry() { return Rect(242, 568, 124, 26); }
@@ -22,8 +32,8 @@ inline bool Available(Board* board)
 {
     auto* app = board->mApp;
     return app->IsRunMode() && !app->AdmissionBuilding() && app->mDamageStats.mActive && app->mGameScene == SCENE_PLAYING &&
-        !board->mPaused && !CoopHud::Watching(board) && !board->mChatPanelOpen &&
-        board->mSunGiftSelectFrames <= 0;
+        !board->mPaused && !CoopHud::Watching(board) &&
+        (CoopHud::RunInfoOpen(board) || (!board->mChatPanelOpen && board->mSunGiftSelectFrames <= 0));
 }
 
 inline std::string ShortNumber(uint64_t value)
@@ -67,6 +77,13 @@ inline int Hit(Board* board, int x, int y)
 {
     if (!Available(board)) return -1;
     auto& stats = board->mApp->mDamageStats;
+    if (CoopHud::RunInfoOpen(board))
+    {
+        const int action = BuffView().Hit(x - 20, y - 20, board->mApp->GetRunState(), true, board->mApp->IsOnlineGame(), true);
+        // The whole overlay consumes input, including gaps and the lawn behind it.
+        return std::max(0, action);
+    }
+    if (BuffEntry().Contains(x, y)) return 5;
     if (SettingsEntry().Contains(x, y)) return 3;
     if (stats.ShowTotal() && TotalEntry().Contains(x, y)) return 1;
     if (stats.ShowBoss() && BossEntry().Contains(x, y)) return 2;
@@ -89,6 +106,21 @@ inline int Hit(Board* board, int x, int y)
 inline void Action(Board* board, int action)
 {
     auto& stats = board->mApp->mDamageStats;
+    if (CoopHud::RunInfoOpen(board))
+    {
+        if (action == 100) stats.mOpen = 0;
+        else BuffView().Act(action, board->mApp->GetRunState());
+        return;
+    }
+    if (action == 5)
+    {
+        BuffView() = RunInfoView();
+        BuffView().tab = 2;
+        board->RefreshSeedPacketFromCursor();
+        board->ClearCursor();
+        stats.mOpen = CoopHud::RUN_INFO_PANEL;
+        return;
+    }
     if (action >= 1 && action <= 3)
     {
         stats.mOpen = stats.mOpen == action ? 0 : action;
@@ -114,7 +146,8 @@ inline void Action(Board* board, int action)
 inline bool MouseDown(Board* board, int x, int y, int clicks)
 {
     auto* app = board->mApp;
-    if (clicks <= 0 || !app->mActive || app->mMinimized) return false;
+    if (!app->mActive || app->mMinimized) return false;
+    if (clicks <= 0) return CoopHud::RunInfoOpen(board) && Available(board);
     const int action = Hit(board, x, y);
     if (action < 0) return false;
     auto& stats = app->mDamageStats;
@@ -129,9 +162,10 @@ inline bool MouseDown(Board* board, int x, int y, int clicks)
 inline bool MouseUp(Board* board, int x, int y, int clicks)
 {
     auto& stats = board->mApp->mDamageStats;
-    if (!stats.mCaptured) return false;
+    if (!stats.mCaptured) return CoopHud::RunInfoOpen(board) && Available(board);
     const int action = stats.mPressed;
     stats.mCaptured = false; stats.mPressed = -1;
+    board->mIgnoreMouseUp = false;
     if (clicks > 0 && board->mApp->mActive && !board->mApp->mMinimized && Hit(board, x, y) == action)
     {
         if (action > 0) board->mApp->PlaySample(SOUND_GRAVEBUTTON);
@@ -150,6 +184,16 @@ inline void Draw(Board* board, Graphics* graphics)
 {
     if (!Available(board)) return;
     auto& stats = board->mApp->mDamageStats;
+    if (CoopHud::RunInfoOpen(board))
+    {
+        Graphics panel(*graphics);
+        panel.mTransX += 20 * panel.mScaleX;
+        panel.mTransY += 20 * panel.mScaleY;
+        BuffView().Draw(&panel, board->mApp->GetRunState(), true, board->mApp->IsOnlineGame(),
+            false, false, false, "", stats.mCaptured ? stats.mPressed : -1, true);
+        return;
+    }
+    CoopHud::SmallButton(graphics, BuffEntry(), ModText::Tr("增益", "Buff"), true, stats.mCaptured && stats.mPressed == 5);
     const auto* local = stats.Local();
     DamageStatsWire::Counters counters;
     if (local) counters = stats.WholeRun() ? local->mRunDamage : local->mLevelDamage;

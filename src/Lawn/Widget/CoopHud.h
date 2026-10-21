@@ -9,6 +9,9 @@
 // @pvz-online: one non-modal panel; blank lawn outside it keeps its normal input route.
 namespace CoopHud {
 using namespace Sexy;
+// DamageStats owns the per-board HUD panel lifetime; 1..3 are its statistics pages.
+constexpr int RUN_INFO_PANEL = 4;
+inline bool RunInfoOpen(Board* b) { return b->mApp->mDamageStats.mOpen == RUN_INFO_PANEL; }
 inline bool Watching(Board* b) {
 #ifdef __ANDROID__
     return b->mMobileWatchOpen;
@@ -160,7 +163,7 @@ inline int DrawNotice(Graphics* g,const std::string& text,int id,int y) {
     return height+4;
 }
 inline void Draw(Board* b,Graphics* g) {
-    if(!b->QuickChatAvailable()||Watching(b))return;
+    if(!b->QuickChatAvailable()||Watching(b)||RunInfoOpen(b))return;
     bool interactive=!b->mPaused&&b->mApp->mActive&&!b->mApp->mMinimized;
     const char* labels[]={ModText::Tr("消息","Chat"),ModText::Tr("表情","Face"),ModText::Tr("阳光","Sun")};
     for(int i=0;i<3;++i)SmallButton(g,Shortcut(i),labels[i],interactive&&(i!=2||b->mApp->IsRunMode()),

@@ -26,7 +26,10 @@ public:
         return nullptr;
     }
     static Sexy::Rect CloseRect() { return Sexy::Rect(632, 26, 104, 44); }
-    static Sexy::Rect TabRect(int index) { return Sexy::Rect(24 + index * 180, 82, 172, 48); }
+    static Sexy::Rect TabRect(int index, bool buffsOnly = false) {
+        return buffsOnly ? Sexy::Rect(24 + (index - 1) * 240, 82, 232, 48) :
+            Sexy::Rect(24 + index * 180, 82, 172, 48);
+    }
     static Sexy::Rect RowRect(int index) { return Sexy::Rect(24, 162 + index * 48, 270, 44); }
     static Sexy::Rect ListArrow(bool right) { return Sexy::Rect(right ? 222 : 24, 466, 72, 44); }
     static Sexy::Rect DetailArrow(bool right) { return Sexy::Rect(right ? 664 : 314, 466, 72, 44); }
@@ -100,10 +103,10 @@ public:
         selected = page * 6;
         detailPage = 0;
     }
-    int Hit(int x, int y, const RunState* run, bool hasBoard, bool online) const {
+    int Hit(int x, int y, const RunState* run, bool hasBoard, bool online, bool buffsOnly = false) const {
         if (CloseRect().Contains(x, y)) return 100;
-        for (int index = 0; index < 4; ++index)
-            if ((index == 0 || run) && TabRect(index).Contains(x, y)) return 200 + index;
+        for (int index = buffsOnly ? 1 : 0; index < 4; ++index)
+            if ((index == 0 || run) && TabRect(index, buffsOnly).Contains(x, y)) return 200 + index;
         if (tab == 0) {
             for (int index = 0; index < 2; ++index)
                 if (CreatorRect(index).Contains(x, y)) return 510 + index;
@@ -130,17 +133,18 @@ public:
             detailPage = std::max(0, std::min(DetailCount(run) - 1, detailPage + (action == 402 ? -1 : 1)));
     }
     void Draw(Sexy::Graphics* graphics, const RunState* run, bool hasBoard, bool online,
-        bool plantHealth, bool zombieHealth, bool slideCollect, const std::string& language, int down) {
+        bool plantHealth, bool zombieHealth, bool slideCollect, const std::string& language, int down, bool buffsOnly = false) {
         using namespace Sexy;
         Color titleColor(245, 230, 165), bodyColor(235, 230, 210), muted(175, 175, 165);
         SeatUi::Panel(graphics, Rect(0, 0, 760, 560));
-        SeatUi::Text(graphics, ModText::Tr("辅助设置与本局词条", "Controls & this run"), 24, 59, 600, 26, titleColor);
+        SeatUi::Text(graphics, buffsOnly ? ModText::Tr("本局增益", "This run: modifiers") :
+            ModText::Tr("辅助设置与本局词条", "Controls & this run"), 24, 59, 600, 26, titleColor);
         SeatUi::Button(graphics, CloseRect(), ModText::Tr("返回", "Back"), true, down == 100);
         const char* labels[] = {ModText::Tr("帮助设置", "Controls"), ModText::Tr("全部增益", "Global"),
             ModText::Tr("植物增益", "Plants"), ModText::Tr("僵尸强化", "Zombies")};
-        for (int index = 0; index < 4; ++index) {
-            SeatUi::Button(graphics, TabRect(index), labels[index], index == 0 || run, down == 200 + index);
-            if (index == tab) { graphics->SetColor(titleColor); auto rect = TabRect(index); graphics->DrawRect(rect); }
+        for (int index = buffsOnly ? 1 : 0; index < 4; ++index) {
+            SeatUi::Button(graphics, TabRect(index, buffsOnly), labels[index], index == 0 || run, down == 200 + index);
+            if (index == tab) { graphics->SetColor(titleColor); auto rect = TabRect(index, buffsOnly); graphics->DrawRect(rect); }
         }
         if (tab == 0) {
             const char* on = ModText::Tr("开", "On");

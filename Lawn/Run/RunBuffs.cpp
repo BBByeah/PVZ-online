@@ -343,7 +343,7 @@ static const RunPlantUpgradeDef gRunPlantBuff2Defs[RUN_PLANT_BUFF2_COUNT] =
 	{ SeedType::SEED_SEASHROOM,     "Death Brine", "亡语孢子",   "被啃掉时原地爆炸\n900 伤害（每层）",     "Explodes when eaten\n900 damage (per stack)",         0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_PLANTERN,      "Twilight", "暮光",      "照亮格内植物攻速 ×0.75",               "Plants in light attack ×0.75 speed",                  -0.25f, 2, true, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_CACTUS,        "Tri-Spike", "三向尖刺",     "改为三行发射\n（本行与上下各一行）",     "Fires in 3 rows\n(own row ± 1)",                      0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 2 },
-	{ SeedType::SEED_BLOVER,        "Gale Force", "狂风",    "吹风把全场僵尸推离 1 格\n（每层）",      "Blowing pushes all zombies back 1 tile\n(per stack)", 0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
+	{ SeedType::SEED_BLOVER,        "Gale Force", "狂风",    "吹风把全场僵尸推离 1 格\n（每层）",      "Blowing pushes all zombies back 1 tile\n(per stack)", 0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 3 },
 	{ SeedType::SEED_SPLITPEA,      "Free Plant", "免植",    "种植费用变为 0",                       "Planting cost becomes 0",                             0.00f, 1, false, RUN_UPGRADE_KIND_EFFECT, 1 },
 	{ SeedType::SEED_PUMPKINSHELL,  "Regrow", "再生",        "每 15 秒回复 10% 血量",                "Heals 10% HP every 15 sec",                           0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },
 	{ SeedType::SEED_MAGNETSHROOM,  "Magnet Throw", "卸甲飞掷",  "吸到的防具就地掷回\n1200 伤害（每层）",  "Throws stolen armor back\n1200 damage (per stack)",   0.00f, 2, false, RUN_UPGRADE_KIND_EFFECT, 2 },

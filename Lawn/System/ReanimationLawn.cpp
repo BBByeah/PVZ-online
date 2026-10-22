@@ -245,7 +245,8 @@ MemoryImage* ReanimatorCache::MakeCachedPlantFrame(SeedType theSeedType, DrawVar
 //0x46F8A0
 MemoryImage* ReanimatorCache::MakeCachedZombieFrame(ZombieType theZombieType)
 {
-	MemoryImage* aMemoryImage = MakeBlankMemoryImage(200, 210);
+    const int aTopPadding=PlantZombies::Family(theZombieType)>=0?40:0;
+	MemoryImage* aMemoryImage = MakeBlankMemoryImage(200, 210+aTopPadding);
 	Graphics aMemoryGraphics(aMemoryImage);
 	aMemoryGraphics.SetLinearBlend(true);
 
@@ -257,8 +258,51 @@ MemoryImage* ReanimatorCache::MakeCachedZombieFrame(ZombieType theZombieType)
 	ZombieDefinition& aZombieDef = GetZombieDefinition(aUseZombieType);
 	TOD_ASSERT(aZombieDef.mReanimationType != ReanimationType::REANIM_NONE);
 
-	float aPosX = 40.0f, aPosY = 40.0f;
-	if (aZombieDef.mReanimationType == ReanimationType::REANIM_ZOMBIE)
+	float aPosX = 40.0f, aPosY = 40.0f+aTopPadding;
+	const int aFamily=PlantZombies::Family(theZombieType);
+    if (aFamily>=0)
+    {
+        Reanimation body;
+        body.ReanimationInitializeType(aPosX,aPosY,ReanimationType::REANIM_ZOMBIE);
+        body.SetFramesForLayer("anim_idle");body.mFrameBasePose=0;
+        Zombie::SetupReanimLayers(&body,theZombieType);
+        body.AssignRenderGroupToPrefix("anim_hair",RENDER_GROUP_HIDDEN);
+        if(aFamily==0 || aFamily==2) {
+            body.AssignRenderGroupToPrefix("anim_head2",RENDER_GROUP_HIDDEN);
+            body.GetTrackInstanceByName("anim_head1")->mImageOverride=IMAGE_BLANK;
+        } else {
+            body.AssignRenderGroupToPrefix("anim_head",RENDER_GROUP_HIDDEN);
+            body.AssignRenderGroupToPrefix("Zombie_tie",RENDER_GROUP_HIDDEN);
+        }
+        if(PlantZombies::Door(theZombieType))
+            body.AssignRenderGroupToTrack("anim_screendoor",RENDER_GROUP_NORMAL);
+        body.Draw(&aMemoryGraphics);
+
+        static const ReanimationType heads[]={REANIM_PEASHOOTER,REANIM_WALLNUT,REANIM_GATLINGPEA,REANIM_TALLNUT};
+        Reanimation head;
+        head.ReanimationInitializeType(0,0,heads[aFamily]);
+        head.SetFramesForLayer(aFamily==0 || aFamily==2?"anim_head_idle":"anim_idle");
+        SexyTransform2D anchor,offset;
+        body.GetAttachmentOverlayMatrix(body.FindTrackIndex(aFamily==0 || aFamily==2?"anim_head1":"Zombie_body"),anchor);
+        TodScaleRotateTransformMatrix(offset,aFamily==0 || aFamily==2?65.0f:aFamily==1?50.0f:37.0f,
+            aFamily==0 || aFamily==2?-5.0f:0.0f,0.2f,aFamily==0 || aFamily==2?-1.0f:-0.8f,aFamily==0 || aFamily==2?1.0f:0.8f);
+        head.mOverlayMatrix=anchor*offset;head.Draw(&aMemoryGraphics);
+
+        if(PlantZombies::Armor(theZombieType)) {
+            Reanimation hat;
+            hat.ReanimationInitializeType(0,0,ReanimationType::REANIM_ZOMBIE);
+            hat.SetFramesForLayer("anim_walk");hat.mAnimTime=0;
+            hat.ShowOnlyTrack(PlantZombies::Armor(theZombieType)==1?"anim_cone":"anim_bucket");
+            SexyTransform2D base,hatBase,inverse;
+            body.GetTrackBasePoseMatrix(body.FindTrackIndex("anim_head1"),base);
+            hat.GetTrackBasePoseMatrix(hat.FindTrackIndex("anim_head1"),hatBase);
+            SexyMatrix3Inverse(hatBase,inverse);offset=base*inverse;
+            offset.m02+=PlantZombies::HatOffsetX(aFamily);offset.m12+=PlantZombies::HatOffsetY(aFamily);
+            body.GetAttachmentOverlayMatrix(body.FindTrackIndex(aFamily==1 || aFamily==3?"Zombie_body":"anim_head1"),anchor);
+            hat.mOverlayMatrix=anchor*offset;hat.Draw(&aMemoryGraphics);
+        }
+    }
+    else if (aZombieDef.mReanimationType == ReanimationType::REANIM_ZOMBIE)
 	{
 		Reanimation aReanim;
 		aReanim.ReanimationInitializeType(aPosX, aPosY, aZombieDef.mReanimationType);
@@ -359,7 +403,7 @@ void ReanimatorCache::ReanimatorCacheInitialize()
 		mPlantImages[i] = nullptr;
 	for (int i = 0; i < LawnMowerType::NUM_MOWER_TYPES; i++)
 		mLawnMowers[i] = nullptr;
-	for (int i = 0; i < ZombieType::NUM_ZOMBIE_TYPES; i++)
+	for (int i = 0; i < ZombieType::NUM_CACHED_ZOMBIE_TYPES; i++)
 		mZombieImages[i] = nullptr;
 }
 
@@ -376,7 +420,7 @@ void ReanimatorCache::ReanimatorCacheDispose()
 	}
 	for (int i = 0; i < LawnMowerType::NUM_MOWER_TYPES; i++)
 		delete mLawnMowers[i];
-	for (int i = 0; i < ZombieType::NUM_ZOMBIE_TYPES; i++)
+	for (int i = 0; i < ZombieType::NUM_CACHED_ZOMBIE_TYPES; i++)
 		delete mZombieImages[i];
 }
 
@@ -440,6 +484,7 @@ void ReanimatorCache::DrawCachedMower(Graphics* g, float thePosX, float thePosY,
 //0x470170
 void ReanimatorCache::DrawCachedZombie(Graphics* g, float thePosX, float thePosY, ZombieType theZombieType)
 {
+    if(PlantZombies::Family(theZombieType)>=0)thePosY-=40.0f*g->mScaleY;
 	TOD_ASSERT(theZombieType >= 0 && theZombieType < ZombieType::NUM_CACHED_ZOMBIE_TYPES);
 	
 	if (mZombieImages[(int)theZombieType] == nullptr)

@@ -1,4 +1,7 @@
+#include "../../SexyAppFramework/Common.h"
 #include "OnlineDialog.h"
+#include "RoomDirectoryDialog.h"
+#include "RunHistoryDialog.h"
 #include "OnlineSeatDialog.h"
 #include "OnlineRoomLayout.h"
 #include "CjkStoneButton.h"
@@ -6,6 +9,8 @@
 #include "../LawnCommon.h"
 #include "../ModText.h"
 #include "../Online/NetSession.h"
+#include "../Online/PrivateEndpoint.h"
+#include "../Online/LocalHostControl.h"
 #include "../../LawnApp.h"
 #include "../../Resources.h"
 #include "graphics/Font.h"
@@ -25,7 +30,8 @@ namespace
 		enum Filter
 		{
 			FILTER_HOST,	// 地址：字母数字 + . -（IPv4 / 主机名）
-			FILTER_CODE		// 房间码：字母数字，一律折成大写（服务器那边也是这么归一化的）
+			FILTER_CODE,
+            FILTER_SERVER
 		};
 
 		OnlineEditWidget(int theId, EditListener* theListener, Dialog* theDialog, Filter theFilter)
@@ -49,8 +55,8 @@ namespace
 			bool anAlnum = (theChar >= '0' && theChar <= '9')
 				|| (theChar >= 'A' && theChar <= 'Z')
 				|| (theChar >= 'a' && theChar <= 'z');
-			if (mFilter == FILTER_CODE) return anAlnum;
-			return anAlnum || theChar == '.' || theChar == '-';
+			if (mFilter == FILTER_CODE) return anAlnum || theChar=='-';
+			return anAlnum || theChar == '.' || theChar == '-' || theChar==':' || theChar=='/';
 		}
 
 		Filter mFilter;
@@ -93,7 +99,7 @@ OnlineDialog::OnlineDialog(LawnApp* theApp) :
 	mCloseButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Close, this, ModText::Tr("返回", "Back"));
 	mStartButton = MakeOnlineButton(OnlineDialog_Start,this,ModText::Tr("房主开始","Start run"));
 	mDisconnectButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Disconnect, this, ModText::Tr("断开", "Disconnect"));
-	mSwapButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Swap, this, ModText::Tr("席位", "Seats"));
+	mSwapButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Swap, this, ModText::Tr("队友", "Seats"));
 	mAcceptButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Accept, this, ModText::Tr("同意", "Accept"));
 	mRejectButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Reject, this, ModText::Tr("拒绝", "Reject"));
 	mCreateRoomButton = MakeOnlineButton(OnlineDialog::OnlineDialog_CreateRoom, this, ModText::Tr("创建房间", "Create Room"));
@@ -103,17 +109,21 @@ OnlineDialog::OnlineDialog(LawnApp* theApp) :
 	mIpEditWidget = CreateOnlineEditWidget(OnlineDialog::OnlineDialog_IpEdit, this, this,
 		OnlineEditWidget::FILTER_HOST);
 	mIpEditWidget->mMaxChars = 253;			// IPv4 or DNS hostname
-	mIpEditWidget->SetText(_S("127.0.0.1"), true);
-
-	mServerEditWidget = CreateOnlineEditWidget(OnlineDialog::OnlineDialog_ServerEdit, this, this,
-		OnlineEditWidget::FILTER_HOST);
-	mServerEditWidget->mMaxChars = 253;
-	mServerEditWidget->SetText(_S("101.200.131.182"), true);	// 云服务器（P4 部署，端口 97 见 NetProtocol.h）
+	mIpEditWidget->SetText(_S("127.0.0.1:27777"), true);
 
 	mCodeEditWidget = CreateOnlineEditWidget(OnlineDialog::OnlineDialog_CodeEdit, this, this,
 		OnlineEditWidget::FILTER_CODE);
-	mCodeEditWidget->mMaxChars = NetProto::ROOM_CODE_LEN;
+	mCodeEditWidget->mMaxChars = RelayNodes::MAX_SHARE_CODE_CHARS;
+    Sexy::MkDir(Sexy::GetAppDataFolder()+"userdata");
+    RelayNodes::SetCatalogCachePath(Sexy::GetAppDataFolder()+"userdata/relay-nodes.bin");
 
+    mDirectoryButton=MakeOnlineButton(OnlineDialog_Directory,this,ModText::Tr("公开房间","Public rooms"));
+    mHistoryButton=MakeOnlineButton(OnlineDialog_History,this,ModText::Tr("最近记录","Recent runs"));
+    mVisibilityButton=MakeOnlineButton(OnlineDialog_Visibility,this,ModText::Tr("公开房间","Public room"));
+    mLocalPageButton=MakeOnlineButton(OnlineDialog_LocalPage,this,ModText::Tr("单人与局域网游戏","Solo / LAN game"));
+    mServerPageButton=MakeOnlineButton(OnlineDialog_ServerPage,this,ModText::Tr("在线房间","Online rooms"));
+    mSoloButton=MakeOnlineButton(OnlineDialog_Solo,this,ModText::Tr("单人游戏","Play solo"));
+    if(RoomPresentation::Active(mApp->mOnlineSession))mPage=mApp->mOnlineSession->IsRelay()&&!mApp->mOnlineSession->IsPrivateRoom()?OnlineRoomLayout::SERVER:OnlineRoomLayout::LOCAL;
 	mLocalIpLoaded = false;
 
 	Resize(0,0,760,560);
@@ -121,6 +131,9 @@ OnlineDialog::OnlineDialog(LawnApp* theApp) :
 
 OnlineDialog::~OnlineDialog()
 {
+    if(mApp->mOnlineSession)mCreation.Cancel(*mApp->mOnlineSession);
+    delete mLocalPageButton;delete mServerPageButton;delete mSoloButton;
+	delete mDirectoryButton;delete mHistoryButton;delete mVisibilityButton;
 	delete mHostButton;
 	delete mJoinButton;
 	delete mCloseButton;
@@ -132,7 +145,6 @@ OnlineDialog::~OnlineDialog()
 	delete mJoinRoomButton;
 	delete mStartButton;
 	delete mIpEditWidget;
-	delete mServerEditWidget;
 	delete mCodeEditWidget;
 }
 
@@ -140,18 +152,22 @@ void OnlineDialog::Resize(int x,int y,int width,int height)
 {
     LawnDialog::Resize(x,y,width,height);
     using namespace OnlineRoomLayout;
+    mLocalPageButton->Resize(LocalPage());mServerPageButton->Resize(ServerPage());mSoloButton->Resize(Solo());
+    mDirectoryButton->Resize(40,480,260,46);mHistoryButton->Resize(552,34,168,42);mVisibilityButton->Resize(480,440,232,32);
     mHostButton->Resize(DirectHost());mJoinButton->Resize(DirectJoin());
     mCreateRoomButton->Resize(Create());mJoinRoomButton->Resize(Join());
     mCloseButton->Resize(Close());mDisconnectButton->Resize(Disconnect());
     mSwapButton->Resize(Seats());mStartButton->Resize(Start());
     mAcceptButton->Resize(Seats());mRejectButton->Resize(Disconnect());
     auto editRect=[](LawnEditWidget* edit,Rect r){edit->Resize(r.mX,r.mY,r.mWidth,r.mHeight);};
-    editRect(mIpEditWidget,Address());editRect(mServerEditWidget,Server());editRect(mCodeEditWidget,Code());
+    editRect(mIpEditWidget,Address());editRect(mCodeEditWidget,Code());
 }
 
 void OnlineDialog::AddedToManager(WidgetManager* theWidgetManager)
 {
 	LawnDialog::AddedToManager(theWidgetManager);
+    AddWidget(mLocalPageButton);AddWidget(mServerPageButton);AddWidget(mSoloButton);
+	AddWidget(mDirectoryButton);AddWidget(mHistoryButton);AddWidget(mVisibilityButton);
 	AddWidget(mHostButton);
 	AddWidget(mJoinButton);
 	AddWidget(mCloseButton);
@@ -163,14 +179,16 @@ void OnlineDialog::AddedToManager(WidgetManager* theWidgetManager)
 	AddWidget(mJoinRoomButton);
 	AddWidget(mStartButton);
 	AddWidget(mIpEditWidget);
-	AddWidget(mServerEditWidget);
 	AddWidget(mCodeEditWidget);
-	theWidgetManager->SetFocus(RoomPresentation::Active(mApp->mOnlineSession)?static_cast<Widget*>(this):mServerEditWidget);
+    theWidgetManager->SetFocus(this);
+    Update();
 }
 
 void OnlineDialog::RemovedFromManager(WidgetManager* theWidgetManager)
 {
 	LawnDialog::RemovedFromManager(theWidgetManager);
+    RemoveWidget(mLocalPageButton);RemoveWidget(mServerPageButton);RemoveWidget(mSoloButton);
+	RemoveWidget(mDirectoryButton);RemoveWidget(mHistoryButton);RemoveWidget(mVisibilityButton);
 	RemoveWidget(mHostButton);
 	RemoveWidget(mJoinButton);
 	RemoveWidget(mCloseButton);
@@ -182,7 +200,6 @@ void OnlineDialog::RemovedFromManager(WidgetManager* theWidgetManager)
 	RemoveWidget(mJoinRoomButton);
 	RemoveWidget(mStartButton);
 	RemoveWidget(mIpEditWidget);
-	RemoveWidget(mServerEditWidget);
 	RemoveWidget(mCodeEditWidget);
 }
 
@@ -195,8 +212,30 @@ void OnlineDialog::Update()
 	// 玩家不用先按一下 Disconnect 才能重开。死因不会因此丢掉——状态行照旧读
 	// GetStatusText()，小条也还把短标签挂着，直到下一次 Start 把会话复位。
 	// （ResetToOff 现在会把 NetLink 收干净，所以从这里重开局是通的，见 T19。）
-	bool anActive = aSession && aSession->IsActive()
-		&& aSession->GetState() != NetSession::State::DEAD;
+    if(mStartingLocalHost) {
+        ++mLocalHostTicks;
+        if(const auto port=LocalHostControl::Port()) {
+            mStartingLocalHost=false;mShownRoomCode.clear();
+            aSession->StartPrivateRoomHost("127.0.0.1",port);
+        } else if(mLocalHostTicks>1500 || (mLocalHostTicks>40&&!LocalHostControl::Starting())) {
+            mStartingLocalHost=false;mServerInputError=ModText::Tr("开房失败：","Could not host: ")+LocalHostControl::Error();LocalHostControl::Stop();
+        }
+    }
+    mAllocator.Update();
+    if(mAllocator.state==RelayNodes::Allocator::READY){
+        const auto candidates=mAllocator.candidates;mAllocator.Cancel();
+        if(mPage==OnlineRoomLayout::SERVER&&!RoomPresentation::Active(aSession))mCreation.Start(*aSession,candidates);
+    }else if(mAllocator.state==RelayNodes::Allocator::UNAVAILABLE){
+        mAllocator.Cancel();mServerInputError=ModText::Tr("暂时无法创建房间，请稍后重试。","Could not create a room. Please retry shortly.");
+    }
+    mCreation.Update(*aSession);mJoinLookup.Update();
+    if(!mPendingJoinCode.empty()&&!mJoinLookup.loading){
+        RelayNodes::Endpoint target;std::string code;const auto input=mPendingJoinCode;mPendingJoinCode.clear();
+        if(RelayNodes::ResolveCode(input,RelayNodes::Defaults().front().endpoint,target,code))aSession->StartRoomJoin(target.host.c_str(),code.c_str(),target.port);
+        else mServerInputError=ModText::Tr("暂时无法识别这个房间码，请核对或稍后重试。","Could not resolve this room code. Check it or retry shortly.");
+    }
+    bool anActive=RoomPresentation::Active(aSession);
+    const bool allocating=(mAllocator.state==RelayNodes::Allocator::LOADING||mCreation.Active()||mJoinLookup.loading||mStartingLocalHost);
 
 	// 中继：房间码一回来就写进 Code 框。房主那格是自己没有的（由服务器生成），
 	// 面板上是"我在哪个房间"最直白的一处；按码加入的人也能看到自己的码归一化后的样子。
@@ -204,24 +243,46 @@ void OnlineDialog::Update()
 	if (aSession && aSession->IsRelay())
 	{
 		const std::string& aCode = aSession->GetRoomCode();
-		if (!aCode.empty() && aCode != mShownRoomCode)
+        if (!aCode.empty() && aCode != mShownRoomCode)
 		{
 			mShownRoomCode = aCode;
-			mCodeEditWidget->SetText(aCode.c_str(), true);
+            mCodeEditWidget->SetText((aSession->IsPrivateRoom()?aCode:RelayNodes::ShareCode({aSession->GetRelayHost(),aSession->GetRelayPort()},aCode)).c_str(), true);
 		}
 	}
 
-    mHostButton->mVisible=!anActive;mJoinButton->mVisible=!anActive;
-    mCreateRoomButton->mVisible=!anActive;mJoinRoomButton->mVisible=!anActive;
-    for(auto* edit:{mIpEditWidget,mServerEditWidget,mCodeEditWidget}) {
-        if(anActive&&edit->mHasFocus)mWidgetManager->SetFocus(this);
-        edit->SetDisabled(anActive);edit->mVisible=!anActive;
+    const bool local=!anActive&&mPage==OnlineRoomLayout::LOCAL;
+    const bool server=!anActive&&mPage==OnlineRoomLayout::SERVER;
+    mLocalPageButton->mVisible=!anActive;mServerPageButton->mVisible=!anActive;
+    mSoloButton->mVisible=local||(anActive&&aSession->IsRelay()&&!aSession->IsPrivateRoom()&&!mApp->mBoard);
+    mSoloButton->Resize(anActive?Rect(40,440,420,32):OnlineRoomLayout::Solo());
+    mSoloButton->SetLabel(mConfirmSolo?ModText::Tr("确认退房并单人开始","Confirm: leave and play solo"):
+        anActive?ModText::Tr("返回单人游戏","Switch to solo"):ModText::Tr("单人游戏","Play solo"));
+    mDirectoryButton->mVisible=server;mDirectoryButton->SetDisabled(!server||allocating);
+    mHistoryButton->SetLabel(anActive&&aSession->IsPrivateRoom()?ModText::Tr("复制邀请","Copy invite"):ModText::Tr("最近记录","Recent runs"));
+    mVisibilityButton->mVisible=anActive&&aSession->IsRelay()&&!aSession->IsPrivateRoom()&&aSession->IsHostSeat()&&!aSession->mDirectoryStarted;
+    mVisibilityButton->SetLabel(aSession&&!aSession->mDirectoryConfirmed?ModText::Tr("正在更新…","Updating..."):
+        aSession&&aSession->mDirectoryPublic?ModText::Tr("公开房间：开","Public: on"):ModText::Tr("公开房间：关","Public: off"));
+    mHostButton->SetLabel(ModText::Tr("开六人房","Host six"));
+    mHostButton->SetDisabled(allocating);mJoinButton->SetDisabled(allocating);
+    mHostButton->mVisible=local;mJoinButton->mVisible=local;
+    mCreateRoomButton->mVisible=server;mJoinRoomButton->mVisible=server;
+    mCreateRoomButton->SetDisabled(!server||allocating);mJoinRoomButton->SetDisabled(!server||allocating);
+    mCreateRoomButton->SetLabel(allocating?ModText::Tr("正在连接…","Connecting..."):ModText::Tr("创建房间","Create room"));
+    for(auto* edit:{mIpEditWidget,mCodeEditWidget}) {
+        const bool visible=edit==mIpEditWidget?local:(server||local);
+        if(!visible&&edit->mHasFocus)mWidgetManager->SetFocus(this);
+        edit->SetDisabled(!visible||allocating);edit->mVisible=visible;
     }
-    mDisconnectButton->mVisible=anActive;mSwapButton->mVisible=anActive;
+    const auto codeBox=local?OnlineRoomLayout::PrivateCode():OnlineRoomLayout::Code();
+    mCodeEditWidget->Resize(codeBox.mX,codeBox.mY,codeBox.mWidth,codeBox.mHeight);
+    const bool localHost=LocalHostControl::Alive()||mStartingLocalHost;
+    mDisconnectButton->mVisible=anActive||localHost;mSwapButton->mVisible=anActive;
+    mDisconnectButton->SetLabel(localHost?ModText::Tr("结束托管并离开","End & leave"):
+        mApp->mBoard?ModText::Tr("保存并退房","Save and leave"):ModText::Tr("退出房间","Leave room"));
     mCloseButton->Resize(anActive?OnlineRoomLayout::Close():OnlineRoomLayout::Start());
     mStartButton->mVisible=anActive;
-    const bool canStart=aSession&&(aSession->IsConnected()||aSession->GetState()==NetSession::State::LISTENING)
-        &&aSession->IsHostSeat()&&!mApp->mBoard&&!mApp->mOnlineWaitingStartAck;
+    const bool canStart=OnlineRoomLayout::CanStart(mApp);
+    mStartButton->SetLabel(OnlineRoomLayout::NeedsPlayers(aSession)?ModText::Tr("等待队友加入","Wait for players"):ModText::Tr("房主开始","Start run"));
     mStartButton->SetDisabled(!canStart);
     mSwapButton->SetDisabled(!anActive);
     mAcceptButton->mVisible=false;mRejectButton->mVisible=false;
@@ -236,9 +297,15 @@ void OnlineDialog::Draw(Graphics* g)
     if(session&&session->HasIncomingSwapRequest())detail=ModText::Tr("收到换位申请；打开席位查看并答复。","Swap request received; open Seats to reply.");
     else if(mApp->mOnlineWaitingStartAck)detail=RoomPresentation::WaitingSeats(session,true);
     else if(session&&session->IsConnected()&&!session->IsHostSeat())detail=ModText::Tr("等待房主选择模式并开始；可先查看席位。","Waiting for the host to choose a mode; you can view Seats.");
-    OnlineRoomLayout::Draw(g,mApp,detail,mLocalIpText);
+    OnlineRoomLayout::Draw(g,mApp,detail,mLocalIpText,mPage);
+    if(session&&session->IsPrivateRoom()&&!session->GetRoomCode().empty()) {
+        const auto host=session->GetRelayHost()=="127.0.0.1"?mLocalIpText:session->GetRelayHost();
+        SeatUi::Text(g,PrivateEndpoint::Invite(host,session->GetRelayPort(),session->GetRoomCode()),40,450,420,16,Color(210,225,195));
+    }
+    if(!mServerInputError.empty()&&!RoomPresentation::Active(session))SeatUi::Text(g,mServerInputError,48,465,664,15,Color(255,175,120));
+    if((mAllocator.state==RelayNodes::Allocator::LOADING||mCreation.Active()||mJoinLookup.loading))SeatUi::Text(g,ModText::Tr("正在寻找可用房间…","Finding an available room..."),48,465,664,15,Color(210,220,195));
     if(!RoomPresentation::Active(session)) {
-        DrawEditBox(g,mIpEditWidget);DrawEditBox(g,mServerEditWidget);DrawEditBox(g,mCodeEditWidget);
+        for(auto* edit:{mIpEditWidget,mCodeEditWidget})if(edit->mVisible)DrawEditBox(g,edit);
     }
 }
 void OnlineDialog::KeyDown(KeyCode key) {
@@ -247,11 +314,38 @@ void OnlineDialog::KeyDown(KeyCode key) {
 
 void OnlineDialog::ButtonDepress(int theId)
 {
+    if(theId==OnlineDialog_LocalPage||theId==OnlineDialog_ServerPage) {
+        if(RoomPresentation::Active(mApp->mOnlineSession))return;
+        mAllocator.Cancel();mCreation.Cancel(*mApp->mOnlineSession);mJoinLookup.Close();mPendingJoinCode.clear();mServerInputError.clear();
+        mPage=theId==OnlineDialog_LocalPage?OnlineRoomLayout::LOCAL:OnlineRoomLayout::SERVER;
+        mConfirmSolo=false;Update();mWidgetManager->SetFocus(this);return;
+    }
+    if(theId==OnlineDialog_Solo) {
+        if(mApp->mBoard||!mSoloButton->mVisible)return;
+        if(RoomPresentation::Active(mApp->mOnlineSession)&&!mConfirmSolo){mConfirmSolo=true;Update();return;}
+        auto* app=mApp;app->mOnlineSession->Close();app->mPendingEndlessScene=-1;app->mPendingAdventure=true;
+        app->KillDialog(DIALOG_ONLINE);return;
+    }
+    mConfirmSolo=false;
 	switch (theId)
 	{
+    case OnlineDialog_Directory:
+        if(!RoomPresentation::Active(mApp->mOnlineSession)&&mPage==OnlineRoomLayout::SERVER&&(mAllocator.state!=RelayNodes::Allocator::LOADING&&!mCreation.Active()&&!mJoinLookup.loading))
+            mApp->AddDialog(DIALOG_ROOM_DIRECTORY,new RoomDirectoryDialog(mApp));
+        return;
+    case OnlineDialog_History:
+        if(mApp->mOnlineSession->IsPrivateRoom()&&mApp->mOnlineSession->IsConnected()) {
+            auto* session=mApp->mOnlineSession;
+            LocalHostControl::Copy(PrivateEndpoint::Invite(session->GetRelayHost()=="127.0.0.1"?mLocalIpText:session->GetRelayHost(),session->GetRelayPort(),session->GetRoomCode()));return;
+        }
+        mApp->AddDialog(DIALOG_RUN_HISTORY,new RunHistoryDialog(mApp));return;
+    case OnlineDialog_Visibility:
+        if(mVisibilityButton->mVisible)mApp->mOnlineSession->SetDirectoryPublic(!mApp->mOnlineSession->mDirectoryPublic);
+        return;
 	case OnlineDialog_Start:
-		if(mStartButton->mDisabled)return;
-		{auto* app=mApp;app->KillDialog(DIALOG_ONLINE);app->RequestAdventure();}
+		if(!OnlineRoomLayout::CanStart(mApp))return;
+		{auto* app=mApp;const bool retry=OnlineRoomLayout::HasLostBoard(app);app->KillDialog(DIALOG_ONLINE);
+            if(retry)app->RetryOnlineLevel();else app->RequestAdventure();}
 		return;
 	case OnlineDialog::OnlineDialog_Host:
 		StartHost();
@@ -267,11 +361,7 @@ void OnlineDialog::ButtonDepress(int theId)
 		break;
 
 	case OnlineDialog::OnlineDialog_Disconnect:
-		if (mApp->mOnlineSession)
-		{
-			mApp->mOnlineSession->Close();
-		}
-		break;
+        LeaveRoom();return;
 
 	case OnlineDialog::OnlineDialog_Swap:
 		// 2026-10-15：改开选人框——任选上座队友（含预览），原「只跟环上后一位」的直发退役。
@@ -306,6 +396,29 @@ void OnlineDialog::ButtonDepress(int theId)
 	}
 }
 
+void OnlineDialog::LeaveRoom()
+{
+    auto* app=mApp;
+    const bool stopHost=LocalHostControl::Alive()||mStartingLocalHost;
+    const int page=stopHost||app->mOnlineSession->IsPrivateRoom()?OnlineRoomLayout::LOCAL:OnlineRoomLayout::SERVER;
+    // A failed save must leave both the lawn and its live room intact.
+    if(app->mBoard){app->DoBackToMain(false);if(app->mBoard)return;}
+    app->mOnlineSession->Close();
+    if(stopHost)LocalHostControl::Stop();
+    app->mOnlineWaitingStartAck=false;
+    app->DismissOnlineStartPrompt(false);app->ClearOnlineStartOverride();
+    // Returning from a lawn can dispose this dialog. Continue on a fresh panel.
+    auto* dialog=static_cast<OnlineDialog*>(app->GetDialog(DIALOG_ONLINE));
+    if(dialog!=this){app->DoOnlineDialog();dialog=static_cast<OnlineDialog*>(app->GetDialog(DIALOG_ONLINE));}
+    if(!dialog)return;
+    dialog->mStartingLocalHost=false;dialog->mLocalHostTicks=0;
+    dialog->mAllocator.Cancel();dialog->mCreation.Cancel(*app->mOnlineSession);
+    dialog->mJoinLookup.Close();dialog->mPendingJoinCode.clear();
+    dialog->mShownRoomCode.clear();dialog->mCodeEditWidget->SetText("",true);
+    dialog->mServerInputError.clear();dialog->mConfirmSolo=false;dialog->mPage=page;
+    dialog->Update();app->mWidgetManager->SetFocus(dialog);
+}
+
 // 回车 = 这一格对应的那把键：地址框回车走直连 Join（老行为），房间码框回车走 Join Room。
 // 服务器地址框回车也走 Join Room——输完地址顺手回车是最顺的动作，此时码多半也填好了。
 void OnlineDialog::EditWidgetText(int theId, const SexyString& theString)
@@ -315,7 +428,7 @@ void OnlineDialog::EditWidgetText(int theId, const SexyString& theString)
 	{
 	case OnlineDialog::OnlineDialog_ServerEdit:
 	case OnlineDialog::OnlineDialog_CodeEdit:
-		StartRoomJoin();
+		if(mPage==OnlineRoomLayout::LOCAL)StartJoin();else StartRoomJoin();
 		break;
 
 	case OnlineDialog::OnlineDialog_IpEdit:
@@ -332,13 +445,6 @@ std::string OnlineDialog::GetIpText()
 	return anIp;
 }
 
-std::string OnlineDialog::GetServerText()
-{
-	std::string aServer = mServerEditWidget->mString;
-	if (aServer.empty()) aServer = "127.0.0.1";
-	return aServer;
-}
-
 std::string OnlineDialog::GetRoomCodeText()
 {
 	return mCodeEditWidget->mString;
@@ -346,29 +452,48 @@ std::string OnlineDialog::GetRoomCodeText()
 
 void OnlineDialog::StartHost()
 {
+    if(mPage!=OnlineRoomLayout::LOCAL)return;
 	if(RoomPresentation::Active(mApp->mOnlineSession))return;
 	if (!mApp->mOnlineSession) return;
-	mApp->mOnlineSession->StartHost();
+    if(mStartingLocalHost)return;
+    PrivateEndpoint::Address target;
+    if(!PrivateEndpoint::Parse(GetIpText(),"",target)){mServerInputError=ModText::Tr("请填写主机地址和有效端口，例如 192.168.1.8:27777。","Enter a host and port, for example 192.168.1.8:27777.");return;}
+    std::string error;
+    if(!LocalHostControl::Start(target.port,error)){mServerInputError=ModText::Tr("开房失败：","Could not host: ")+error;return;}
+    mServerInputError.clear();mStartingLocalHost=true;mLocalHostTicks=0;mShownRoomCode.clear();Update();
 }
 
 void OnlineDialog::StartJoin()
 {
+    if(mPage!=OnlineRoomLayout::LOCAL)return;
 	if(RoomPresentation::Active(mApp->mOnlineSession))return;
 	if (!mApp->mOnlineSession) return;
-	mApp->mOnlineSession->StartJoin(GetIpText().c_str());
+    if(mStartingLocalHost)return;
+    PrivateEndpoint::Address target;
+    if(!PrivateEndpoint::Parse(GetIpText(),GetRoomCodeText(),target)||target.code.empty()){
+        mServerInputError=ModText::Tr("填写地址:端口及四位房间码，或粘贴完整邀请。","Enter host:port and the four-character room code, or paste an invite.");return;}
+    mServerInputError.clear();mShownRoomCode.clear();
+    mApp->mOnlineSession->StartPrivateRoomJoin(target.host.c_str(),target.code.c_str(),target.port);
 }
 
 void OnlineDialog::StartRoomHost()
 {
-	if(RoomPresentation::Active(mApp->mOnlineSession))return;
-	if (!mApp->mOnlineSession) return;
-	mApp->mOnlineSession->StartRoomHost(GetServerText().c_str());
+    if(mPage!=OnlineRoomLayout::SERVER||RoomPresentation::Active(mApp->mOnlineSession)||!mApp->mOnlineSession)return;
+    if((mAllocator.state==RelayNodes::Allocator::LOADING||mCreation.Active()||mJoinLookup.loading))return;
+    mShownRoomCode.clear();mServerInputError.clear();mAllocator.Start();
+    mWidgetManager->SetFocus(this);Update();
 }
 
 void OnlineDialog::StartRoomJoin()
 {
-	if(RoomPresentation::Active(mApp->mOnlineSession))return;
-	if (!mApp->mOnlineSession) return;
-	// 码不到 4 位会话自己会回绝并写明原因（状态行照出来），这里不用先拦一道
-	mApp->mOnlineSession->StartRoomJoin(GetServerText().c_str(), GetRoomCodeText().c_str());
+    if(mPage!=OnlineRoomLayout::SERVER||RoomPresentation::Active(mApp->mOnlineSession)||!mApp->mOnlineSession||(mAllocator.state==RelayNodes::Allocator::LOADING||mCreation.Active()||mJoinLookup.loading))return;
+    RelayNodes::Endpoint target;std::string code;
+    // Four-character codes from old clients retain their original destination.
+    if(!RelayNodes::ResolveCode(GetRoomCodeText(),RelayNodes::Defaults().front().endpoint,target,code)) {
+        if(mJoinLookup.Start(true)){mPendingJoinCode=GetRoomCodeText();mServerInputError.clear();return;}
+        mServerInputError=ModText::Tr("请填写队友显示的完整房间码，例如 2-ABCD。","Enter your teammate's full room code, for example 2-ABCD.");return;
+    }
+    mShownRoomCode.clear();mServerInputError.clear();
+    mApp->mOnlineSession->StartRoomJoin(target.host.c_str(),code.c_str(),target.port);
+    mWidgetManager->SetFocus(this);
 }

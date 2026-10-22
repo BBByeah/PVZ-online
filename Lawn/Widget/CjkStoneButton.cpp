@@ -3,6 +3,8 @@
 #include "../../LawnApp.h"
 #include "../../Resources.h"
 #include "graphics/Graphics.h"
+#include "graphics/ImageFont.h"
+#include "ArtworkButtonFont.h"
 
 int CjkPointSize(int thePixelHeight)
 {
@@ -37,24 +39,92 @@ int CjkStoneButtonWidth(int theWidth, bool theRoundUp)
 	return aWidth < aFloor ? aFloor : aWidth;
 }
 
-// 标签是不是纯 ASCII。英文档回落到位图字体是有前提的：那张字体表只到 Latin，
-// "Easy ×0.5" 里的 × 没有对应字形，硬走位图会画成乱码——含非 ASCII 的标签两种
-// 语言都得走宽字符直绘。
-static bool LabelIsAscii(const std::string& theLabel)
+namespace {
+bool HasArtwork(Sexy::ImageFont* font, wchar_t character)
 {
-	for (size_t i = 0; i < theLabel.size(); i++)
+	font->Prepare();
+	if (character == L' ') return true;
+	if (character < 128) character = static_cast<unsigned char>(font->GetMappedChar(static_cast<SexyChar>(character)));
+	for (auto& layer : font->mActiveLayerList) {
+		auto glyph = layer.mBaseFontLayer->mCharDataMap.find(character);
+		if (glyph != layer.mBaseFontLayer->mCharDataMap.end() && glyph->second.mWidth > 0) return true;
+	}
+	return false;
+}
+// Keep complete runs of existing artwork, including their original kerning.
+// Only genuinely absent glyphs use the fallback, never the whole label.
+template<class Consumer> void LabelRuns(const std::string& text, Consumer consume)
+{
+	auto* font = static_cast<Sexy::ImageFont*>(Sexy::FONT_DWARVENTODCRAFT18GREENINSET);
+	int offset = 0, start = 0;
+	bool artwork = true;
+	while (offset < static_cast<int>(text.size())) {
+		int before = offset;
+		wchar_t character = Sexy::UTF8NextChar(text, offset);
+		bool current = HasArtwork(font, character);
+		if (before > start && current != artwork) { consume(text.substr(start, before-start), artwork); start = before; }
+		artwork = current;
+	}
+	if (offset > start) consume(text.substr(start), artwork);
+}
+ModText::Font* MissingGlyphFont()
+{
+	return ModText::GetFont(CjkPointSize(14), true);
+}
+int FallbackWidth(const std::wstring& text)
+{
+    const int cell = Sexy::FONT_DWARVENTODCRAFT18GREENINSET->CharWidth(L'房');
+    return std::max(ModText::TextWidth(MissingGlyphFont(), text), cell * static_cast<int>(text.size()));
+}
+}
+
+bool CjkLabelHasArtwork(const std::string& theLabel)
+{
+	int offset = 0;
+	auto* font = static_cast<Sexy::ImageFont*>(Sexy::FONT_DWARVENTODCRAFT18GREENINSET);
+	while (offset < static_cast<int>(theLabel.size()))
 	{
-		if ((unsigned char)theLabel[i] >= 0x80) return false;
+		wchar_t character = Sexy::UTF8NextChar(theLabel, offset);
+		if (!HasArtwork(font, character)) return false;
 	}
 	return true;
+}
+
+int CjkStoneButtonLabelWidth(const std::string& theLabel)
+{
+	int width = 0;
+	LabelRuns(theLabel, [&](const std::string& run, bool artwork) {
+		width += artwork ? Sexy::FONT_DWARVENTODCRAFT18GREENINSET->StringWidth(run) :
+			FallbackWidth(ModText::WideFromUtf8(run.c_str()));
+	});
+	return width;
+}
+
+void DrawCjkStoneLabel(Graphics* g, const std::string& label, int x, int baseline, bool highlighted, bool enabled)
+{
+	ArtworkButtonFont artwork(highlighted);
+	LabelRuns(label, [&](const std::string& run, bool useArtwork) {
+		if (useArtwork) {
+			artwork.DrawString(g, x, baseline, run, enabled ? Color::White : Color(145,145,145), g->mClipRect);
+			x += artwork.StringWidth(run);
+		} else {
+			auto* font = MissingGlyphFont();
+			auto wide = ModText::WideFromUtf8(run.c_str());
+			int y = baseline - ModText::Ascent(font) + 2;
+            int cellX = x + (FallbackWidth(wide) - ModText::TextWidth(font,wide)) / 2;
+			static const int outline[4][2] = {{1,0},{-1,0},{0,1},{0,-1}};
+			for (auto& delta : outline) ModText::DrawTextWide(g,font,cellX+delta[0],y+delta[1],wide,Color(16,44,16),g->mClipRect);
+			ModText::DrawTextWide(g,font,cellX,y,wide,!enabled ? Color(145,145,145) : highlighted ? Color(155,240,96) : Color(0,196,0),g->mClipRect);
+			x += FallbackWidth(wide);
+		}
+	});
 }
 
 void CjkStoneButton::Draw(Graphics* g)
 {
 	if (mBtnNoDraw) return;
 
-	// 英文档 + 纯 ASCII 标签：位图字体自带英文，回落到原版画法（字色与基线都是贴图/字体烤好的）
-	if (!ModText::IsChinese() && LabelIsAscii(mLabel))
+	if (CjkLabelHasArtwork(mLabel))
 	{
 		LawnStoneButton::Draw(g);
 		return;
@@ -92,17 +162,9 @@ void CjkStoneButton::Draw(Graphics* g)
 	}
 	g->DrawImage(aRightImage, aRightX, 0);
 
-	ModText::Font* aFont = ModText::GetFont(CjkPointSize(CJK_BUTTON_LABEL_PX), false);
-	std::wstring aLabel = ModText::WideFromUtf8(mLabel.c_str());
-	aFontX += (mWidth - ModText::TextWidth(aFont, aLabel)) / 2;
-	aFontY += (mHeight - ModText::LineHeight(aFont)) / 2;
-	// 亮绿 (0,196,0) = 位图按钮字的标准绿（1:1 截图对 OK/CANCEL 取色）；旧色
-	// (47,107,43) 太暗、小字在石头上对比不够（2026-10-04 用户反馈）。位图字自带
-	// 一圈暗烧边、宽字符直绘没有——四邻先垫 1px 暗底再压亮字。
-	static const int anOutline[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
-	for (int i = 0; i < 4; i++)
-		ModText::DrawTextWide(g, aFont, aFontX + anOutline[i][0], aFontY + anOutline[i][1], aLabel,
-			Color(16, 44, 16), g->mClipRect);
-	ModText::DrawTextWide(g, aFont, aFontX, aFontY, aLabel,
-		mIsOver ? Color(0x9B, 0xF0, 0x60) : Color(0x00, 0xC4, 0x00), g->mClipRect);
+	aFontX += (mWidth - CjkStoneButtonLabelWidth(mLabel)) / 2;
+	aFontY += (mHeight + Sexy::FONT_DWARVENTODCRAFT18GREENINSET->GetAscent()) / 2 - 3;
+	Graphics text(*g);
+	text.ClipRect(0, 0, mWidth, mHeight);
+	DrawCjkStoneLabel(&text,mLabel,aFontX,aFontY,aDown || mIsOver,!mDisabled);
 }

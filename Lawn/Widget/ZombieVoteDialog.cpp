@@ -1,5 +1,7 @@
 #include "ZombieVoteDialog.h"
+#include "ZombieBuffButtonLabel.h"
 #include "CjkStoneButton.h"
+#include "RunChoiceLayout.h"
 #include "../Run/RunState.h"
 #include "../../LawnApp.h"
 #include "../../ConstEnums.h"
@@ -30,15 +32,15 @@ ZombieVoteDialog::ZombieVoteDialog(LawnApp* theApp) : LawnDialog(
 	mAreaHeight = 0;
 	mColumnWidth = 0;
 
-	ModText::Font* aDescFont = ModText::GetFont(13, false);
+	ModText::Font* aDescFont = ModText::GetFont(CjkPointSize(22), false);
 	int aTargetColumn = 0;
 	for (int i = 0; i < 3; i++)
 	{
 		mColumnX[i] = 0;
 		// 候选 id 由 LawnApp 填好（房主抽、随 OPEN 广播；单机自抽）——这里只把名字挂上按钮。
-		// 名字走 GetZombieBuffDisplayName：中文档是中文名，英文档回落到 ASCII 名。
 		mChoiceButtons[i] = new CjkStoneButton(ZombieVoteDialog_Choice0 + i, this);
-		mChoiceButtons[i]->SetLabel(GetZombieBuffDisplayName(theApp->mZombieVoteCandidates[i]));
+		mChoiceButtons[i]->SetLabel(theApp->mZombieVoteCandidates[i]<RunState::RUN_ZOMBIE_BUFF_COUNT?ZombieBuffButtonLabel(theApp->mZombieVoteCandidates[i]):ModText::Tr("无候选","Unavailable"));
+        mChoiceButtons[i]->SetDisabled(theApp->mZombieVoteCandidates[i]>=RunState::RUN_ZOMBIE_BUFF_COUNT);
 		mChoiceButtons[i]->mHasAlpha = true;
 		mChoiceButtons[i]->mHasTransparencies = true;
 
@@ -68,7 +70,7 @@ ZombieVoteDialog::ZombieVoteDialog(LawnApp* theApp) : LawnDialog(
 	int aSizeY = 150 + aExtraHeight;
 	CalcSize(aSizeX, aSizeY);
 	// 宽、高各自达标即各自停长（两个条件绑一个 i 上的老病，三选一屏吃过一次）。
-	for (int i = 1; i <= 6; i++)
+	for (int i = 1; i <= 12; i++)
 	{
 		int aMaxLines = 1;
 		for (int j = 0; j < 3; j++)
@@ -108,8 +110,8 @@ void ZombieVoteDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 	}
 
 	// 顶部三行（标题 / 说明 / 状态）——比三选一屏多一行状态，卡片区上沿跟着往下让。
-	ModText::Font* aTitleFont = ModText::GetFont(16, true);
-	ModText::Font* aLineFont = ModText::GetFont(13, false);
+	ModText::Font* aTitleFont = ModText::GetFont(CjkPointSize(28), true);
+	ModText::Font* aLineFont = ModText::GetFont(CjkPointSize(22), false);
 	int aTitleTop = mContentInsets.mTop + mBackgroundInsets.mTop + DIALOG_HEADER_OFFSET;
 	mTitleY = aTitleTop;
 	mHintY = aTitleTop + ModText::LineHeight(aTitleFont) + 8;
@@ -128,9 +130,7 @@ void ZombieVoteDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 		mChoiceButtons[i]->Resize(mColumnX[i], aButtonY, mColumnWidth, aButtonHeight);
 	}
 	// 弃权按钮宽度按标签现量（标签是常量，量多少次都一样）——两字中文与 "Abstain" 各自合适。
-	int aAbstainWidth = CjkStoneButtonWidth(ModText::TextWidth(
-		ModText::GetFont(CjkPointSize(CJK_BUTTON_LABEL_PX), false),
-		ModText::WideFromUtf8(mAbstainButton->mLabel.c_str())) + 32, true);
+	int aAbstainWidth = CjkStoneButtonWidth(CjkStoneButtonLabelWidth(mAbstainButton->mLabel) + 32, true);
 	int aFootCenter = (mColumnX[0] + mColumnX[2] + mColumnWidth) / 2;
 	mAbstainButton->Resize(aFootCenter - aAbstainWidth / 2, aAbstainY, aAbstainWidth, aButtonHeight);
 }
@@ -154,8 +154,8 @@ void ZombieVoteDialog::Draw(Graphics* g)
 	LawnDialog::Draw(g);
 
 	// 标题 / 说明 / 状态三行逐行居中直绘。
-	ModText::Font* aTitleFont = ModText::GetFont(16, true);
-	ModText::Font* aLineFont = ModText::GetFont(13, false);
+	ModText::Font* aTitleFont = ModText::GetFont(CjkPointSize(28), true);
+	ModText::Font* aLineFont = ModText::GetFont(CjkPointSize(22), false);
 	std::wstring aTitle = ModText::WideFromUtf8(mTitle.c_str());
 	ModText::DrawTextWide(g, aTitleFont, (mWidth - ModText::TextWidth(aTitleFont, aTitle)) / 2, mTitleY,
 		aTitle, mColors[Dialog::COLOR_HEADER], g->mClipRect);
@@ -176,9 +176,11 @@ void ZombieVoteDialog::Draw(Graphics* g)
 	{
 		int aLineHeight = ModText::LineHeight(aLineFont) + 3;
 		unsigned char aBuffId = mApp->mZombieVoteCandidates[i];
+        if(aBuffId>=RunState::RUN_ZOMBIE_BUFF_COUNT)continue;
 		Rect aRect(mColumnX[i] + 2, mAreaTop, mColumnWidth - 4, mAreaHeight - aLineHeight - 4);
 		if (aRect.mHeight < 0) aRect.mHeight = 0;
-		ModText::DrawWrappedCjk(g, aLineFont, aRect, GetZombieBuffDesc(aBuffId), mColors[Dialog::COLOR_LINES]);
+		ModText::DrawWrappedCjk(g, RunChoiceLayout::DescriptionFont(GetZombieBuffDesc(aBuffId), aRect.mWidth, aRect.mHeight),
+			aRect, GetZombieBuffDesc(aBuffId), mColors[Dialog::COLOR_LINES]);
 
 		if (mApp->mRunState != nullptr)
 		{

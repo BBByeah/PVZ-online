@@ -416,10 +416,13 @@ void ReanimationWidget::AddReanimation(float x, float y, ReanimationType theRean
     mPosX = x;
     mPosY = y;
     mReanim = mApp->mEffectSystem->mReanimationHolder->AllocReanimation(x, y, 0, theReanimationType);
-    mReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
-    mReanim->mIsAttachment = true;
-    if (mReanim->TrackExists("anim_idle"))
-        mReanim->SetFramesForLayer("anim_idle");
+    if (mReanim)
+    {
+        mReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
+        mReanim->mIsAttachment = true;
+        if (mReanim->TrackExists("anim_idle"))
+            mReanim->SetFramesForLayer("anim_idle");
+    }
 
     Resize(x, y, 10, 10);
 }
@@ -528,6 +531,8 @@ void GameOverDialog::ButtonDepress(int theId)
     }
     else if (theId == Dialog::ID_FOOTER)
     {
+        if (mApp->IsOnlineGame() && (mApp->mOnlineWaitingStartAck ||
+            !mApp->mOnlineSession || !mApp->mOnlineSession->CanHostStart())) return;
         mApp->KillDialog(Dialogs::DIALOG_GAME_OVER);
         // @pvz-online: 联机全队败后重开 = 整队重来同一关（主机那个按钮，见
         // LawnApp::RetryOnlineLevel）；单机还是原版的重打本关。

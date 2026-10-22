@@ -4,6 +4,8 @@ class CoopPlay;
 #define __LAWNAPP_H__
 
 #include "ConstEnums.h"
+#include "Lawn/System/BattleMusicState.h"
+#include "Lawn/System/DamageStats.h"
 #include "Lawn/Online/NetProtocol.h"	// @pvz-online: MsgStartLevel 按值存在 LawnApp 里（开局询问框）
 #include "Lawn/Run/RunBuffs.h"			// @pvz-online: RunPlantUpgradeKind（修正批的 Kind 闸门取用口签名）
 #include "Lawn/Run/RunState.h"			// @pvz-online: 僵尸强化投票的候选数/状态字段（MOD_BUILD 45）
@@ -64,6 +66,8 @@ class LawnApp : public SexyApp
 {
 public:
     std::unique_ptr<CoopPlay> mCoopPlay;
+    BattleMusicState mBattleMusic;
+    DamageStats mDamageStats;
     bool SendCoopQuickChat(uint8_t id);
     void UpdateCoopPlay();void ShowCoopPlay();void ExpireCoopLoan();
 
@@ -275,6 +279,8 @@ public:
 	// 从菜单进它们时联机开局守卫整段让开（2026-10-14：开着"建房等人"的会话点花园会被
 	// 守卫静默弹回菜单，"点休闲花园立刻退出、无法进入"的根因）。
 	bool							IsLocalOnlyMode(GameMode theGameMode) const;
+    bool IsOnlineStartLobby() const;
+    void LeaveLocalSceneForOnlineStart();
 	// 我这台是"跟着主机走"的那一头吗（客户端）——全队败后开不开新局由主机一个人定，
 	// 所以 GameOverDialog 得先分得出主客（见 LawnApp::RetryOnlineLevel）。
 	bool							IsOnlineClient();
@@ -307,7 +313,24 @@ public:
 	// （SeedChooserScreen::CloseSeedChooser）：本机报"选好了"，对面也选好才放行，没到就
 	// 拦下来挂等待框；UpdateOnlineSeeds 每帧看着对面的状态，齐了撤框、重新走一遍关屏。
 	void							UpdateOnlineSeeds();
-	bool							TryHoldSeedChooserForTeammates();
+    void ToggleOnlineSeedsReady();
+	bool TryHoldSeedChooserForTeammates();
+    bool FinalizePreparationSeats();
+    int mAdmissionIdentityProfile=-1,mAdmissionReportTicks=100;
+    bool mAdmissionDirty=false,mAdmissionPressed=false;
+    void InitializeAdmissionIdentity();
+    void UpdateEndlessAdmission();
+    void ApplyAdmissionOffer(int targetIndex);
+    void SendAdmissionStart(uint8_t seat);
+    bool AdmissionBuilding() const;
+    void BeginAdmissionBuilding();
+    void FinishAdmissionBuilding();
+    void StartAdmissionFastPicks();
+    // @pvz-online: preparation metadata lives outside the raw-serialized Board layout.
+    int mPreparationBuiltSeat=0,mPreparationBuiltSunBonus=0,mPreparationBuiltMultiplier=0;
+    bool mPreparationRulesApplied=false,mPreparationSaved=false;
+    bool mPreparationEditRequested=false;
+    uint32_t mPreparationConfiguredRevision=0;
 	// @pvz-online: 队友退关了我这边跟着退。theNotifyOnline=false 用于"是我先退的/我是被通知的"，
 	// 免得两边互相回话形成回声。
 	void							UpdateOnlineLevelExit();
@@ -351,8 +374,8 @@ public:
 	// 消费端 LadderPermilleFor / GetZombieBuffPerScene 再兜一道。
 	// theSpeedTier（2026-10-16）：僵尸移速成长档 0/1/2（无/×1.03/×1.05，每新场景复利）；
 	// 同日起 theBossFlag 升三档 0 关 / 1 仅末关 / 2 末关+场景 3（默认 2）。
-	void							StartRun(int theRunMode, int theRunDiff, int theRunScale = 1, int theRunTempo = 1, int theZombotany = 0, int theEndlessScene = 0, int theBossFlag = 2, int theBuffMult = 0, int theLadder = 0, int theZombieBuff = 1, int theSpeedTier = 0);	// theRunMode = RunState::RUN_MODE_*（时长档）、theRunDiff = RunState::RUN_DIFF_*（出怪难度档）
-	void							ContinueRun();
+	void							StartRun(int theRunMode, int theRunDiff, int theRunScale = 1, int theRunTempo = 1, int theZombotany = 0, int theEndlessScene = 0, int theBossFlag = 2, int theBuffMult = 0, int theLadder = 0, int theZombieBuff = 1, int theSpeedTier = 0, int theFirstWave = 0, int theEndlessOptions = 141);	// theRunMode = RunState::RUN_MODE_*（时长档）、theRunDiff = RunState::RUN_DIFF_*（出怪难度档）
+	void							ContinueRun(int theMode=-1, int theScene=0);
 	void							EnterRunLevel();
 	// @pvz-online: 联机闯关（R5）：把本机进度对齐到主机点名的这一关。同一局种子就接着走
 	// （落后 = 从本地检查点续，欠的关靠补发追赶补回来）；对不上 / 没检查点 / 时长档或
@@ -373,7 +396,7 @@ public:
 							int theRunScale = 1, int theRunTempo = 1, int theZombotany = 0,
 							int theEndlessScene = 0, int theBossFlag = 0, int theBuffMult = 0,
 							int theLadder = 0, int theZombieBuff = 0, const uint8_t* theZombieStacks = nullptr,
-							int theSpeedTier = 0);
+							int theSpeedTier = 0, int theFirstWave = 0, int theEndlessOptions = 0, int theCrowdRule = 0);
 	void							UpdateRunEnd();
 	// @pvz-online: 无尽局原地续关（无尽续草坪批）的两个分叉口：建新草坪前先问一句"这块
 	// 草坪能不能留着"（无尽局过关不清草坪，留则连波次重排一起安排）；放开开场（三选一

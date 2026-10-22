@@ -138,10 +138,7 @@ public:
     //（HitIceTrap 唯一调用者 = Plant::IceZombies）；自然解冻时消费并触发全场减速，
     // 深冻（冰西瓜 mIceTrapCounter 直赋）与死亡清冻结都不触发。
     bool                            mIceShroomTrap;
-    // @pvz-online: 僵尸强化「免控」（MOD_BUILD 45，2026-10-14 用户令）：本局僵尸强化投到
-    //「免控」时整只僵尸免疫一切控制类效果（减速/冰冻/黄油定身/狂风击退/大蒜换道/魅惑催眠）。
-    // ZombieInitialize 按 RunState 层数一次性置位、全程只读；接线走 CanBeChilled/CanBeFrozen
-    // 双谓词收口 + 六处绕开谓词的直写点单点守卫。
+    // @pvz-online: hard-control immunity only; preserve this field layout for existing board saves.
     bool                            mControlImmune;
     // @pvz-online: 僵尸强化「护心」改版（MOD_BUILD 47，2026-10-14 用户令）：从「常驻单次
     // 封顶」改为「只挡第一次实际生效的伤害」——TakeDamage 里封顶真正发生（原伤 > 封顶值）
@@ -291,6 +288,11 @@ public:
     Reanimation*                    LoadReanim(ReanimationType theReanimationType);
     /*inline*/ int                  TakeFlyingDamage(int theDamage, unsigned int theDamageFlags);
     int                             TakeShieldDamage(int theDamage, unsigned int theDamageFlags);
+    bool HasPlantHat() const { return PlantZombies::Armor(mZombieType)!=0 && mFlyingHealth>0; }
+    int PlantHatDamageIndex() const;
+    int TakePlantHatDamage(int damage, unsigned int flags);
+    void DropPlantHat(unsigned int flags);
+    void RefreshPlantHat();
     int                             TakeHelmDamage(int theDamage, unsigned int theDamageFlags);
     void                            TakeBodyDamage(int theDamage, unsigned int theDamageFlags);
     void                            AttachShield();
@@ -342,6 +344,7 @@ public:
     void                            BobsledBurn();
     bool                            IsBobsledTeamWithSled();
     bool                            CanBeFrozen();
+    int                             SoftControlDuration(int theFrames);
     bool                            CanBeChilled();
     void                            UpdateZombieSnorkel();
     void                            ReanimIgnoreClipRect(const char* theTrackName, bool theIgnoreClipRect);
@@ -369,17 +372,17 @@ public:
     void                            BossRVLanding();
     void                            BossStompContact();
     bool                            BossAreBungeesDone();
-    void                            BossBungeeSpawn();
+    bool                            BossBungeeSpawn();
     void                            BossSpawnAttack();
     void                            BossBungeeAttack();
     void                            BossRVAttack();
-    void                            BossSpawnContact();
+    bool                            BossSpawnContact();
     void                            BossBungeeLeave();
     void                            BossStompAttack();
     bool                            BossCanStompRow(int theRow);
     void                            BossDie();
     void                            BossHeadAttack();
-    void                            BossHeadSpitContact();
+    bool                            BossHeadSpitContact();
     void                            BossHeadSpit();
     void                            UpdateBossFireball();
     void                            BossDestroyFireball();

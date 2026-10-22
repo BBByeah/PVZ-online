@@ -1,9 +1,17 @@
+#include <memory>
+#include <new>
+#include "Run/EndlessLawn.h"
+#include "Widget/NextWaveControl.h"
 #include "CoopPlay.h"
 #include "Widget/CoopHud.h"
+#include "Widget/DamageStatsView.h"
 #include <time.h>
 #include "Run/RunMath.h"
+#include "Run/AnimationAdmission.h"
+#include "Run/FrostArmorBatch.h"
 #include "ZenGarden.h"
 #include "BoardInclude.h"
+#include "Widget/AdmissionBoard.h"
 #include "System/Music.h"
 #include "System/SaveGame.h"
 #include "Widget/LawnDialog.h"
@@ -46,6 +54,7 @@
 
 //#define SEXY_MEMTRACE
 //#include "../SexyAppFramework/memmgr.h"
+#include "Run/GarlicPulse.h"
 
 bool gShownMoreSunTutorial = false;
 
@@ -80,12 +89,15 @@ static void QuickChatDrawEmote(Graphics* g, float theX, float theY, SeedType the
 Board::Board(LawnApp* theApp)
 {
 	mApp = theApp;
+    NextWave::Reset(this);
 	mApp->mBoard = this;
 	TodHesitationTrace("preboard");
 
-	mZombies.DataArrayInitialize(1024U, "zombies");
+	try { mZombies.DataArrayInitialize(2048U, "zombies"); }
+	catch (const std::bad_alloc&) { mZombies.DataArrayInitialize(1024U, "zombies"); TodLog("[capacity] zombies: using original 1024-slot pool"); }
 	mPlants.DataArrayInitialize(1024U, "plants");
-	mProjectiles.DataArrayInitialize(1024U, "projectiles");
+	try { mProjectiles.DataArrayInitialize(4096U, "projectiles"); }
+	catch (const std::bad_alloc&) { mProjectiles.DataArrayInitialize(2048U, "projectiles"); TodLog("[capacity] projectiles: using original 2048-slot pool"); }
 	mCoins.DataArrayInitialize(1024U, "coins");
 	mLawnMowers.DataArrayInitialize(32U, "lawnmowers");
 	mGridItems.DataArrayInitialize(128U, "griditems");
@@ -264,6 +276,7 @@ Board::Board(LawnApp* theApp)
 //0x408670、0x408690
 Board::~Board()
 {
+    NextWave::Reset(this);
 	delete mAdvice;
 	delete mCursorObject;
 	delete mCursorPreview;
@@ -317,15 +330,29 @@ void Board::DisposeBoard()
 //0x408B00
 bool Board::AreEnemyZombiesOnScreen()
 {
+    if (mDeferredPlantSetup.IsWaiting()) return true;
+    if (mRiseFromGraveCounter > 0 || mDeferredZombieSpawns.HasPending()) return true;
 	Zombie* aZombie = nullptr;
 	while (IterateZombies(aZombie))
 	{
-		if (aZombie->mHasHead && !aZombie->IsDeadOrDying() && !aZombie->mMindControlled)
+		if ((aZombie->mHasHead || IsRunBossZombie(aZombie) || aZombie->mZombieType == ZombieType::ZOMBIE_BOSS) && !aZombie->IsDeadOrDying() && !aZombie->mMindControlled)
 		{
 			return true;
 		}
 	}
 	return false;
+}
+
+// Bosses remain required enemies even after losing a head or moving off screen.
+bool Board::HasLivingBoss()
+{
+    Zombie* zombie = nullptr;
+    while (IterateZombies(zombie))
+    {
+        if (!zombie->IsDeadOrDying() && !zombie->mMindControlled &&
+            (IsRunBossZombie(zombie) || zombie->mZombieType == ZombieType::ZOMBIE_BOSS)) return true;
+    }
+    return false;
 }
 
 //0x408B60
@@ -376,6 +403,10 @@ int Board::CountUntriggerLawnMowers()
 //0x408C30
 void Board::TryToSaveGame()
 {
+    if(mApp->GetRunState() && mApp->GetRunState()->IsNewEndless()) {
+        mApp->GetRunState()->Save(mApp->mPlayerInfo->mId);return;
+    }
+
 	// @pvz-online: 联机局不写档。这里存的是"这一局打到哪儿了、下次接着打"的续玩存档，
 	// 联机的一盘棋是两边一起走的，没有"下次我一个人接着打"这回事。三个调用点
 	// （退关、清桌面、关窗）都从这一个口子走，所以在这儿早退就够。
@@ -439,6 +470,7 @@ bool Board::LoadGame(const std::string& theFileName)
 	mApp->ClearUpdateBacklog();
 	ResetFPSStats();
 	UpdateLayers();
+	mApp->mMusic->RestoreGameMusicAfterLoad();
 	return true;
 }
 
@@ -672,6 +704,8 @@ void Board::PutInMissingZombies(int theWaveNumber, ZombiePicker* theZombiePicker
 //0x4092E0
 void Board::PickZombieWaves()
 {
+    // @pvz-online: generate every original wave before reducing; preserve all shared RNG calls.
+    std::vector<int> crowdProtectedPrefix(MAX_ZOMBIE_WAVES, 0);
 	// ====================================================================================================
 	// ▲ 设定关卡总波数
 	// ====================================================================================================
@@ -777,7 +811,7 @@ void Board::PickZombieWaves()
 		// 乘在旗帜波 ×2.5 之前：旗帜波的总点数也一起吃这个系数。整数乘除，两端逐位一致。
 		if (mApp->IsRunMode())
 		{
-			aZombiePoints = aZombiePoints * mApp->GetRunState()->GetDifficultyPermille() / 1000;
+			if(!mApp->GetRunState()->IsNewEndless())aZombiePoints = aZombiePoints * mApp->GetRunState()->GetDifficultyPermille() / 1000;
 		}
 
 		// @pvz-online: 席位顺位刷怪乘数（2026-10-03 用户二次定案：改回 2 的幂，取代当日的线性 4:3:2:1）：
@@ -796,7 +830,10 @@ void Board::PickZombieWaves()
 		// MOD_BUILD 37 起这段不再躲在 if (aSeatMult > 1) 里：单机（×1）的无尽局也要吃
 		// 难度/规模档（无尽选项页对单机就摆这一行）。普通单机局档位恒为标准（×1 恒等）、
 		// 行为逐位不变。
-		if (mApp->IsRunMode() && mApp->GetRunState() != nullptr)
+		int aSpawnPermille = aSeatMult * 1000;
+        if(mApp->IsRunMode() && mApp->GetRunState()->IsNewEndless())
+            aSpawnPermille=EndlessRules::SpawnPermille(aSeatMult,RunState::DiffPermilleFor(mApp->GetRunState()->mDiff),RunState::ScalePermilleFor(mApp->GetRunState()->mScale));
+		if (mApp->IsRunMode() && mApp->GetRunState() != nullptr && !mApp->GetRunState()->IsNewEndless())
 		{
 			aSeatMult = aSeatMult * RunState::DiffPermilleFor(mApp->GetRunState()->mDiff) / 1000;
 			if (aSeatMult < 1) aSeatMult = 1;
@@ -808,7 +845,9 @@ void Board::PickZombieWaves()
 			if (aSeatMult < 1) aSeatMult = 1;
 		}
 
-		aZombiePoints *= aSeatMult;
+		if(mApp->IsRunMode() && mApp->GetRunState()->IsNewEndless())
+            aZombiePoints=std::max(1,(int)((long long)aZombiePoints*mApp->GetRunState()->GetDifficultyPermille()*aSpawnPermille/1000000));
+        else aZombiePoints *= aSeatMult;
 
 		// 旗帜波的特殊调整
 		if (aIsFlagWave)
@@ -943,10 +982,24 @@ void Board::PickZombieWaves()
 		// 20×32 = 640 只、高压再 ×2.0 → 1280 只（仍小于数组上限）；非闯关 50×32 = 1600 = 数组上限，正好兜住）；
 		// 非闯关基准 = 原版 50，数组上限 MAX_ZOMBIES_IN_WAVE 按基准×32 留量。
 		int aWaveZombieCap = (mApp->IsRunMode() ? RunState::RUN_WAVE_ZOMBIE_CAP : WAVE_ZOMBIE_CAP_BASE) * aSeatMult;
-		// @pvz-online: 高级选项·规模档（批 C）把顺位乘数顶到 ×128（×32 顺位 × ×4 规模）：
+		if(mApp->IsRunMode() && mApp->GetRunState()->IsNewEndless())
+            aWaveZombieCap=std::max(1,RunState::RUN_WAVE_ZOMBIE_CAP*aSpawnPermille/1000);
+        // @pvz-online: 高级选项·规模档（批 C）把顺位乘数顶到 ×128（×32 顺位 × ×4 规模）：
 		// 非闯关 50×128 = 6400 会撞 MAX_ZOMBIES_IN_WAVE 的数组上限并触发断言——钳回硬顶
 		// 减一。原基准 50×32 本来就正好贴着上限，这里只是把"贴着"变成"钳着"。
 		if (aWaveZombieCap > MAX_ZOMBIES_IN_WAVE - 1) aWaveZombieCap = MAX_ZOMBIES_IN_WAVE - 1;
+        if(mApp->IsRunMode() && mApp->GetRunState()->IsNewEndless()) {
+            // Scripted flag-wave entries must obey the same low-scale cap as random entries.
+            if(aZombiePicker.mZombieCount>aWaveZombieCap && mZombiesInWave[aWave][aZombiePicker.mZombieCount-1]==ZombieType::ZOMBIE_FLAG)
+                std::swap(mZombiesInWave[aWave][0],mZombiesInWave[aWave][aZombiePicker.mZombieCount-1]);
+            while(aZombiePicker.mZombieCount>aWaveZombieCap) {
+                int index=--aZombiePicker.mZombieCount;
+                ZombieType type=mZombiesInWave[aWave][index];
+                if(type>=0 && type<ZombieType::NUM_ZOMBIE_TYPES)--aZombiePicker.mZombieTypeCount[(int)type];
+                mZombiesInWave[aWave][index]=ZombieType::ZOMBIE_INVALID;
+            }
+        }
+        crowdProtectedPrefix[aWave] = aZombiePicker.mZombieCount;
 		while (aZombiePoints > 0 && aZombiePicker.mZombieCount < aWaveZombieCap)
 		{
 			ZombieType aZombieType = PickZombieType(aZombiePoints, aWave, &aZombiePicker);
@@ -981,6 +1034,26 @@ void Board::PickZombieWaves()
 			TodLog("%s", aWaveLog);
 		}
 	}
+    // @pvz-online: one post-generation pass; raw lawn restoration overwrites saved wave tables.
+    if (mApp->IsRunMode() && mApp->GetRunState()->UsesCrowdCompression()) {
+        for (int wave = 0; wave < mNumWaves; ++wave) {
+            int count = 0;
+            while (count < MAX_ZOMBIES_IN_WAVE && mZombiesInWave[wave][count] != ZombieType::ZOMBIE_INVALID) ++count;
+            if (count <= CrowdRules::THRESHOLD || count >= MAX_ZOMBIES_IN_WAVE) continue;
+            std::vector<int> protectedIndices, kept;
+            for (int i = 0; i < count; ++i)
+                if (i < crowdProtectedPrefix[wave] || mZombiesInWave[wave][i] == ZombieType::ZOMBIE_FLAG) protectedIndices.push_back(i);
+            const uint32_t seed = CrowdRules::Mix(static_cast<uint32_t>(mApp->GetRunState()->GetLevelSeed()) ^ static_cast<uint32_t>(wave));
+            if (!CrowdRules::PlanWave(count, mApp->GetRunState()->mCrowdRule, seed, protectedIndices, kept)) {
+                TodLog("[crowd] compression rejected wave=%d original=%d", wave+1, count);
+                continue;
+            }
+            for (size_t i = 0; i < kept.size(); ++i) mZombiesInWave[wave][i] = mZombiesInWave[wave][kept[i]];
+            for (size_t i = kept.size(); i < static_cast<size_t>(count); ++i) mZombiesInWave[wave][i] = ZombieType::ZOMBIE_INVALID;
+            TodLog("[crowd] wave=%d original=%d retained=%u", wave+1, count, static_cast<unsigned>(kept.size()));
+        }
+    }
+
 }
 
 //0x40A110
@@ -1420,6 +1493,7 @@ bool Board::IsZombieWaveDistributionOk()
 //0x40ABB0
 void Board::InitZombieWaves()
 {
+    NextWave::Reset(this);
 	memset(mZombieAllowed, false, sizeof(mZombieAllowed));
 	if (mApp->IsAdventureMode())
 	{
@@ -1448,13 +1522,18 @@ void Board::InitZombieWaves()
 		mZombieCountDown = ZOMBIE_COUNTDOWN_FIRST_WAVE;
 	}
 
-	mZombieHealthWaveStart = 0;
+	if (mApp->IsRunMode() && (!mApp->GetRunState()->IsEndless() || mApp->GetRunState()->IsNewEndless()))
+		mZombieCountDown = mApp->GetRunState()->FirstWaveDelayTicks();
+
+	mWaveHealth.start = 0;
+    mWaveSpawnRetry = {};
 	mLastBungeeWave = 0;
 	mProgressMeterWidth = 0;
 	mHugeWaveCountDown = 0;
 	mLevelAwardSpawned = false;
 	mZombieCountDownStart = mZombieCountDown;
-	mZombieHealthToNextWave = -1;
+	mWaveHealth.next = -1;
+    SyncLegacyWaveHealth();
 }
 
 //0x40ACB0
@@ -1522,6 +1601,7 @@ void Board::InitEndlessRunStage()
 {
 	RunState* aRun = mApp->GetRunState();
 	if (aRun == nullptr) return;
+    mApp->mDamageStats.BeginLevel(this);
 
 	// 关序号 / 种子的覆盖值跟着新一关换：选卡候选、墓碑这类"关级随机"读的就是它
 	// （建新场时这一步在 EnterRunLevel，这条路上没人替它做）。
@@ -1529,7 +1609,8 @@ void Board::InitEndlessRunStage()
 	mLevel = aRun->GetLevel();
 
 	RefreshSeedPacketFromCursor();
-	mLevelComplete = false;
+	mRunBossZombieID = ZombieID::ZOMBIEID_NULL;
+    mLevelComplete = false;
 	// 联机局的草坪在等待期一直开着：棋盘上可能留着队友漏过来、还没走完的怪。
 	// 新一关各就各位，这些上一关的尾巴不能接着走——它们会啃新关的植物，
 	// 摸到房子那一边还会把推车误碰掉。单机局的怪在过关时已经清完，这儿是空转。
@@ -1615,6 +1696,8 @@ void Board::GetZenButtonRect(GameObjectType theObjectType, Rect& theRect)
 // GOTY @Patoke: 0x40D840
 void Board::InitLevel()
 {
+    NextWave::Reset(this);
+    mApp->mDamageStats.BeginLevel(this);
 	mMainCounter = 0;
 	mEnableGraveStones = false;
 	mSodPosition = 0;
@@ -1664,6 +1747,9 @@ void Board::InitLevel()
 	// 按上座顺位从后往前加 0/0/100/200/300/500（末两席同为 ×2 → 都 0）；单机 / 单人 = 0。
 	// 加在整段分支之后——开局阳光是本关规矩给的多少都照给。
 	mSunMoney += mApp->OnlineStartSunBonus();
+    mApp->mPreparationBuiltSeat=mApp->mOnlineSession?mApp->mOnlineSession->GetLocalSeat():0;
+    mApp->mPreparationBuiltSunBonus=mApp->OnlineStartSunBonus();
+    mApp->mPreparationBuiltMultiplier=mApp->OnlineSeatMultiplier();
 	// @pvz-online: 开局阳光保底（2026-10-06 用户补令「开局至少50阳光」）：闯关局任何席位、
 	// 任何关卡的开局阳光不低于 50——基础 50 打底 + 顺位加成只加不减，这里是显式钉死。
 	if (mApp->IsRunMode() && mSunMoney < 50)
@@ -1684,8 +1770,7 @@ void Board::InitLevel()
 	}
 	// 初始化阳光掉落
 	mNumSunsFallen = 0;
-	// @pvz-online: 闯关 buff「天降」（2026-10-06 重做口径）：夜晚/迷雾关也起倒计时
-	// （没这条时夜晚照旧不掉阳光），倍率 ×0.25（速率 ×4）。
+	// @pvz-online: 已有「天降」时夜晚/迷雾也初始化倒计时，间隔减半（速率 ×2）。
 	if (!StageIsNight() || mApp->RunSkySunAtNight())
 	{
 		mSunCountDown = (int)(RandRangeInt(425, 700) * mApp->RunSkySunIntervalMul() + 0.5f);
@@ -1846,12 +1931,15 @@ void Board::InitLevel()
 		mFogOffset = 1065 - LeftFogColumn() * 80;
 	}
 	// 关卡玩法相关的初始化
+	mDeferredPlantSetup.flags |= DeferredPlantSetup::INIT;
 	mChallenge->InitLevel();
+	CompleteDeferredPlantSetup();
 }
 
 Reanimation* Board::CreateRakeReanim(float theRakeX, float theRakeY, int theRenderOrder)
 {
 	Reanimation* aReanim = mApp->AddReanimation(theRakeX + 20, theRakeY, theRenderOrder, REANIM_RAKE);
+	if (!aReanim) return nullptr;
 	aReanim->mAnimRate = 0;
 	aReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
 	aReanim->mIsAttachment = true;
@@ -1994,9 +2082,13 @@ void Board::FillSeedBankFromRunPool()
 // GOTY @Patoke: 0x40E6A0
 void Board::StartLevel()
 {
+    auto& setup = mDeferredPlantSetup;
+    setup.flags |= DeferredPlantSetup::START;
+    if ((setup.flags & DeferredPlantSetup::INIT) || !mChallenge->StartLevel()) return;
+    setup.flags &= ~DeferredPlantSetup::START;
 	mCoinBankFadeCount = 0;
 	mApp->mLastLevelStats->Reset();
-	mChallenge->StartLevel();
+
 
 	if (mApp->mGameMode == GameMode::GAMEMODE_SURVIVAL_ENDLESS_STAGE_1 ||
 		mApp->mGameMode == GameMode::GAMEMODE_SURVIVAL_ENDLESS_STAGE_2 ||
@@ -2052,6 +2144,7 @@ LawnMower* Board::GetBottomLawnMower()
 // GOTY @Patoke: 0x40E860
 void Board::UpdateLevelEndSequence()
 {
+	if (HasLivingBoss()) return;
 	if (mNextSurvivalStageCounter > 0)
 	{
 		if (!IsScaryPotterDaveTalking())
@@ -2087,7 +2180,8 @@ void Board::UpdateLevelEndSequence()
 			else if (LawnApp::IsEndlessIZombie(mApp->mGameMode))
 			{
 				mChallenge->PuzzleNextStageClear();
-				mChallenge->IZombieInitLevel();
+                mDeferredPlantSetup.flags |= DeferredPlantSetup::NEXT_I_ZOMBIE;
+                CompleteDeferredPlantSetup();
 			}
 			else if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_LAST_STAND)
 			{
@@ -2185,6 +2279,7 @@ void Board::CompleteEndLevelSequenceForSaving()
 //0x40C3E0
 void Board::FadeOutLevel()
 {
+	if (HasLivingBoss()) return;
 	// @pvz-online: 联机局不淡出。淡出一开始这块棋盘就锁上了（mBoardFadeOutCounter >= 0
 	// 挡住鼠标），可"我这块草坪清干净了"不等于这一关结束——队友那儿漏过来的怪随时还会
 	// 走上我这块草坪，得能接着种。棋盘就停在"波次打完、怪随时会来"的状态里，
@@ -2413,8 +2508,31 @@ bool Board::IsPoolSquare(int theGridX, int theGridY)
 }
 
 //0x40CE20
+// Called before spending sun, killing an upgraded plant or consuming the selected packet.
+
+
+// Called before spending sun, killing an upgraded plant or consuming the selected packet.
+bool Board::PreparePlantAnimations(SeedType seed, unsigned int count)
+{
+    if (!count || !mPlants.mBlock || !mPlants.DataArrayCanAllocate(count) || !mApp || !mApp->mEffectSystem ||
+        !mApp->mEffectSystem->mReanimationHolder) return false;
+    unsigned int need = GetPlantDefinition(seed).mReanimationType == ReanimationType::REANIM_NONE ? 0U : 1U;
+    switch (seed)
+    {
+    case SeedType::SEED_PEASHOOTER: case SeedType::SEED_SNOWPEA:
+    case SeedType::SEED_REPEATER: case SeedType::SEED_LEFTPEATER: case SeedType::SEED_GATLINGPEA: need += 1; break;
+    case SeedType::SEED_SPLITPEA: need += 2; break;
+    case SeedType::SEED_THREEPEATER: need += 3; break;
+    default: break;
+    }
+    // Sleep indicators are optional, but account for them during synchronous initialization.
+    if (Plant::IsNocturnal(seed) && !StageIsNight() && !mApp->IsRunMode()) ++need;
+    return mApp->mEffectSystem->mReanimationHolder->MakeRoomForPlant(need * count);
+}
+
 Plant* Board::NewPlant(int theGridX, int theGridY, SeedType theSeedType, SeedType theImitaterType)
 {
+	if (!PreparePlantAnimations(theSeedType)) return nullptr;
 	Plant* aPlant = mPlants.DataArrayAlloc();
 	aPlant->mIsOnBoard = true;
 	aPlant->PlantInitialize(theGridX, theGridY, theSeedType, theImitaterType);
@@ -2471,8 +2589,10 @@ void Board::DoPlantingEffects(int theGridX, int theGridY, Plant* thePlant)
 Plant* Board::AddPlant(int theGridX, int theGridY, SeedType theSeedType, SeedType theImitaterType)
 {
 	Plant* aPlant = NewPlant(theGridX, theGridY, theSeedType, theImitaterType);
+	if (!aPlant) return nullptr;
 	DoPlantingEffects(theGridX, theGridY, aPlant);
 	mChallenge->PlantAdded(aPlant);
+    RunGarlicPulse::OnPlanted(this, aPlant);
 
 	int aSunPlantsCount = CountPlantByType(SeedType::SEED_SUNSHROOM) + CountPlantByType(SeedType::SEED_SUNFLOWER);
 	if (aSunPlantsCount > mMaxSunPlants)
@@ -2541,6 +2661,8 @@ Plant* Board::GetFlowerPotAt(int theGridX, int theGridY)
 //0x40D2A0
 void Board::GetPlantsOnLawn(int theGridX, int theGridY, PlantsOnLawn* thePlantOnLawn)
 {
+	thePlantOnLawn->mLilypadPlant = nullptr;
+	thePlantOnLawn->mFlowerPotPlant = nullptr;
 	thePlantOnLawn->mUnderPlant = nullptr;
 	thePlantOnLawn->mPumpkinPlant = nullptr;
 	thePlantOnLawn->mFlyingPlant = nullptr;
@@ -2593,8 +2715,13 @@ void Board::GetPlantsOnLawn(int theGridX, int theGridY, PlantsOnLawn* thePlantOn
 		}
 		else if (aSeedType == SeedType::SEED_FLOWERPOT || (aSeedType == SeedType::SEED_LILYPAD && mApp->mGameMode != GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN))
 		{
-			TOD_ASSERT(!thePlantOnLawn->mUnderPlant);
-			thePlantOnLawn->mUnderPlant = aPlant;
+			// Two distinct support plants share a tile; rendering order also identifies the exposed one.
+			Plant*& aSupport = aSeedType == SeedType::SEED_LILYPAD ?
+				thePlantOnLawn->mLilypadPlant : thePlantOnLawn->mFlowerPotPlant;
+			TOD_ASSERT(!aSupport);
+			aSupport = aPlant;
+			if (!thePlantOnLawn->mUnderPlant || aPlant->mRenderOrder > thePlantOnLawn->mUnderPlant->mRenderOrder)
+				thePlantOnLawn->mUnderPlant = aPlant;
 		}
 		else if (aSeedType == SeedType::SEED_PUMPKINSHELL)
 		{
@@ -2735,7 +2862,18 @@ bool Board::HasValidCobCannonSpot()
 //0x40D620
 Projectile* Board::AddProjectile(int theX, int theY, int theRenderOrder, int theRow, ProjectileType theProjectileType)
 {
-	Projectile* aProjectile = mProjectiles.DataArrayAlloc();
+	Projectile* aProjectile = mProjectiles.DataArrayTryAlloc();
+	if (aProjectile == nullptr)
+	{
+		// Log at most once per 500 game ticks; never write beyond the pool.
+		static int aLastRejectedTick = -500;
+		if (mMainCounter < aLastRejectedTick || mMainCounter - aLastRejectedTick >= 500)
+		{
+			TodLog("[capacity] projectile allocation refused: %u/%u", mProjectiles.mSize, mProjectiles.mMaxSize);
+			aLastRejectedTick = mMainCounter;
+		}
+		return nullptr;
+	}
 	aProjectile->ProjectileInitialize(theX, theY, theRenderOrder, theRow, theProjectileType);
 	return aProjectile;
 }
@@ -2966,6 +3104,13 @@ ZombieType Board::PickZombieType(int theZombiePoints, int theWaveIndex, ZombiePi
 		else if (mApp->IsRunMode())
 		{
 			aPickWeight = RunZombieWeight((ZombieType)aZombieType);
+            int theme=mApp->GetRunState()->EndlessTheme();
+            ZombieType t=(ZombieType)aZombieType;
+            bool favored=(theme==1 && (t==ZombieType::ZOMBIE_PAIL || t==ZombieType::ZOMBIE_DOOR || t==ZombieType::ZOMBIE_FOOTBALL)) ||
+                (theme==2 && (t==ZombieType::ZOMBIE_POLEVAULTER || t==ZombieType::ZOMBIE_FOOTBALL || t==ZombieType::ZOMBIE_DOLPHIN_RIDER)) ||
+                (theme==3 && (t==ZombieType::ZOMBIE_BALLOON || t==ZombieType::ZOMBIE_BUNGEE)) ||
+                (theme==4 && (t==ZombieType::ZOMBIE_DUCKY_TUBE || t==ZombieType::ZOMBIE_SNORKEL || t==ZombieType::ZOMBIE_DOLPHIN_RIDER));
+            if(favored)aPickWeight*=IsFlagWave(theWaveIndex) && mApp->GetRunState()->IsEndlessBossLevel()?2:3;
 			// @pvz-online: 场景 1-2 气球/蹦极再降半档（2026-10-16 用户令）：气球平铺档本就
 			// 是 1/4（250，批六），一二场景再折半 = 125；蹦极平铺档折半 = 500。场景 3 起恢复
 			// 原档。GetSceneIndex 无尽档 = 锁定场景，锁一二场景的卡同口径。
@@ -3147,9 +3292,13 @@ bool Board::CanAddBobSled()
 // GOTY @Patoke: 0x410700
 Zombie* Board::AddZombieInRow(ZombieType theZombieType, int theRow, int theFromWave)
 {
-	if (mZombies.mSize >= mZombies.mMaxSize - 1)
+    if (!CanAllocateZombieAnimations(theZombieType,theFromWave)) return nullptr;
+	// Reserve the whole sled team before constructing its leader; keep the original spare slot.
+	const unsigned int aRequired = theZombieType == ZombieType::ZOMBIE_BOBSLED &&
+		theFromWave != Zombie::ZOMBIE_WAVE_CUTSCENE && theFromWave != Zombie::ZOMBIE_WAVE_UI ? 4U : 1U;
+	if (mZombies.mSize >= mZombies.mMaxSize || aRequired >= mZombies.mMaxSize - mZombies.mSize)
 	{
-		TodTrace("Too many zombies!!");
+		TodLog("[capacity] zombie spawn rejected type %d wave %d: %u/%u, need %u plus reserve", (int)theZombieType, theFromWave, mZombies.mSize, mZombies.mMaxSize, aRequired);
 		return nullptr;
 	}
 
@@ -3174,6 +3323,7 @@ Zombie* Board::AddZombieInRow(ZombieType theZombieType, int theRow, int theFromW
 
 Zombie* Board::AddZombie(ZombieType theZombieType, int theFromWave)
 {
+	if (!CanAllocateZombieAnimations(theZombieType,theFromWave)) return nullptr;
 	return AddZombieInRow(theZombieType, PickRowForNewZombie(theZombieType), theFromWave); 
 }
 
@@ -3304,17 +3454,12 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 	}
 	
 	Plant* aUnderPlant = aPlantOnLawn.mUnderPlant;
-	bool aHasLilypad, aHasFlowerPot;
-	if (!aUnderPlant || aUnderPlant->mOnBungeeState == PlantOnBungeeState::GETTING_GRABBED_BY_BUNGEE)
-	{
-		aHasLilypad = false;
-		aHasFlowerPot = false;
-	}
-	else
-	{
-		aHasLilypad = aUnderPlant->mSeedType == SeedType::SEED_LILYPAD;
-		aHasFlowerPot = aUnderPlant->mSeedType == SeedType::SEED_FLOWERPOT;
-	}
+	const bool aHasLilypad = aPlantOnLawn.mLilypadPlant &&
+		aPlantOnLawn.mLilypadPlant->mSeedType == SeedType::SEED_LILYPAD &&
+		aPlantOnLawn.mLilypadPlant->mOnBungeeState != PlantOnBungeeState::GETTING_GRABBED_BY_BUNGEE;
+	const bool aHasFlowerPot = aPlantOnLawn.mFlowerPotPlant &&
+		aPlantOnLawn.mFlowerPotPlant->mSeedType == SeedType::SEED_FLOWERPOT &&
+		aPlantOnLawn.mFlowerPotPlant->mOnBungeeState != PlantOnBungeeState::GETTING_GRABBED_BY_BUNGEE;
 	// 部分情况下的格子中不能种植植物
 	if (GetCraterAt(theGridX, theGridY))
 	{
@@ -3333,23 +3478,32 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 	Plant* aNormalPlant = aPlantOnLawn.mNormalPlant;
 	if (theSeedType == SeedType::SEED_LILYPAD || theSeedType == SeedType::SEED_TANGLEKELP || theSeedType == SeedType::SEED_SEASHROOM)
 	{
-		// @pvz-online: 闯关里这几样也能种在草坪上（用户 2026-10-03 定案）——非泳池格不再
-		// 拒种，占位规则与水里一致（空格子才放得下）；屋顶不放开，仍按"只能种水上"拒。
-		if (!IsPoolSquare(theGridX, theGridY) && (!mApp->IsRunMode() || StageHasRoof()))
+		// A pot supports a lily on land/roofs; a lily supports a pot on water.
+		const bool aStackedAquatic = aHasFlowerPot && aHasLilypad;
+		if (!IsPoolSquare(theGridX, theGridY) && (!mApp->IsRunMode() || StageHasRoof()) &&
+			!(theSeedType == SeedType::SEED_LILYPAD ? aHasFlowerPot : aStackedAquatic))
 		{
 			return PlantingReason::PLANTING_ONLY_IN_POOL;
 		}
 
-		return (aNormalPlant || aUnderPlant) ? PlantingReason::PLANTING_NOT_HERE : PlantingReason::PLANTING_OK;
+		if (theSeedType == SeedType::SEED_LILYPAD)
+		{
+			return (aNormalPlant || aPlantOnLawn.mLilypadPlant || (aUnderPlant && !aHasFlowerPot) ||
+				(aUnderPlant && aPlantOnLawn.mPumpkinPlant)) ? PlantingReason::PLANTING_NOT_HERE : PlantingReason::PLANTING_OK;
+		}
+		return (aNormalPlant || (aUnderPlant && !aStackedAquatic)) ? PlantingReason::PLANTING_NOT_HERE : PlantingReason::PLANTING_OK;
 	}
 	if (Plant::IsFlying(theSeedType))
 	{
 		return aPlantOnLawn.mFlyingPlant ? PlantingReason::PLANTING_NOT_HERE : PlantingReason::PLANTING_OK;
 	}
-	// 地刺/地刺王只能种在坚固的地面
+	// Roof tiles support mines and spikes directly; pots remain optional on roofs.
+	const bool aBareRoofPlant = StageHasRoof() && (theSeedType == SeedType::SEED_POTATOMINE ||
+		theSeedType == SeedType::SEED_SPIKEWEED || theSeedType == SeedType::SEED_SPIKEROCK);
+	// 地刺/地刺王不能种在水面或非屋顶的底座上。
 	if (theSeedType == SeedType::SEED_SPIKEWEED || theSeedType == SeedType::SEED_SPIKEROCK)
 	{
-		if (aGridSquare == GridSquareType::GRIDSQUARE_POOL || StageHasRoof() || aUnderPlant)
+		if (aGridSquare == GridSquareType::GRIDSQUARE_POOL || (aUnderPlant && !(aBareRoofPlant && aHasFlowerPot)))
 		{
 			return PlantingReason::PLANTING_NEEDS_GROUND;
 		}
@@ -3366,16 +3520,16 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 	// 花盆的种植条件
 	if (theSeedType == SeedType::SEED_FLOWERPOT)
 	{
-		return (aNormalPlant || aUnderPlant || aPumpkinPlant) ? PlantingReason::PLANTING_NOT_HERE : PlantingReason::PLANTING_OK;
+		return (aNormalPlant || aPlantOnLawn.mFlowerPotPlant || aPumpkinPlant || (aUnderPlant && !aHasLilypad)) ? PlantingReason::PLANTING_NOT_HERE : PlantingReason::PLANTING_OK;
 	}
 	// 屋顶种植需要花盆
-	if (StageHasRoof() && !aHasFlowerPot)
+	if (StageHasRoof() && !aHasFlowerPot && !aBareRoofPlant)
 	{
 		return PlantingReason::PLANTING_NEEDS_POT;
 	}
 	// 南瓜头的种植条件
-	// @pvz-online: 档案买的"急救"（坚果包扎术）不进联机/闯关局（§5.9），按未购买算。
-	bool aAidPurchased = !mApp->IsOnlineGame() && !mApp->IsRunMode() &&
+	// @pvz-online: 坚果包扎术作为商店永久购买的特例，也适用于本机闯关/无尽。
+	bool aAidPurchased = (mApp->IsRunMode() || !mApp->IsOnlineGame()) &&
 		mApp->mPlayerInfo->mPurchases[StoreItem::STORE_ITEM_FIRSTAID] > 0;
 	if (theSeedType == SeedType::SEED_PUMPKINSHELL)
 	{
@@ -3413,7 +3567,7 @@ PlantingReason Board::CanPlantAt(int theGridX, int theGridY, SeedType theSeedTyp
 			{
 				return PlantingReason::PLANTING_NOT_HERE;
 			}
-			if (aUnderPlant->IsUpgradableTo(theSeedType) && aUnderPlant->mOnBungeeState != PlantOnBungeeState::GETTING_GRABBED_BY_BUNGEE)
+			if (aHasLilypad && aPlantOnLawn.mLilypadPlant->IsUpgradableTo(theSeedType))
 			{
 				return PlantingReason::PLANTING_OK;
 			}
@@ -4442,6 +4596,31 @@ void Board::MouseDownWithPlant(int x, int y, int theClickCount)
 	ClearAdvice(AdviceType::ADVICE_PLANT_POTATOE_MINE_ON_LILY);
 	ClearAdvice(AdviceType::ADVICE_SURVIVE_FLAGS);
 
+    const bool createsPlant = mCursorObject->mCursorType == CursorType::CURSOR_TYPE_PLANT_FROM_BANK ||
+        mCursorObject->mCursorType == CursorType::CURSOR_TYPE_PLANT_FROM_USABLE_COIN;
+    if (createsPlant)
+    {
+        SeedType admissionSeed = mCursorObject->mType;
+        if (mCursorObject->mCursorType == CursorType::CURSOR_TYPE_PLANT_FROM_BANK &&
+            aPlantingSeedType == SeedType::SEED_KERNELPULT && mApp->IsRunMode() &&
+            mApp->RunPlantUpgradeCount(SeedType::SEED_KERNELPULT) > 0) admissionSeed = SeedType::SEED_COBCANNON;
+        unsigned int plantCount = 1;
+        if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_COLUMN)
+        {
+            for (int row = 0; row < MAX_GRID_SIZE_Y; ++row)
+                if (row != aGridY && CanPlantAt(aGridX, row, aPlantingSeedType) == PlantingReason::PLANTING_OK) ++plantCount;
+        }
+        else if (mApp->RunMirrorStacks() > 0 &&
+            ((aGridY + 1 < MAX_GRID_SIZE_Y && CanPlantAt(aGridX, aGridY + 1, admissionSeed) == PlantingReason::PLANTING_OK) ||
+             (aGridY > 0 && CanPlantAt(aGridX, aGridY - 1, admissionSeed) == PlantingReason::PLANTING_OK))) ++plantCount;
+        if (!PreparePlantAnimations(admissionSeed, plantCount))
+        {
+            DisplayAdvice(_S("\u8bf7\u7a0d\u7b49\u7247\u523b\uff0c\u518d\u6b21\u79cd\u690d\u3002"), MessageStyle::MESSAGE_STYLE_HINT_FAST, AdviceType::ADVICE_NONE);
+            return;
+        }
+    }
+
+
 	// 无免费种植、非传送带关卡的卡槽植物，判断阳光是否充足：充足则扣除阳光，不足则退出
 	if (!mApp->mEasyPlantingCheat && mCursorObject->mCursorType == CursorType::CURSOR_TYPE_PLANT_FROM_BANK && !HasConveyorBeltSeedBank())
 	{
@@ -4503,9 +4682,9 @@ void Board::MouseDownWithPlant(int x, int y, int theClickCount)
 	}
 	if (aPlantingSeedType == SeedType::SEED_CATTAIL)
 	{
-		if (aPlantOnLawn.mUnderPlant)
+		if (aPlantOnLawn.mLilypadPlant)
 		{
-			aPlantOnLawn.mUnderPlant->Die();
+			aPlantOnLawn.mLilypadPlant->Die();
 		}
 		if (aNormalPlant)
 		{
@@ -5098,6 +5277,10 @@ void Board::PickUpTool(GameObjectType theObjectType)
 //0x411F20
 void Board::MouseDown(int x, int y, int theClickCount)
 {
+    if (mApp->mOnlineSession && mApp->mOnlineSession->RelayBattleHeld()) { mApp->DoOnlineDialog(); return; }
+    if(AdmissionBoard::MouseDown(this,x,y,theClickCount))return;
+    if (NextWaveControl::MouseDown(this, x, y, theClickCount)) return;
+    if (DamageStatsView::MouseDown(this, x, y, theClickCount)) return;
     if(CoopMouseDown(x,y,theClickCount))return;
 	Widget::MouseDown(x, y, theClickCount);
 	mIgnoreMouseUp = !CanInteractWithBoardButtons();
@@ -5106,6 +5289,7 @@ void Board::MouseDown(int x, int y, int theClickCount)
 
 	HitResult aHitResult;
 	MouseHitTest(x, y, &aHitResult);
+    if (mDeferredPlantSetup.IsWaiting() && aHitResult.mObjectType != GameObjectType::OBJECT_TYPE_MENU_BUTTON) return;
 	if (mChallenge->MouseDown(x, y, theClickCount, &aHitResult))
 		return;
 
@@ -5232,6 +5416,8 @@ void Board::MouseDown(int x, int y, int theClickCount)
 //0x412330
 void Board::ClearCursor()
 {
+    if (mApp && mApp->mEffectSystem && mApp->mEffectSystem->mReanimationHolder)
+        mApp->mEffectSystem->mReanimationHolder->mPlantReservation = 4;
 	if (mAdvice->mDuration > 0)
 	{
 		if (mHelpIndex == AdviceType::ADVICE_PLANT_GRAVEBUSTERS_ON_GRAVES ||
@@ -5314,6 +5500,10 @@ bool Board::CanInteractWithBoardButtons()
 //0x412540
 void Board::MouseUp(int x, int y, int theClickCount)
 {
+    if (mApp->mOnlineSession && mApp->mOnlineSession->RelayBattleHeld()) return;
+    if(AdmissionBoard::MouseUp(this,x,y,theClickCount))return;
+    if (NextWaveControl::MouseUp(this, x, y, theClickCount)) return;
+    if (DamageStatsView::MouseUp(this, x, y, theClickCount)) return;
     if(CoopMouseUp(x,y,theClickCount))return;
 	Widget::MouseUp(x, y, theClickCount);
 	if (mIgnoreMouseUp)
@@ -5322,6 +5512,7 @@ void Board::MouseUp(int x, int y, int theClickCount)
 		return;
 	}
 
+    if (mDeferredPlantSetup.IsWaiting() && !mMenuButton->IsMouseOver()) return;
 	if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_BEGHOULED && mChallenge->MouseUp(x, y) && theClickCount > 0)
 		return;
 
@@ -5387,6 +5578,7 @@ void Board::ShowCoinBank(int theDuration)
 //0x4127A0
 void Board::Pause(bool thePause)
 {
+    if(thePause) { NextWaveControl::Update(this);NextWaveControl::Suspend(this); }
 	if (mPaused == thePause)
 		return;
 
@@ -5489,13 +5681,8 @@ void Board::SpawnZombiesFromPool()
 		aGrid->mWeight = 0;
 
 		ZombieType aZombieType = PickGraveRisingZombieType();
-		Zombie* aZombie = AddZombieInRow(aZombieType, aGrid->mY, mCurrentWave);
-		if (aZombie == nullptr)
-		{
-			return;
-		}
+		mDeferredZombieSpawns.pending.push_back({static_cast<int32_t>(aZombieType), aGrid->mX, aGrid->mY, mCurrentWave, 0});
 
-		aZombie->RiseFromGrave(aGrid->mX, aGrid->mY);
 		aZombiePoints -= GetZombieDefinition(aZombieType).mZombieValue;
 		if (aZombiePoints < 1)
 		{
@@ -5523,16 +5710,30 @@ void Board::SetupBungeeDrop(BungeeDropGrid* theBungeeDropGrid)
 }
 
 //0x412B60
-void Board::BungeeDropZombie(BungeeDropGrid* theBungeeDropGrid, ZombieType theZombieType)
+bool Board::BungeeDropZombie(BungeeDropGrid* theBungeeDropGrid, ZombieType theZombieType)
 {
+	// A carrier and its payload must both fit before either is spawned.
+	const unsigned int aRequired = theZombieType == ZombieType::ZOMBIE_BOBSLED ? 5U : 2U;
+	if (mZombies.mSize >= mZombies.mMaxSize || aRequired >= mZombies.mMaxSize - mZombies.mSize)
+		return false;
+
+    if (!mApp->mEffectSystem->mReanimationHolder->mReanimations.DataArrayCanAllocate(
+        AnimationAdmission::ZombieGroup(theZombieType,mCurrentWave)+AnimationAdmission::ZombieOne(ZombieType::ZOMBIE_BUNGEE) + mApp->mEffectSystem->mReanimationHolder->mPlantReservation)) return false;
+
 	TodWeightedGridArray* aGrid = TodPickFromWeightedGridArray(theBungeeDropGrid->mGridArray, theBungeeDropGrid->mGridArrayCount);
 	aGrid->mWeight = 1;
 
 	Zombie* aBungeeZombie = AddZombie(ZombieType::ZOMBIE_BUNGEE, mCurrentWave);
+	if (aBungeeZombie == nullptr) return false;
 	Zombie* aZombie = AddZombie(theZombieType, mCurrentWave);
-	TOD_ASSERT(aBungeeZombie && aZombie);
+	if (aZombie == nullptr)
+	{
+		aBungeeZombie->DieNoLoot();
+		return false;
+	}
 
 	aBungeeZombie->BungeeDropZombie(aZombie, aGrid->mX, aGrid->mY);
+    return true;
 }
 
 //0x412C30
@@ -5571,7 +5772,9 @@ void Board::SpawnZombiesFromSky()
 	for (int i = 0; i < aCount; i++)
 	{
 		ZombieType aZombieType = PickGraveRisingZombieType();
-		BungeeDropZombie(&aBungeeDropGrid, aZombieType);
+		auto* target = TodPickFromWeightedGridArray(aBungeeDropGrid.mGridArray, aBungeeDropGrid.mGridArrayCount);
+		target->mWeight = 1;
+		mDeferredZombieSpawns.pending.push_back({static_cast<int32_t>(aZombieType), target->mX, target->mY, mCurrentWave, 1});
 		aZombiePoints -= GetZombieDefinition(aZombieType).mZombieValue;
 		if (aZombiePoints < 1)
 		{
@@ -5581,8 +5784,41 @@ void Board::SpawnZombiesFromSky()
 }
 
 //0x412CE0
+void Board::DrainDeferredZombieSpawns()
+{
+    auto& state = mDeferredZombieSpawns;
+    while (state.HasPending())
+    {
+        const auto& ticket = state.pending[state.next];
+        const auto type = static_cast<ZombieType>(ticket.type);
+        Zombie* zombie = nullptr;
+        if (ticket.kind == 1)
+        {
+            // Bungee carrier plus payload, and one unused zombie slot kept by AddZombie.
+            auto& holder = mApp->mEffectSystem->mReanimationHolder;
+            if (!mZombies.DataArrayCanAllocate(3) ||
+                !holder->mReanimations.DataArrayCanAllocate(2 + holder->mPlantReservation)) break;
+            Zombie* carrier = AddZombie(ZombieType::ZOMBIE_BUNGEE, ticket.wave);
+            if (!carrier) break;
+            zombie = AddZombie(type, ticket.wave);
+            if (!zombie) { carrier->DieNoLoot(); break; }
+            carrier->BungeeDropZombie(zombie, ticket.x, ticket.y);
+        }
+        else
+        {
+            zombie = ticket.kind == 0 ? AddZombieInRow(type, ticket.y, ticket.wave) : AddZombie(type, ticket.wave);
+            if (!zombie) break;
+            zombie->RiseFromGrave(ticket.x, ticket.y);
+        }
+        ++state.next;
+    }
+    if (state.HasPending()) mRiseFromGraveCounter = 1;
+    else { state.Clear(); mRiseFromGraveCounter = 0; }
+}
+
 void Board::SpawnZombiesFromGraves()
 {
+    if (mDeferredZombieSpawns.HasPending()) { DrainDeferredZombieSpawns(); return; }
 	if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_WAR_AND_PEAS || mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_WAR_AND_PEAS_2)
 		return;
 
@@ -5593,6 +5829,7 @@ void Board::SpawnZombiesFromGraves()
 	else if (StageHasPool())
 	{
 		SpawnZombiesFromPool();
+		DrainDeferredZombieSpawns();
 		return;
 	}
 	
@@ -5610,13 +5847,8 @@ void Board::SpawnZombiesFromGraves()
 		}
 		
 		ZombieType aZombieType = PickGraveRisingZombieType();
-		Zombie* aZombie = AddZombie(aZombieType, mCurrentWave);
-		if (aZombie == nullptr)
-		{
-			return;
-		}
+		mDeferredZombieSpawns.pending.push_back({static_cast<int32_t>(aZombieType), aGridItem->mGridX, aGridItem->mGridY, mCurrentWave, 2});
 
-		aZombie->RiseFromGrave(aGridItem->mGridX, aGridItem->mGridY);
 		/*
 		aZombiePoints -= GetZombieDefinition(aZombieType).mZombieValue;
 		if (aZombieType < 1)
@@ -5625,19 +5857,25 @@ void Board::SpawnZombiesFromGraves()
 		}
 		*/
 	}
+
+    DrainDeferredZombieSpawns();
 }
 
 //0x412E30
-int Board::TotalZombiesHealthInWave(int theWaveIndex)
+int64_t Board::TotalZombiesHealthInWave(int theWaveIndex)
 {
-	int aTotalHealth = 0;
+	int64_t aTotalHealth = 0;
 	Zombie* aZombie = nullptr;
 	while (IterateZombies(aZombie))
 	{
 		if (aZombie->mFromWave == theWaveIndex && !aZombie->mMindControlled && !aZombie->IsDeadOrDying() &&
 			aZombie->mZombieType != ZombieType::ZOMBIE_BUNGEE && aZombie->mRelatedZombieID == ZombieID::ZOMBIEID_NULL)
 		{
-			aTotalHealth += aZombie->mBodyHealth + aZombie->mHelmHealth + aZombie->mShieldHealth * 0.2f + aZombie->mFlyingHealth;
+			// Keep body/helmet/flying at full weight and shield at 20%, truncating
+            // once per zombie. Widen before addition; never round the running sum to float.
+            const int64_t aWholeHealth = static_cast<int64_t>(aZombie->mBodyHealth) +
+                aZombie->mHelmHealth + aZombie->mFlyingHealth;
+            aTotalHealth += (aWholeHealth * 5 + aZombie->mShieldHealth) / 5;
 		}
 	}
 	return aTotalHealth;
@@ -5646,12 +5884,15 @@ int Board::TotalZombiesHealthInWave(int theWaveIndex)
 //0x412EE0
 void Board::SpawnZombieWave()
 {
-	mChallenge->SpawnZombieWave();
+    if(mWaveSpawnRetry.wave!=mCurrentWave) {
+        mChallenge->SpawnZombieWave();
+        mWaveSpawnRetry={mCurrentWave,0,0};
+    }
 	if (mApp->IsBungeeBlitzLevel())
 	{
 		BungeeDropGrid aBungeeDropGrid;
 		SetupBungeeDrop(&aBungeeDropGrid);
-		for (int i = 0; i < MAX_ZOMBIES_IN_WAVE; i++)
+		for (int& i = mWaveSpawnRetry.index; i < MAX_ZOMBIES_IN_WAVE; i++)
 		{
 			ZombieType aZombieType = mZombiesInWave[mCurrentWave][i];
 			if (aZombieType == ZombieType::ZOMBIE_INVALID)
@@ -5659,33 +5900,34 @@ void Board::SpawnZombieWave()
 
 			if (aZombieType == ZombieType::ZOMBIE_BUNGEE || aZombieType == ZombieType::ZOMBIE_ZAMBONI)
 			{
-				AddZombie(aZombieType, mCurrentWave);
+				if (!AddZombie(aZombieType, mCurrentWave)) return;
 			}
 			else
 			{
-				BungeeDropZombie(&aBungeeDropGrid, aZombieType);
+				if (!BungeeDropZombie(&aBungeeDropGrid, aZombieType)) return;
 			}
 		}
 	}
 	else
 	{
 		TOD_ASSERT(mCurrentWave >= 0 && mCurrentWave < MAX_ZOMBIE_WAVES && mCurrentWave < mNumWaves);
-		for (int i = 0; i < MAX_ZOMBIES_IN_WAVE; i++)
+		for (int& i = mWaveSpawnRetry.index; i < MAX_ZOMBIES_IN_WAVE; i++)
 		{
 			ZombieType aZombieType = mZombiesInWave[mCurrentWave][i];
 			if (aZombieType == ZombieType::ZOMBIE_INVALID)
 				break;
 
-			if (aZombieType == ZombieType::ZOMBIE_BOBSLED && !CanAddBobSled())
+			if (aZombieType == ZombieType::ZOMBIE_BOBSLED && (mWaveSpawnRetry.part>0 || !CanAddBobSled()))
 			{
-				for (int i = 0; i < MAX_ZOMBIE_FOLLOWERS; i++)
+				for (int& part = mWaveSpawnRetry.part; part < MAX_ZOMBIE_FOLLOWERS; part++)
 				{
-					AddZombie(ZombieType::ZOMBIE_NORMAL, mCurrentWave);  // 生成 4 只普通僵尸以代替雪橇僵尸小队
+					if (!AddZombie(ZombieType::ZOMBIE_NORMAL, mCurrentWave)) return;  // 生成 4 只普通僵尸以代替雪橇僵尸小队
 				}
+				mWaveSpawnRetry.part=0;
 			}
 			else
 			{
-				AddZombie(aZombieType, mCurrentWave);
+				if (!AddZombie(aZombieType, mCurrentWave)) return;
 			}
 		}
 	}
@@ -5701,8 +5943,9 @@ void Board::SpawnZombieWave()
 		// 「出在第一旗=第一次大波」）；只在末关/场景 3 末关（档 2，2026-10-16 用户令）的
 		// 第一次旗波真正刷出，其余旗波/关卡由 SpawnRunBoss 内部自判早退（含
 		// mRunBossZombieID 只刷一次守卫）。
-		SpawnRunBoss();
+		if (!SpawnRunBoss()) return;
 	}
+	mWaveSpawnRetry={};
 	mCurrentWave++;
 	mTotalSpawnedWaves++;
 }
@@ -5716,10 +5959,14 @@ void Board::UpdateGameObjects()
 		aPlant->Update();
 	}
 
-	Zombie* aZombie = nullptr;
-	while (IterateZombies(aZombie))
 	{
-		aZombie->Update();
+		FrostArmorBatch::Scope aFrostPass(this);
+		Zombie* aZombie = nullptr;
+		while (IterateZombies(aZombie))
+		{
+			aZombie->Update();
+			aFrostPass.AfterUpdate(aZombie);
+		}
 	}
 
 	Projectile* aProjectile = nullptr;
@@ -5805,16 +6052,16 @@ void Board::PuzzleSaveStreak()
 
 // @pvz-online: 关底巨型 boss（MOD_BUILD 38，2026-10-10 用户定案；MOD_BUILD 39 批改版，
 // 2026-10-11 用户定案）——闯关最后一关的**第一次大波（旗波）**时在第一席棋盘刷一只
-// 巨型 boss：红眼巨人与橄榄球僵尸随机出一只，慢慢走过全场当关底。2026-10-16 用户令
+// 巨型 boss：红眼巨人、橄榄球、冰车随机出一只，慢慢走过全场当关底。2026-10-16 用户令
 // 升级高级选项三档（mBossFlag 0/1/2）：0 关、1 仅末关、2 末关+场景 3 末关（完整第 15/
-// 普通第 6 关；快速档场景 3 跳过）——两处同一套血量/体尺口径，各关只刷一次。可调值都在这一处：
+// 普通第 6 关；2026-10-20 起快速第 3 关）——两处同一套血量/体尺口径，各关只刷一次。可调值都在这一处：
 //   体尺 2.0（视觉×2；碰撞矩形不随之放大，同原版迷你僵尸口径——小僵尸也没缩矩形）；
-//   血量 = 原血量 × 顺位乘数和 × 关卡基数 × 3，其中关卡基数（难度千分比）在
-//   ZombieInitialize 的闯关插桩段已经乘过，这里只补乘数和与 ×3 因子；橄榄球连头盔
+//   血量 = 原血量 × 一号位乘数 × 关卡基数 × 各类型因子，其中关卡基数（难度千分比）在
+//   ZombieInitialize 的闯关插桩段已经乘过，这里只补一号位乘数与类型因子；橄榄球连头盔
 //   同乘（mHelmHealth/mHelmMaxHealth 一起，头盔血线三档判定跟着走）；
-//   免疫口径（2026-10-11 用户定案「橄榄球 boss 只受减速影响」）的判定全走
+//   免疫口径（2026-10-17：三种关底 boss 免硬控，软控时间减半）的判定全走
 //   IsRunBossZombie（按本 ID 认人）；免疫点收口在 CanBeChilled/CanBeFrozen
-//   （橄榄球 boss 只受减速不受冰冻/黄油/定身——见该两函数）/ApplyButter/
+//   （三种 boss 均受减速，不受冰冻/黄油/定身——见该两函数）/ApplyButter/
 //   StartMindControlled/AnimateChewSound（魅惑菇副效果）/SwitchLanes/
 //   BlowAwayFliers（狂风，Plant.cpp）/磁力菇扫描（Plant.cpp）/SquishAllInSquare
 //   （地刺王一击清掉）；砸击破耐砸在 UpdateZombieGargantuar；橄榄球 boss 破阵=
@@ -5823,26 +6070,33 @@ void Board::PuzzleSaveStreak()
 // InitLevel 重置）；mFromWave=旗波号（该波成员：入场 +40px、该波不提前加速）。
 // 漏怪按普通传递口径接力（末席漏它照旧全队败）；海草抓不到它——生成行恒为非水行。
 static const float	kRunBossScale = 2.0f;
-static const int	kRunBossHpFactor = 3;
+static int RunBossHpPermille(ZombieType type)
+{
+	if (type == ZombieType::ZOMBIE_REDEYE_GARGANTUAR) return 2000;
+	if (type == ZombieType::ZOMBIE_FOOTBALL) return 4500;
+	if (type == ZombieType::ZOMBIE_ZAMBONI) return 7500;
+	return 1000;
+}
 
-void Board::SpawnRunBoss()
+bool Board::SpawnRunBoss()
 {
 	RunState* aRun = mApp->GetRunState();
-	if (aRun == nullptr) return;
-	int aBossTier = (aRun->mBossFlag > 0 && aRun->mBossFlag <= 2) ? aRun->mBossFlag : 0;	// 消费端钳（2026-10-16 起三档）
-	if (aBossTier <= 0) return;
-	if (aRun->mMode == RunState::RUN_MODE_ENDLESS) return;		// 无尽档没有关底
-	// 末关（档 1/2 都出）或场景 3 末关（仅档 2，2026-10-16 用户令；快速档不加）。
+	if (aRun == nullptr) return true;
+	int aBossTier = aRun->IsEndless() ? (aRun->IsEndlessBossLevel()?1:0) : ((aRun->mBossFlag > 0 && aRun->mBossFlag <= 2) ? aRun->mBossFlag : 0);	// 消费端钳（2026-10-16 起三档）
+	if (aBossTier <= 0) return true;
+	if (aRun->IsEndless() && !aRun->IsEndlessBossLevel()) return true;		// 无尽档没有关底
+	// 末关（档 1/2 都出）或场景 3 末关（仅档 2；2026-10-20 起快速第 3 关同样出场）。
 	bool aFinalLevel = aRun->GetPlayingLevelIndex() + 1 >= aRun->GetLevelCount();
-	bool aScene3Final = aBossTier >= 2 && aRun->mMode != RunState::RUN_MODE_QUICK
+	bool aScene3Final = aBossTier >= 2
 		&& aRun->GetPlayingLevelIndex() + 1 == RunState::LevelsPerScene(aRun->mMode) * 3;
-	if (!aFinalLevel && !aScene3Final) return;
-	if (mRunBossZombieID != ZombieID::ZOMBIEID_NULL) return;	// 一关一只（旗波钩子每旗都会来问）
+	if (!aFinalLevel && !aScene3Final && !aRun->IsEndlessBossLevel()) return true;
+	if (mRunBossZombieID != ZombieID::ZOMBIEID_NULL) return true;	// 一关一只（旗波钩子每旗都会来问）
 	// 仅一号位：联机恒出在 1 号位玩家的棋盘（2026-10-12 用户令由「房主棋盘」改为
 	// 「一号位棋盘」——换位后房主可能不在 1 号位，boss 固定跟席位 1 走，不跟房主；
 	// 单机恒有）。1 号位空席（人离房释放了）时本关不刷。
-	if (mApp->IsOnlineGame() && mApp->mOnlineSession->GetLocalSeat() != NetProto::SEAT_HOST) return;
+	if (mApp->IsOnlineGame() && mApp->mOnlineSession->GetLocalSeat() != NetProto::SEAT_HOST) return true;
 
+    if(!mZombies.DataArrayCanAllocate(2) || !CanAllocateZombieAnimations(ZombieType::ZOMBIE_NORMAL,mCurrentWave)) return false;
 	int aRows[MAX_GRID_SIZE_Y];
 	int aRowCount = 0;
 	for (int i = 0; i < MAX_GRID_SIZE_Y; i++)
@@ -5852,27 +6106,31 @@ void Board::SpawnRunBoss()
 			aRows[aRowCount++] = i;
 		}
 	}
-	if (aRowCount == 0) return;
+	if (aRowCount == 0) return true;
 
-	// 两只 boss 随机出一只（用户 2026-10-11 定案）：红眼巨人=砸击破耐砸，橄榄球=极速啃食。
-	ZombieType aBossType = Rand(2) == 0
-		? ZombieType::ZOMBIE_REDEYE_GARGANTUAR
-		: ZombieType::ZOMBIE_FOOTBALL;
-	Zombie* aBoss = AddZombieInRow(aBossType, aRows[Rand(aRowCount)], mCurrentWave);
-	if (aBoss == nullptr) return;
+	static const ZombieType bossTypes[] = {
+		ZombieType::ZOMBIE_REDEYE_GARGANTUAR, ZombieType::ZOMBIE_FOOTBALL, ZombieType::ZOMBIE_ZAMBONI
+	};
+	MTRand bossRandom((unsigned)aRun->GetLevelSeed()^0x424f5353u);
+    int typeIndex=aRun->IsNewEndless()?(int)bossRandom.Next((unsigned long)(StageHasRoof()?2:3)):Rand(3);
+    int rowIndex=aRun->IsNewEndless()?(int)bossRandom.Next((unsigned long)aRowCount):Rand(aRowCount);
+    ZombieType aBossType = bossTypes[typeIndex];
+    Zombie* aBoss = AddZombieInRow(aBossType, aRows[rowIndex], mCurrentWave);
+	if (aBoss == nullptr) return false;
 
 	aBoss->mScaleZombie = kRunBossScale;
 	aBoss->mBossMode = Zombie::RUN_BOSS_MARKER;
-	int aMult = mApp->OnlineSeatMultiplier() * kRunBossHpFactor;
-	aBoss->mBodyHealth = RunMath::ScaleHealth(aBoss->mBodyHealth, aMult, 1);
+	int aMult = mApp->OnlineSeatMultiplier() * RunBossHpPermille(aBossType);
+	aBoss->mBodyHealth = RunMath::ScaleHealth(aBoss->mBodyHealth, aMult, 1000);
 	aBoss->mBodyMaxHealth = aBoss->mBodyHealth;
 	if (aBossType == ZombieType::ZOMBIE_FOOTBALL)
 	{
-		aBoss->mHelmHealth = RunMath::ScaleHealth(aBoss->mHelmHealth, aMult, 1);
+		aBoss->mHelmHealth = RunMath::ScaleHealth(aBoss->mHelmHealth, aMult, 1000);
 		aBoss->mHelmMaxHealth = aBoss->mHelmHealth;
 	}
 	aBoss->UpdateAnimSpeed();
 	mRunBossZombieID = ZombieGetID(aBoss);
+    return true;
 }
 
 bool Board::IsRunBossZombie(Zombie* theZombie)
@@ -5880,7 +6138,8 @@ bool Board::IsRunBossZombie(Zombie* theZombie)
 	// @pvz-online: a board can receive more than one boss; a single spawn ID cannot identify all of them.
 	return theZombie != nullptr &&
 		((theZombie->mBossMode == Zombie::RUN_BOSS_MARKER &&
-		  (theZombie->mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR || theZombie->mZombieType == ZombieType::ZOMBIE_FOOTBALL)) ||
+		  (theZombie->mZombieType == ZombieType::ZOMBIE_REDEYE_GARGANTUAR || theZombie->mZombieType == ZombieType::ZOMBIE_FOOTBALL ||
+		   theZombie->mZombieType == ZombieType::ZOMBIE_ZAMBONI)) ||
 		 (mRunBossZombieID != ZombieID::ZOMBIEID_NULL && mRunBossZombieID == ZombieGetID(theZombie)));
 }
 
@@ -6020,7 +6279,8 @@ Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBod
 	if (theBodyHealth <= 0) return nullptr;
 	if (theFlags & ~NetProto::ESCAPED_FLAG_RUN_BOSS) return nullptr;
 	const bool aRunBoss = (theFlags & NetProto::ESCAPED_FLAG_RUN_BOSS) != 0;
-	if (aRunBoss && theZombieType != ZombieType::ZOMBIE_REDEYE_GARGANTUAR && theZombieType != ZombieType::ZOMBIE_FOOTBALL) return nullptr;
+	if (aRunBoss && theZombieType != ZombieType::ZOMBIE_REDEYE_GARGANTUAR && theZombieType != ZombieType::ZOMBIE_FOOTBALL &&
+		theZombieType != ZombieType::ZOMBIE_ZAMBONI) return nullptr;
 
 	Zombie* aZombie = AddZombieInRow(theZombieType, theRow, mCurrentWave);
 	if (aZombie == nullptr) return nullptr;		// 场上满了（AddZombieInRow 里那声 "Too many zombies!!"）
@@ -6050,6 +6310,7 @@ Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBod
 	if (aZombie->mHelmHealth == 0) aZombie->DropHelm(aQuietFlags);
 	if (aZombie->mShieldHealth == 0) aZombie->DropShield(aQuietFlags);
 
+    aZombie->RefreshPlantHat();
 	return aZombie;
 }
 
@@ -6152,9 +6413,12 @@ void Board::ZombiesWon(Zombie* theZombie, bool theFromPeer)
 
 	ReanimatorEnsureDefinitionLoaded(ReanimationType::REANIM_ZOMBIES_WON, true);
 	Reanimation* aReanim = mApp->AddReanimation(-BOARD_OFFSET, 0, MakeRenderOrder(RenderLayer::RENDER_LAYER_SCREEN_FADE, 0, 0), ReanimationType::REANIM_ZOMBIES_WON);
-	aReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
-	aReanim->GetTrackInstanceByName("fullscreen")->mTrackColor = Color::Black;
-	aReanim->SetFramesForLayer("anim_screen");
+	if (aReanim)
+	{
+    	aReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
+    	aReanim->GetTrackInstanceByName("fullscreen")->mTrackColor = Color::Black;
+    	aReanim->SetFramesForLayer("anim_screen");
+	}
 }
 
 //0x4138D0
@@ -6257,14 +6521,15 @@ void Board::UpdateSunSpawning()
 		}
 	}
 
-	mSunCountDown--;
-	if (mSunCountDown != 0)
+	// @pvz-online: 夜晚先建草坪后拿「天降」时计时仍为0；旧档也可能已减成负数。
+	// 非正值都视为到期，避免0减成-1后永远错过掉落，并让旧档自动恢复。
+	if (mSunCountDown > 0)
+		mSunCountDown--;
+	if (mSunCountDown > 0)
 		return;
 
 	mNumSunsFallen++;
-	// @pvz-online: 闯关 buff「天降」（2026-10-06 重做口径）：二值 ×0.25（有层就 ×0.25，
-	// 旧档多层不叠乘）；结果恒 ≥1 帧（最小 435×0.25 ≈ 108），不会出现"倒计时为 0 永不
-	// 掉落"的死值——见上面那句 mSunCountDown != 0 的早退。
+	// @pvz-online: 「天降」间隔减半；旧档多层仍只生效一次，保留原来的掉落速率。
 	mSunCountDown = (int)((std::min(SUN_COUNTDOWN_MAX, SUN_COUNTDOWN + mNumSunsFallen * 10) + Rand(SUN_COUNTDOWN_RANGE)) * mApp->RunSkySunIntervalMul() + 0.5f);
 	CoinType aSunType = mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_SUNNY_DAY ? CoinType::COIN_LARGESUN : CoinType::COIN_SUN;
 	AddCoin(RandRangeInt(100, 649), 60, aSunType, CoinMotion::COIN_MOTION_FROM_SKY);
@@ -6325,7 +6590,17 @@ void Board::UpdateZombieSpawning()
 		}
 	}
 
-	if (mHugeWaveCountDown > 0)
+	// A manual request enters the same wave spawn and post-spawn bookkeeping as the timer.
+    if (NextWaveControl::TakeRequest(this))
+    {
+        if(IsFlagWave(mCurrentWave) && mApp->mMusic)mApp->mMusic->StartBurst();
+        mHugeWaveCountDown=0;
+        ClearAdvice(AdviceType::ADVICE_HUGE_WAVE);
+        NextWaveComing();
+        mZombieCountDown=1;
+    }
+
+    if (mHugeWaveCountDown > 0)
 	{
 		mHugeWaveCountDown--;
 		if (mHugeWaveCountDown == 0)
@@ -6393,7 +6668,7 @@ void Board::UpdateZombieSpawning()
 		return;
 	}
 
-	if (mZombieCountDown > 200 && mZombieCountDownStart - mZombieCountDown > 400 && TotalZombiesHealthInWave(mCurrentWave - 1) <= mZombieHealthToNextWave)
+	if (mZombieCountDown > 200 && mZombieCountDownStart - mZombieCountDown > 400 && TotalZombiesHealthInWave(mCurrentWave - 1) <= mWaveHealth.next)
 	{
 		mZombieCountDown = 200;
 	}
@@ -6410,22 +6685,24 @@ void Board::UpdateZombieSpawning()
 	}
 	if (mZombieCountDown == 0)
 	{
-		SpawnZombieWave();
-		mZombieHealthWaveStart = TotalZombiesHealthInWave(mCurrentWave - 1);
+        const int aWaveBefore=mCurrentWave;
+        SpawnZombieWave();
+        if(mCurrentWave==aWaveBefore) {mZombieCountDown=1;return;}
+		mWaveHealth.start = TotalZombiesHealthInWave(mCurrentWave - 1);
 
 		if (mCurrentWave == mNumWaves && mApp->IsSurvivalMode())
 		{
-			mZombieHealthToNextWave = 0;
+			mWaveHealth.next = 0;
 			mZombieCountDown = ZOMBIE_COUNTDOWN_BEFORE_REPICK + 1;
 		}
 		else if (IsFlagWave(mCurrentWave) && (mApp->IsWallnutBowlingLevel() || mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_LAST_STAND))
 		{
-			mZombieHealthToNextWave = 0;
+			mWaveHealth.next = 0;
 			mZombieCountDown = ZOMBIE_COUNTDOWN_BEFORE_FLAG;
 		}
 		else
 		{
-			mZombieHealthToNextWave = RandRangeFloat(0.5f, 0.65f) * mZombieHealthWaveStart;
+			mWaveHealth.next = static_cast<int64_t>(static_cast<double>(RandRangeFloat(0.5f, 0.65f)) * mWaveHealth.start);
 			if (mApp->IsLittleTroubleLevel() || mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_COLUMN || mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_LAST_STAND)
 			{
 				mZombieCountDown = 750;
@@ -6443,6 +6720,7 @@ void Board::UpdateZombieSpawning()
 				}
 			}
 		}
+		SyncLegacyWaveHealth();
 		mZombieCountDownStart = mZombieCountDown;
 	}
 }
@@ -6528,19 +6806,19 @@ void Board::UpdateProgressMeter()
 
 		// 根据倒计时初步计算当前波已经过的比例
 		float aFraction = (mZombieCountDownStart - mZombieCountDown) / (float)mZombieCountDownStart;
-		if (mZombieHealthToNextWave != -1)
+		if (mWaveHealth.next != -1)
 		{
 			// 取得本波僵尸的当前血量
-			int aHealthCurrent = TotalZombiesHealthInWave(mCurrentWave - 1);
+			int64_t aHealthCurrent = TotalZombiesHealthInWave(mCurrentWave - 1);
 			// 取得（本波开始时的僵尸总血量 - 下一波刷新时的僵尸总血量），即：本波刷新需要对僵尸造成的伤害
-			int aDamageTarget = mZombieHealthWaveStart - mZombieHealthToNextWave;  //开始时的血量 - 刷新时的血量
+			int64_t aDamageTarget = mWaveHealth.start - mWaveHealth.next;  //开始时的血量 - 刷新时的血量
 			if (aDamageTarget < 1)
 			{
 				aDamageTarget = 1;  // 需要的伤害至少为 1
 			}
 			// 再次以刷新血量计算一次当前波已经过的比例
 			// 血量比例 = [目标伤害 - (当前血量 - 刷新血量)] / 目标伤害 = (目标伤害 - 仍需造成的伤害) / 目标伤害 = 当前伤害 / 目标伤害
-			float aHealthFraction = (aDamageTarget - aHealthCurrent + mZombieHealthToNextWave) / (float)aDamageTarget;
+			float aHealthFraction = (aDamageTarget - aHealthCurrent + mWaveHealth.next) / (float)aDamageTarget;
 			// 最终比例取上述二者的较大值
 			aFraction = std::max(aHealthFraction, aFraction);
 		}
@@ -6713,6 +6991,7 @@ void Board::SetTutorialState(TutorialState theTutorialState)
 //0x415920
 void Board::UpdateGame()
 {
+    if (mApp->mOnlineSession && mApp->mOnlineSession->RelayBattleHeld()) return;
 	UpdateGameObjects();
 	if (StageHasFog() && mFogBlownCountDown > 0)
 	{
@@ -6735,6 +7014,20 @@ void Board::UpdateGame()
 		return;
 
 	mMainCounter++;
+	// Periodic high-load evidence survives a later crash without logging every spawn/frame.
+	if (mMainCounter % 500 == 0 &&
+		(mZombies.mSize >= mZombies.mMaxSize / 2 || mProjectiles.mSize >= mProjectiles.mMaxSize / 2 ||
+		 mCoins.mSize >= mCoins.mMaxSize / 2 ||
+		 mApp->mEffectSystem->mReanimationHolder->mReanimations.mSize >= 768 ||
+		 mApp->mEffectSystem->mAttachmentHolder->mAttachments.mSize >= 768))
+	{
+		const auto& aReanims = mApp->mEffectSystem->mReanimationHolder->mReanimations;
+		const auto& aAttachments = mApp->mEffectSystem->mAttachmentHolder->mAttachments;
+		TodLog("[capacity] wave %d frame %d zombies %u/%u plants %u/%u projectiles %u/%u coins %u/%u reanims %u/%u attachments %u/%u",
+			mCurrentWave, mMainCounter, mZombies.mSize, mZombies.mMaxSize, mPlants.mSize, mPlants.mMaxSize,
+			mProjectiles.mSize, mProjectiles.mMaxSize, mCoins.mSize, mCoins.mMaxSize,
+			aReanims.mSize, aReanims.mMaxSize, aAttachments.mSize, aAttachments.mMaxSize);
+	}
 	UpdateSunSpawning();
 	UpdateZombieSpawning();
 	UpdateIce();
@@ -6776,10 +7069,23 @@ void Board::UpdateGame()
 //0x415D40
 void Board::Update()
 {
+    if (mApp->mOnlineSession && mApp->mOnlineSession->RelayBattleHeld()) {
+        Widget::Update();MarkDirty();UpdateQuickChat();UpdateBoardWatch();return;
+    }
+    if(AdmissionBoard::Update(this))return;
+    NextWaveControl::Update(this);
 	TodHesitationBracket aHesitation("Board::Update");
 
 	Widget::Update();
 	MarkDirty();
+
+    if (mDeferredPlantSetup.IsWaiting())
+    {
+        if (!mPaused) { mApp->mEffectSystem->Update(); CompleteDeferredPlantSetup(); }
+        UpdateMousePosition(); UpdateQuickChat(); UpdateBoardWatch();
+        mMenuButton->Update(); mAdvice->Update();
+        return;
+    }
 
 	mCutScene->Update();
 	UpdateMousePosition();
@@ -7034,7 +7340,7 @@ bool RenderItemSortFunc(const RenderItem& theItem1, const RenderItem& theItem2)
 //0x4166C0
 void Board::AddBossRenderItem(RenderItem* theRenderList, int& theCurRenderItem, Zombie* theBossZombie)
 {
-	TOD_ASSERT(theCurRenderItem < MAX_RENDER_ITEMS);
+	TOD_ASSERT(theCurRenderItem >= 0);
 	int aBackLegRow = 1;
 	int aFrontLegRow = 3;
 	int aBackArmRow = 4;
@@ -7094,7 +7400,7 @@ void Board::AddBossRenderItem(RenderItem* theRenderList, int& theCurRenderItem, 
 [[maybe_unused]]
 static inline void AddGameObjectRenderItem(RenderItem* theRenderList, int& theCurRenderItem, RenderObjectType theRenderObjectType, GameObject* theGameObject)
 {
-	TOD_ASSERT(theCurRenderItem < MAX_RENDER_ITEMS);
+	TOD_ASSERT(theCurRenderItem >= 0);
 	RenderItem& aRenderItem = theRenderList[theCurRenderItem];
 	aRenderItem.mRenderObjectType = theRenderObjectType;
 	aRenderItem.mZPos = theGameObject->mRenderOrder;
@@ -7105,7 +7411,7 @@ static inline void AddGameObjectRenderItem(RenderItem* theRenderList, int& theCu
 
 static inline void AddGameObjectRenderItemCursorPreview(RenderItem* theRenderList, int& theCurRenderItem, RenderObjectType theRenderObjectType, GameObject* theGameObject)
 {
-	TOD_ASSERT(theCurRenderItem < MAX_RENDER_ITEMS);
+	TOD_ASSERT(theCurRenderItem >= 0);
 	RenderItem& aRenderItem = theRenderList[theCurRenderItem];
 	aRenderItem.mRenderObjectType = theRenderObjectType;
 	aRenderItem.mZPos = theGameObject->mRenderOrder;
@@ -7117,7 +7423,7 @@ static inline void AddGameObjectRenderItemCursorPreview(RenderItem* theRenderLis
 
 static inline void AddGameObjectRenderItemPlant(RenderItem* theRenderList, int& theCurRenderItem, RenderObjectType theRenderObjectType, GameObject* theGameObject)
 {
-	TOD_ASSERT(theCurRenderItem < MAX_RENDER_ITEMS);
+	TOD_ASSERT(theCurRenderItem >= 0);
 	RenderItem& aRenderItem = theRenderList[theCurRenderItem];
 	aRenderItem.mRenderObjectType = theRenderObjectType;
 	aRenderItem.mZPos = theGameObject->mRenderOrder;
@@ -7129,7 +7435,7 @@ static inline void AddGameObjectRenderItemPlant(RenderItem* theRenderList, int& 
 
 static inline void AddGameObjectRenderItemZombie(RenderItem* theRenderList, int& theCurRenderItem, RenderObjectType theRenderObjectType, GameObject* theGameObject)
 {
-	TOD_ASSERT(theCurRenderItem < MAX_RENDER_ITEMS);
+	TOD_ASSERT(theCurRenderItem >= 0);
 	RenderItem& aRenderItem = theRenderList[theCurRenderItem];
 	aRenderItem.mRenderObjectType = theRenderObjectType;
 	aRenderItem.mZPos = theGameObject->mRenderOrder;
@@ -7140,7 +7446,7 @@ static inline void AddGameObjectRenderItemZombie(RenderItem* theRenderList, int&
 
 static inline void AddGameObjectRenderItemProjectile(RenderItem* theRenderList, int& theCurRenderItem, RenderObjectType theRenderObjectType, GameObject* theGameObject)
 {
-	TOD_ASSERT(theCurRenderItem < MAX_RENDER_ITEMS);
+	TOD_ASSERT(theCurRenderItem >= 0);
 	RenderItem& aRenderItem = theRenderList[theCurRenderItem];
 	aRenderItem.mRenderObjectType = theRenderObjectType;
 	aRenderItem.mZPos = theGameObject->mRenderOrder;
@@ -7151,7 +7457,7 @@ static inline void AddGameObjectRenderItemProjectile(RenderItem* theRenderList, 
 
 static inline void AddGameObjectRenderItemCoin(RenderItem* theRenderList, int& theCurRenderItem, RenderObjectType theRenderObjectType, GameObject* theGameObject)
 {
-	TOD_ASSERT(theCurRenderItem < MAX_RENDER_ITEMS);
+	TOD_ASSERT(theCurRenderItem >= 0);
 	RenderItem& aRenderItem = theRenderList[theCurRenderItem];
 	aRenderItem.mRenderObjectType = theRenderObjectType;
 	aRenderItem.mZPos = theGameObject->mRenderOrder;
@@ -7162,7 +7468,7 @@ static inline void AddGameObjectRenderItemCoin(RenderItem* theRenderList, int& t
 
 static inline void AddUIRenderItem(RenderItem* theRenderList, int& theCurRenderItem, RenderObjectType theRenderObjectType, int thePosZ)
 {
-	TOD_ASSERT(theCurRenderItem < MAX_RENDER_ITEMS);
+	TOD_ASSERT(theCurRenderItem >= 0);
 	RenderItem& aRenderItem = theRenderList[theCurRenderItem];
 	aRenderItem.mRenderObjectType = theRenderObjectType;
 	aRenderItem.mZPos = thePosZ;
@@ -7175,6 +7481,10 @@ static inline void AddUIRenderItem(RenderItem* theRenderList, int& theCurRenderI
 // 1 键切僵尸、2 键切植物，仅本机显示、不进联机协议；进程内保持，跨关卡不重置）
 static bool gShowZombieHealthNumbers = false;
 static bool gShowPlantHealthNumbers = false;
+bool Board::PlantHealthVisible() const { return gShowPlantHealthNumbers; }
+bool Board::ZombieHealthVisible() const { return gShowZombieHealthNumbers; }
+void Board::SetPlantHealthVisible(bool visible) { gShowPlantHealthNumbers = visible; }
+void Board::SetZombieHealthVisible(bool visible) { gShowZombieHealthNumbers = visible; }
 
 // @pvz-online: 单个血量数字：像素字体白字黑描边，居中画在实体矩形上方（DrawString 的 y 是基线）。
 // theLine = 自下往上第几行（0 = 紧贴矩形上沿，往上每行步进 16px；僵尸的防具数字叠行用）
@@ -7193,11 +7503,25 @@ static void DrawHealthNumberOverRect(Graphics* g, int theHealth, const Rect& the
 	g->DrawString(aText, aTextX, aTextY);
 }
 
-void Board::DrawGameObjects(Graphics* g)
+int Board::GetRenderListCapacity() const
 {
+	// Per-object upper bounds include Boss parts, shadows, overlays and standalone effects.
+	return 3 * mPlants.mSize + mCoins.mSize + 5 * mZombies.mSize + 2 * mProjectiles.mSize +
+		mLawnMowers.mSize + mApp->mEffectSystem->mParticleHolder->mParticleSystems.mSize +
+		mApp->mEffectSystem->mReanimationHolder->mReanimations.mSize + 2 * mGridItems.mSize +
+		MAX_GRID_SIZE_Y + 16;
+}
+
+int Board::BuildRenderList(RenderItem* theRenderList, int theCapacity)
+{
+	// Reject undersized buffers before any append; fixed 2048-entry lists cannot hold dense waves.
+	if (theRenderList == nullptr || theCapacity < GetRenderListCapacity()) return -1;
+	// Clear the entire union, including the upper pointer bits on 64-bit Android.
+	std::fill_n(theRenderList, GetRenderListCapacity(), RenderItem{});
+
 	TodHesitationTrace("creating render list");
 
-	RenderItem aRenderList[MAX_RENDER_ITEMS];
+	RenderItem* aRenderList = theRenderList;
 	int aRenderItemCount = 0;
 
 	{
@@ -7397,6 +7721,18 @@ void Board::DrawGameObjects(Graphics* g)
 		AddUIRenderItem(aRenderList, aRenderItemCount, RenderObjectType::RENDER_ITEM_STORM, MakeRenderOrder(RenderLayer::RENDER_LAYER_FOG, 0, 3));
 	}
 	AddGameObjectRenderItemCursorPreview(aRenderList, aRenderItemCount, RenderObjectType::RENDER_ITEM_CURSOR_PREVIEW, mCursorPreview);
+
+	return aRenderItemCount;
+}
+
+void Board::DrawGameObjects(Graphics* g)
+{
+	const int aCapacity = GetRenderListCapacity();
+	// Local ownership also keeps nested resource-loading draws from invalidating this list.
+	std::unique_ptr<RenderItem[]> aStorage(new RenderItem[aCapacity]);
+	RenderItem* aRenderList = aStorage.get();
+	const int aRenderItemCount = BuildRenderList(aRenderList, aCapacity);
+	if (aRenderItemCount < 0) return;
 
 	TodHesitationTrace("start sort");
 	std::sort(aRenderList, aRenderList + aRenderItemCount, RenderItemSortFunc);
@@ -8114,12 +8450,12 @@ void Board::DrawDebugText(Graphics* g)
 		aText += StrFormat(_S("TimeSinseLastSpawn: %d %s\n"), aTime, aTime > 400 ? _S("") : _S("(too soon)"));
 		aText += StrFormat(_S("ZombieCountDown: %d/%d (%.0f%%)\n"), mZombieCountDown, mZombieCountDownStart, aCountDownFraction);
 
-		if (mZombieHealthToNextWave != -1)
+		if (mWaveHealth.next != -1)
 		{
-			int aTotalHealth = TotalZombiesHealthInWave(mCurrentWave - 1);
-			int aHealthRange = std::max(mZombieHealthWaveStart - mZombieHealthToNextWave, 1);
-			float aHealthFraction = (float)(mZombieHealthToNextWave - aTotalHealth + aHealthRange) / (float)aHealthRange;
-			aText += StrFormat(_S("ZombieHealth: CurZombieHealth %d trigger %d (%.0f%%)\n"), aTotalHealth, mZombieHealthToNextWave, aHealthFraction * 100);
+			int64_t aTotalHealth = TotalZombiesHealthInWave(mCurrentWave - 1);
+			int64_t aHealthRange = std::max<int64_t>(mWaveHealth.start - mWaveHealth.next, 1);
+			float aHealthFraction = (float)(mWaveHealth.next - aTotalHealth + aHealthRange) / (float)aHealthRange;
+			aText += StrFormat(_S("ZombieHealth: CurZombieHealth %lld trigger %lld (%.0f%%)\n"), static_cast<long long>(aTotalHealth), static_cast<long long>(mWaveHealth.next), aHealthFraction * 100);
 		}
 		else
 		{
@@ -8919,7 +9255,7 @@ void Board::DoTypingCheck(KeyCode theKey)
 
 bool Board::QuickChatAvailable()
 {
-    if (mApp->IsLocalOnlyMode(mApp->mGameMode)) return false;
+    if (mApp->IsLocalOnlyMode(mApp->mGameMode) || mApp->AdmissionBuilding()) return false;
 	// 观看队友场地时不开面板：观看层盖住全屏，面板看不见却还在吞键（T/E 会被这里先接走）
 	return !mWatchKeyHeld && mApp->IsOnlineGame() && mApp->mOnlineSession != nullptr &&
 		mApp->mOnlineSession->IsConnected() &&
@@ -9189,7 +9525,7 @@ bool Board::CoopMouseUp(int x,int y,int clicks) {
     CoopAction(action);return true;
 }
 void Board::CoopAction(int action){CoopHud::Action(this,action);}
-void Board::DrawCoopUI(Graphics* g){CoopHud::Draw(this,g);}
+void Board::DrawCoopUI(Graphics* g){NextWaveControl::Draw(this,g);AdmissionBoard::Draw(this,g);DamageStatsView::Draw(this,g);CoopHud::Draw(this,g);}
 
 // @pvz-online: 画一条横幅（名字解析 / 黑底盒 / 白字黑描边 / 表情卡图），返回行高
 //（表情 44 / 文本 26）。三条同屏批（2026-10-11）从 DrawQuickChat 里抽出来。
@@ -9349,7 +9685,9 @@ int Board::BuildBoardSnapshot(uint8_t* theBuffer, int theCapacity)
 		uint8_t aFlags = 0;
 		if (aOne->mHelmType != HelmType::HELMTYPE_NONE) aFlags |= NetProto::SNAPSHOT_ZFLAG_HELMET;
 		if (aOne->mShieldType != ShieldType::SHIELDTYPE_NONE) aFlags |= NetProto::SNAPSHOT_ZFLAG_SHIELD;
-		if (aOne->mFlyingHealth > 0 && aOne->mFlyingMaxHealth > 0) aFlags |= NetProto::SNAPSHOT_ZFLAG_FLYING;
+		if (PlantZombies::Armor(aOne->mZombieType)) {
+            if(aOne->HasPlantHat())aFlags|=NetProto::SNAPSHOT_ZFLAG_PLANT_HAT;
+        } else if (aOne->mFlyingHealth > 0 && aOne->mFlyingMaxHealth > 0) aFlags |= NetProto::SNAPSHOT_ZFLAG_FLYING;
 		if (IsRelayedZombie(aOne)) aFlags |= NetProto::SNAPSHOT_ZFLAG_RELAYED;	// 观战侧同款小箭头
 
 		uint16_t aType = (uint16_t)aOne->mZombieType;
@@ -9688,7 +10026,12 @@ void Board::DrawBoardWatch(Graphics* g)
 		if (aZ.mType == ZombieType::ZOMBIE_BALLOON) aOriginY -= 30.0f;
 		float aPivotY = (aZ.mType == ZombieType::ZOMBIE_GARGANTUAR) ? 60.0f : 40.0f;
 		float aDrawY = aOriginY - aPivotY;
-		mApp->mReanimatorCache->DrawCachedZombie(g, (float)aZ.mX - 40.0f, aDrawY, (ZombieType)aZ.mType);
+		ZombieType aViewType=(ZombieType)aZ.mType;
+        const int aFamily=PlantZombies::Family(aViewType);
+        if(aFamily>=0)aViewType=PlantZombies::Form(aFamily,
+            (aZ.mFlags&NetProto::SNAPSHOT_ZFLAG_PLANT_HAT)?PlantZombies::Armor(aViewType):0,
+            (aZ.mFlags&NetProto::SNAPSHOT_ZFLAG_SHIELD)!=0);
+        mApp->mReanimatorCache->DrawCachedZombie(g, (float)aZ.mX - 40.0f, aDrawY, aViewType);
 		if (aZ.mHP < 100)
 		{
 			WatchDrawHealthBar(g, aZ.mX - 25, (int)aDrawY + 2, 50, 5, aZ.mHP);
@@ -9801,6 +10144,8 @@ void Board::DrawKeyboardHint(Graphics* g, int theSlot, int theX, int theY)
 //0x41B820
 void Board::KeyDown(KeyCode theKey)
 {
+    if (mApp->mOnlineSession && mApp->mOnlineSession->RelayBattleHeld()) { mApp->DoOnlineDialog(); return; }
+    if(NextWaveControl::KeyDown(this,theKey))return;
     // @pvz-online: KeyCode is a VK, not a character: lowercase 't' is F5 and 'b' is NUMPAD2.
     // Win32 and SDL both normalize physical letter keys to uppercase; KeyChar handles text separately.
     if((theKey=='B') && mApp->IsOnlineGame()){CloseQuickChatPanel();mSunGiftSelectFrames=0;mApp->ShowCoopPlay();return;}
@@ -9878,6 +10223,7 @@ void Board::KeyDown(KeyCode theKey)
 // 失焦时收不到 KeyUp，由 UpdateBoardWatch 的 mKeyDown 轮询兜底。
 void Board::KeyUp(KeyCode theKey)
 {
+    NextWaveControl::KeyUp(this,theKey);
 	if ((theKey == 'V') && (mWatchKeyHeld || mWatchRearmBlocked))
 	{
         mCoopWatchLatched=false;
@@ -9898,6 +10244,7 @@ static void TodCrash()
 //0x41B950（原版中废弃）
 void Board::KeyChar(SexyChar theChar)
 {
+    if(mApp->IsRunMode() && (theChar=='n' || theChar=='N'))return;
     // @pvz-online: H/J are display keys, including with -tod; do not also spawn debug zombies.
     if ((theChar == _S('h') || theChar == _S('H') || theChar == _S('j') || theChar == _S('J')) &&
         mApp->mGameScene == GameScenes::SCENE_PLAYING &&
@@ -9928,7 +10275,7 @@ void Board::KeyChar(SexyChar theChar)
 		return;
 	}
 
-	// 验收跳板 A：'M' 钱包 +10000 币（AddCoins 自带 99999 封顶）——重摇阶梯验收
+	// 验收跳板 A：'M' 钱包 +10000 币（AddCoins 自带 99999999 封顶）——重摇阶梯验收
 	//（$100/$1,000/$10,000，§5.95）要真钱包；主菜单 'u'（+50000 连带全解锁+删冒险档）
 	// 之外给个局内一口价的口，不碰其他进度。三选一屏开着时键盘焦点在弹窗上、这钩子
 	// 收不到——先加钱再进屏（顺序见 §5.97）。
@@ -10748,6 +11095,11 @@ int Board::CountCoinsBeingCollected()
 //0x41BA60
 bool Board::TakeSunMoney(int theAmount)
 {
+    if(mApp->AdmissionBuilding()) {
+        auto& state=mApp->GetRunState()->mAdmission;
+        if(theAmount<0 || theAmount>state.budget)return false;
+        state.budget-=theAmount;mApp->mAdmissionDirty=true;return true;
+    }
 	if (CanTakeSunMoney(theAmount))
 	{
 		mSunMoney -= theAmount;
@@ -10762,6 +11114,7 @@ bool Board::TakeSunMoney(int theAmount)
 //0x41BAB0
 bool Board::CanTakeSunMoney(int theAmount)
 {
+    if(mApp->AdmissionBuilding())return theAmount>=0 && theAmount<=mApp->GetRunState()->mAdmission.budget;
 	return theAmount <= mSunMoney + CountSunBeingCollected();
 }
 
@@ -11316,7 +11669,7 @@ bool GetCircleRectOverlap(int theCircleX, int theCircleY, int theRadius, const R
 	}
 	else if (xOut && yOut)
 	{
-		return dx * dx + dy * dy <= theRadius * theRadius;
+		return static_cast<double>(dx) * dx + static_cast<double>(dy) * dy <= static_cast<double>(theRadius) * theRadius;
 	}
 	else if (xOut)
 	{
@@ -11486,10 +11839,6 @@ unsigned int Board::SeedNotRecommendedForLevel(SeedType theSeedType)
 	if (theSeedType == SeedType::SEED_FLOWERPOT && !StageHasRoof())
 	{
 		SetBit(aNotRec, NotRecommend::NOT_RECOMMENDED_NEEDS_ROOF, true);
-	}
-	if (StageHasRoof() && (theSeedType == SeedType::SEED_SPIKEWEED || theSeedType == SeedType::SEED_SPIKEROCK))
-	{
-		SetBit(aNotRec, NotRecommend::NOT_RECOMMENDED_ON_ROOF, true);
 	}
 	// @pvz-online: 闯关里水生四样（睡莲/缠绕海草/水兵菇/香蒲）都能种草坪，"需要泳池"的
 	// 灰罩不再成立（与 CanPlantAt 同一定案）。
@@ -11717,6 +12066,11 @@ void Board::DoFwoosh(int theRow)
 		float aPosX = 750.0f * i / 11.0f + 10.0f;
 		float aPosY = GetPosYBasedOnRow(aPosX + 10.0f, theRow) - 10.0f;
 		Reanimation* aFwoosh = mApp->AddReanimation(aPosX, aPosY, aRenderOrder, ReanimationType::REANIM_JALAPENO_FIRE);
+		if (!aFwoosh)
+		{
+			mFwooshID[theRow][i] = ReanimationID::REANIMATIONID_NULL;
+			continue;
+		}
 		aFwoosh->SetFramesForLayer("anim_flame");
 		aFwoosh->mLoopType = ReanimLoopType::REANIM_LOOP_FULL_LAST_FRAME;
 		aFwoosh->mAnimRate *= RandRangeFloat(0.7f, 1.3f);
@@ -11756,10 +12110,11 @@ void Board::UpdateFwoosh()
 //0x41D730
 void Board::UpdateGridItems()
 {
+	const bool advanceGraves = mEnableGraveStones || (mApp->IsRunMode() && mApp->mGameScene == GameScenes::SCENE_PLAYING);
 	GridItem* aGridItem = nullptr;
 	while (IterateGridItems(aGridItem))
 	{
-		if (mEnableGraveStones && aGridItem->mGridItemType == GridItemType::GRIDITEM_GRAVESTONE && aGridItem->mGridItemCounter < 100)
+		if (advanceGraves && aGridItem->mGridItemType == GridItemType::GRIDITEM_GRAVESTONE && aGridItem->mGridItemCounter < 100)
 		{
 			aGridItem->mGridItemCounter++;
 		}
@@ -11802,7 +12157,7 @@ bool Board::PlantingRequirementsMet(SeedType theSeedType)
 
 //0x41D8A0
 // GOTY @Patoke: 0x420670
-int Board::KillAllZombiesInRadius(int theRow, int theX, int theY, int theRadius, int theRowRange, bool theBurn, int theDamageRangeFlags, int theDirectDamage)
+int Board::KillAllZombiesInRadius(int theRow, int theX, int theY, int theRadius, int theRowRange, bool theBurn, int theDamageRangeFlags, int theDirectDamage, bool theExpandRadius)
 {
 	Zombie* aZombie = nullptr;
 	int aKilledZombies = 0; // @Patoke: implemented this
@@ -11817,7 +12172,7 @@ int Board::KillAllZombiesInRadius(int theRow, int theX, int theY, int theRadius,
 				aRowDist = 0;
 			}
 
-			if (aRowDist <= theRowRange && aRowDist >= -theRowRange && GetCircleRectOverlap(theX, theY, theRadius, aZombieRect))
+			if ((theExpandRadius || (aRowDist <= theRowRange && aRowDist >= -theRowRange)) && GetCircleRectOverlap(theX, theY, theRadius, aZombieRect))
 			{
 				if (theBurn)
 				{
@@ -11846,7 +12201,10 @@ int Board::KillAllZombiesInRadius(int theRow, int theX, int theY, int theRadius,
 	{
 		if (aGridItem->mGridItemType == GridItemType::GRIDITEM_LADDER)
 		{
-			if (GridInRange(aGridItem->mGridX, aGridItem->mGridY, aGridX, aGridY, theRowRange, theRowRange))
+			Rect aLadderRect(GridToPixelX(aGridItem->mGridX, aGridItem->mGridY),
+				GridToPixelY(aGridItem->mGridX, aGridItem->mGridY), 80, 80);
+			if (theExpandRadius ? GetCircleRectOverlap(theX, theY, theRadius, aLadderRect) :
+				GridInRange(aGridItem->mGridX, aGridItem->mGridY, aGridX, aGridY, theRowRange, theRowRange))
 			{
 				aGridItem->GridItemDie();
 			}
@@ -12032,7 +12390,7 @@ int Board::NumberZombiesInWave(int theWaveIndex)
 bool Board::IsZombieTypeSpawnedOnly(ZombieType theZombieType)
 {
 	// @pvz-online: 桶钢门/路障报纸/桶报纸/铁门植物头五种只走闯关名单投放——生存模式的随机给怪池不能抽到它们。
-	return (theZombieType == ZombieType::ZOMBIE_BACKUP_DANCER || theZombieType == ZombieType::ZOMBIE_BOBSLED || theZombieType == ZombieType::ZOMBIE_IMP || theZombieType == ZombieType::ZOMBIE_PAIL_DOOR || theZombieType == ZombieType::ZOMBIE_CONE_NEWSPAPER || theZombieType == ZombieType::ZOMBIE_PAIL_NEWSPAPER ||
+	return PlantZombies::Family(theZombieType)>=0 || (theZombieType == ZombieType::ZOMBIE_BACKUP_DANCER || theZombieType == ZombieType::ZOMBIE_BOBSLED || theZombieType == ZombieType::ZOMBIE_IMP || theZombieType == ZombieType::ZOMBIE_PAIL_DOOR || theZombieType == ZombieType::ZOMBIE_CONE_NEWSPAPER || theZombieType == ZombieType::ZOMBIE_PAIL_NEWSPAPER ||
 		theZombieType == ZombieType::ZOMBIE_PEA_HEAD_DOOR || theZombieType == ZombieType::ZOMBIE_WALLNUT_HEAD_DOOR || theZombieType == ZombieType::ZOMBIE_JALAPENO_HEAD_DOOR || theZombieType == ZombieType::ZOMBIE_GATLING_HEAD_DOOR || theZombieType == ZombieType::ZOMBIE_SQUASH_HEAD_DOOR);
 }
 
@@ -12152,4 +12510,71 @@ void Board::DrawRelayedZombieMarkers(Graphics* g)
         marker.FillRect(x + 5, y + 11, 8, 3);
         marker.FillRect(x + 7, y + 14, 4, 2);
     }
+}
+
+// Legacy fields retain their old offsets and width for raw saves and old portable tags.
+// New saves also persist the exact prefix fields in optional compatible data.
+void Board::SyncLegacyWaveHealth()
+{
+    mZombieHealthWaveStart = static_cast<int>(std::min<int64_t>(mWaveHealth.start, INT_MAX));
+    mZombieHealthToNextWave = static_cast<int>(std::min<int64_t>(mWaveHealth.next, INT_MAX));
+}
+
+void Board::RestoreLegacyWaveHealth()
+{
+    mWaveHealth.start = mZombieHealthWaveStart;
+    mWaveHealth.next = mZombieHealthToNextWave;
+}
+
+bool Board::CanAllocateZombieAnimations(ZombieType type,int wave)
+{
+    if(PlantZombies::Armor(type) && (!mApp || !mApp->mEffectSystem ||
+        !mApp->mEffectSystem->mAttachmentHolder ||
+        !mApp->mEffectSystem->mAttachmentHolder->mAttachments.DataArrayCanAllocate(2))) return false;
+    return mApp && mApp->mEffectSystem && mApp->mEffectSystem->mReanimationHolder &&
+        mApp->mEffectSystem->mReanimationHolder->mReanimations.DataArrayCanAllocate(
+            AnimationAdmission::ZombieGroup(type,wave) + mApp->mEffectSystem->mReanimationHolder->mPlantReservation);
+}
+
+// Planned cells remain authoritative while only missing actors are admitted.
+bool Board::DrainDeferredPlantSetup()
+{
+    auto& state = mDeferredPlantSetup;
+    while (state.HasPending())
+    {
+        const auto& item = state.pending[state.next];
+        Plant* plant = state.kind == DeferredPlantSetup::SHOVEL ?
+            AddPlant(item.x, item.y, static_cast<SeedType>(item.seed), SeedType::SEED_NONE) :
+            NewPlant(item.x, item.y, static_cast<SeedType>(item.seed), SeedType::SEED_NONE);
+        if (!plant) return false;
+        if (state.kind == DeferredPlantSetup::I_ZOMBIE) mChallenge->IZombieSetupPlant(plant);
+        else if (state.kind == DeferredPlantSetup::BEGHOULED) plant->mY = item.extra;
+        else if (state.kind == DeferredPlantSetup::POTTER_COLUMN && item.seed == SeedType::SEED_POTATOMINE)
+            plant->mStateCountdown = 10;
+        ++state.next;
+    }
+    return true;
+}
+
+bool Board::CompleteDeferredPlantSetup()
+{
+    auto& state = mDeferredPlantSetup;
+    if (state.flags & DeferredPlantSetup::INIT)
+    {
+        if (!mChallenge->CompleteInitPlants()) return false;
+        state.flags &= ~DeferredPlantSetup::INIT;
+    }
+    if (state.flags & DeferredPlantSetup::NEXT_I_ZOMBIE)
+    {
+        if (!mChallenge->IZombieInitLevel()) return false;
+        state.flags &= ~DeferredPlantSetup::NEXT_I_ZOMBIE;
+    }
+    if (state.flags & DeferredPlantSetup::START) StartLevel();
+    if (state.flags) return false;
+    if (state.HasPending())
+    {
+        if (state.kind == DeferredPlantSetup::SHOVEL) mChallenge->ShovelAddWallnuts();
+        else DrainDeferredPlantSetup();
+    }
+    return !state.IsWaiting();
 }

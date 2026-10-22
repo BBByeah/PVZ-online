@@ -154,30 +154,35 @@ void TodFoleyDispose()
 }
 
 //0x514F70
-void SoundSystemReleaseFinishedInstances(TodFoley* theSoundSystem)
+static void SoundSystemReleaseFinishedType(TodFoley* theSoundSystem, FoleyType theType)
 {
-	for (int aFoleyType = 0; aFoleyType < gFoleyParamArraySize; aFoleyType++)
-		for (int i = 0; i < MAX_FOLEY_INSTANCES; i++)
+	const int aFoleyType = (int)theType;
+	for (int i = 0; i < MAX_FOLEY_INSTANCES; i++)
+	{
+		FoleyInstance* aFoleyInstance = &theSoundSystem->mFoleyTypeData[aFoleyType].mFoleyInstances[i];
+		if (aFoleyInstance->mRefCount == 0)
 		{
-			FoleyInstance* aFoleyInstance = &theSoundSystem->mFoleyTypeData[aFoleyType].mFoleyInstances[i];
-			if (aFoleyInstance->mRefCount == 0)
+			TOD_ASSERT(aFoleyInstance->mInstance == nullptr);
+		}
+		else if (!aFoleyInstance->mPaused)
+		{
+			TOD_ASSERT(aFoleyInstance->mInstance);
+			if (!aFoleyInstance->mInstance->IsPlaying())
 			{
-				TOD_ASSERT(aFoleyInstance->mInstance == nullptr);
-			}
-			else if (!aFoleyInstance->mPaused)
-			{
-				TOD_ASSERT(aFoleyInstance->mInstance);
-				if (!aFoleyInstance->mInstance->IsPlaying())
-				{
-					aFoleyInstance->mInstance->Release();
-					aFoleyInstance->mInstance = nullptr;
-					aFoleyInstance->mRefCount = 0;
-				}
+				aFoleyInstance->mInstance->Release();
+				aFoleyInstance->mInstance = nullptr;
+				aFoleyInstance->mRefCount = 0;
 			}
 		}
+	}
 }
 
-//0x514FE0
+void SoundSystemReleaseFinishedInstances(TodFoley* theSoundSystem)
+{
+    for (int type = 0; type < gFoleyParamArraySize; ++type)
+        SoundSystemReleaseFinishedType(theSoundSystem, (FoleyType)type);
+}
+
 bool SoundSystemHasFoleyPlayedTooRecently(TodFoley* theSoundSystem, FoleyType theFoleyType)
 {
 	FoleyTypeData* aFoleyData = &theSoundSystem->mFoleyTypeData[(int)theFoleyType];
@@ -233,10 +238,11 @@ FoleyInstance* SoundSystemGetFreeInstanceIndex(TodFoley* theSoundSystem, FoleyTy
 void TodFoley::PlayFoleyPitch(FoleyType theFoleyType, float thePitch)
 {
 	FoleyParams* aFoleyParams = LookupFoley(theFoleyType);
-	SoundSystemReleaseFinishedInstances(this);  // 释放已播放完成的音效实例
+	SoundSystemReleaseFinishedType(this, theFoleyType);  // 释放已播放完成的音效实例
 	if (SoundSystemHasFoleyPlayedTooRecently(this, theFoleyType) && !TestBit(aFoleyParams->mFoleyFlags, FoleyFlags::FOLEYFLAGS_LOOP))
 		return;  // 非循环音效不可重叠播放
 
+	SoundSystemReleaseFinishedInstances(this);
 	if (TestBit(aFoleyParams->mFoleyFlags, FoleyFlags::FOLEYFLAGS_ONE_AT_A_TIME))  // 如果定义了不可叠加播放
 	{
 		FoleyInstance* aFoleyInstance = SoundSystemFindInstance(this, theFoleyType);
@@ -297,7 +303,7 @@ void TodFoley::PlayFoley(FoleyType theFoleyType)
 //0x515290
 void TodFoley::StopFoley(FoleyType theFoleyType)
 {
-	SoundSystemReleaseFinishedInstances(this);
+	SoundSystemReleaseFinishedType(this, theFoleyType);
 	FoleyInstance* aFoleyInstance = SoundSystemFindInstance(this, theFoleyType);
 	if (aFoleyInstance == nullptr)
 		return;
@@ -408,6 +414,6 @@ void TodFoley::RehookupSoundWithMusicVolume()
 //0x515560
 bool TodFoley::IsFoleyPlaying(FoleyType theFoleyType)
 {
-	SoundSystemReleaseFinishedInstances(this);
+	SoundSystemReleaseFinishedType(this, theFoleyType);
 	return SoundSystemFindInstance(this, theFoleyType) != nullptr;
 }

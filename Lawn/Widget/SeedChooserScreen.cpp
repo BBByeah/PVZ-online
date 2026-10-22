@@ -628,7 +628,7 @@ bool SeedChooserScreen::FlyProtectionCurrentlyPlanted()
 //0x485420
 bool SeedChooserScreen::CheckSeedUpgrade(SeedType theSeedTypeTo, SeedType theSeedTypeFrom)
 {
-	if (mApp->IsSurvivalMode() || !PickedPlantType(theSeedTypeTo) || PickedPlantType(theSeedTypeFrom))
+	if (mApp->IsRunMode() || mApp->IsSurvivalMode() || !PickedPlantType(theSeedTypeTo) || PickedPlantType(theSeedTypeFrom))
 		return true;
 
 	SexyString aWarning = TodStringTranslate(_S("[SEED_CHOOSER_UPGRADE_WARNING]"));
@@ -640,6 +640,7 @@ bool SeedChooserScreen::CheckSeedUpgrade(SeedType theSeedTypeTo, SeedType theSee
 //0x485600
 void SeedChooserScreen::OnStartButton()
 {
+	if (mApp->mOnlineSeedsHeld || mApp->mPreparationEditRequested) return;
 	if (mApp->mGameMode == GAMEMODE_CHALLENGE_SEEING_STARS && !PickedPlantType(SEED_STARFRUIT))
 	{
 		if (!DisplayRepickWarningDialog(_S("SEED_CHOOSER_SEEING_STARS_WARNING")))
@@ -732,6 +733,7 @@ void SeedChooserScreen::OnStartButton()
 //0x4859B0
 void SeedChooserScreen::PickRandomSeeds()
 {
+	if (mApp->mOnlineSeedsHeld || mApp->mPreparationEditRequested) return;
 	for (int anIndex = mSeedsInBank; anIndex < mBoard->mSeedBank->mNumPackets; anIndex++)
 	{
 		SeedType aSeedType;
@@ -849,6 +851,7 @@ void SeedChooserScreen::EnableStartButton(bool theEnabled)
 //0x485E90
 void SeedChooserScreen::ClickedSeedInBank(ChosenSeed& theChosenSeed)
 {
+	if (mApp->mOnlineSeedsHeld || mApp->mPreparationEditRequested) return;
 	for (int anIndex = theChosenSeed.mSeedIndexInBank + 1; anIndex < mBoard->mSeedBank->mNumPackets; anIndex++)
 	{
 		SeedType aSeedType = FindSeedInBank(anIndex);
@@ -882,6 +885,7 @@ void SeedChooserScreen::ClickedSeedInBank(ChosenSeed& theChosenSeed)
 //0x486030
 void SeedChooserScreen::ClickedSeedInChooser(ChosenSeed& theChosenSeed)
 {
+	if (mApp->mOnlineSeedsHeld || mApp->mPreparationEditRequested) return;
 	if (mSeedsInBank == mBoard->mSeedBank->mNumPackets)
 		return;
 
@@ -1033,6 +1037,7 @@ void SeedChooserScreen::UpdateImitaterButton()
 //0x486770
 void SeedChooserScreen::MouseDown(int x, int y, int theClickCount)
 {
+	if (mApp->mOnlineSeedsHeld || mApp->mPreparationEditRequested) return;
     if(theClickCount>0 && Rect(640,70,140,40).Contains(x,y) && mApp->IsOnlineGame()){mApp->ShowCoopPlay();return;}
 	Widget::MouseDown(x, y, theClickCount);
 
@@ -1149,6 +1154,18 @@ bool SeedChooserScreen::PickedPlantType(SeedType theSeedType)
 }
 
 //0x486D20
+void SeedChooserScreen::ResumeSelectionForEditing()
+{
+	if (!mBoard || mApp->mOnlineSeedsHeld || mApp->mPreparationEditRequested) return;
+	for (int index = 0; index < NUM_SEEDS_IN_CHOOSER; ++index) LandFlyingSeed(mChosenSeeds[index]);
+	mChooseState = CHOOSE_NORMAL;
+	mViewLawnTime = 0;
+	mMouseVisible = true;
+	Move(0, 0);
+	UpdateAfterPurchase();
+	MarkDirty();
+}
+
 void SeedChooserScreen::CloseSeedChooser()
 {
     if(mApp->mCoopPlay && mApp->mCoopPlay->Blocking())return;
@@ -1156,7 +1173,7 @@ void SeedChooserScreen::CloseSeedChooser()
 	// 本机"选好了"要等所有上座席位也选好，没齐就把这次关屏拦下来（挂等待框），
 	// 齐了由 LawnApp::UpdateOnlineSeeds 撤框、重新走一遍这里。单机 / 掉了线直接放行。
 	// 拦下时下面这些事一件都没做（卡槽还没落定），放行那一遍才真正落定——见那个函数的注释。
-	if (mApp->TryHoldSeedChooserForTeammates()) return;
+	if (!(mApp->GetRunState() && mApp->GetRunState()->mAdmission.phase==Admission::DECK) && mApp->TryHoldSeedChooserForTeammates()) return;
 
 	DBG_ASSERT(mBoard->mSeedBank->mNumPackets == mBoard->GetNumSeedsInBank());
 	for (int anIndex = 0; anIndex < mBoard->mSeedBank->mNumPackets; anIndex++)
@@ -1175,6 +1192,7 @@ void SeedChooserScreen::CloseSeedChooser()
 			aSeedPacket.mActive = false;
 		}
 	}
+    if(mApp->GetRunState() && mApp->GetRunState()->mAdmission.phase==Admission::DECK){mApp->BeginAdmissionBuilding();return;}
 	mBoard->mCutScene->EndSeedChooser();
 }
 

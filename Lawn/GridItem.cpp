@@ -185,7 +185,8 @@ void GridItem::DrawGraveStone(Graphics* g)
 //0x44D690
 void GridItem::DrawStinky(Graphics* g)
 {
-    Reanimation* aStinkyReanim = mApp->ReanimationGet(mGridItemReanimID);
+    Reanimation* aStinkyReanim = mApp->ReanimationTryToGet(mGridItemReanimID);
+    if (!aStinkyReanim) return;
     float aOriginalTime = aStinkyReanim->mAnimTime;
 
     TOD_ASSERT(mMotionTrailCount <= NUM_MOTION_TRAIL_FRAMES);
@@ -451,6 +452,7 @@ void GridItem::OpenPortal()
             aReanimType = ReanimationType::REANIM_PORTAL_SQUARE;
         }
         aPortalReanim = mApp->AddReanimation(aXPos, aYPos, 0, aReanimType);
+        if (!aPortalReanim) return; // Preserve the portal record; UpdatePortal retries.
         aPortalReanim->mIsAttachment = true;
         mGridItemReanimID = mApp->ReanimationGetID(aPortalReanim);
     }
@@ -491,14 +493,15 @@ void GridItem::ClosePortal()
 
 bool GridItem::IsOpenPortal()
 {
-	return mGridItemState != GridItemState::GRIDITEM_STATE_PORTAL_CLOSED && 
+	return mApp->ReanimationTryToGet(mGridItemReanimID) != nullptr && mGridItemState != GridItemState::GRIDITEM_STATE_PORTAL_CLOSED &&
 		(mGridItemType == GridItemType::GRIDITEM_PORTAL_CIRCLE || mGridItemType == GridItemType::GRIDITEM_PORTAL_SQUARE);
 }
 
 //0x44E400
 void GridItem::UpdatePortal()
 {
-    Reanimation* aPortalReanim = mApp->ReanimationGet(mGridItemReanimID);
+    Reanimation* aPortalReanim = mApp->ReanimationTryToGet(mGridItemReanimID);
+    if (!aPortalReanim) { if (mGridItemState == GRIDITEM_STATE_PORTAL_CLOSED) GridItemDie(); else OpenPortal(); return; }
     if (mGridItemState == GridItemState::GRIDITEM_STATE_PORTAL_CLOSED)
     {
         if (aPortalReanim->mLoopCount > 0)
@@ -635,11 +638,29 @@ Zombie* GridItem::RakeFindZombie()
 //0x44E780
 void GridItem::UpdateRake()
 {
+    if (!mApp->ReanimationTryToGet(mGridItemReanimID))
+    {
+        Reanimation* rake = mApp->AddReanimation(mPosX + 20.0f, mPosY, 0, ReanimationType::REANIM_RAKE);
+        if (!rake) return; // Do not advance the trigger or its damage timer without its necessary actor.
+        rake->mIsAttachment = true;
+        rake->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
+        rake->mAnimRate = mGridItemState == GridItemState::GRIDITEM_STATE_RAKE_TRIGGERED ? 20.0f : 0.0f;
+        if (mGridItemState == GridItemState::GRIDITEM_STATE_RAKE_TRIGGERED)
+        {
+            // Reconstruct the elapsed swing instead of replaying already completed damage.
+            float elapsed = std::max(0, 200 - mGridItemCounter) * 0.01f * 20.0f / std::max(1, rake->mFrameCount);
+            rake->mAnimTime = std::min(1.0f, elapsed);
+            rake->mLastFrameTime = rake->mAnimTime;
+            rake->Update();
+        }
+        mGridItemReanimID = mApp->ReanimationGetID(rake);
+    }
+
     if (mGridItemState == GridItemState::GRIDITEM_STATE_RAKE_ATTRACTING || mGridItemState == GridItemState::GRIDITEM_STATE_RAKE_WAITING)
     {
         if (RakeFindZombie())
         {
-            Reanimation* aRakeReanim = mApp->ReanimationGet(mGridItemReanimID);
+            Reanimation* aRakeReanim = mApp->ReanimationTryToGet(mGridItemReanimID);
             aRakeReanim->mAnimRate = 20.0f;
             mGridItemCounter = 200;
             mGridItemState = GridItemState::GRIDITEM_STATE_RAKE_TRIGGERED;
@@ -648,9 +669,10 @@ void GridItem::UpdateRake()
     }
     else if (mGridItemState == GridItemState::GRIDITEM_STATE_RAKE_TRIGGERED)
     {
-        Reanimation* aRakeReanim = mApp->ReanimationGet(mGridItemReanimID);
-        if (aRakeReanim && aRakeReanim->ShouldTriggerTimedEvent(0.8f))
+        Reanimation* aRakeReanim = mApp->ReanimationTryToGet(mGridItemReanimID);
+        if (mSunCount != 1 && aRakeReanim && aRakeReanim->ShouldTriggerTimedEvent(0.8f))
         {
+            mSunCount = 1;
             Zombie* aZombie = RakeFindZombie();
             if (aZombie)
             {

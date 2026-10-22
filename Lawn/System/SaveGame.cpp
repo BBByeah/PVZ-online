@@ -1,6 +1,14 @@
 #include "Music.h"
 #include "SaveGame.h"
 #include "../Board.h"
+#include "../Run/RunDotEffects.h"
+#include "../Run/RunWaveHitSave.h"
+#include <type_traits>
+#include "../Run/WaveHealthSave.h"
+#include "../Run/WaveSpawnRetrySave.h"
+#include "../Run/DeferredZombieSpawnSave.h"
+#include "../Run/DeferredPlantSetupSave.h"
+#include "../Widget/NextWaveControl.h"
 #include "../Challenge.h"
 #include "../SeedPacket.h"
 #include "../../LawnApp.h"
@@ -16,11 +24,12 @@
 #include "../../Sexy.TodLib/EffectSystem.h"
 #include <algorithm>
 #include <vector>
+#include <climits>
 
 static const char* FILE_COMPILE_TIME_STRING = "Feb 16 200923:03:38";
 static const unsigned int SAVE_FILE_MAGIC_NUMBER = 0xFEEDDEAD;
 // @pvz-online: new projectile source state cannot safely read old raw snapshot padding.
-static const unsigned int SAVE_FILE_VERSION = 4U;
+static const unsigned int SAVE_FILE_VERSION = 5U; // @pvz-online: Plant/Projectile/Coin purple ability snapshot layout.
 static unsigned int SAVE_FILE_DATE = crc32(0, (Bytef*)FILE_COMPILE_TIME_STRING, strlen(FILE_COMPILE_TIME_STRING));  //[0x6AA7EC]
 
 //0x4813D0
@@ -357,10 +366,83 @@ void SyncTrail(Board* theBoard, Trail* theTrail, SaveGameContext& theContext)
 
 template <typename T> inline static void SyncDataArray(SaveGameContext& theContext, DataArray<T>& theDataArray)
 {
-	theContext.SyncUint(theDataArray.mFreeListHead);
-	theContext.SyncUint(theDataArray.mMaxUsedCount);
-	theContext.SyncUint(theDataArray.mSize);
-	theContext.SyncBytes(theDataArray.mBlock, theDataArray.mMaxUsedCount * sizeof(*theDataArray.mBlock));
+	if (theContext.mFailed) return;
+	unsigned int aFree = theDataArray.mFreeListHead, aUsed = theDataArray.mMaxUsedCount, aSize = theDataArray.mSize;
+	theContext.SyncUint(aFree);
+	theContext.SyncUint(aUsed);
+	theContext.SyncUint(aSize);
+	if (theContext.mFailed || aUsed > theDataArray.mMaxSize || aSize > aUsed || aFree > aUsed)
+	{ theContext.mFailed = true; return; }
+	const size_t aBytes = size_t(aUsed) * sizeof(*theDataArray.mBlock);
+	if (aBytes > INT_MAX || (theContext.mReading &&
+		(theContext.ByteLeftToRead() < 4 || aBytes > size_t(theContext.ByteLeftToRead() - 4))))
+	{ theContext.mFailed = true; return; }
+	if constexpr (std::is_same_v<T, Projectile>) {
+        if (!theContext.mReading) {
+            // SyncBytes prefixes the entire pool once. Keep that exact framing.
+            theContext.mBuffer.WriteLong(static_cast<int>(aBytes));
+            for (unsigned int i = 0; i < aUsed; ++i) {
+                const auto& slot = theDataArray.mBlock[i];
+                const auto* raw = reinterpret_cast<const unsigned char*>(&slot);
+                if ((slot.mID & DATA_ARRAY_KEY_MASK) && slot.mItem.mRunIceWave) {
+                    std::array<ZombieID, RunWaveHitPacking::LegacySlots> legacy{};
+                    for (unsigned int index = 0; index < legacy.size(); ++index)
+                        legacy[index] = static_cast<ZombieID>(RunWaveHitPacking::LegacyId(slot.mItem.mRunWaveHitIds, index));
+                    const size_t offset = reinterpret_cast<const unsigned char*>(slot.mItem.mRunWaveHitIds) - raw;
+                    theContext.mBuffer.WriteBytes(raw, static_cast<int>(offset));
+                    theContext.mBuffer.WriteBytes(reinterpret_cast<const unsigned char*>(legacy.data()), sizeof(legacy));
+                    theContext.mBuffer.WriteBytes(raw + offset + sizeof(legacy), static_cast<int>(sizeof(slot) - offset - sizeof(legacy)));
+                } else theContext.mBuffer.WriteBytes(raw, sizeof(slot));
+            }
+        } else theContext.SyncBytes(theDataArray.mBlock, static_cast<int>(aBytes));
+    } else theContext.SyncBytes(theDataArray.mBlock, static_cast<int>(aBytes));
+	if (theContext.mReading)
+	{
+		theDataArray.mFreeListHead = aFree;
+		theDataArray.mMaxUsedCount = aUsed;
+		theDataArray.mSize = aSize;
+	}
+	if (theContext.mFailed || !theDataArray.DataArrayValidateState())
+	{
+		theContext.mFailed = true;
+		// Never walk untrusted IDs during cleanup of a failed load.
+		if (theContext.mReading) theDataArray.mFreeListHead = theDataArray.mMaxUsedCount = theDataArray.mSize = 0;
+	}
+}
+
+template <typename T>
+static void PreflightSavedPool(SaveGameContext& theContext, const DataArray<T>& theDestination)
+{
+	if (theContext.mFailed) return;
+	DataArray<T> aScratch;
+	aScratch.DataArrayInitialize(theDestination.mMaxSize, "save-preflight");
+	SyncDataArray(theContext, aScratch);
+	// These are serialized bytes, not live constructed engine objects.
+	aScratch.mFreeListHead = aScratch.mMaxUsedCount = aScratch.mSize = 0;
+}
+
+static bool PreflightSavedPools(const SaveGameContext& theSource, Board* theBoard)
+{
+	SaveGameContext aScan;
+	aScan.mReading = true;
+	aScan.mFailed = false;
+	aScan.mBuffer = theSource.mBuffer;
+	const size_t aOffset = size_t(&theBoard->mPaused) - size_t(theBoard);
+	std::vector<unsigned char> aBoardBytes(sizeof(Board) - aOffset);
+	aScan.SyncBytes(aBoardBytes.data(), static_cast<int>(aBoardBytes.size()));
+	PreflightSavedPool(aScan, theBoard->mZombies);
+	PreflightSavedPool(aScan, theBoard->mPlants);
+	PreflightSavedPool(aScan, theBoard->mProjectiles);
+	PreflightSavedPool(aScan, theBoard->mCoins);
+	PreflightSavedPool(aScan, theBoard->mLawnMowers);
+	PreflightSavedPool(aScan, theBoard->mGridItems);
+	PreflightSavedPool(aScan, theBoard->mApp->mEffectSystem->mParticleHolder->mParticleSystems);
+	PreflightSavedPool(aScan, theBoard->mApp->mEffectSystem->mParticleHolder->mEmitters);
+	PreflightSavedPool(aScan, theBoard->mApp->mEffectSystem->mParticleHolder->mParticles);
+	PreflightSavedPool(aScan, theBoard->mApp->mEffectSystem->mReanimationHolder->mReanimations);
+	PreflightSavedPool(aScan, theBoard->mApp->mEffectSystem->mTrailHolder->mTrails);
+	PreflightSavedPool(aScan, theBoard->mApp->mEffectSystem->mAttachmentHolder->mAttachments);
+	return !aScan.mFailed;
 }
 
 //0x4819D0
@@ -371,18 +453,30 @@ void SyncBoard(SaveGameContext& theContext, Board* theBoard)
 	size_t offset = size_t(&theBoard->mPaused) - size_t(theBoard);
 	theContext.SyncBytes(&theBoard->mPaused, sizeof(Board) - offset);
 
-	SyncDataArray(theContext, theBoard->mZombies);													//0x482190
-	SyncDataArray(theContext, theBoard->mPlants);													//0x482280
-	SyncDataArray(theContext, theBoard->mProjectiles);												//0x482370
-	SyncDataArray(theContext, theBoard->mCoins);													//0x482460
-	SyncDataArray(theContext, theBoard->mLawnMowers);												//0x482550
-	SyncDataArray(theContext, theBoard->mGridItems);												//0x482650
-	SyncDataArray(theContext, theBoard->mApp->mEffectSystem->mParticleHolder->mParticleSystems);	//0x482740
-	SyncDataArray(theContext, theBoard->mApp->mEffectSystem->mParticleHolder->mEmitters);			//0x482830
-	SyncDataArray(theContext, theBoard->mApp->mEffectSystem->mParticleHolder->mParticles);			//0x482920
-	SyncDataArray(theContext, theBoard->mApp->mEffectSystem->mReanimationHolder->mReanimations);	//0x482920
-	SyncDataArray(theContext, theBoard->mApp->mEffectSystem->mTrailHolder->mTrails);				//0x482650
-	SyncDataArray(theContext, theBoard->mApp->mEffectSystem->mAttachmentHolder->mAttachments);		//0x482A10
+	SyncDataArray(theContext, theBoard->mZombies);
+	if (theContext.mFailed) return;													//0x482190
+	SyncDataArray(theContext, theBoard->mPlants);
+	if (theContext.mFailed) return;													//0x482280
+	SyncDataArray(theContext, theBoard->mProjectiles);
+	if (theContext.mFailed) return;												//0x482370
+	SyncDataArray(theContext, theBoard->mCoins);
+	if (theContext.mFailed) return;													//0x482460
+	SyncDataArray(theContext, theBoard->mLawnMowers);
+	if (theContext.mFailed) return;												//0x482550
+	SyncDataArray(theContext, theBoard->mGridItems);
+	if (theContext.mFailed) return;												//0x482650
+	SyncDataArray(theContext, theBoard->mApp->mEffectSystem->mParticleHolder->mParticleSystems);
+	if (theContext.mFailed) return;	//0x482740
+	SyncDataArray(theContext, theBoard->mApp->mEffectSystem->mParticleHolder->mEmitters);
+	if (theContext.mFailed) return;			//0x482830
+	SyncDataArray(theContext, theBoard->mApp->mEffectSystem->mParticleHolder->mParticles);
+	if (theContext.mFailed) return;			//0x482920
+	SyncDataArray(theContext, theBoard->mApp->mEffectSystem->mReanimationHolder->mReanimations);
+	if (theContext.mFailed) return;	//0x482920
+	SyncDataArray(theContext, theBoard->mApp->mEffectSystem->mTrailHolder->mTrails);
+	if (theContext.mFailed) return;				//0x482650
+	SyncDataArray(theContext, theBoard->mApp->mEffectSystem->mAttachmentHolder->mAttachments);
+	if (theContext.mFailed) return;		//0x482A10
 
 	{
 		TodParticleSystem* aParticle = nullptr;
@@ -439,7 +533,7 @@ void SyncBoard(SaveGameContext& theContext, Board* theBoard)
 		if (theContext.ByteLeftToRead() < 8 || (unsigned int)theContext.mBuffer.ReadLong() != aRelayTag)
 		{ theContext.mFailed = true; return; }
 		unsigned int aCount = (unsigned int)theContext.mBuffer.ReadLong();
-		if (aCount > 1024 || aCount > (unsigned int)theContext.ByteLeftToRead() / 4)
+		if (aCount > theBoard->mZombies.mMaxSize || aCount > (unsigned int)theContext.ByteLeftToRead() / 4)
 		{ theContext.mFailed = true; return; }
 		for (unsigned int i = 0; i < aCount; ++i)
 		{
@@ -469,6 +563,9 @@ void FixBoardAfterLoad(Board* theBoard)
 		{
 			aPlant->mApp = theBoard->mApp;
 			aPlant->mBoard = theBoard;
+			if (!aPlant->mDead && aPlant->mSeedType == SeedType::SEED_GLOOMSHROOM &&
+				theBoard->mApp->IsRunMode() && theBoard->mApp->RunPlantBuff2Count(SeedType::SEED_GLOOMSHROOM) > 0)
+				aPlant->RefreshRunMaxHealth();
 		}
 	}
 	{
@@ -501,6 +598,24 @@ void FixBoardAfterLoad(Board* theBoard)
 		{
 			aLawnMower->mApp = theBoard->mApp;
 			aLawnMower->mBoard = theBoard;
+			if (!aLawnMower->mDead && theBoard->mApp->IsRunMode() && !theBoard->StageHasRoof() &&
+				theBoard->mPlantRow[aLawnMower->mRow] == PlantRowType::PLANTROW_POOL &&
+				aLawnMower->mMowerType == LawnMowerType::LAWNMOWER_LAWN &&
+				(aLawnMower->mMowerState == LawnMowerState::MOWER_READY ||
+				 aLawnMower->mMowerState == LawnMowerState::MOWER_ROLLING_IN))
+			{
+				theBoard->mApp->RemoveReanimation(aLawnMower->mReanimID);
+				aLawnMower->mMowerType = LawnMowerType::LAWNMOWER_POOL;
+				Reanimation* aMowerReanim = theBoard->mApp->AddReanimation(0.0f, 18.0f,
+					aLawnMower->mRenderOrder, ReanimationType::REANIM_POOL_CLEANER);
+				aMowerReanim->mAnimRate = 0.0f;
+				aMowerReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
+				aMowerReanim->mIsAttachment = true;
+				aMowerReanim->OverrideScale(0.8f, 0.8f);
+				aMowerReanim->SetFramesForLayer("anim_land");
+				aMowerReanim->SetTruncateDisappearingFrames(nullptr, false);
+				aLawnMower->mReanimID = theBoard->mApp->ReanimationGetID(aMowerReanim);
+			}
 		}
 	}
 	{
@@ -548,6 +663,8 @@ bool LawnLoadGame(Board* theBoard, const std::string& theFilePath)
 	{
 		return false;
 	}
+	// Reject damaged pool metadata before replacing any part of the live board.
+	if (!PreflightSavedPools(aContext, theBoard)) return false;
 
 	SyncBoard(aContext, theBoard);
 	if (aContext.mFailed)
@@ -555,8 +672,17 @@ bool LawnLoadGame(Board* theBoard, const std::string& theFilePath)
 		return false;
 	}
 
+	const size_t waveHitBaseEnd = static_cast<size_t>(aContext.mBuffer.mReadBitPos / 8);
 	TodTrace("Loaded save game");
 	FixBoardAfterLoad(theBoard);
+	if (!WaveHealthSave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
+	if (!WaveSpawnRetrySave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
+	if (!DeferredZombieSpawnSave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
+	if (!DeferredPlantSetupSave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
+	NextWaveControl::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()));
+	theBoard->mApp->mDamageStats.LoadSaveTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()));
+	if (!RunDotEffects::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
+	if (!RunWaveHitSave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()), waveHitBaseEnd)) return false;
 	theBoard->mApp->mGameScene = GameScenes::SCENE_PLAYING;
 	return true;
 }
@@ -564,6 +690,7 @@ bool LawnLoadGame(Board* theBoard, const std::string& theFilePath)
 //0x4820D0
 bool LawnSaveGame(Board* theBoard, const std::string& theFilePath)
 {
+	theBoard->SyncLegacyWaveHealth();
 	SaveGameContext aContext;
 	aContext.mFailed = false;
 	aContext.mReading = false;
@@ -575,5 +702,22 @@ bool LawnSaveGame(Board* theBoard, const std::string& theFilePath)
 
 	aContext.SyncBytes(&aHeader, sizeof(aHeader));
 	SyncBoard(aContext, theBoard);
+	if (aContext.mFailed) return false;
+	const auto waveHits=RunWaveHitSave::SaveTrailer(theBoard);
+	aContext.mBuffer.WriteBytes(waveHits.data(),static_cast<int>(waveHits.size()));
+	const auto retry=WaveSpawnRetrySave::SaveTrailer(theBoard);
+	aContext.mBuffer.WriteBytes(retry.data(),static_cast<int>(retry.size()));
+	const auto auxiliary=DeferredZombieSpawnSave::SaveTrailer(theBoard);
+	aContext.mBuffer.WriteBytes(auxiliary.data(),static_cast<int>(auxiliary.size()));
+	const auto plants=DeferredPlantSetupSave::SaveTrailer(theBoard);
+	aContext.mBuffer.WriteBytes(plants.data(),static_cast<int>(plants.size()));
+	const auto health=WaveHealthSave::SaveTrailer(theBoard);
+	aContext.mBuffer.WriteBytes(health.data(),static_cast<int>(health.size()));
+	const auto dots=RunDotEffects::SaveTrailer(theBoard);
+	aContext.mBuffer.WriteBytes(dots.data(),static_cast<int>(dots.size()));
+	const auto nextWave=NextWaveControl::SaveTrailer(theBoard);
+	aContext.mBuffer.WriteBytes(nextWave.data(),static_cast<int>(nextWave.size()));
+	const auto stats = theBoard->mApp->mDamageStats.SaveTrailer();
+	if (!stats.empty()) aContext.mBuffer.WriteBytes(stats.data(), static_cast<int>(stats.size()));
 	return gSexyAppBase->WriteBufferToFile(theFilePath, &aContext.mBuffer);
 }

@@ -261,7 +261,7 @@ void TodTraceWithoutSpamming(const char* theFormat, ...)
 {
 	static __time64_t gLastTraceTime = 0i64;
 	__time64_t aTime = _time64(nullptr);
-	if (aTime < gLastTraceTime)
+	if (aTime <= gLastTraceTime)
 	{
 		return;
 	}

@@ -7,6 +7,8 @@
 #include "../../Sexy.TodLib/TodFoley.h"
 #include "../../Sexy.TodLib/TodStringFile.h"
 #include "../ModText.h"
+#include "graphics/Font.h"
+#include <algorithm>
 
 //0x4330D0
 // GOTY @Patoke: 0x435E40
@@ -37,7 +39,7 @@ ContinueDialog::ContinueDialog(LawnApp* theApp) : LawnDialog(
     CalcSize(10, 60);
 }
 
-//0x4333D0¡¢0x4333F0
+//0x4333D0,0x4333F0
 ContinueDialog::~ContinueDialog()
 {
     delete mContinueButton;
@@ -53,27 +55,26 @@ int ContinueDialog::GetPreferredHeight(int theWidth)
 //0x433480
 void ContinueDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 {
-    LawnDialog::Resize(theX, theY, theWidth, theHeight);
-
     int aBtnWidth = IMAGE_BUTTON_LEFT->mWidth + IMAGE_BUTTON_MIDDLE->mWidth * 3 + IMAGE_BUTTON_RIGHT->mWidth;
-    int aBtnHeight = mLawnYesButton->mHeight;
-
-    /*
-    int aContinueX = mLawnYesButton->mX - 20;
-    int aNewGameX = mLawnYesButton->mX + mLawnYesButton->mWidth - aBtnWidth + 24;
-    while (aContinueX + aBtnWidth > aNewGameX)
+    const int aLabelWidth = std::max(FONT_DWARVENTODCRAFT18GREENINSET->StringWidth(mContinueButton->mLabel),
+        FONT_DWARVENTODCRAFT18GREENINSET->StringWidth(mNewGameButton->mLabel)) + 24;
+    while (aBtnWidth < aLabelWidth) aBtnWidth += IMAGE_BUTTON_MIDDLE->mWidth;
+    const int aButtonGap = 12;
+    const int aRowWidth = aBtnWidth * 2 + aButtonGap;
+    const int aMinWidth = aRowWidth + mContentInsets.mLeft + mContentInsets.mRight +
+        mBackgroundInsets.mLeft + mBackgroundInsets.mRight;
+    if (theWidth < aMinWidth)
     {
-        aContinueX -= 20;
-        aNewGameX += 20;
+        const int aFrameWidth = IMAGE_DIALOG_TOPLEFT->mWidth + IMAGE_DIALOG_TOPRIGHT->mWidth;
+        const int aTileWidth = IMAGE_DIALOG_TOPMIDDLE->mWidth;
+        theWidth = aFrameWidth + (aMinWidth - aFrameWidth + aTileWidth - 1) / aTileWidth * aTileWidth;
     }
-
-    mContinueButton->Resize(aContinueX, mLawnYesButton->mY - aBtnHeight - 2, aBtnWidth, aBtnHeight);
-    mNewGameButton->Resize(aNewGameX, mContinueButton->mY, aBtnWidth, aBtnHeight);
-    mLawnYesButton->Resize(theWidth / 2 - aBtnWidth / 2, mLawnYesButton->mY, aBtnWidth, aBtnHeight);
-    */
-
-    mContinueButton->Resize(mLawnYesButton->mX - 20, mLawnYesButton->mY - aBtnHeight, aBtnWidth, aBtnHeight);
-    mNewGameButton->Resize(mLawnYesButton->mX + mLawnYesButton->mWidth - aBtnWidth + 20, mContinueButton->mY, aBtnWidth, aBtnHeight);
+    LawnDialog::Resize(theX, theY, theWidth, theHeight);
+    const int aBtnHeight = mLawnYesButton->mHeight;
+    const int aRowX = (mWidth - aRowWidth) / 2;
+    const int aRowY = mLawnYesButton->mY - aBtnHeight - 8;
+    mContinueButton->Resize(aRowX, aRowY, aBtnWidth, aBtnHeight);
+    mNewGameButton->Resize(aRowX + aBtnWidth + aButtonGap, aRowY, aBtnWidth, aBtnHeight);
 }
 
 //0x433520

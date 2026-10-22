@@ -217,9 +217,9 @@ void PlayerInfo::Reset()
 void PlayerInfo::AddCoins(int theAmount)
 {
 	mCoins += theAmount;
-	if (mCoins > 99999)
+	if (mCoins > 99999999)
 	{
-		mCoins = 99999;
+		mCoins = 99999999;
 	}
 	else if (mCoins < 0)
 	{

@@ -3,6 +3,7 @@
 
 #include "LawnDialog.h"
 #include "widget/EditListener.h"
+#include "../Online/RoomCreateAttempt.h"
 
 class LawnApp;
 class LawnEditWidget;
@@ -37,6 +38,12 @@ public:
 		OnlineDialog_Start = 1209,
 		OnlineDialog_IpEdit		= 1210,		// 直连：主机地址
 		OnlineDialog_ServerEdit	= 1211,		// 中继：服务器地址
+        OnlineDialog_Directory=1213,
+        OnlineDialog_History=1214,
+        OnlineDialog_Visibility=1215,
+        OnlineDialog_LocalPage=1216,
+        OnlineDialog_ServerPage=1217,
+        OnlineDialog_Solo=1218,
 		OnlineDialog_CodeEdit	= 1212		// 中继：房间码
 	};
 
@@ -59,11 +66,21 @@ public:
 	LawnStoneButton*	mRejectButton;
 	// @pvz-online: M3 中继那一排——Server/Code 两个输入框 + 建房/按码加入两把键，
 	// 和底排的直连 Host/Join 并存（直连模式保留）。默认地址先填本机，P4 上线后换云 IP。
-	LawnEditWidget*		mServerEditWidget;
 	LawnEditWidget*		mCodeEditWidget;
 	LawnStoneButton*	mCreateRoomButton;
 	LawnStoneButton*	mJoinRoomButton;
 	LawnStoneButton* mStartButton;
+    LawnStoneButton *mDirectoryButton,*mHistoryButton,*mVisibilityButton;
+    LawnStoneButton *mLocalPageButton,*mServerPageButton,*mSoloButton;
+    RelayNodes::Allocator mAllocator;
+    RelayNodes::RoomCreateAttempt mCreation;
+    RelayNodes::CatalogDiscovery mJoinLookup;
+    std::string mPendingJoinCode;
+    std::string mServerInputError;
+    int mPage=0;
+    bool mConfirmSolo=false;
+    bool mStartingLocalHost=false;
+    int mLocalHostTicks=0;
 
 public:
 	OnlineDialog(LawnApp* theApp);
@@ -79,12 +96,12 @@ public:
 	void KeyDown(KeyCode key) override;
 
 private:
+    void LeaveRoom();
 	void				StartHost();
 	void				StartJoin();
 	void				StartRoomHost();
 	void				StartRoomJoin();
 	std::string			GetIpText();
-	std::string			GetServerText();
 	std::string			GetRoomCodeText();
 
 	// 已经写进 Code 框的那个房间码：只在码真的换了的时候写一次，

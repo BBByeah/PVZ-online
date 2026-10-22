@@ -27,9 +27,11 @@ public:
 		RunPickDialog_Choice1,
 		RunPickDialog_Choice2,
 		RunPickDialog_Skip,
-		RunPickDialog_Refresh
+		RunPickDialog_Refresh,
+        RunPickDialog_Fast
 	};
 
+    LawnStoneButton* mFastButton=nullptr;
 	RunState*			mRun;					// 这一屏为哪一局开
 	bool				mPlantPick;				// 这一屏发的是植物（true）还是 buff（false）
 	LawnStoneButton*	mChoiceButtons[3];

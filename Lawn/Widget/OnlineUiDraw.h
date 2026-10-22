@@ -10,6 +10,7 @@
 #include "MobileCoopDraw.h"
 #else
 #include "CjkStoneButton.h"
+#include "ArtworkButtonFont.h"
 #endif
 
 // @pvz-online: shared readable stone UI; layout and hit regions use the same rectangles.
@@ -84,7 +85,7 @@ inline void Strip(Graphics* g,Rect rect) {
     strip.DrawImage(image,rect,Rect(0,0,image->mWidth,image->mHeight));
     strip.SetColor(Color(175,160,120));strip.DrawRect(rect.mX,rect.mY,rect.mWidth-1,rect.mHeight-1);
 }
-inline void Button(Graphics* g,Rect r,const char* label,bool enabled,bool down=false) {
+inline void Button(Graphics* g,Rect r,const char* label,bool enabled,bool down=false,bool highlighted=false) {
     Graphics stone(*g);stone.SetColorizeImages(!enabled);stone.SetColor(Color(145,145,145));
     Image* left=down?IMAGE_BUTTON_DOWN_LEFT:IMAGE_BUTTON_LEFT;
     Image* mid=down?IMAGE_BUTTON_DOWN_MIDDLE:IMAGE_BUTTON_MIDDLE;
@@ -94,6 +95,17 @@ inline void Button(Graphics* g,Rect r,const char* label,bool enabled,bool down=f
     stone.DrawImage(left,Rect(r.mX,r.mY,leftWidth,r.mHeight),Rect(0,0,left->mWidth,left->mHeight));
     stone.DrawImage(mid,Rect(r.mX+leftWidth,r.mY,r.mWidth-leftWidth-rightWidth,r.mHeight),Rect(0,0,mid->mWidth,mid->mHeight));
     stone.DrawImage(right,Rect(r.mX+r.mWidth-rightWidth,r.mY,rightWidth,r.mHeight),Rect(0,0,right->mWidth,right->mHeight));
-    Text(g,label,r.mX+10,r.mY+(r.mHeight+22)/2-3,r.mWidth-20,22,enabled?Color(245,230,165):Color(170,170,160),true);
+    ArtworkButtonFont font(down || highlighted);
+    const int inset=r.mWidth<64?4:10;
+    auto width=[](const std::string& label) { return CjkStoneButtonLabelWidth(label); };
+    std::string line(label);
+    while (!line.empty() && width(line) > r.mWidth-inset*2) {
+        size_t end=line.size()-1;
+        while(end>0&&(static_cast<unsigned char>(line[end])&0xc0)==0x80)--end;
+        line.resize(end);
+    }
+    Graphics text(*g);text.ClipRect(r.mX+inset,r.mY,r.mWidth-inset*2,r.mHeight);
+    DrawCjkStoneLabel(&text,line,r.mX+(r.mWidth-width(line))/2,
+        r.mY+(r.mHeight+font.GetAscent())/2-3,down || highlighted,enabled);
 }
 }

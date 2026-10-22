@@ -2,6 +2,9 @@
 #define __NEWOPTIONSDIALOG_H__
 
 #include "widget/Dialog.h"
+#include "RunInfoView.h"
+#include "MusicSelectionView.h"
+#include "RunSettingsView.h"
 #include "widget/SliderListener.h"
 #include "widget/CheckboxListener.h"
 
@@ -27,6 +30,9 @@ protected:
 		NewOptionsDialog_SoundVolume,
 		NewOptionsDialog_Fullscreen,
 		NewOptionsDialog_HardwareAcceleration,
+        NewOptionsDialog_Help,
+        NewOptionsDialog_Bilibili,
+        NewOptionsDialog_Afdian,
 	};
 
 public:
@@ -40,18 +46,33 @@ public:
 	LawnStoneButton*		mRestartButton;						//+0x174
 	NewLawnButton*			mBackToGameButton;					//+0x178
 	bool					mFromGameSelector;					//+0x17C
-	// @pvz-online: 局内词条查看器（2026-10-03 用户定案）：不另起对话框类，就在这个暂停面板上
-	// 盖一层整屏覆盖——避开嵌套消息循环/焦点/析构三件麻烦。开着时八个控件整体藏起，
-	// 关掉按原样还原（mRunInfoWidgetVis 是藏之前的快照）。
-	bool					mRunInfoOpen;
-	bool					mRunInfoWidgetVis[8];
-	// @pvz-online: 词条查看器分页（2026-10-04 用户定案，方案 A）：全局区常驻不动，
-	// 单株区一页放不下的翻页看；页数在绘制时按可用行数现算（见 DrawRunInfo），
-	// 翻页入口只在页数 > 1 时生效并出现。
-	int						mRunInfoPage;
-	int						mRunInfoPageCount;
+    bool mRunInfoOpen;
+    bool mRunInfoWidgetVis[11]{};
+    LawnStoneButton* mHelpButton;
+    LawnStoneButton* mBilibiliButton;
+    LawnStoneButton* mAfdianButton;
+    void OpenCreatorLink(int action);
 
 public:
+    static constexpr int PAUSE_WIDTH = 600;
+    static constexpr int PAUSE_HEIGHT = 560;
+    RunInfoView mRunInfoView;
+    MusicSelectionView mMusicView;
+    RunSettingsView mRunSettingsView;
+    bool mRunSettingsOpen = false;
+    bool mRunSettingsEntryDown = false;
+    Sexy::Rect RunSettingsEntryRect();
+    void OpenRunSettings();
+    bool mMusicOpen = false;
+    bool mMusicEntryDown = false;
+    Sexy::Rect MusicEntryRect();
+    void OpenOptionsPage(bool music, bool settings = false);
+    void OpenMusic();
+    void MusicAction(int action);
+    Sexy::Rect mOptionsRect;
+    int mRunInfoDown = -1;
+    void MouseUp(int x, int y, int theClickCount) override;
+    void LostFocus() override;
 	NewOptionsDialog(LawnApp* theApp, bool theFromGameSelector);
 	~NewOptionsDialog();
 
@@ -68,10 +89,8 @@ public:
 	void					MouseDown(int x, int y, int theClickCount);
 	void					MouseWheel(int theDelta);
 
-	// 词条查看器（见 .cpp 同名分节）：只在闯关局可用，覆盖层的开关与绘制都收在这几个口里。
 	bool					RunInfoAvailable();
 	Sexy::Rect				RunInfoEntryRect();
-	Sexy::Rect				RunInfoArrowRect(bool theRight);
 	void					RunInfoFlipPage(int theDelta);
 	void					OpenRunInfo();
 	void					CloseRunInfo();

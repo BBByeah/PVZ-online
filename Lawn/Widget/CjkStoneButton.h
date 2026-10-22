@@ -26,6 +26,10 @@ int		CjkPointSize(int thePixelHeight);
 // 标签按控件宽居中就会整体偏右（字越多越显得贴边）。原版 LawnDialog::Resize 也做同款
 // 取整："不足中部贴图宽度的部分补充至中部贴图宽度"。
 int		CjkStoneButtonWidth(int theWidth, bool theRoundUp);
+int CjkStoneButtonLabelWidth(const std::string& theLabel);
+bool CjkLabelHasArtwork(const std::string& theLabel);
+void DrawCjkStoneLabel(Sexy::Graphics* g, const std::string& label, int x, int baseline,
+    bool highlighted, bool enabled);
 
 class CjkStoneButton : public LawnStoneButton
 {

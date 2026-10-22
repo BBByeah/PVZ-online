@@ -1275,12 +1275,12 @@ TodParticleSystem* TodParticleHolder::AllocParticleSystemFromDef(float theX, flo
 {
 	if (mParticleSystems.mSize == mParticleSystems.mMaxSize)
 	{
-		TodTrace("Too many particle systems\n");
+		TodTraceWithoutSpamming("Too many particle systems\n");
 		return nullptr;
 	}
 	if (theDefinition->mEmitterDefCount + mEmitters.mSize > mEmitters.mMaxSize)
 	{
-		TodTrace("Too many particle emitters\n");
+		TodTraceWithoutSpamming("Too many particle emitters\n");
 		return nullptr;
 	}
 

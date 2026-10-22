@@ -87,6 +87,8 @@ int					Rand();
 int					Rand(int range);
 float				Rand(float range);
 void				SRand(ulong theSeed);
+std::string GetRandState();
+void RestoreRandState(const std::string& state);
 extern std::string	vformat(const char* fmt, va_list argPtr);
 extern std::wstring	vformat(const wchar_t* fmt, va_list argPtr);
 extern std::string	StrFormat(const char* fmt ...);

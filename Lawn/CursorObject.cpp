@@ -1,6 +1,7 @@
 #include "Board.h"
 #include "Cutscene.h"
 #include "ZenGarden.h"
+#include "System/ReanimationLawn.h"
 #include "../LawnApp.h"
 #include "CursorObject.h"
 #include "../Resources.h"
@@ -26,9 +27,9 @@ CursorObject::CursorObject()
     {
         ReanimatorEnsureDefinitionLoaded(ReanimationType::REANIM_HAMMER, true);
         Reanimation* aHammerReanim = mApp->AddReanimation(-25.0f, 16.0f, 0, ReanimationType::REANIM_HAMMER);
-        aHammerReanim->mIsAttachment = true;
-        aHammerReanim->PlayReanim("anim_whack_zombie", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 24.0f);
-        aHammerReanim->mAnimTime = 1.0f;
+        if (aHammerReanim) aHammerReanim->mIsAttachment = true;
+        if (aHammerReanim) aHammerReanim->PlayReanim("anim_whack_zombie", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 24.0f);
+        if (aHammerReanim) aHammerReanim->mAnimTime = 1.0f;
         mReanimCursorID = mApp->ReanimationGetID(aHammerReanim);
     }
 
@@ -52,6 +53,17 @@ void CursorObject::Update()
     }
 
     Reanimation* aCursorReanim = mApp->ReanimationTryToGet(mReanimCursorID);
+    if (!aCursorReanim && mApp->IsWhackAZombieLevel())
+    {
+        aCursorReanim = mApp->AddReanimation(-25.0f, 16.0f, 0, ReanimationType::REANIM_HAMMER);
+        if (aCursorReanim)
+        {
+            aCursorReanim->mIsAttachment = true;
+            aCursorReanim->PlayReanim("anim_whack_zombie", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 24.0f);
+            aCursorReanim->mAnimTime = 1.0f;
+            mReanimCursorID = mApp->ReanimationGetID(aCursorReanim);
+        }
+    }
     if (aCursorReanim)
     {
         aCursorReanim->Update();
@@ -196,7 +208,8 @@ void CursorObject::Draw(Graphics* g)
     }
     
     case CursorType::CURSOR_TYPE_HAMMER:
-        mApp->ReanimationGet(mReanimCursorID)->Draw(g);
+        if (Reanimation* hammer = mApp->ReanimationTryToGet(mReanimCursorID)) hammer->Draw(g);
+        else mApp->mReanimatorCache->DrawReanimatorFrame(g, -25.0f, 16.0f, ReanimationType::REANIM_HAMMER, "anim_whack_zombie", DrawVariation::VARIATION_NORMAL);
         break;
 
     case CursorType::CURSOR_TYPE_COBCANNON_TARGET:

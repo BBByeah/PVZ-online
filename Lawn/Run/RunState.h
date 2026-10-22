@@ -1,6 +1,10 @@
 #ifndef __RUNSTATE_H__
 #define __RUNSTATE_H__
+#include "AdmissionState.h"
 
+#include "ZombieBuffRules.h"
+#include "EndlessRules.h"
+#include "CrowdRules.h"
 #include <string>
 #include <vector>
 #include "../../ConstEnums.h"
@@ -59,9 +63,10 @@ public:
 	// 叠乘），每进一个新场景复利一次（场景 1 恒 ×1）——千分比表见 SpeedGrowthPermilleFor，
 	// 两端各算、逐位一致。位包 bit12..13 持久（老档读 0 = 无成长，安全降级不抬版本）。
 	enum	{ RUN_SPEED_NONE = 0, RUN_SPEED_X103 = 1, RUN_SPEED_X105 = 2 };
+	enum	{ RUN_FIRSTWAVE_STD = 0, RUN_FIRSTWAVE_VANILLA = 1, RUN_FIRSTWAVE_LONG = 2 };
 	// @pvz-online: 僵尸强化（2026-10-14 用户令「到下一场景选给僵尸 0/1/2 个 buff；作用在
 	// 无尽则五关一选」）：独立于植物词条表的第二条强化线——每进一个新场景全队投票叠层，
-	// 层数累积、无总上限（255 封顶防溢出，各效果数值饱和）。池子 8 条固定 id（即
+	// 层数累积、无总上限（255 封顶防溢出，各效果数值饱和）。池子 9 条固定 id（即
 	// mZombieBuffStacks 下标，随投票/协议/存档逐位一致）；每场景发几条 = mZombieBuffMode
 	// （高级选项「僵尸 buff」0/1/2，0 = 不开）。
 	enum
@@ -71,11 +76,13 @@ public:
 		ZOMBIE_BUFF_HEARTGUARD = 2,	// 护心（56 改版：最高一层）：首次大额伤害封顶 200；只挡一次
 		ZOMBIE_BUFF_RAVENOUS = 3,	// 狂食：每口啃咬 ×2/层
 		ZOMBIE_BUFF_REGEN = 4,		// 再生：每秒回 0.5% 上限血/层
-		ZOMBIE_BUFF_STEADFAST = 5,	// 免控：免疫减速/冰冻/黄油/击退/换道/魅惑（≥1 层即全免）
+		ZOMBIE_BUFF_STEADFAST = 5,	// 免硬控：冰冻/黄油/击退/换道/魅惑；最高一层
 		ZOMBIE_BUFF_GRAVEKEEPER = 6,	// 墓碑者：巨人砸碎植物→原地生成墓碑
 		ZOMBIE_BUFF_GHOSTWALK = 7,	// 无视阻挡：普通僵尸直接走过植物不停下啃咬
+		ZOMBIE_BUFF_PLANT_TAX = 9,    // 加价：所有植物最终种植费用 +25 阳光/层
+		ZOMBIE_BUFF_SOFTRESIST = 8,	// 软控缩时：减速持续时间减半；最高一层
 	};
-	static const int	RUN_ZOMBIE_BUFF_COUNT	= 8;	// 池子大小（= 上面枚举条目数）
+	static const int	RUN_ZOMBIE_BUFF_COUNT	= RunZombieBuffRules::COUNT;	// 池子大小（= 上面枚举条目数）
 	static const int	RUN_ZOMBIE_VOTE_CHOICES	= 3;	// 每次开票的候选数（三选一口径，2026-10-14 用户令）
 	static const int	RUN_ZOMBIE_VOTED_NONE	= 0xFFFF;	// mZombieVotedLevel 的"没投过"哨兵
 
@@ -99,8 +106,9 @@ public:
 	// 2026-10-14 二次定案：**币面价 10**（不是 100）——钱数全局按 GetMoneyString 的
 	// 币×10 口径显示，按钮上要让玩家看到「100」起、阶梯 100/1000/10000，币就得是
 	// 10/100/1000（旧底价 100 币在按钮上显示 $1,000，玩家实机报「从1000开始、有 500
-	// 多币也点不动」——被 100 币的置灰守卫挡住，2026-10-14 实锤）。钱包上限 99999 币
-	// 把阶梯自然封死在 100000 币那一步（第 5 次）之后。
+	// 多币也点不动」——被 100 币的置灰守卫挡住，2026-10-14 实锤）。钱包上限 99999999 币
+	// （2026-10-22 用户「上限加三位数」）让阶梯能走到第 6 步 10000000 币；第 7 步
+	// 100000000 币超出上限，自然买不起。
 	// 扣存档钱包 mCoins，与商店同源；对齐金僵尸掉落的 100。纯本地下注，不进协议——联机
 	// 双端各花各的钱、各摇各的屏。
 	static const int	RUN_PAID_REROLL_COST	= 10;
@@ -169,6 +177,24 @@ public:
 	// @pvz-online: 无尽档锁定的场景（0..4，仅 RUN_MODE_ENDLESS 用；其余档恒 0）。入口链定死，
 	// 随 START_LEVEL 广播（MOD_BUILD 37）与检查点 v12 走；三条进路（建档/线传/读档）都验 0..4。
 	int							mEndlessScene;
+    int mEndlessOptions = 0;
+    int mEndlessVoteRounds = 0;
+    mutable std::vector<unsigned char> mDamageHistory;
+    Admission::State mAdmission;
+    unsigned char mEndlessVoteIds[2] = {255,255};
+    uint64_t mEndlessFocusMask = 0;
+    int mEndlessSnapshotLevel = -1;
+    int mEndlessSnapshotPhase = 0; // 1 rewards, 2 loadout, 3 playing, 4 record at version limit, 5 failed (retry baseline).
+    std::vector<unsigned char> mEndlessLawn, mEndlessRetryLawn;
+    bool IsNewEndless() const { return IsEndless() && (mEndlessOptions & 0x80); }
+    int EndlessBossPeriod() const { return IsNewEndless()?EndlessRules::BossPeriod(mEndlessOptions):0; }
+    bool IsEndlessBossLevel() const { int p=EndlessBossPeriod(); return p && (GetPlayingLevelIndex()+1)%p==0; }
+    int EndlessTheme() const { return IsNewEndless()?EndlessRules::Theme(mEndlessOptions,mRunSeed,GetPlayingLevelIndex(),mEndlessScene):0; }
+    bool HasLineupPreference() const { return IsNewEndless() && (mEndlessOptions & 8); }
+    bool PrefersPlant(SeedType p) const { return p>=0 && p<48 && ((mEndlessFocusMask>>(int)p)&1); }
+    static const char* EndlessThemeName(int theme);
+    bool HasZombieBuffChoices() const { for(int i=0;i<RUN_ZOMBIE_BUFF_COUNT;++i)if(CanAddZombieBuffStack(i))return true;return false; }
+
 	int							mLevelIndex;	// 0..(关数-1) = 当前（或待打的）关序号；>= 关数 = 已通关（关数见 GetLevelCount）
 	std::vector<SeedType>		mPool;			// 这一局的卡池（按加入顺序；起始 = 向日葵 + 豌豆射手；无尽档起始 = 全部 48 株，2026-10-11）
 	std::vector<BuffStack>		mBuffs;			// 这一局拿到的 buff（同名可叠加）
@@ -210,9 +236,10 @@ public:
 	// 随检查点位包 bit12..13 持久（老档读 0 = 无成长，安全降级不抬版本）；联机各端无条件
 	// 按房主的值对齐。消费端钳（档非法按无成长）。
 	int							mSpeedTier;
+	int							mFirstWave;
 	// @pvz-online: 僵尸强化的两个字段（2026-10-14 用户令）：mZombieBuffMode = 高级选项
-	// 「僵尸 buff」档 0/1/2（每进一个新场景投票叠几条，0 = 不开）；mZombieBuffStacks[8] =
-	// 池子 8 条的当前层数（投中 +1、255 封顶，累积不重置）。房间级，随 START_LEVEL 广播
+	// 「僵尸 buff」档 0/1/2（每进一个新场景投票叠几条，0 = 不开）；mZombieBuffStacks[9] =
+	// 池子 9 条的当前层数（投中 +1、255 封顶，累积不重置）。房间级，随 START_LEVEL 广播
 	// （层数快照随 mLastStartLevel 自愈重连）、随检查点 v14 持久；mZombieVotedLevel =
 	// 上一张票投在第几关（RUN_ZOMBIE_VOTED_NONE = 没投过；重试同一关不重开票）。
 	int							mZombieBuffMode;
@@ -239,7 +266,7 @@ public:
 							int theRunScale = RUN_SCALE_STD, int theRunTempo = RUN_TEMPO_STD, int theZombotany = 0,
 							int theEndlessScene = 0, int theBossFlag = 2, int theBuffMult = 0,
 							int theLadder = RUN_LADDER_STD, int theZombieBuff = 1,
-							int theSpeedTier = RUN_SPEED_NONE);
+							int theSpeedTier = RUN_SPEED_NONE, int theFirstWave = RUN_FIRSTWAVE_STD, int theEndlessOptions = EndlessRules::DEFAULT_OPTIONS);
 
 	// 时长档的关数口径：每场景关数（5/2/1）与总关数（25/10/5）。模式非法按完整版。
 	// 无尽档的 LevelCountForMode = RUN_ENDLESS_LEVEL_COUNT（软上限）；LevelsPerScene 对
@@ -269,11 +296,12 @@ public:
 	// 对应 ×1 / ×1.03 / ×1.03² / ×1.03³ / ×1.03⁴（×1.05 档同理，≈×1.12 / ≈×1.21 收尾），
 	// 整数迭代截尾、两端逐位一致；档非法按无成长（1000）。消费点 = ZombieInitialize
 	// （乘在迅捷之后、独立叠乘）。
+	int					FirstWaveDelayTicks() const;
 	static int			SpeedGrowthPermilleFor(int theSpeedTier, int theSceneIndex);
 	// 本局现取：档 × 当前场景一次算齐（Zombie.cpp 只问这一句）。
 	int					ZombieSpeedGrowthPermille() const
 	{
-		return SpeedGrowthPermilleFor(mSpeedTier, GetSceneIndex());
+		return IsNewEndless() ? EndlessRules::Growth(mSpeedTier, GetPlayingLevelIndex()) : SpeedGrowthPermilleFor(mSpeedTier, GetSceneIndex());
 	}
 
 	// @pvz-online: 僵尸强化的三个取数口（2026-10-14 用户令）。每场景发放档 0/1/2 非法按 0
@@ -288,13 +316,27 @@ public:
 		if (theId < 0 || theId >= RUN_ZOMBIE_BUFF_COUNT) return 0;
 		return (int)mZombieBuffStacks[theId];
 	}
+	bool                CanAddZombieBuffStack(int theId) const
+	{
+		if (theId < 0 || theId >= RUN_ZOMBIE_BUFF_COUNT) return false;
+        if (ZombieBuffCount(theId) >= 255) return false;
+        if (theId == ZOMBIE_BUFF_RAVENOUS && ZombieBuffCount(ZOMBIE_BUFF_GHOSTWALK) > 0) return false;
+        if (IsNewEndless()) {
+            if(theId==ZOMBIE_BUFF_SWIFT && ZombieBuffSpeedPermille()*ZombieSpeedGrowthPermille()>=4000000)return false;
+            const int caps[RUN_ZOMBIE_BUFF_COUNT]={10,12,1,5,50,1,1,1,1,255};
+            if(ZombieBuffCount(theId)>=caps[theId])return false;
+        }
+		return (theId != ZOMBIE_BUFF_STEADFAST && theId != ZOMBIE_BUFF_SOFTRESIST &&
+            theId != ZOMBIE_BUFF_GHOSTWALK && theId != ZOMBIE_BUFF_GRAVEKEEPER &&
+            theId != ZOMBIE_BUFF_HEARTGUARD) || ZombieBuffCount(theId) == 0;
+	}
 	void				AddZombieBuffStack(int theId)
 	{
-		if (theId < 0 || theId >= RUN_ZOMBIE_BUFF_COUNT) return;
+		if (!CanAddZombieBuffStack(theId)) return;
 		if (mZombieBuffStacks[theId] < 255) mZombieBuffStacks[theId]++;
 	}
 	// 各条效果的消费端换算（整数千分比/点值，饱和封顶；层 0 = 无效果——护心/再生返回 0
-	// 即"不生效"）。免控/墓碑者/无视阻挡是 ≥1 判定，直接走 ZombieBuffCount。
+	// 即"不生效"）。免硬控/软控缩时/墓碑者/无视阻挡是 ≥1 判定，直接走 ZombieBuffCount。
 	// 数值出处与调整史见 docs/07。
 	int					ZombieBuffSpeedPermille() const;		// 迅捷：1000+300×层，封顶 4000（×4）
 	int					ZombieBuffHealthPermille() const;		// 铁壁：1.5^层 千分比（逐层截尾），封顶 100000（×100）
@@ -302,7 +344,7 @@ public:
 	int					ZombieBuffBitePermille() const;			// 狂食：2^层 千分比，封顶 32000（×32）
 	int					ZombieBuffRegenPermillePerSec() const;	// 再生：5×层（每秒回血的千分比），封顶 250
 
-	// 这一关的投票候选（2026-10-14 用户令）：池子 8 条按 (runSeed, 关序号) 哈希洗牌取前
+	// 这一关的投票候选（2026-10-14 用户令）：池子 9 条按 (runSeed, 关序号) 哈希洗牌取前
 	// RUN_ZOMBIE_VOTE_CHOICES 条——房主抽、随 OPEN 消息广播，单机自抽；各端同一把种子推出
 	// 同一组，客户端不自己抽（收 OPEN 回填）。写进 theOut（长度 RUN_ZOMBIE_VOTE_CHOICES）。
 	void				RollZombieVoteChoices(int theLevelIndex, unsigned char theOut[RUN_ZOMBIE_VOTE_CHOICES]) const;
@@ -354,31 +396,33 @@ public:
 	void				NotePlantScreenConsumed(SeedType theTakenSeed);
 	// 这一局拿到某个 buff 的层数（R3 的数值层按它算加成）。
 	int					GetBuffCount(int theBuffId) const;
+    int GetChoiceWeight(int theId) const;
 	// 这株植物在不在这局的卡池里。选卡界面（卡池 > 10 格才弹）靠它决定哪些袋子
 	// 画得出来、点得动——见 LawnApp::SeedTypeAvailable 的闯关分支。
 	bool				HasPlant(SeedType theSeedType) const;
 
 	// 检查点读写。Load 失败（文件不在 / 版本不符 / 内容越界）返回 false，对象保持"空局"。
-	bool				Load(int theProfileId);
+	bool				Load(int theProfileId, int theMode = -1, int theScene = 0, bool theBackup=false, uint64_t theTeam=0);
 	bool				Save(int theProfileId) const;
     bool SaveWithPlayer(PlayerInfo& player) const;
     std::vector<unsigned char> EncodeCheckpoint() const;
-	static bool			HasCheckpoint(int theProfileId);
+	static std::string CheckpointSummary(int theProfileId, int theMode = -1, int theScene = 0);
+	static bool			HasCheckpoint(int theProfileId, int theMode = -1, int theScene = 0);
 	// @pvz-online: 探读检查点（2026-10-10）：完整走一遍 Load（含全部校验），成功才回填
 	// 时长档与无尽场景，返回 true。两处「续不续」的问句先用它甄别——HasCheckpoint 只看
 	// 文件在不在，而 ContinueRun 的兜底是 StartNew 完整档，探错会悄悄开成普通局。
-	static bool			PeekCheckpoint(int theProfileId, int& theRunMode, int& theEndlessScene);
+	static bool			PeekCheckpoint(int theProfileId, int& theRunMode, int& theEndlessScene, int theMode = -1, int theScene = 0);
 	// 一局打完了就删掉：那份检查点代表的那一局已经结束，留着只会让下次开局多问一句
 	// "续不续"（续了也是从头开）。
 	static void			DeleteCheckpoint(int theProfileId);
-	static std::string	GetCheckpointName(int theProfileId);
+	static std::string	GetCheckpointName(int theProfileId, int theMode = -1, int theScene = 0, uint64_t theTeam=0);
 
 	// 无尽档没有"打完"这回事（2026-10-10 用户定案：无奖杯/结算屏，关序号只涨不封）；其余档
 	// 在关序号走到关数时收场。
 	bool				IsComplete() const { return mMode != RUN_MODE_ENDLESS && mLevelIndex >= GetLevelCount(); }
 	// @pvz-online: 无尽档判定（无尽续草坪批）：草坪原地续关的几个分叉口都问这一句。
 	bool				IsEndless() const { return mMode == RUN_MODE_ENDLESS; }
-	void				AdvanceLevel() { mLevelIndex++; }
+	void				AdvanceLevel() { if(!IsEndless() || mLevelIndex<RUN_ENDLESS_LEVEL_COUNT-1) ++mLevelIndex; }
 
 	// @pvz-online: 补发追赶（R5）。开始补：目标关序号存下，先把当前这关的奖励屏选完
 	// （HasPendingPick 那套），选完由 AdvanceCatchUp 挪一关、再摆下一屏，直到追平。
@@ -415,9 +459,12 @@ public:
 	int					GetPlayingLevelIndex() const;
 	int					GetSceneIndex() const;
 	int					GetDifficultyPermille() const;
+    // @pvz-online: only StartNew opts in; loading missing/old markers restores legacy rules.
+    int mCrowdRule = CrowdRules::LEGACY;
+    bool UsesCrowdCompression() const { return mCrowdRule == CrowdRules::ABOVE_80_HALF; }
 };
 
-// 池子 8 条的展示文案（投票框与结果横幅共用，2026-10-14）：名字按当前语言择一（中文档
+// 池子 9 条的展示文案（投票框与结果横幅共用，2026-10-14）：名字按当前语言择一（中文档
 // 中文名、英文档英文名），说明一句、UTF-8。
 // 分工照 GetRunChoiceName / GetRunChoiceDisplayName 的老规矩：GetZombieBuffName 恒 ASCII
 // （石材按钮的位图字体回退路径只认 Latin）；显示名走宽字符直绘（CjkStoneButton / ModText）。

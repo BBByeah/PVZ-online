@@ -257,7 +257,7 @@ void AchievementsWidget::MouseWheel(int theDelta) {
 // GOTY @Patoke: 0x459670
 bool ReportAchievement::GiveAchievement(LawnApp* theApp, int theAchievement, bool theForceGive) {
 	// todo @Patoke: finish adding the achievement give events
-	if (!theApp->mPlayerInfo)
+	if (!theApp || !theApp->mPlayerInfo || theAchievement < 0 || theAchievement >= MAX_ACHIEVEMENTS)
 		return false;
 
 	if (theApp->mPlayerInfo->mEarnedAchievements[theAchievement])
@@ -265,7 +265,7 @@ bool ReportAchievement::GiveAchievement(LawnApp* theApp, int theAchievement, boo
 
 	theApp->mPlayerInfo->mEarnedAchievements[theAchievement] = true;
 
-	if (!theForceGive)
+	if (!theForceGive || !theApp->mBoard)
 		return true;
 
 	std::string aAchievementName = gAchievementList[theAchievement].name;
@@ -300,8 +300,8 @@ void ReportAchievement::AchievementInitForPlayer(GameSelector* theSelector) {
 	}
 
 	bool aGiveAchievement = true;
-	for (int i = STORE_ITEM_PLANT_GATLINGPEA; i <= STORE_ITEM_PLANT_IMITATER; i++) {
-		if (theSelector->mApp->SeedTypeAvailable(SeedType(i)))
+	for (int item = STORE_ITEM_PLANT_GATLINGPEA; item <= STORE_ITEM_PLANT_IMITATER; item++) {
+		if (theSelector->mApp->mPlayerInfo->mPurchases[item] <= 0)
 			aGiveAchievement = false;
 	}
 

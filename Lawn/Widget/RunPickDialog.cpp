@@ -1,6 +1,9 @@
 #include "../CoopPlay.h"
 #include "RunPickDialog.h"
 #include "GameButton.h"
+#include "CjkStoneButton.h"
+#include "RunChoiceLayout.h"
+#include "OnlineUiDraw.h"
 #include "../Plant.h"
 #include "../SeedPacket.h"
 #include "../Run/RunState.h"
@@ -24,7 +27,7 @@
 // （WrapLines / WrapLineCount / DrawWrappedCjk）——僵尸强化投票框成了第二个消费方，
 // 测量与绘制共用的"唯一实现"纪律升格为全局。
 
-static ModText::Font* RunPickCjkFont() { return ModText::GetFont(13, false); }
+static ModText::Font* RunPickCjkFont() { return ModText::GetFont(CjkPointSize(20), false); }
 
 // 一条描述按显式 \n 拆行后的最大行宽——列宽就按它定，不让任何一条被硬折
 static int RunPickDescWidth(ModText::Font* theFont, const char* theUtf8)
@@ -111,7 +114,7 @@ RunPickDialog::RunPickDialog(LawnApp* theApp, RunState* theRun) : LawnDialog(
 	int aRefreshCost = theRun->GetPaidRerollCost();
 	char aRefreshUtf8[64];
 	if (theRun->mRerollVouchers > 0)
-		snprintf(aRefreshUtf8, sizeof(aRefreshUtf8), ModText::Tr("用券重摇 (%d)", "Use voucher (%d)"), theRun->mRerollVouchers);
+		snprintf(aRefreshUtf8, sizeof(aRefreshUtf8), ModText::Tr("免费重摇 (%d)", "Use voucher (%d)"), theRun->mRerollVouchers);
 	else
 		snprintf(aRefreshUtf8, sizeof(aRefreshUtf8), ModText::Tr("重摇 -%s", "Reroll -%s"),
 			LawnApp::GetMoneyString(aRefreshCost).c_str());
@@ -119,6 +122,8 @@ RunPickDialog::RunPickDialog(LawnApp* theApp, RunState* theRun) : LawnDialog(
 	if (theRun->mRerollVouchers <= 0 && (theApp->mPlayerInfo == nullptr || theApp->mPlayerInfo->mCoins < aRefreshCost))
 		mRefreshButton->mDisabled = true;
 
+    if(theRun->mAdmission.phase==Admission::PICKS)
+        mFastButton=MakeButton(RunPickDialog_Fast,this,ModText::Tr("快速完成","Quick catch-up"));
 	mTallBottom = true;
 	mVerticalCenterText = false;
 	// 尺寸由内容反推，且两个驱动按屏分家（2026-10-04 用户反馈"NEW PLANT 屏过大"）：
@@ -206,6 +211,7 @@ RunPickDialog::~RunPickDialog()
 	for (int i = 0; i < 3; i++) delete mChoiceButtons[i];
 	delete mSkipButton;
 	delete mRefreshButton;
+    delete mFastButton;
 }
 
 void RunPickDialog::Resize(int theX, int theY, int theWidth, int theHeight)
@@ -213,6 +219,7 @@ void RunPickDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 	LawnDialog::Resize(theX, theY, theWidth, theHeight);
 
 	int aButtonHeight = IMAGE_BUTTON_LEFT->mHeight;
+    if(mFastButton)mFastButton->Resize(mWidth-220,16,190,40);
 	int aLeft = mContentInsets.mLeft + mBackgroundInsets.mLeft;
 	int aContentWidth = mWidth - mContentInsets.mLeft - mContentInsets.mRight - mBackgroundInsets.mLeft - mBackgroundInsets.mRight;
 	int aGap = 16;
@@ -242,7 +249,7 @@ void RunPickDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 		mChoiceButtons[i]->Resize(mColumnX[i], aButtonY, mColumnWidth, aButtonHeight);
 	}
 	int aFootCenter = (mColumnX[0] + mColumnX[2] + mColumnWidth) / 2;
-	int aFootWidth = 150;
+	int aFootWidth = std::min(240, (mWidth - 64) / 2);
 	mRefreshButton->Resize(aFootCenter - 8 - aFootWidth, aSkipY, aFootWidth, aButtonHeight);
 	mSkipButton->Resize(aFootCenter + 8, aSkipY, aFootWidth, aButtonHeight);
 }
@@ -253,6 +260,7 @@ void RunPickDialog::AddedToManager(WidgetManager* theWidgetManager)
 	for (int i = 0; i < 3; i++) AddWidget(mChoiceButtons[i]);
 	AddWidget(mSkipButton);
 	AddWidget(mRefreshButton);
+    if(mFastButton)AddWidget(mFastButton);
 }
 
 void RunPickDialog::RemovedFromManager(WidgetManager* theWidgetManager)
@@ -261,6 +269,7 @@ void RunPickDialog::RemovedFromManager(WidgetManager* theWidgetManager)
 	for (int i = 0; i < 3; i++) RemoveWidget(mChoiceButtons[i]);
 	RemoveWidget(mSkipButton);
 	RemoveWidget(mRefreshButton);
+    if(mFastButton)RemoveWidget(mFastButton);
 }
 
 void RunPickDialog::Draw(Graphics* g)
@@ -280,7 +289,10 @@ void RunPickDialog::Draw(Graphics* g)
 	g->SetColor(mColors[Dialog::COLOR_LINES]);
 	// 2026-10-14：这行是位图字体画的——「局」不在汉化像素字库里（1419 字，逐字查过），
 	// 画出来是个空档（用户报「格子」）。改用字库内的「本次闯关」。
-	WriteCenteredLine(g, aFontY, mPlantPick ? ModText::Tr("选一株加入本次闯关。", "Pick one to join your run.") : ModText::Tr("选一条增益强化本次闯关。", "Pick one to power up your run."));
+    if(mRun->mAdmission.phase==Admission::PICKS)
+        SeatUi::Text(g,ModText::Tr("补位增益：还需选择 ","Catch-up choices remaining: ")+std::to_string(mRun->mPendingBuffPicks),
+            24,aFontY+18,mWidth-48,18,Color(245,230,165),true);
+    else WriteCenteredLine(g, aFontY, mPlantPick ? ModText::Tr("选一株加入本次闯关。", "Pick one to join your run.") : ModText::Tr("选一条增益强化本次闯关。", "Pick one to power up your run."));
 
 	// 金币余额（花园批 2026-10-13 加；2026-10-14 用户令改版「获得金币显示在下面那个栏位，
 	// 三选一屏也要看得到金币数」）：画成局内左下角同款钱罐——位置、贴图、字体、颜色、数字
@@ -290,6 +302,7 @@ void RunPickDialog::Draw(Graphics* g)
 	// 原点，减去 mX/mY 即回到屏幕位（局内钱罐位 = 57, 599-H）。
 	if (mApp->mPlayerInfo != nullptr)
 	{
+		SeatUi::Strip(g, Rect(28 - mX, 568 - mY, 744, 32));
 		int aBankX = 57 - mX;
 		int aBankY = 599 - Sexy::IMAGE_COINBANK->GetHeight() - mY;
 		g->DrawImage(Sexy::IMAGE_COINBANK, aBankX, aBankY);
@@ -297,6 +310,11 @@ void RunPickDialog::Draw(Graphics* g)
 		g->SetColor(Sexy::Color(180, 255, 90));
 		SexyString aCoinLabel = mApp->GetMoneyString(mApp->mPlayerInfo->mCoins);
 		g->DrawString(aCoinLabel, aBankX + 116 - Sexy::FONT_CONTINUUMBOLD14->StringWidth(aCoinLabel), aBankY + 24);
+		std::string aCost = mRun->mRerollVouchers > 0
+			? ModText::Tr("重摇：使用1张券", "Reroll: use 1 voucher")
+			: ModText::Tr("本次重摇：", "Reroll cost: ") + LawnApp::GetMoneyString(mRun->GetPaidRerollCost());
+		if (mRefreshButton->mDisabled) aCost += ModText::Tr(" · 金币不足", " / Not enough coins");
+		SeatUi::Text(g, aCost, 208 - mX, 591 - mY, 548, 18, Color(245, 230, 165));
 	}
 
 	for (int i = 0; i < 3; i++)
@@ -338,6 +356,13 @@ void RunPickDialog::Draw(Graphics* g)
 			int aRarity = GetRunChoiceRarity(aBuffId);
 			std::wstring aStars = (aRarity > 0)
 				? std::wstring((size_t)aRarity, (wchar_t)0x2605) : std::wstring();
+			int aHeadBudget = mColumnWidth - ModText::TextWidth(aFont, aStars) - (aStars.empty() ? 0 : 6);
+			if (ModText::TextWidth(aFont, aHead) > aHeadBudget)
+			{
+				while (!aHead.empty() && ModText::TextWidth(aFont, aHead + L"...") > aHeadBudget)
+					aHead.pop_back();
+				aHead += L"...";
+			}
 			// 说明区：顶边整行让给名字/星标行、底边整行让给「已有 x/N」。列高在构造时
 			// 按真实折行数算过（预算的 +2 行就是这两行），正常放得下；真到尺寸上限也
 			// 只会往下压「已有」一行，2026-10-03 那种标题/说明/已有三头叠字不会再出现。
@@ -361,7 +386,8 @@ void RunPickDialog::Draw(Graphics* g)
 						aRarity >= 3 ? Sexy::Color(255, 200, 60) : Sexy::Color(150, 140, 130), g->mClipRect);
 				}
 			}
-			ModText::DrawWrappedCjk(g, aFont, aRect, GetRunChoiceDesc(aBuffId), mColors[Dialog::COLOR_LINES]);
+			ModText::DrawWrappedCjk(g, RunChoiceLayout::DescriptionFont(GetRunChoiceDesc(aBuffId), aRect.mWidth, aRect.mHeight),
+				aRect, GetRunChoiceDesc(aBuffId), mColors[Dialog::COLOR_LINES]);
 
 			// 「已有 x/N」：封顶条目带 /N；无限条目只报已有层数。画在卡片区底边、逐列居中。
 			int aOwned = mRun->GetBuffCount(aBuffId);
@@ -381,6 +407,7 @@ void RunPickDialog::Draw(Graphics* g)
 
 void RunPickDialog::ButtonDepress(int theId)
 {
+    if(theId==RunPickDialog_Fast){mApp->StartAdmissionFastPicks();return;}
 	if (theId >= RunPickDialog_Choice0 && theId <= RunPickDialog_Choice2)
 	{
 		mApp->RunPickChosen(theId - RunPickDialog_Choice0);

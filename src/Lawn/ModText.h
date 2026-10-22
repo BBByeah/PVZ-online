@@ -14,6 +14,8 @@ bool IsChinese();
 bool HasChineseResources();
 const char* Tr(const char* chinese, const char* english);
 const char* SettingName();
+bool ReadSlideCollect();
+bool SaveSlideCollect(bool enabled);
 Sexy::_Font* FontFor(Sexy::_Font* original, int pixelHeight);
 template<typename... Args>
 std::string Format(const char* zh, const char* en, Args&&... args)

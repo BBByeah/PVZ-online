@@ -27,6 +27,8 @@
 #include "../../Resources.h"
 #include "../../PvzpLib/PvzpFoley.h"
 #include "../../PvzpLib/PvzpStringFile.h"
+#include "graphics/Font.h"
+#include <algorithm>
 
 ContinueDialog::ContinueDialog(LawnApp* theApp) : LawnDialog(
 	theApp,
@@ -42,7 +44,7 @@ ContinueDialog::ContinueDialog(LawnApp* theApp) : LawnDialog(
 		mDialogLines = mApp->GetString("CONTINUE_GAME_OR_RESTART",
 			"Do you want to continue your current game or restart the level?");
 		mContinueButton = MakeButton(ContinueDialog::ContinueDialog_Continue, this, "[CONTINUE_BUTTON]");
-		mNewGameButton = MakeButton(ContinueDialog::ContinueDialog_NewGame, this, "[RESTART_LEVEL]");
+		mNewGameButton = MakeButton(ContinueDialog::ContinueDialog_NewGame, this, "[RESTART_BUTTON]");
 	}
 	else
 	{
@@ -54,35 +56,6 @@ ContinueDialog::ContinueDialog(LawnApp* theApp) : LawnDialog(
 
 	mTallBottom = true;
 	CalcSize(10, 60);
-
-	int aBtnLeft = IMAGE_BUTTON_LEFT->mWidth;
-	int aBtnMid = IMAGE_BUTTON_MIDDLE->mWidth;
-	int aBtnRight = IMAGE_BUTTON_RIGHT->mWidth;
-	int aBtnWidth = aBtnLeft + aBtnMid * 3 + aBtnRight;
-	int aInsetH = mContentInsets.mLeft + mContentInsets.mRight + mBackgroundInsets.mLeft + mBackgroundInsets.mRight;
-	// Min width that keeps the Continue and New Game buttons from overlapping.
-	int aMinCancelWidth = 2 * aBtnWidth - 40;
-	int aSteps = (aMinCancelWidth - aBtnLeft - aBtnRight + aBtnMid - 1) / aBtnMid;
-	int aMinWidth = aBtnLeft + aBtnRight + aSteps * aBtnMid + aInsetH - 8;
-	if (mWidth < aMinWidth)
-	{
-		int aTopMidWidth = IMAGE_DIALOG_TOPMIDDLE->mWidth;
-		int aImageWidth = IMAGE_DIALOG_TOPLEFT->mWidth + IMAGE_DIALOG_TOPRIGHT->mWidth + aTopMidWidth;
-		int aWidth = aMinWidth;
-		if (aWidth <= aImageWidth)
-		{
-			aWidth = aImageWidth;
-		}
-		else if (aTopMidWidth > 0)
-		{
-			int anExtraWidth = (aWidth - aImageWidth) % aTopMidWidth;
-			if (anExtraWidth)
-			{
-				aWidth += aTopMidWidth - anExtraWidth;
-			}
-		}
-		Resize(mX, mY, aWidth, mHeight);
-	}
 }
 
 ContinueDialog::~ContinueDialog() = default;
@@ -94,13 +67,26 @@ int ContinueDialog::GetPreferredHeight(int theWidth)
 
 void ContinueDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 {
-	LawnDialog::Resize(theX, theY, theWidth, theHeight);
-
 	int aBtnWidth = IMAGE_BUTTON_LEFT->mWidth + IMAGE_BUTTON_MIDDLE->mWidth * 3 + IMAGE_BUTTON_RIGHT->mWidth;
-	int aBtnHeight = mLawnYesButton->mHeight;
-
-	mContinueButton->Resize(mLawnYesButton->mX - 20, mLawnYesButton->mY - aBtnHeight, aBtnWidth, aBtnHeight);
-	mNewGameButton->Resize(mLawnYesButton->mX + mLawnYesButton->mWidth - aBtnWidth + 20, mContinueButton->mY, aBtnWidth, aBtnHeight);
+	const int aLabelWidth = std::max(FONT_DWARVENTODCRAFT18GREENINSET->StringWidth(mContinueButton->mLabel),
+		FONT_DWARVENTODCRAFT18GREENINSET->StringWidth(mNewGameButton->mLabel)) + 24;
+	while (aBtnWidth < aLabelWidth) aBtnWidth += IMAGE_BUTTON_MIDDLE->mWidth;
+	const int aButtonGap = 12;
+	const int aRowWidth = aBtnWidth * 2 + aButtonGap;
+	const int aMinWidth = aRowWidth + mContentInsets.mLeft + mContentInsets.mRight +
+		mBackgroundInsets.mLeft + mBackgroundInsets.mRight;
+	if (theWidth < aMinWidth)
+	{
+		const int aFrameWidth = IMAGE_DIALOG_TOPLEFT->mWidth + IMAGE_DIALOG_TOPRIGHT->mWidth;
+		const int aTileWidth = IMAGE_DIALOG_TOPMIDDLE->mWidth;
+		theWidth = aFrameWidth + (aMinWidth - aFrameWidth + aTileWidth - 1) / aTileWidth * aTileWidth;
+	}
+	LawnDialog::Resize(theX, theY, theWidth, theHeight);
+	const int aBtnHeight = mLawnYesButton->mHeight;
+	const int aRowX = (mWidth - aRowWidth) / 2;
+	const int aRowY = mLawnYesButton->mY - aBtnHeight - 8;
+	mContinueButton->Resize(aRowX, aRowY, aBtnWidth, aBtnHeight);
+	mNewGameButton->Resize(aRowX + aBtnWidth + aButtonGap, aRowY, aBtnWidth, aBtnHeight);
 }
 
 void ContinueDialog::AddedToManager(WidgetManager* theWidgetManager)

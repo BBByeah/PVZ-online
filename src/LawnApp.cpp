@@ -1,3 +1,6 @@
+#include "Lawn/Widget/NextWaveControl.h"
+#include "Lawn/Widget/OnlineSeatDialog.h"
+#include "Lawn/Run/EndlessLawn.h"
 #include "Lawn/CoopPlay.h"
 /*
  * Copyright (C) 2026 Zhou Qiankang <wszqkzqk@qq.com>
@@ -25,6 +28,7 @@
 #include <cstdio>
 #include <format>
 #include "LawnApp.h"
+#include "Lawn/Run/RunHistory.h"
 #include "Lawn/Online/NetSession.h"
 #include "Lawn/Online/NetworkLog.h"
 #include "Lawn/Widget/OnlineStartDialog.h"
@@ -224,6 +228,7 @@ LawnApp::~LawnApp()
 
 	// Must die before the definition tables and allocators are freed below.
 	mGameSelector.reset();
+	mCreditScreen.reset();
 	mEffectSystem.reset();
 	mReanimatorCache.reset();
 
@@ -281,6 +286,7 @@ void LawnApp::KillBoard()
 			EraseFile(aLegacyFileName);
 		}
 
+        mDamageStats.Detach(mBoard);
 		mBoard->DisposeBoard();
 		mWidgetManager->RemoveWidget(mBoard);
 		SafeDeleteWidget(mBoard);
@@ -316,6 +322,7 @@ void LawnApp::GotFocus()
 
 void LawnApp::LostFocus()
 {
+    NextWaveControl::Suspend(mBoard);
     if (mBoard)
     {
         mBoard->CloseQuickChatPanel();
@@ -346,6 +353,7 @@ void LawnApp::WriteToRegistry()
 void LawnApp::ReadFromRegistry()
 {
 	SexyApp::ReadFromRegistry();
+    mSlideCollect = ModText::ReadSlideCollect();
 }
 
 bool LawnApp::WriteCurrentUserConfig()
@@ -464,9 +472,20 @@ void LawnApp::MakeNewBoard()
 
 void LawnApp::StartPlaying()
 {
+	if(mRunState && mRunState->mAdmission.phase==Admission::PREPARED)mRunState->mAdmission.phase=Admission::PLAYED;
 	KillSeedChooserScreen();
 	mBoard->StartLevel();
 	mGameScene = GameScenes::SCENE_PLAYING;
+    EndlessLawn::RememberLineup(mBoard);
+    if(mRunState && mRunState->IsNewEndless()) {
+        if(EndlessLawn::Capture(mBoard,true))mRunState->Save(mPlayerInfo->mId);
+        const int n=mRunState->mLevelIndex+1,p=mRunState->EndlessBossPeriod();
+        std::string text=ModText::Tr("阶段主题：","Stage theme: ")+std::string(RunState::EndlessThemeName(mRunState->EndlessTheme()));
+        if(mRunState->GetZombieBuffPerScene()>0 && mRunState->HasZombieBuffChoices())text+=ModText::Tr(" · 下次强化："," / Next boost: ")+std::to_string((mRunState->mLevelIndex/5+1)*5+1);
+        if(p)text+=ModText::Tr(" · BOSS：第"," / Boss: level ")+std::to_string(((n-1)/p+1)*p);
+        mBoard->PushCustomBanner(text.c_str());
+    }
+
 }
 
 bool LawnApp::SaveFileExists()
@@ -554,13 +573,20 @@ void LawnApp::NewGame()
 
 void LawnApp::ShowGameSelector()
 {
+    if(mRunState && mRunState->IsNewEndless() && mBoard && !mRunState->Save(mPlayerInfo->mId)) {
+        LawnMessageBox(Dialogs::DIALOG_MESSAGE,ModText::Tr("保存失败","Save failed"),
+            ModText::Tr("本次草坪尚未保存，游戏已留在当前画面。请检查可用空间后重试返回菜单。","The lawn could not be saved. The game remains open. Check storage and retry returning to the menu."),"OK","",Sexy::Dialog::BUTTONS_FOOTER);
+        return;
+    }
+
     ResetZombieVote();
 	KillDialog(DIALOG_GAME_OVER);
 	KillRunFlowScreen();
 	KillBoard();
+    RunHistory::Capture(this,RunHistory::LEFT);
 	mRunState.reset();
     ClearOnlineStartOverride();
-    if (mOnlineSession) mOnlineSession->DiscardLevelPackets();
+    if (mOnlineSession) { mOnlineSession->EndPreparation(); mOnlineSession->DiscardLevelPackets(); }
     mOnlineRunStartHeld = mOnlineRunGo = mRunIntroHeld = mOnlineSeedsHeld = false;
     mOnlineWaitingStartAck = mOnlineStartPromptActive = false;
     KillDialog(DIALOG_ONLINE_START);
@@ -672,10 +698,26 @@ void LawnApp::KillStoreScreen()
 
 void LawnApp::ShowSeedChooserScreen()
 {
+    if(mRunState && mRunState->IsNewEndless() && mBoard) {
+        std::string preview=ModText::Format("无尽第 {} 关 · ","Endless level {} / ",mRunState->GetPlayingLevelIndex()+1);
+        preview+=RunState::EndlessThemeName(mRunState->EndlessTheme());
+        if(mRunState->IsEndlessBossLevel())preview+=ModText::Tr(" · 本关 BOSS"," / BOSS this level");
+        mBoard->PushCustomBanner(preview.c_str());
+    }
+
 	PVZP_ASSERT(mSeedChooserScreen == nullptr);
 
 	mOnlineSeedsHeld = false;
-	if (IsOnlineGame() && !IsLocalOnlyMode(mGameMode) && mBoard) mOnlineSession->SendSeedsReady(!mBoard->ChooseSeedsOnCurrentLevel());
+	if (IsOnlineGame() && !IsLocalOnlyMode(mGameMode) && mBoard) {
+        // @pvz-online: rewards finish before entry; even auto-filled decks require explicit readiness.
+        const bool intermission=(mOnlineSession->HasRoundFlow() || (mRunState && mRunState->GetPlayingLevelIndex()>0)) && mOnlineSession->BeginPreparation(true);
+        mPreparationRulesApplied=false;mPreparationSaved=false;mPreparationConfiguredRevision=0;mPreparationEditRequested=false;
+        if(intermission && mRunState && mRunState->IsEndless()) {mPreparationBuiltSeat=mOnlineSession->GetLocalSeat();mPreparationBuiltMultiplier=OnlineSeatMultiplier();}
+        mOnlineSession->SendSeedsReady(!intermission && !mBoard->ChooseSeedsOnCurrentLevel());
+        if(intermission && !mBoard->ChooseSeedsOnCurrentLevel()) {
+            mOnlineSeedsHeld=true;mRunIntroHeld=true;
+        }
+    }
 	mSeedChooserScreen = std::make_unique<SeedChooserScreen>();
 	mSeedChooserScreen->Resize(0, 0, mWidth, mHeight);
 	mWidgetManager->AddWidget(mSeedChooserScreen.get());
@@ -693,6 +735,10 @@ void LawnApp::KillSeedChooserScreen()
 
 void LawnApp::EndLevel()
 {
+    if(mRunState && mRunState->IsNewEndless()) {
+        mBoardResult=BoardResult::BOARDRESULT_LOST;
+        EndlessLawn::Enter(this);return;
+    }
 	KillBoard();
 	if (IsAdventureMode())
 	{
@@ -711,8 +757,17 @@ void LawnApp::EndLevel()
 
 void LawnApp::DoBackToMain(bool notifyOnline)
 {
+    if(mRunState && mRunState->IsNewEndless() && mBoard && !mRunState->Save(mPlayerInfo->mId)) {
+        LawnMessageBox(Dialogs::DIALOG_MESSAGE,ModText::Tr("保存失败","Save failed"),
+            ModText::Tr("本次草坪尚未保存，游戏已留在当前画面。请检查可用空间后重试返回菜单。","The lawn could not be saved. The game remains open. Check storage and retry returning to the menu."),"OK","",Sexy::Dialog::BUTTONS_FOOTER);
+        return;
+    }
+
 	KillDialog(DIALOG_GAME_OVER);
-	if (notifyOnline && IsOnlineGame() && !IsLocalOnlyMode(mGameMode)) mOnlineSession->SendLevelExit();
+	if (notifyOnline && IsOnlineGame() && !IsLocalOnlyMode(mGameMode)) {
+        if(mOnlineSession->IsPrivateRoom())mOnlineSession->Close();
+        else mOnlineSession->SendLevelExit();
+    }
 	mMusic->StopAllMusic();
 	mSoundSystem->CancelPausedFoley();
 	WriteCurrentUserConfig();
@@ -743,7 +798,8 @@ void LawnApp::DoNewOptions(bool theFromGameSelector)
 	//FinishModelessDialogs();
 
 	NewOptionsDialog* aDialog = new NewOptionsDialog(this, theFromGameSelector);
-	CenterDialog(aDialog, IMAGE_OPTIONS_MENUBACK->mWidth, IMAGE_OPTIONS_MENUBACK->mHeight);
+	CenterDialog(aDialog, theFromGameSelector ? IMAGE_OPTIONS_MENUBACK->mWidth : NewOptionsDialog::PAUSE_WIDTH,
+        theFromGameSelector ? IMAGE_OPTIONS_MENUBACK->mHeight : NewOptionsDialog::PAUSE_HEIGHT);
 	AddDialog(Dialogs::DIALOG_NEWOPTIONS, aDialog);
 	mWidgetManager->SetFocus(aDialog);
 }
@@ -1537,6 +1593,8 @@ void LawnApp::CheckForGameEnd()
         if (mRunIntroHeld || mRunState->HasPendingPick()) return;
         AwardRunRerollVoucher();
         ExpireCoopLoan();
+        if(EndlessLawn::StopAtLimit(this))return;
+        EndlessLawn::RememberLineup(mBoard);
         mRunState->AdvanceLevel();
         mBoardResult = BOARDRESULT_NONE;
         mGameScene = SCENE_LEVEL_INTRO;
@@ -1544,14 +1602,15 @@ void LawnApp::CheckForGameEnd()
         else KillBoard();
         if (mRunState->IsComplete())
         {
+            RunHistory::Capture(this,RunHistory::COMPLETE);
             RunState::DeleteCheckpoint(mPlayerInfo->mId);
-            ShowGameSelector();
-            LawnMessageBox(DIALOG_MESSAGE, ModText::Tr("闯关完成", "Run complete"),
-                ModText::Tr("这一局已通过全部关卡。", "Every level in this run is complete."), "OK", "", Dialog::BUTTONS_FOOTER);
+            ShowAwardScreen(AWARD_RUN_COMPLETE, false);
         }
         else
         {
             mRunState->BeginLevelEndPicks();
+                if(mRunState->IsEndless() && mBoard)mRunIntroHeld=true;
+                mRunState->Save(mPlayerInfo->mId);
             if (mBoard) mRunIntroHeld = true;
         }
         return;
@@ -1709,13 +1768,20 @@ void LawnApp::UpdatePlayTimeStats()
 
 void LawnApp::UpdateFrames()
 {
+    mDamageStats.Update(this);
 	if (mOnlineSession)
 	{
 		// @pvz-online 语言批：会话层的状态/提示文案跟着 UI 语言走，但那一层要能脱开
 		// 框架单测（nettest 直接编译它的 .cpp），不能自己引用 ModText——语言由这儿每帧
 		// 注入，注入后再 Update（状态行每帧在 Update 末尾重算，改语言下一帧就生效）。
 		mOnlineSession->SetTextChinese(ModText::IsChinese());
+        mOnlineSession->SetDirectoryStarted(mBoard!=nullptr || mRunState!=nullptr || mOnlineWaitingStartAck);
 		mOnlineSession->Update();
+        const bool needsRoom = !mOnlineSession->HasRoundFlow() ||
+            !mOnlineSession->IsConnected() || mOnlineSession->NeedsRoundRejoin() ||
+            mOnlineSession->IsWaitingForNextRound(mOnlineSession->GetLocalSeat());
+        if (mBoard && needsRoom && mOnlineSession->RelayBattleHeld() && !mOnlineSession->IsReconnecting() && !GetDialog(Dialogs::DIALOG_ONLINE))
+            DoOnlineDialog();
         UpdateCoopPlay();
 
         // @pvz-online: the room now contains Start/Seats; keep it open after connection
@@ -1728,13 +1794,20 @@ void LawnApp::UpdateFrames()
 		// 顺位开局那一下就定死了，不该在棋盘上被问这事。
 		if (mOnlineSession->HasIncomingSwapRequest())
 		{
-			if (mBoard != nullptr)
-				mOnlineSession->AnswerSwapRequest(false);
+            if(mBoard && mOnlineSession->IsPreparationActive()) {
+                if(!GetDialog(Dialogs::DIALOG_ONLINE_SWAP)) {
+                    KillDialog(Dialogs::DIALOG_ONLINE_START);
+                    AddDialog(Dialogs::DIALOG_ONLINE_SWAP,new OnlineSeatDialog(this,mOnlineSeedsHeld));
+                }
+            }
+            else if (mBoard != nullptr)
+                mOnlineSession->AnswerSwapRequest(false);
 			else if (GetDialog(Dialogs::DIALOG_ONLINE) == nullptr)
 				DoOnlineDialog();
 		}
 	}
 	// 开局要换场景、动一堆 UI，所以也放在循环外、widget 更新之前——收包链里干了迟早出事。
+	UpdateEndlessAdmission();
 	UpdateOnlineStart();
 	UpdateOnlineRelay();
 	UpdateOnlineLevelExit();
@@ -2527,6 +2600,7 @@ ParticleSystemID LawnApp::ParticleGetID(PvzpParticleSystem* theParticle)
 
 ReanimationID LawnApp::ReanimationGetID(Reanimation* theReanimation)
 {
+    if (!theReanimation) return ReanimationID::REANIMATIONID_NULL;
 	return static_cast<ReanimationID>(mEffectSystem->mReanimationHolder->mReanimations.DataArrayGetID(theReanimation));
 }
 
@@ -2537,6 +2611,7 @@ PvzpParticleSystem* LawnApp::ParticleGet(ParticleSystemID theParticleID)
 
 PvzpParticleSystem* LawnApp::ParticleTryToGet(ParticleSystemID theParticleID)
 {
+	if (!mEffectSystem || !mEffectSystem->mParticleHolder) return nullptr;
 	return mEffectSystem->mParticleHolder->mParticleSystems.DataArrayTryToGet(static_cast<unsigned int>(theParticleID));
 }
 
@@ -2547,6 +2622,8 @@ Reanimation* LawnApp::ReanimationGet(ReanimationID theReanimationID)
 
 Reanimation* LawnApp::ReanimationTryToGet(ReanimationID theReanimationID)
 {
+	// UI cleanup can outlive the effect system during shutdown or partial loading.
+	if (!mEffectSystem || !mEffectSystem->mReanimationHolder) return nullptr;
 	return mEffectSystem->mReanimationHolder->mReanimations.DataArrayTryToGet(static_cast<unsigned int>(theReanimationID));
 }
 
@@ -2667,18 +2744,21 @@ void LawnApp::CrazyDaveEnter()
 	PVZP_ASSERT(mCrazyDaveState == CRAZY_DAVE_OFF);
 	PVZP_ASSERT(!ReanimationTryToGet(mCrazyDaveReanimID));
 
-	Reanimation* aCrazyDaveReanim = AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_CRAZY_DAVE);
-	aCrazyDaveReanim->mIsAttachment = true;
-	aCrazyDaveReanim->SetBasePoseFromAnim("anim_idle_handing");
-	mCrazyDaveReanimID = ReanimationGetID(aCrazyDaveReanim);
-	aCrazyDaveReanim->PlayReanim("anim_enter", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 24.0f);
+	Reanimation* aCrazyDaveReanim = mEffectSystem->mReanimationHolder->mReanimations.DataArrayCanAllocate(mEffectSystem->mReanimationHolder->mPlantReservation + 1) ? AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_CRAZY_DAVE) : nullptr;
+	if (aCrazyDaveReanim)
+	{
+    	aCrazyDaveReanim->mIsAttachment = true;
+    	aCrazyDaveReanim->SetBasePoseFromAnim("anim_idle_handing");
+    	mCrazyDaveReanimID = ReanimationGetID(aCrazyDaveReanim);
+    	aCrazyDaveReanim->PlayReanim("anim_enter", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 24.0f);
+	}
 
-	mCrazyDaveState = CrazyDaveState::CRAZY_DAVE_ENTERING;
+	mCrazyDaveState = aCrazyDaveReanim ? CrazyDaveState::CRAZY_DAVE_ENTERING : CrazyDaveState::CRAZY_DAVE_IDLING;
 	mCrazyDaveMessageIndex = -1;
 	mCrazyDaveMessageText.clear();
 	mCrazyDaveBlinkCounter = RandRangeInt(400, 800);
 
-	if (mGameScene == GameScenes::SCENE_LEVEL_INTRO && IsStormyNightLevel())
+	if (aCrazyDaveReanim && mGameScene == GameScenes::SCENE_LEVEL_INTRO && IsStormyNightLevel())
 	{
 		aCrazyDaveReanim->mColorOverride = Color(64, 64, 64);
 	}
@@ -2686,24 +2766,18 @@ void LawnApp::CrazyDaveEnter()
 
 void LawnApp::CrazyDaveDie()
 {
-	Reanimation* aCrazyDaveReanim = ReanimationTryToGet(mCrazyDaveReanimID);
-	if (aCrazyDaveReanim)
-	{
-		aCrazyDaveReanim->ReanimationDie();
-	}
-
-	mCrazyDaveState = CrazyDaveState::CRAZY_DAVE_OFF;
-	mCrazyDaveReanimID = ReanimationID::REANIMATIONID_NULL;
-	mCrazyDaveBlinkReanimID = ReanimationID::REANIMATIONID_NULL;
-	mCrazyDaveMessageIndex = -1;
-	mCrazyDaveMessageText.clear();
-
-	CrazyDaveStopSound();
+    if (Reanimation* dave = ReanimationTryToGet(mCrazyDaveReanimID)) dave->ReanimationDie();
+    mCrazyDaveState = CrazyDaveState::CRAZY_DAVE_OFF;
+    mCrazyDaveReanimID = ReanimationID::REANIMATIONID_NULL;
+    mCrazyDaveMessageIndex = -1;
+    mCrazyDaveMessageText.clear();
+    CrazyDaveStopSound();
 }
 
 void LawnApp::CrazyDaveLeave()
 {
 	Reanimation* aCrazyDaveReanim = ReanimationTryToGet(mCrazyDaveReanimID);
+	if (!aCrazyDaveReanim) { CrazyDaveDie(); return; }
 	if (aCrazyDaveReanim)
 	{
 		if (mCrazyDaveState == CrazyDaveState::CRAZY_DAVE_HANDING_TALKING || mCrazyDaveState == CrazyDaveState::CRAZY_DAVE_HANDING_IDLING)
@@ -2731,7 +2805,8 @@ void LawnApp::CrazyDaveTalkIndex(int theMessageIndex)
 
 void LawnApp::CrazyDaveDoneHanding()
 {
-	Reanimation* aCrazyDaveReanim = ReanimationGet(mCrazyDaveReanimID);
+	Reanimation* aCrazyDaveReanim = ReanimationTryToGet(mCrazyDaveReanimID);
+	if (!aCrazyDaveReanim) return;
 	ReanimatorTrackInstance* aHandTrackInstance = aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand");
 	AttachmentDie(aHandTrackInstance->mAttachmentID);
 
@@ -2748,7 +2823,14 @@ void LawnApp::CrazyDaveStopSound()
 
 void LawnApp::CrazyDaveTalkMessage(const std::string& theMessage)
 {
-	Reanimation* aCrazyDaveReanim = ReanimationGet(mCrazyDaveReanimID);
+	Reanimation* aCrazyDaveReanim = ReanimationTryToGet(mCrazyDaveReanimID);
+    if (!aCrazyDaveReanim)
+    {
+        mCrazyDaveState = CrazyDaveState::CRAZY_DAVE_IDLING;
+        mCrazyDaveMessageText = theMessage;
+        return;
+    }
+
 
 	bool doHanding = false;
 	if (theMessage.find("{HANDING}") != std::string::npos)
@@ -2851,16 +2933,19 @@ void LawnApp::CrazyDaveTalkMessage(const std::string& theMessage)
 		{
 			aCrazyDaveReanim->PlayReanim("anim_talk_handing", ReanimLoopType::REANIM_LOOP, 50, 12.0f);
 
-			Reanimation* aWallnutReanim = AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_WALLNUT);
-			aWallnutReanim->PlayReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 0, 12.0f);
-			PvzpLogLn("Handed");
-
-			ReanimatorTrackInstance* aHandTrackInstance = aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand");
-			AttachEffect* aAttachEffect = AttachReanim(aHandTrackInstance->mAttachmentID, aWallnutReanim, 100.0f, 393.0f);
-			aAttachEffect->mOffset.m00 = 1.2f;
-			aAttachEffect->mOffset.m11 = 1.2f;
-
-			aCrazyDaveReanim->Update();
+			Reanimation* aWallnutReanim = mEffectSystem->mReanimationHolder->mReanimations.DataArrayCanAllocate(mEffectSystem->mReanimationHolder->mPlantReservation + 1) ? AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_WALLNUT) : nullptr;
+			if (aWallnutReanim)
+			{
+    			aWallnutReanim->PlayReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 0, 12.0f);
+    			PvzpLogLn("Handed");
+    
+    			ReanimatorTrackInstance* aHandTrackInstance = aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand");
+    			AttachEffect* aAttachEffect = AttachReanim(aHandTrackInstance->mAttachmentID, aWallnutReanim, 100.0f, 393.0f);
+    			if (aAttachEffect) aAttachEffect->mOffset.m00 = 1.2f;
+    			if (aAttachEffect) aAttachEffect->mOffset.m11 = 1.2f;
+    
+    			aCrazyDaveReanim->Update();
+			}
 
 			if (doSound)
 			{
@@ -2873,16 +2958,19 @@ void LawnApp::CrazyDaveTalkMessage(const std::string& theMessage)
 		{
 			aCrazyDaveReanim->PlayReanim("anim_talk_handing", ReanimLoopType::REANIM_LOOP, 50, 12.0f);
 
-			Reanimation* aHammerReanim = AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_HAMMER);
-			aHammerReanim->PlayReanim("anim_whack_zombie", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 24.0f);
-			aHammerReanim->mAnimTime = 1.0f;
-
-			ReanimatorTrackInstance* aHandTrackInstance = aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand");
-			AttachEffect* aAttachEffect = AttachReanim(aHandTrackInstance->mAttachmentID, aHammerReanim, 62.0f, 445.0f);
-			aAttachEffect->mOffset.m00 = 1.5f;
-			aAttachEffect->mOffset.m11 = 1.5f;
-
-			aCrazyDaveReanim->Update();
+			Reanimation* aHammerReanim = mEffectSystem->mReanimationHolder->mReanimations.DataArrayCanAllocate(mEffectSystem->mReanimationHolder->mPlantReservation + 1) ? AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_HAMMER) : nullptr;
+			if (aHammerReanim)
+			{
+    			aHammerReanim->PlayReanim("anim_whack_zombie", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 24.0f);
+    			aHammerReanim->mAnimTime = 1.0f;
+    
+    			ReanimatorTrackInstance* aHandTrackInstance = aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand");
+    			AttachEffect* aAttachEffect = AttachReanim(aHandTrackInstance->mAttachmentID, aHammerReanim, 62.0f, 445.0f);
+    			if (aAttachEffect) aAttachEffect->mOffset.m00 = 1.5f;
+    			if (aAttachEffect) aAttachEffect->mOffset.m11 = 1.5f;
+    
+    			aCrazyDaveReanim->Update();
+			}
 
 			if (doSound)
 			{
@@ -2895,13 +2983,16 @@ void LawnApp::CrazyDaveTalkMessage(const std::string& theMessage)
 		{
 			aCrazyDaveReanim->PlayReanim("anim_talk_handing", ReanimLoopType::REANIM_LOOP, 50, 12.0f);
 
-			Reanimation* aFertilizerReanim = AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_ZENGARDEN_FERTILIZER);
-			aFertilizerReanim->PlayReanim("bag", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 24.0f);
-			aFertilizerReanim->mAnimRate = 0.0f;
-
-			ReanimatorTrackInstance* aHandTrackInstance = aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand");
-			AttachReanim(aHandTrackInstance->mAttachmentID, aFertilizerReanim, 102.0f, 412.0f);
-			aCrazyDaveReanim->Update();
+			Reanimation* aFertilizerReanim = mEffectSystem->mReanimationHolder->mReanimations.DataArrayCanAllocate(mEffectSystem->mReanimationHolder->mPlantReservation + 1) ? AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_ZENGARDEN_FERTILIZER) : nullptr;
+			if (aFertilizerReanim)
+			{
+    			aFertilizerReanim->PlayReanim("bag", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 24.0f);
+    			aFertilizerReanim->mAnimRate = 0.0f;
+    
+    			ReanimatorTrackInstance* aHandTrackInstance = aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand");
+    			AttachReanim(aHandTrackInstance->mAttachmentID, aFertilizerReanim, 102.0f, 412.0f);
+    			aCrazyDaveReanim->Update();
+			}
 
 			if (doSound)
 			{
@@ -2914,13 +3005,16 @@ void LawnApp::CrazyDaveTalkMessage(const std::string& theMessage)
 		{
 			aCrazyDaveReanim->PlayReanim("anim_talk_handing", ReanimLoopType::REANIM_LOOP, 50, 12.0f);
 
-			Reanimation* aTreeFoodReanim = AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_TREEOFWISDOM_TREEFOOD);
-			aTreeFoodReanim->PlayReanim("bag", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 24.0f);
-			aTreeFoodReanim->mAnimRate = 0.0f;
-
-			ReanimatorTrackInstance* aHandTrackInstance = aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand");
-			AttachReanim(aHandTrackInstance->mAttachmentID, aTreeFoodReanim, 102.0f, 412.0f);
-			aCrazyDaveReanim->Update();
+			Reanimation* aTreeFoodReanim = mEffectSystem->mReanimationHolder->mReanimations.DataArrayCanAllocate(mEffectSystem->mReanimationHolder->mPlantReservation + 1) ? AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_TREEOFWISDOM_TREEFOOD) : nullptr;
+			if (aTreeFoodReanim)
+			{
+    			aTreeFoodReanim->PlayReanim("bag", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 24.0f);
+    			aTreeFoodReanim->mAnimRate = 0.0f;
+    
+    			ReanimatorTrackInstance* aHandTrackInstance = aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand");
+    			AttachReanim(aHandTrackInstance->mAttachmentID, aTreeFoodReanim, 102.0f, 412.0f);
+    			aCrazyDaveReanim->Update();
+			}
 
 			if (doSound)
 			{
@@ -2933,14 +3027,17 @@ void LawnApp::CrazyDaveTalkMessage(const std::string& theMessage)
 		{
 			aCrazyDaveReanim->PlayReanim("anim_talk_handing", ReanimLoopType::REANIM_LOOP, 50, 12.0f);
 
-			Reanimation* aMoneyBagReanim = AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_ZENGARDEN_FERTILIZER);
-			aMoneyBagReanim->PlayReanim("bag", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 24.0f);
-			aMoneyBagReanim->mAnimRate = 0.0f;
-			aMoneyBagReanim->SetImageOverride("bag", IMAGE_MONEYBAG);
-
-			ReanimatorTrackInstance* aHandTrackInstance = aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand");
-			AttachReanim(aHandTrackInstance->mAttachmentID, aMoneyBagReanim, 90.0f, 405.0f);
-			aCrazyDaveReanim->Update();
+			Reanimation* aMoneyBagReanim = mEffectSystem->mReanimationHolder->mReanimations.DataArrayCanAllocate(mEffectSystem->mReanimationHolder->mPlantReservation + 1) ? AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_ZENGARDEN_FERTILIZER) : nullptr;
+			if (aMoneyBagReanim)
+			{
+    			aMoneyBagReanim->PlayReanim("bag", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 24.0f);
+    			aMoneyBagReanim->mAnimRate = 0.0f;
+    			aMoneyBagReanim->SetImageOverride("bag", IMAGE_MONEYBAG);
+    
+    			ReanimatorTrackInstance* aHandTrackInstance = aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand");
+    			AttachReanim(aHandTrackInstance->mAttachmentID, aMoneyBagReanim, 90.0f, 405.0f);
+    			aCrazyDaveReanim->Update();
+			}
 			if (doSound)
 			{
 				PlayFoley(FoleyType::FOLEY_CRAZY_DAVE_LONG);
@@ -3001,7 +3098,16 @@ void LawnApp::CrazyDaveStopTalking()
 		CrazyDaveDoneHanding();
 	}
 
-	Reanimation* aCrazyDaveReanim = ReanimationGet(mCrazyDaveReanimID);
+	Reanimation* aCrazyDaveReanim = ReanimationTryToGet(mCrazyDaveReanimID);
+    if (!aCrazyDaveReanim)
+    {
+        mCrazyDaveState = CrazyDaveState::CRAZY_DAVE_IDLING;
+        mCrazyDaveMessageIndex = -1;
+        mCrazyDaveMessageText.clear();
+        CrazyDaveStopSound();
+        return;
+    }
+
 	aCrazyDaveReanim->SetImageOverride("Dave_mouths", nullptr);
 	if (mCrazyDaveState == CrazyDaveState::CRAZY_DAVE_HANDING_TALKING && !aDoneHanding)
 	{
@@ -3073,14 +3179,19 @@ void LawnApp::UpdateCrazyDave()
 		if (mCrazyDaveBlinkCounter <= 0)
 		{
 			mCrazyDaveBlinkCounter = RandRangeInt(400, 800);
-			Reanimation* aBlinkReanim = AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_CRAZY_DAVE);
-			aBlinkReanim->SetFramesForLayer("anim_blink");
-			aBlinkReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_FULL_LAST_FRAME_AND_HOLD;
-			aBlinkReanim->mAnimRate = 15.0f;
-			aBlinkReanim->AttachToAnotherReanimation(aCrazyDaveReanim, "Dave_head");
-			aBlinkReanim->mColorOverride = aCrazyDaveReanim->mColorOverride;
-			aCrazyDaveReanim->AssignRenderGroupToTrack("Dave_eye", RENDER_GROUP_HIDDEN);
-			mCrazyDaveBlinkReanimID = ReanimationGetID(aBlinkReanim);
+			auto& holder = mEffectSystem->mReanimationHolder;
+			Reanimation* aBlinkReanim = holder->mReanimations.DataArrayCanAllocate(holder->mPlantReservation + 1) ?
+				AddReanimation(0.0f, 0.0f, 0, ReanimationType::REANIM_CRAZY_DAVE) : nullptr;
+			if (aBlinkReanim)
+			{
+    			aBlinkReanim->SetFramesForLayer("anim_blink");
+    			aBlinkReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_FULL_LAST_FRAME_AND_HOLD;
+    			aBlinkReanim->mAnimRate = 15.0f;
+    			aBlinkReanim->AttachToAnotherReanimation(aCrazyDaveReanim, "Dave_head");
+    			aBlinkReanim->mColorOverride = aCrazyDaveReanim->mColorOverride;
+    			aCrazyDaveReanim->AssignRenderGroupToTrack("Dave_eye", RENDER_GROUP_HIDDEN);
+    			mCrazyDaveBlinkReanimID = ReanimationGetID(aBlinkReanim);
+			}
 		}
 	}
 
@@ -3098,7 +3209,7 @@ void LawnApp::UpdateCrazyDave()
 void LawnApp::DrawCrazyDave(Graphics* g)
 {
 	Reanimation* aCrazyDaveReanim = ReanimationTryToGet(mCrazyDaveReanimID);
-	if (aCrazyDaveReanim == nullptr)
+	if (aCrazyDaveReanim == nullptr && mCrazyDaveState == CrazyDaveState::CRAZY_DAVE_OFF)
 		return;
 
 	if (mCrazyDaveMessageText.size())
@@ -3147,7 +3258,7 @@ void LawnApp::DrawCrazyDave(Graphics* g)
 		}
 	}
 
-	aCrazyDaveReanim->Draw(g);
+	if (aCrazyDaveReanim) aCrazyDaveReanim->Draw(g);
 }
 
 int LawnApp::GetNumPreloadingTasks()

@@ -206,6 +206,13 @@ void Music::MusicCreditScreenInit()
 
 void Music::StopAllMusic()
 {
+    auto& state = mApp->mBattleMusic;
+    if (!state.mInternalChange)
+    {
+        state.mBattleActive = false;
+        state.mBoard = nullptr;
+        state.mPreviewActive = false;
+    }
 	if (mMusicInterface != nullptr)
 	{
 		if (mCurMusicFileMain != MusicFile::MUSIC_FILE_NONE)
@@ -393,6 +400,8 @@ void Music::StartBurst()
 
 void Music::FadeOut(int theFadeOutDuration)
 {
+    StopMusicPreview();
+    mApp->mBattleMusic.mBattleActive = false;
 	if (mCurMusicTune != MusicTune::MUSIC_TUNE_NONE)
 	{
 		mFadeOutCounter = theFadeOutDuration;
@@ -561,6 +570,8 @@ void Music::UpdateMusicBurst()
 
 void Music::MusicUpdate()
 {
+    if (mApp->mBattleMusic.mPreviewActive) return;
+    RefreshBattleMusic();
 	if (mFadeOutCounter > 0)
 	{
 		mFadeOutCounter--;
@@ -581,6 +592,13 @@ void Music::MusicUpdate()
 
 void Music::MakeSureMusicIsPlaying(MusicTune theMusicTune)
 {
+    auto& state = mApp->mBattleMusic;
+    if (!state.mInternalChange)
+    {
+        if (state.mPreviewActive) StopAllMusic();
+        state.mBattleActive = false;
+        state.mBoard = nullptr;
+    }
 	if (mCurMusicTune != theMusicTune)
 	{
 		StopAllMusic();
@@ -588,41 +606,10 @@ void Music::MakeSureMusicIsPlaying(MusicTune theMusicTune)
 	}
 }
 
-void Music::StartGameMusic()
-{
-	PVZP_ASSERT(mApp->mBoard);
-
-	if (mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_ZEN_GARDEN || mApp->mGameMode == GameMode::GAMEMODE_TREE_OF_WISDOM)
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_ZEN_GARDEN);
-	else if (mApp->IsFinalBossLevel())
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_FINAL_BOSS_BRAINIAC_MANIAC);
-	else if (mApp->IsWallnutBowlingLevel() || mApp->IsWhackAZombieLevel() || mApp->IsLittleTroubleLevel() || mApp->IsBungeeBlitzLevel() ||
-		mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_SPEED)
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_MINIGAME_LOONBOON);
-	else if ((mApp->IsAdventureMode() && !mApp->IsRunMode() && (mApp->mPlayerInfo->GetLevel() == 10 || mApp->mPlayerInfo->GetLevel() == 20 || mApp->mPlayerInfo->GetLevel() == 30)) ||
-		mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_COLUMN)
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_CONVEYER);
-	else if (mApp->IsStormyNightLevel())
-		StopAllMusic();
-	else if (mApp->IsScaryPotterLevel() || mApp->IsIZombieLevel())
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_PUZZLE_CEREBRAWL);
-	else if (mApp->mBoard->StageIsNight())
-	{
-		if (mApp->mBoard->StageHasPool())
-			MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_FOG_RIGORMORMIST);
-		else
-			MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_NIGHT_MOONGRAINS);
-	}
-	else if (mApp->mBoard->StageHas6Rows())
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_POOL_WATERYGRAVES);
-	else if (mApp->mBoard->StageHasRoof())
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_ROOF_GRAZETHEROOF);
-	else
-		MakeSureMusicIsPlaying(MusicTune::MUSIC_TUNE_DAY_GRASSWALK);
-}
 
 void Music::GameMusicPause(bool thePause)
 {
+    StopMusicPreview();
 	if (thePause)
 	{
 		if (!mPaused && mCurMusicTune != MusicTune::MUSIC_TUNE_NONE)
@@ -648,6 +635,7 @@ void Music::GameMusicPause(bool thePause)
 	}
 	else if (mPaused)
 	{
+        if (RefreshBattleMusic(true)) return;
 		if (mCurMusicTune != MusicTune::MUSIC_TUNE_NONE)
 		{
 			Mix_Music* aHandle = (mCurMusicFileMain != MusicFile::MUSIC_FILE_NONE) ?

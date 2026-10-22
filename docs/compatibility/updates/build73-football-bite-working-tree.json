@@ -1,0 +1,20 @@
+{
+  "modBuild": 73,
+  "date": "2026-10-18",
+  "previousOverlay": "docs/compatibility/updates/build72-football-bite-working-tree.json",
+  "includesPreviousUncommittedBuild": 72,
+  "checkpointVersion": 21,
+  "protocolVersion": 1,
+  "onlineGameReady": false,
+  "sourceState": "PC x86 Release and Android ARM64 native builds passed; both bite branches and normal Ravenous growth verified. PC runtime updated with saves preserved; Build73 launched.",
+  "changes": [
+    "Football boss bite damage 150 -> 60; base sustained damage 1500 per second, chilled 750",
+    "Ravenous retains normal x2-per-layer growth, capped at x32; no boss-specific growth rule"
+  ],
+  "pending": [
+    "Full five-player boss battle",
+    "Physical Android runtime and APK installation acceptance",
+    "Player release packaging and server deployment not performed"
+  ],
+  "pcReport": "re-plants-vs-zombies/docs/FOOTBALL-BITE-BUILD73-2026-10-18.md"
+}

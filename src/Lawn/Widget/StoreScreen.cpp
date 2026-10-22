@@ -60,11 +60,11 @@ static StoreItem gStoreItemSpots[NUM_STORE_PAGES][MAX_PAGE_SPOTS] =
 	{ STORE_ITEM_PACKET_UPGRADE,    STORE_ITEM_POOL_CLEANER,        STORE_ITEM_RAKE,                STORE_ITEM_ROOF_CLEANER,
 	  STORE_ITEM_PLANT_GATLINGPEA,  STORE_ITEM_PLANT_TWINSUNFLOWER, STORE_ITEM_PLANT_GLOOMSHROOM,   STORE_ITEM_PLANT_CATTAIL },
 	{ STORE_ITEM_PLANT_SPIKEROCK,   STORE_ITEM_PLANT_GOLD_MAGNET,   STORE_ITEM_PLANT_WINTERMELON,   STORE_ITEM_PLANT_COBCANNON,
-	  STORE_ITEM_PLANT_IMITATER,    STORE_ITEM_FIRSTAID,            STORE_ITEM_INVALID,             STORE_ITEM_INVALID },
+	  STORE_ITEM_PLANT_IMITATER,    STORE_ITEM_INVALID,             STORE_ITEM_INVALID,             STORE_ITEM_INVALID },
 	{ STORE_ITEM_POTTED_MARIGOLD_1, STORE_ITEM_POTTED_MARIGOLD_2,   STORE_ITEM_POTTED_MARIGOLD_3,   STORE_ITEM_GOLD_WATERINGCAN,
 	  STORE_ITEM_FERTILIZER,        STORE_ITEM_BUG_SPRAY,           STORE_ITEM_PHONOGRAPH,          STORE_ITEM_GARDENING_GLOVE },
 	{ STORE_ITEM_MUSHROOM_GARDEN,   STORE_ITEM_AQUARIUM_GARDEN,     STORE_ITEM_WHEEL_BARROW,        STORE_ITEM_STINKY_THE_SNAIL,
-	  STORE_ITEM_TREE_OF_WISDOM,    STORE_ITEM_TREE_FOOD,           STORE_ITEM_INVALID,             STORE_ITEM_INVALID }
+	  STORE_ITEM_TREE_OF_WISDOM,    STORE_ITEM_TREE_FOOD,           STORE_ITEM_FIRSTAID,            STORE_ITEM_INVALID }
 };
 
 StoreScreenOverlay::StoreScreenOverlay(StoreScreen* theParent)
@@ -146,13 +146,9 @@ StoreScreen::StoreScreen(LawnApp* theApp) : Dialog(nullptr, nullptr, DIALOG_STOR
 	mOverlayWidget = std::make_unique<StoreScreenOverlay>(this);
 	mOverlayWidget->Resize(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
 
-	if (!IsPageShown(STORE_PAGE_PLANT_UPGRADES))
-	{
-		mPrevButton->mDisabledImage = Sexy::IMAGE_STORE_PREVBUTTONDISABLED;
-		mPrevButton->SetDisabled(true);
-		mNextButton->mDisabledImage = Sexy::IMAGE_STORE_NEXTBUTTONDISABLED;
-		mNextButton->SetDisabled(true);
-	}
+	mPrevButton->mDisabledImage = Sexy::IMAGE_STORE_PREVBUTTONDISABLED;
+	mNextButton->mDisabledImage = Sexy::IMAGE_STORE_NEXTBUTTONDISABLED;
+	EnableButtons(true);
 	mDrawnOnce = false;
 	mAddedAtUpdateCount = mApp->mUpdateCount;
 	mGoToTreeNow = false;
@@ -278,7 +274,7 @@ bool StoreScreen::IsItemUnavailable(StoreItem theStoreItem)
 		return !mApp->HasFinishedAdventure() && mApp->mPlayerInfo->GetLevel() < 41;
 	}
 	if (theStoreItem == STORE_ITEM_PLANT_WINTERMELON || theStoreItem == STORE_ITEM_PLANT_COBCANNON ||
-		theStoreItem == STORE_ITEM_PLANT_IMITATER || theStoreItem == STORE_ITEM_FIRSTAID)
+		theStoreItem == STORE_ITEM_PLANT_IMITATER)
 	{
 		return !mApp->HasFinishedAdventure();
 	}
@@ -1170,13 +1166,16 @@ void StoreScreen::MouseDown(int x, int y, [[maybe_unused]] int theClickCount)
 
 void StoreScreen::EnableButtons(bool theEnable)
 {
-	if (mEasyBuyingCheat || IsPageShown(STORE_PAGE_PLANT_UPGRADES) || !theEnable)
+	int aVisiblePages = 0;
+	for (int aPage = STORE_PAGE_SLOT_UPGRADES; aPage < NUM_STORE_PAGES; ++aPage)
 	{
-		mNextButton->mMouseVisible = theEnable;
-		mNextButton->SetDisabled(!theEnable);
-		mPrevButton->mMouseVisible = theEnable;
-		mPrevButton->SetDisabled(!theEnable);
+	    if (IsPageShown((StorePages)aPage)) ++aVisiblePages;
 	}
+	bool aCanFlip = theEnable && (mEasyBuyingCheat || aVisiblePages > 1);
+	mNextButton->mMouseVisible = aCanFlip;
+	mNextButton->SetDisabled(!aCanFlip);
+	mPrevButton->mMouseVisible = aCanFlip;
+	mPrevButton->SetDisabled(!aCanFlip);
 	mBackButton->mMouseVisible = theEnable;
 	mBackButton->SetDisabled(!theEnable);
 }

@@ -25,3 +25,6 @@
 Android 15 实例编号 2，当前 ADB 地址 127.0.0.1:16448（每次通过 MuMuManager info 获取，不能长期写死）；ABI 列表 x86_64,arm64-v8a,x86，能安装当前 ARM64 包，运行依赖模拟器翻译能力。
 
 开发包名 io.github.pvzonline.android；活动类仍为 io.github.wszqkzqk.pvzportable.PvZPortableActivity。正版资源只放本机模拟器 `/sdcard/Android/data/io.github.pvzonline.android/files/`，不入共享仓库。
+# 玩家交付记忆（用户定案，2026-10-16）
+
+以后打包默认完整可用：Android完整APK内置资源、汉化及运行依赖，安装打开即可玩，首次启动自动准备资源；不得要求玩家手动导入、补文件或配置环境。玩家按没有技术经验设计，更新保留存档，并验证全新安装启动。只有用户明确要求更新包才交增量包。此用户要求覆盖旧文档默认不带资源的玩家交付口径；工作区根`AGENTS.md`保存双端共同约定。

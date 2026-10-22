@@ -9,20 +9,27 @@ class RunFlowScreen : public Sexy::Widget, public Sexy::ButtonListener
 {
     LawnApp* mApp;
     bool mModePage;
+    bool mEndlessPage=false;
+    int mEndlessOptions=141;
+    std::string mCheckpointLine;
     bool mAdvanced = false;
+    int mAdvancedPage = 0;
     std::vector<Sexy::ButtonWidget*> mModeButtons;
     void RefreshModePage();
+    void RefreshDamageLabels();
     int mBuffMult = 0;
     Sexy::ButtonWidget* mBuffMultButton = nullptr;
     Sexy::ButtonWidget* mLadderButton = nullptr;
     Sexy::ButtonWidget* mZombieBuffButton = nullptr;
     Sexy::ButtonWidget* mSpeedButton=nullptr;
     int mSpeedTier=0;
+    int mFirstWave=0;
+    Sexy::ButtonWidget* mFirstWaveButton=nullptr;
     int mDifficulty = 1, mScale = 1, mTempo = 1, mZombotany = 0, mEndlessScene = 0, mBossFlag = 2, mLadder = 0, mZombieBuff = 1;
     Sexy::ButtonWidget* mOptionButtons[6]{};
     void RefreshOptionLabels();
 public:
-    explicit RunFlowScreen(LawnApp* app, bool modePage);
+    explicit RunFlowScreen(LawnApp* app, bool modePage, int endlessScene=-1);
     ~RunFlowScreen() override;
     void Draw(Sexy::Graphics* g) override;
     void ButtonDepress(int id) override;

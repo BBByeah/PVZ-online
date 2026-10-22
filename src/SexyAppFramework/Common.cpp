@@ -37,6 +37,8 @@
 
 bool Sexy::gDebug = false;
 static Sexy::MTRand gMTRand;
+std::string Sexy::GetRandState() { return gMTRand.Serialize(); }
+void Sexy::RestoreRandState(const std::string& state) { gMTRand.SRand(state); }
 namespace Sexy
 {
 	std::filesystem::path gAppDataFolder;

@@ -31,6 +31,7 @@ public:
     bool SendGift(uint64_t token,uint32_t request,bool proactive);
     bool Ask(uint64_t token,SeedType plant);void Answer(bool accept);
     void CancelLoanRequest();
+    void ReturnLoan();
     bool ReleasePendingLend(uint64_t peer,uint32_t request);
     void ExpireLoan();void ApplyLoan(const CoopWire::Event& event);
     CoopWire::Event Message(uint8_t op);

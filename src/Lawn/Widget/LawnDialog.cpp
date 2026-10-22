@@ -419,10 +419,13 @@ void ReanimationWidget::AddReanimation(float x, float y, ReanimationType theRean
 	mPosX = x;
 	mPosY = y;
 	mReanim = mApp->mEffectSystem->mReanimationHolder->AllocReanimation(x, y, 0, theReanimationType);
-	mReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
-	mReanim->mIsAttachment = true;
-	if (mReanim->TrackExists("anim_idle"))
-		mReanim->SetFramesForLayer("anim_idle");
+	if (mReanim)
+	{
+		mReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
+		mReanim->mIsAttachment = true;
+		if (mReanim->TrackExists("anim_idle"))
+			mReanim->SetFramesForLayer("anim_idle");
+	}
 
 	Resize(x, y, 10, 10);
 }
@@ -494,7 +497,8 @@ void GameOverDialog::ButtonDepress(int theId)
         if (theId == 1) { mApp->KillDialog(DIALOG_GAME_OVER); mApp->DoBackToMain(); return; }
         if (theId == Dialog::ID_FOOTER)
         {
-            if (mApp->IsOnlineClient()) return;
+            if (mApp->IsOnlineClient() || mApp->mOnlineWaitingStartAck ||
+                !mApp->mOnlineSession || !mApp->mOnlineSession->CanHostStart()) return;
             mApp->KillDialog(DIALOG_GAME_OVER);
             mApp->RetryOnlineLevel();
             return;

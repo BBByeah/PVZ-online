@@ -1,5 +1,8 @@
 #include "CoopPlay.h"
+#include "Widget/NextWaveControl.h"
+#include "Widget/AdmissionBoard.h"
 #include "Widget/CoopHud.h"
+#include "Widget/DamageStatsView.h"
 // PC Build 46 cooperation rules, with native touch and UTF-8 drawing.
 #include "../LawnApp.h"
 #include "../PvzpLib/PvzpCommon.h"
@@ -15,7 +18,7 @@ static const int kSunGiftAmount = 100, kSunGiftTax = 10, kSunGiftSelectFrames = 
 
 bool Board::QuickChatAvailable()
 {
-    if (mApp->IsLocalOnlyMode(mApp->mGameMode)) return false;
+    if (mApp->IsLocalOnlyMode(mApp->mGameMode) || mApp->AdmissionBuilding()) return false;
     // 观看队友场地时不开面板：观看层盖住全屏，面板看不见却还在吞键（T/E 会被这里先接走）
     return mApp->IsOnlineGame() && mApp->mOnlineSession != nullptr && mApp->mOnlineSession->IsConnected() &&
            mApp->mGameScene == GameScenes::SCENE_PLAYING;
@@ -322,4 +325,4 @@ bool Board::CoopMouseUp(int x,int y,int clicks) {
     CoopAction(action);return true;
 }
 void Board::CoopAction(int action){CoopHud::Action(this,action);}
-void Board::DrawCoopUI(Graphics* g){CoopHud::Draw(this,g);}
+void Board::DrawCoopUI(Graphics* g){NextWaveControl::Draw(this,g);AdmissionBoard::Draw(this,g);DamageStatsView::Draw(this,g);CoopHud::Draw(this,g);}

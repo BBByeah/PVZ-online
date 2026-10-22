@@ -1,0 +1,16 @@
+{
+  "pcModBuild": 76,
+  "description": "Host-owned per-round wait list: fresh mid-battle joins skip the active stage; normal automatic reconnection keeps its board. Both clients must support build76.",
+  "status": "working-tree",
+  "minimumFeatureBuild": 76,
+  "validatedInBuild": 77,
+  "validation": {
+    "pcNativeBuildPassed": true,
+    "androidArm64NativeBuildPassed": true,
+    "pcProductionEngineChecks": 30,
+    "failures": 0,
+    "androidDeviceTested": false,
+    "publicServerDeployed": false
+  },
+  "report": "docs/REJOIN-WAIT-BUILD76-2026-10-19.md"
+}

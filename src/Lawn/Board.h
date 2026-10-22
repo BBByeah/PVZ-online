@@ -22,6 +22,12 @@
 #ifndef __BOARD_H__
 #define __BOARD_H__
 #include <unordered_set>
+#include <unordered_map>
+#include "Run/RunDotState.h"
+#include "Run/WaveHealthState.h"
+#include "Run/WaveSpawnRetryState.h"
+#include "Run/DeferredZombieSpawns.h"
+#include "Run/DeferredPlantSetup.h"
 
 #include <cstdint>
 #include <memory>
@@ -115,6 +121,8 @@ void						ZombiePickerInit(ZombiePicker* theZombiePicker);
 
 struct PlantsOnLawn
 {
+	Plant* mLilypadPlant;
+	Plant* mFlowerPotPlant;
 	Plant*							mUnderPlant;
 	Plant*							mPumpkinPlant;
 	Plant*							mFlyingPlant;
@@ -130,8 +138,21 @@ struct BungeeDropGrid
 class Board : public Widget, public ButtonListener
 {
 public:
+    bool PlantHealthVisible() const;
+    bool ZombieHealthVisible() const;
+    void SetPlantHealthVisible(bool visible);
+    void SetZombieHealthVisible(bool visible);
     // @pvz-online: online-only presentation metadata avoids changing native zombie save layout.
     std::unordered_set<unsigned int> mRelayedZombieIds;
+    std::unordered_map<unsigned int,RunDotState> mRunDotStates;
+    // Exact wave accounting stays before mPaused: preserve the legacy raw-save suffix.
+    WaveHealthState mWaveHealth;
+    WaveSpawnRetryState mWaveSpawnRetry;
+    DeferredZombieSpawns mDeferredZombieSpawns;
+    DeferredPlantSetup mDeferredPlantSetup;
+    bool CanAllocateZombieAnimations(ZombieType type,int wave);
+    void SyncLegacyWaveHealth();
+    void RestoreLegacyWaveHealth();
     void MarkRelayedZombie(Zombie* zombie);
     bool IsRelayedZombie(Zombie* zombie);
     void DrawRelayedZombieMarkers(Sexy::Graphics* g);
@@ -186,7 +207,7 @@ public:
     static int ComputeLevelRandSeed(int boardSeed, bool adventure, int playerId, int finished, int level, int stage, int mode);
 	bool mOnlineBoard = false;
 	ZombieID mRunBossZombieID = ZombieID::ZOMBIEID_NULL;
-	void SpawnRunBoss();
+	bool SpawnRunBoss();
 	void InitEndlessRunStage();
 	bool IsRunBossZombie(Zombie* zombie);
     bool IteratePlants(Plant*& p) { return mPlants.DataArrayIterate(p); }
@@ -335,9 +356,12 @@ public:
 
 	void							DisposeBoard();
 	int								CountSunBeingCollected();
+	int                             GetRenderListCapacity() const;
+	int                             BuildRenderList(RenderItem* theRenderList, int theCapacity);
 	void							DrawGameObjects(Graphics* g);
 	void							ClearCursor();
 	bool					AreEnemyZombiesOnScreen();
+	bool                            HasLivingBoss();
 	LawnMower*						FindLawnMowerInRow(int theRow);
 //  inline bool						SyncState(DataSync& theDataSync) { /* not found */return true; }
 	void					SaveGame(const std::string& theFileName);
@@ -356,6 +380,9 @@ public:
 	void							SpawnZombieWave();
 	void							RemoveAllZombies();
 	void							RemoveCutsceneZombies();
+    void DrainDeferredZombieSpawns();
+    bool DrainDeferredPlantSetup();
+    bool CompleteDeferredPlantSetup();
 	void							SpawnZombiesFromGraves();
 	PlantingReason					CanPlantAt(int theGridX, int theGridY, SeedType theSeedType);
 	void							MouseMove(int x, int y) override;
@@ -363,7 +390,7 @@ public:
 	void							MouseDown(int x, int y, int theClickCount) override;
 	void							MouseUp(int x, int y, int theClickCount) override;
 	void							KeyChar(char theChar) override;
-	void							KeyUp(KeyCode) override {}
+	void							KeyUp(KeyCode theKey) override;
 	void							KeyDown(KeyCode theKey) override;
 	bool                            HasPlantKeyboardControls();
 	bool                            HandlePlantKeyboardKey(KeyCode theKey);
@@ -424,7 +451,7 @@ public:
 	void					ClearAdvice(AdviceType theHelpIndex);
 	bool							RowCanHaveZombieType(int theRow, ZombieType theZombieType);
 	int					NumberZombiesInWave(int theWaveIndex);
-	int								TotalZombiesHealthInWave(int theWaveIndex);
+	int64_t								TotalZombiesHealthInWave(int theWaveIndex);
 	void							DrawDebugText(Graphics* g);
 	void							DrawUICoinBank(Graphics* g);
 	void					ShowCoinBank(int theDuration = 1000);
@@ -500,7 +527,7 @@ public:
 	bool							IsValidCobCannonSpot(int theGridX, int theGridY);
 	bool							IsValidCobCannonSpotHelper(int theGridX, int theGridY);
 	void							MouseDownCobcannonFire(int x, int y, int theClickCount);
-	int								KillAllZombiesInRadius(int theRow, int theX, int theY, int theRadius, int theRowRange, bool theBurn, int theDamageRangeFlags, int theDirectDamage = 0);
+	int								KillAllZombiesInRadius(int theRow, int theX, int theY, int theRadius, int theRowRange, bool theBurn, int theDamageRangeFlags, int theDirectDamage = 0, bool theExpandRadius = false);
 	int					GetSeedBankExtraWidth();
 	bool							IsFlagWave(int theWaveNumber);
 	void							DrawHouseDoorTop(Graphics* g);
@@ -514,13 +541,14 @@ public:
 	void							TutorialArrowShow(int theX, int theY);
 	void							TutorialArrowRemove();
 	int								CountCoinsBeingCollected();
-	void							BungeeDropZombie(BungeeDropGrid* theBungeeDropGrid, ZombieType theZombieType);
+	bool							BungeeDropZombie(BungeeDropGrid* theBungeeDropGrid, ZombieType theZombieType);
 	void							SetupBungeeDrop(BungeeDropGrid* theBungeeDropGrid);
 	void					PutZombieInWave(ZombieType theZombieType, int theWaveNumber, ZombiePicker* theZombiePicker);
 	void					PutInMissingZombies(int theWaveNumber, ZombiePicker* theZombiePicker);
 	Rect							GetShovelButtonRect();
 	void							GetZenButtonRect(GameObjectType theObjectType, Rect& theRect);
 	Plant*							NewPlant(int theGridX, int theGridY, SeedType theSeedType, SeedType theImitaterType = SeedType::SEED_NONE);
+	bool                            PreparePlantAnimations(SeedType seed, unsigned int count = 1);
 	void							DoPlantingEffects(int theGridX, int theGridY, Plant* thePlant);
 	bool							IsFinalSurvivalStage();
 	void							SurvivalSaveScore();

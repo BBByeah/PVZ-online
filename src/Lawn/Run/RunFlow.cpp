@@ -1,5 +1,6 @@
 #include "../../LawnApp.h"
 #include "RunState.h"
+#include "RunHistory.h"
 #include "../Online/NetSession.h"
 #include "RunBuffs.h"
 #include "RunPortSupport.h"
@@ -23,7 +24,7 @@ void LawnApp::KillRunFlowScreen()
     SafeDeleteWidget(mRunFlowScreen.release());
 }
 
-void LawnApp::ShowRunMenu()
+void LawnApp::ShowRunMenu(int endlessScene)
 {
     if (!IsOnlineStartAllowed() && !(mOnlineSession && mOnlineSession->GetRole() == NetSession::Role::HOST && mOnlineSession->GetState() == NetSession::State::LISTENING))
     { DoOnlineDialog(); return; }
@@ -33,12 +34,12 @@ void LawnApp::ShowRunMenu()
     KillGameSelector();
     mRunState.reset();
     mGameScene = SCENE_MENU;
-    mRunFlowScreen = std::make_unique<RunFlowScreen>(this, true);
+    mRunFlowScreen = std::make_unique<RunFlowScreen>(this, true, endlessScene);
     mWidgetManager->AddWidget(mRunFlowScreen.get());
     mWidgetManager->SetFocus(mRunFlowScreen.get());
 }
 
-void LawnApp::StartRun(int mode, int buffMult, int difficulty, int scale, int tempo, int zombotany, int endlessScene, int bossFlag, int ladder, int zombieBuff,int speedTier)
+void LawnApp::StartRun(int mode, int buffMult, int difficulty, int scale, int tempo, int zombotany, int endlessScene, int bossFlag, int ladder, int zombieBuff,int speedTier, int firstWave, int endlessOptions)
 {
     if (!IsOnlineStartAllowed() && !(mOnlineSession && mOnlineSession->GetRole() == NetSession::Role::HOST && mOnlineSession->GetState() == NetSession::State::LISTENING))
     { DoOnlineDialog(); return; }
@@ -48,20 +49,21 @@ void LawnApp::StartRun(int mode, int buffMult, int difficulty, int scale, int te
     KillBoard();
     KillGameSelector();
     mRunState = std::make_unique<RunState>();
-    mRunState->StartNew(Sexy::Rand(), mode, difficulty, scale, tempo, zombotany, endlessScene, bossFlag, buffMult, ladder, zombieBuff,speedTier);
+    mDamageStats.Reset();
+    mRunState->StartNew(Sexy::Rand(), mode, difficulty, scale, tempo, zombotany, endlessScene, bossFlag, buffMult, ladder, zombieBuff,speedTier, firstWave, endlessOptions);
     mRunState->BeginStartPicks();
     mRunState->Save(mPlayerInfo->mId);
     EnterRunLevel();
 }
 
-void LawnApp::ResumeRun()
+void LawnApp::ResumeRun(int mode,int scene)
 {
     ResetZombieVote();
     if (!IsOnlineStartAllowed() && !(mOnlineSession && mOnlineSession->GetRole() == NetSession::Role::HOST && mOnlineSession->GetState() == NetSession::State::LISTENING))
     { DoOnlineDialog(); return; }
 
     auto run = std::make_unique<RunState>();
-    bool compatible = run->Load(mPlayerInfo->mId);
+    bool compatible = run->Load(mPlayerInfo->mId,mode,scene);
     if (run->mMode < RunState::RUN_MODE_FULL || run->mMode > RunState::RUN_MODE_ENDLESS || run->IsComplete() ||
         run->mDiff < RunState::RUN_DIFF_EASY || run->mDiff > RunState::RUN_DIFF_HIGH ||
         run->mScale < RunState::RUN_SCALE_HALF || run->mScale > RunState::RUN_SCALE_QUAD ||
@@ -75,6 +77,10 @@ void LawnApp::ResumeRun()
         return;
     }
     mRunState = std::move(run);
+    if(mRunState->IsEndless() && !mRunState->IsNewEndless())
+        LawnMessageBox(Dialogs::DIALOG_MESSAGE,ModText::Tr("旧版无尽存档","Legacy endless save"),
+            ModText::Tr("这份旧档仅保存关数和增益，没有草坪阵型。继续时沿用旧规则并重新布阵；新开无尽才启用阶段主题和周期 BOSS。","This legacy save contains progress and buffs, without a lawn. Continuing keeps its old rules and starts a fresh lawn. New runs enable themes and boss cycles."),"OK","",Sexy::Dialog::BUTTONS_FOOTER);
+
     EnterRunLevel();
 }
 
@@ -108,9 +114,13 @@ void LawnApp::NoteRunFailure()
 {
     if (!mRunState) return;
     mRunState->NoteLevelFailed();
-    PvzpLogLn("[run] failed index={} count={}", mRunState->mLevelIndex, mRunState->mFailCounts[mRunState->mLevelIndex]);
+    mDamageStats.NoteFailure();
+    // @pvz-online: endless levels share the same 25-slot failure counter ring as PC.
+    PvzpLogLn("[run] failed index={} count={}", mRunState->mLevelIndex,
+        mRunState->mFailCounts[mRunState->mLevelIndex % RunState::RUN_LEVEL_COUNT]);
     if (!mRunState->Save(mPlayerInfo->mId))
         PvzpLogLn("[run] could not save failure checkpoint");
+    RunHistory::Capture(this,RunHistory::FAILED);
 }
 
 void LawnApp::RunPickPaidReroll()

@@ -169,7 +169,7 @@ public:
 	static constexpr unsigned int RUN_FIXED_COUNTER_DAMAGE = 0x80000000U;
 	int32_t mRunBarbedCounter=0;
 	bool mHeartguardUsed=false;
-	bool mControlImmune = false; // PC Build 45; also persisted in optional v4 chunk 104.
+	bool mControlImmune = false; // Hard-control immunity only; keep optional v4 chunk 104 layout.
 
 public:
 	Zombie();
@@ -265,6 +265,11 @@ public:
 	Reanimation*                    LoadReanim(ReanimationType theReanimationType);
 	int                  TakeFlyingDamage(int theDamage, unsigned int theDamageFlags);
 	int                             TakeShieldDamage(int theDamage, unsigned int theDamageFlags);
+    bool HasPlantHat() const { return PlantZombies::Armor(mZombieType)!=0 && mFlyingHealth>0; }
+    int PlantHatDamageIndex() const;
+    int TakePlantHatDamage(int damage, unsigned int flags);
+    void DropPlantHat(unsigned int flags);
+    void RefreshPlantHat();
 	int                             TakeHelmDamage(int theDamage, unsigned int theDamageFlags);
 	void                            TakeBodyDamage(int theDamage, unsigned int theDamageFlags);
 	void                            AttachShield();
@@ -315,6 +320,7 @@ public:
 	void                            BobsledBurn();
 	bool                            IsBobsledTeamWithSled();
 	bool                            CanBeFrozen();
+	int                             SoftControlDuration(int theFrames);
 	bool                            CanBeChilled();
 	void                            UpdateZombieSnorkel();
 	void                            ReanimIgnoreClipRect(const char* theTrackName, bool theIgnoreClipRect);
@@ -342,17 +348,17 @@ public:
 	void                            BossRVLanding();
 	void                            BossStompContact();
 	bool                            BossAreBungeesDone();
-	void                            BossBungeeSpawn();
+	bool                            BossBungeeSpawn();
 	void                            BossSpawnAttack();
 	void                            BossBungeeAttack();
 	void                            BossRVAttack();
-	void                            BossSpawnContact();
+	bool                            BossSpawnContact();
 	void                            BossBungeeLeave();
 	void                            BossStompAttack();
 	bool                            BossCanStompRow(int theRow);
 	void                            BossDie();
 	void                            BossHeadAttack();
-	void                            BossHeadSpitContact();
+	bool                            BossHeadSpitContact();
 	void                            BossHeadSpit();
 	void                            UpdateBossFireball();
 	void                            BossDestroyFireball();

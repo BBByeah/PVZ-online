@@ -70,7 +70,8 @@ static const unsigned long long RUN_ZOMBIE_ROSTER[RunState::RUN_SCENE_COUNT][Run
 bool RunZombieAllowedOnLevel(ZombieType theZombieType, int theRunLevelIndex, bool theZombotany)
 {
 	int aType = (int)theZombieType;
-	if (aType < 0 || aType >= 64) return false;
+	if (aType < 0 || aType >= ZombieType::NUM_ZOMBIE_TYPES) return false;
+    if (PlantZombies::Family(theZombieType)>=0) return theZombotany;
 
 	int aIndex = theRunLevelIndex;
 	if (aIndex < 0) aIndex = 0;
@@ -126,6 +127,16 @@ static const int RUN_ZOMBIE_PLANT_HEAD_DOOR_WEIGHT = 250;
 
 int RunZombieWeight(ZombieType theZombieType)
 {
+    const int family=PlantZombies::Family(theZombieType);
+    if(family>=0) {
+        // Same total family budgets; wallnut/tallnut split each old share equally.
+        static const int weights[4][6]={
+            {500,250,190,150,100,60}, {150,75,55,45,30,20},
+            {200,100,75,60,40,25}, {150,75,55,45,30,20}
+        };
+        return weights[family][(PlantZombies::Door(theZombieType)?3:0)+PlantZombies::Armor(theZombieType)];
+    }
+
 	if (GetZombieDefinition(theZombieType).mPickWeight <= 0)
 	{
 		return 0;

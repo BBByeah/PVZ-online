@@ -170,27 +170,33 @@ void PvzpFoleyDispose()
 	gFoleyParamArraySize = 0;
 }
 
-void SoundSystemReleaseFinishedInstances(PvzpFoley* theSoundSystem)
+static void SoundSystemReleaseFinishedType(PvzpFoley* theSoundSystem, FoleyType theType)
 {
-	for (int aFoleyType = 0; aFoleyType < gFoleyParamArraySize; aFoleyType++)
-		for (int i = 0; i < MAX_FOLEY_INSTANCES; i++)
+	const int aFoleyType = (int)theType;
+	for (int i = 0; i < MAX_FOLEY_INSTANCES; i++)
+	{
+		FoleyInstance* aFoleyInstance = &theSoundSystem->mFoleyTypeData[aFoleyType].mFoleyInstances[i];
+		if (aFoleyInstance->mRefCount == 0)
 		{
-			FoleyInstance* aFoleyInstance = &theSoundSystem->mFoleyTypeData[aFoleyType].mFoleyInstances[i];
-			if (aFoleyInstance->mRefCount == 0)
+			PVZP_ASSERT(aFoleyInstance->mInstance == nullptr);
+		}
+		else if (!aFoleyInstance->mPaused)
+		{
+			PVZP_ASSERT(aFoleyInstance->mInstance);
+			if (!aFoleyInstance->mInstance->IsPlaying())
 			{
-				PVZP_ASSERT(aFoleyInstance->mInstance == nullptr);
-			}
-			else if (!aFoleyInstance->mPaused)
-			{
-				PVZP_ASSERT(aFoleyInstance->mInstance);
-				if (!aFoleyInstance->mInstance->IsPlaying())
-				{
-					aFoleyInstance->mInstance->Release();
-					aFoleyInstance->mInstance = nullptr;
-					aFoleyInstance->mRefCount = 0;
-				}
+				aFoleyInstance->mInstance->Release();
+				aFoleyInstance->mInstance = nullptr;
+				aFoleyInstance->mRefCount = 0;
 			}
 		}
+	}
+}
+
+void SoundSystemReleaseFinishedInstances(PvzpFoley* theSoundSystem)
+{
+    for (int type = 0; type < gFoleyParamArraySize; ++type)
+        SoundSystemReleaseFinishedType(theSoundSystem, (FoleyType)type);
 }
 
 bool SoundSystemHasFoleyPlayedTooRecently(PvzpFoley* theSoundSystem, FoleyType theFoleyType)
@@ -247,10 +253,11 @@ FoleyInstance* SoundSystemGetFreeInstanceIndex(PvzpFoley* theSoundSystem, FoleyT
 void PvzpFoley::PlayFoleyPitch(FoleyType theFoleyType, float thePitch)
 {
 	const FoleyParams* aFoleyParams = LookupFoley(theFoleyType);
-	SoundSystemReleaseFinishedInstances(this);
+	SoundSystemReleaseFinishedType(this, theFoleyType);
 	if (SoundSystemHasFoleyPlayedTooRecently(this, theFoleyType) && !TestBit(aFoleyParams->mFoleyFlags, FoleyFlags::FOLEYFLAGS_LOOP))
 		return;  // non-looping sounds may not overlap
 
+	SoundSystemReleaseFinishedInstances(this);
 	if (TestBit(aFoleyParams->mFoleyFlags, FoleyFlags::FOLEYFLAGS_ONE_AT_A_TIME))
 	{
 		FoleyInstance* aFoleyInstance = SoundSystemFindInstance(this, theFoleyType);
@@ -309,7 +316,7 @@ void PvzpFoley::PlayFoley(FoleyType theFoleyType)
 
 void PvzpFoley::StopFoley(FoleyType theFoleyType)
 {
-	SoundSystemReleaseFinishedInstances(this);
+	SoundSystemReleaseFinishedType(this, theFoleyType);
 	FoleyInstance* aFoleyInstance = SoundSystemFindInstance(this, theFoleyType);
 	if (aFoleyInstance == nullptr)
 		return;
@@ -407,6 +414,6 @@ void PvzpFoley::RehookupSoundWithMusicVolume()
 
 bool PvzpFoley::IsFoleyPlaying(FoleyType theFoleyType)
 {
-	SoundSystemReleaseFinishedInstances(this);
+	SoundSystemReleaseFinishedType(this, theFoleyType);
 	return SoundSystemFindInstance(this, theFoleyType) != nullptr;
 }

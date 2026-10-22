@@ -86,7 +86,9 @@ int Board::BuildBoardSnapshot(uint8_t* theBuffer, int theCapacity)
 		uint8_t aFlags = 0;
 		if (aOne->mHelmType != HelmType::HELMTYPE_NONE) aFlags |= NetProto::SNAPSHOT_ZFLAG_HELMET;
 		if (aOne->mShieldType != ShieldType::SHIELDTYPE_NONE) aFlags |= NetProto::SNAPSHOT_ZFLAG_SHIELD;
-		if (aOne->mFlyingHealth > 0 && aOne->mFlyingMaxHealth > 0) aFlags |= NetProto::SNAPSHOT_ZFLAG_FLYING;
+		if (PlantZombies::Armor(aOne->mZombieType)) {
+            if(aOne->HasPlantHat())aFlags|=NetProto::SNAPSHOT_ZFLAG_PLANT_HAT;
+        } else if (aOne->mFlyingHealth > 0 && aOne->mFlyingMaxHealth > 0) aFlags |= NetProto::SNAPSHOT_ZFLAG_FLYING;
 		if (IsRelayedZombie(aOne)) aFlags |= NetProto::SNAPSHOT_ZFLAG_RELAYED;
 
 		uint16_t aType = (uint16_t)aOne->mZombieType;
@@ -204,7 +206,12 @@ void Board::DrawMobileWatch(Graphics* g)
             float y=GetPosYBasedOnRow(z.mX+40,z.mRow)-70;
             if(z.mType==ZOMBIE_BALLOON) y-=30;
             if(z.mType==ZOMBIE_GARGANTUAR || z.mType==ZOMBIE_REDEYE_GARGANTUAR) y-=20;
-            mApp->mReanimatorCache->DrawCachedZombie(g,z.mX-40,y,(ZombieType)z.mType);
+            ZombieType viewType=(ZombieType)z.mType;
+            const int family=PlantZombies::Family(viewType);
+            if(family>=0)viewType=PlantZombies::Form(family,
+                (z.mFlags&NetProto::SNAPSHOT_ZFLAG_PLANT_HAT)?PlantZombies::Armor(viewType):0,
+                (z.mFlags&NetProto::SNAPSHOT_ZFLAG_SHIELD)!=0);
+            mApp->mReanimatorCache->DrawCachedZombie(g,z.mX-40,y,viewType);
             if(z.mHP<100) MobileWatchHealth(g,z.mX-20,y,z.mHP);
             if(z.mFlags & (NetProto::SNAPSHOT_ZFLAG_HELMET | NetProto::SNAPSHOT_ZFLAG_SHIELD)) {
                 g->SetColor(Color(140,200,255)); g->FillRect(z.mX-27,y,4,4);

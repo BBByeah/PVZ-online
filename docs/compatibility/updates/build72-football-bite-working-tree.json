@@ -1,0 +1,20 @@
+{
+  "modBuild": 72,
+  "date": "2026-10-18",
+  "previousOverlay": "docs/compatibility/updates/build71-crowd-crash-working-tree.json",
+  "includesPreviousUncommittedBuild": 71,
+  "checkpointVersion": 21,
+  "protocolVersion": 1,
+  "onlineGameReady": false,
+  "sourceState": "PC x86 Release and Android ARM64 native builds passed; bite branches and version parity verified. PC runtime updated with saves preserved and Build72 opened.",
+  "changes": [
+    "Football boss bite damage 200 -> 150; 3750 plant HP per second before chill or Ravenous",
+    "Normal football bite damage, boss health, armor, speed and control rules unchanged"
+  ],
+  "pending": [
+    "Full five-player boss battle",
+    "Physical Android runtime and APK installation acceptance",
+    "Player release packaging and server deployment not performed"
+  ],
+  "pcReport": "re-plants-vs-zombies/docs/FOOTBALL-BITE-BUILD72-2026-10-18.md"
+}

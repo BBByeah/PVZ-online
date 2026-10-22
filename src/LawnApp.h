@@ -25,6 +25,8 @@ class CoopPlay;
 #define __LAWNAPP_H__
 
 #include "ConstEnums.h"
+#include "Lawn/System/BattleMusicState.h"
+#include "Lawn/System/DamageStats.h"
 #include "Lawn/Online/NetProtocol.h"
 #include "SexyAppFramework/SexyApp.h"
 #include "PvzpLib/PvzpFoley.h"
@@ -80,6 +82,8 @@ class LawnApp : public SexyApp
 {
 public:
     std::unique_ptr<CoopPlay> mCoopPlay;
+    BattleMusicState mBattleMusic;
+    DamageStats mDamageStats;
     bool SendCoopQuickChat(uint8_t id);
     void UpdateCoopPlay();void ShowCoopPlay();void ExpireCoopLoan();
 
@@ -98,11 +102,14 @@ public:
     int mOnlineStartLevel = 0, mOnlineStartSeed = 0, mOnlineStartWaitFrames = 0;
     bool mOnlineRunStartHeld = false, mOnlineRunGo = false, mRunIntroHeld = false;
     bool mOnlineStartPromptActive = false, mOnlineSeedsHeld = false, mOnlineWaitingAdviceOn = false;
+    bool mShowedStartupAnnounce = false;
     bool mPauseMenuWasOpen = false, mPauseMenuFromPeer = false;
     NetProto::MsgStartLevel mOnlineStartPromptMsg{};
     int mOnlineStartPromptFrames = 0;
     std::string mOnlineAddress = "127.0.0.1", mOnlineServer = "101.200.131.182", mOnlineRoomCode;
     bool IsLocalOnlyMode(GameMode mode) const;
+    bool IsOnlineStartLobby() const;
+    void LeaveLocalSceneForOnlineStart();
     bool mZombieVoteActive = false;
     int mZombieVoteLevel = -1, mZombieVoteMyChoice = -1, mZombieVoteFrames = 0;
     unsigned char mZombieVoteCandidates[3]{};
@@ -125,7 +132,7 @@ public:
     void ResetZombieVote();
     void DisconnectOnline();
     void AlignRunToHost(int seed, int index, int mode, int difficulty, int scale, int tempo,
-        int zombotany, int scene, int boss, int buffMult, int ladder, int zombieBuff, const uint8_t* stacks,int speedTier=0);
+        int zombotany, int scene, int boss, int buffMult, int ladder, int zombieBuff, const uint8_t* stacks,int speedTier=0, int firstWave=0, int endlessOptions=0, int crowdRule=0);
     bool IsOnlineGame();
     bool IsOnlineStartAllowed();
     bool IsOnlineClient();
@@ -141,6 +148,23 @@ public:
     void OnlineStartPromptAnswer(bool theAccepted);
     void DismissOnlineStartPrompt(bool theSendAck);
     bool TryHoldSeedChooserForTeammates();
+    bool FinalizePreparationSeats();
+    int mAdmissionIdentityProfile=-1,mAdmissionReportTicks=100;
+    bool mAdmissionDirty=false,mAdmissionPressed=false;
+    void InitializeAdmissionIdentity();
+    void UpdateEndlessAdmission();
+    void ApplyAdmissionOffer(int targetIndex);
+    void SendAdmissionStart(uint8_t seat);
+    bool AdmissionBuilding() const;
+    void BeginAdmissionBuilding();
+    void FinishAdmissionBuilding();
+    void StartAdmissionFastPicks();
+    // @pvz-online: preparation metadata lives outside the raw-serialized Board layout.
+    int mPreparationBuiltSeat=0,mPreparationBuiltSunBonus=0,mPreparationBuiltMultiplier=0;
+    bool mPreparationRulesApplied=false,mPreparationSaved=false;
+    bool mPreparationEditRequested=false;
+    uint32_t mPreparationConfiguredRevision=0;
+    void ToggleOnlineSeedsReady();
     void UpdateOnlineSeeds();
     void UpdateOnlineRelay();
     void UpdateOnlineLevelExit();
@@ -158,10 +182,10 @@ public:
     int OnlineStartSunBonusForSeat(uint8_t theSeat);    // @pvz-online: 换位预览用
     void DoOnlineDialog();
 
-	void ShowRunMenu();
-	void StartRun(int mode, int buffMult = 0, int difficulty = 1, int scale = 1, int tempo = 1, int zombotany = 0, int endlessScene = 0, int bossFlag = 2, int ladder = 0, int zombieBuff = 1,int speedTier=0);
+	void ShowRunMenu(int endlessScene=-1);
+	void StartRun(int mode, int buffMult = 0, int difficulty = 1, int scale = 1, int tempo = 1, int zombotany = 0, int endlessScene = 0, int bossFlag = 2, int ladder = 0, int zombieBuff = 1,int speedTier=0, int firstWave=0, int endlessOptions=141);
 	void RunPickPaidReroll();
-	void ResumeRun();
+	void ResumeRun(int mode=-1, int scene=0);
 	void ShowRunPicks();
 	void StartRunLevel();
 	void RetryRunLevel();

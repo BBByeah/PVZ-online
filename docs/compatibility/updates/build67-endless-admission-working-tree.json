@@ -1,0 +1,26 @@
+{
+  "modBuild": 67,
+  "date": "2026-10-18",
+  "previousOverlay": "docs/compatibility/updates/build65-field-bugfix-working-tree.json",
+  "includesPreviousUncommittedBuild": 66,
+  "checkpointVersion": 21,
+  "protocolVersion": 1,
+  "onlineGameReady": false,
+  "sourceState": "Shared uncommitted workspace; both native builds, relay race tests, 27 PC engine/save checks, 50 preparation regression checks, 5 PC + 1 Android ARM64 network admission and native PC window/resume checks passed. No physical phone, full multiplayer game, packaging, production deployment or installed-app update.",
+  "changes": [
+    "Endless intermission code-only admission and host invitation controls",
+    "Per-player deterministic buff catch-up and explicit fast completion",
+    "Separate persisted construction allowance and frozen planting phase",
+    "Independent team checkpoint protects same-scene solo slot",
+    "Gate ACK roster barrier, random reconnect credential and pending-admission cancellation",
+    "Bounded relay rooms, connections, anonymous lifetime and control rate"
+  ],
+  "pcReport": "re-plants-vs-zombies/docs/ENDLESS-ADMISSION-BUILD67-2026-10-18.md",
+  "pending": [
+    "physical Android UI/touch validation",
+    "six-player full game",
+    "production load and deployment",
+    "public room directory",
+    "recent local challenge history browser"
+  ]
+}

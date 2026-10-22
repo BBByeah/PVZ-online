@@ -462,21 +462,24 @@ void TitleScreen::Update()
 			float aPosX = aTriggerPoint[i] + 225.0f;
 			float aPosY = 511.0f;
 			Reanimation* aSproutReanim = mApp->AddReanimation(aPosX, aPosY, 0, aReanimType);
-			aSproutReanim->mAnimRate = 18.0f;
-			aSproutReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
-
-			if (i == 1 || i == 3)
+			if (aSproutReanim)
 			{
-				aSproutReanim->OverrideScale(-1.0f, 1.0f);
-			}
-			else if (i == 2)
-			{
-				aSproutReanim->SetPosition(aPosX, aPosY - 5.0f);
-				aSproutReanim->OverrideScale(1.1f, 1.3f);
-			}
-			else if (i == 4)
-			{
-				aSproutReanim->SetPosition(aPosX - 20.0f, aPosY);
+				aSproutReanim->mAnimRate = 18.0f;
+				aSproutReanim->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
+	
+				if (i == 1 || i == 3)
+				{
+					aSproutReanim->OverrideScale(-1.0f, 1.0f);
+				}
+				else if (i == 2)
+				{
+					aSproutReanim->SetPosition(aPosX, aPosY - 5.0f);
+					aSproutReanim->OverrideScale(1.1f, 1.3f);
+				}
+				else if (i == 4)
+				{
+					aSproutReanim->SetPosition(aPosX - 20.0f, aPosY);
+				}
 			}
 
 			if (i == 4)

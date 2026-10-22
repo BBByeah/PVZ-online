@@ -1,5 +1,25 @@
 # Android 移植进度
 
+## 2026-10-18 Build68 当前工作区（本地验证通过，未打包/部署）
+
+公共房间大厅和本地最近50局查询已实现，联机页新增“公开房间”“最近记录”。大厅仅供开局前入房，无尽关间补位继续使用房间码；记录按玩家档案隔离，支持筛选、详情与备份恢复。PC/Android原生构建、Go竞态测试、36项新功能检查、27项无尽补位回归及六人准备流程回归通过；Android ARM64原生会话联测通过。未安装新APK、未部署公网、未打包，完整手机UI触控及长局仍待验，onlineGameReady=false。详见[实现与验收](docs/LOBBY-HISTORY-BUILD68-2026-10-18.md)，本条优先于下方历史状态。
+
+## 2026-10-18 Build67 当前工作区（本地验证通过，未打包/部署）
+
+无尽关间按房间码补位、增益补齐、独立额度布阵、队伍独立检查点21、门禁确认和随机重连凭据已同步PC与中继；联机67、协议1。API24 arm64原生构建、5PC+1Android原生网络会话补位联测通过；PC引擎存档27项与准备流程50项、实际界面及布阵退出恢复/开战通过。未安装新APK或覆盖现用存档，手机真机UI触控和完整长局仍待验，onlineGameReady=false；公共大厅与最近记录查询未包含。详见[实现与验收](docs/ENDLESS-ADMISSION-BUILD67-2026-10-18.md)，本条优先于下方历史状态。
+
+## 2026-10-17 Build60 旧反馈续修（仅源码）
+
+补齐聊天小按钮原艺术字及窄按钮字宽、首波缺字、手机五场景无尽入口与旧奖杯提示、旧局隐形墓碑出土。仅源码和记录，未编译/测试/验收/安装，不动实际存档及原资源，onlineGameReady仍false。详见[续修报告](docs/FEEDBACK-FOLLOWUP-BUILD60-2026-10-17.md)。
+
+## 2026-10-16 Build60 当前工作区（仅源码）
+
+首波18/30/60秒、默认30秒已接入原生设置/存档/开局同步/重连与倒计时，限有限闯关；樱桃/焦土及毁灭菇范围加成包含完整纵向圆形范围。MOD_BUILD60、协议1、检查点17，兼容覆盖层见docs/compatibility/updates/build60-firstwave-range-working-tree.json。继承Build59未发布修复，未编译/测试/验收/打包/安装，onlineGameReady仍false；此条不能当成手机运行包已更新。详见[本批报告](docs/FIRST-WAVE-RANGE-AUDIT-BUILD60-2026-10-16.md)。
+
+## 2026-10-16 Build58 当前修复
+
+双端天降夜晚/迷雾非正倒计时修复已同步，26项定点检查通过；当前规则Build58、协议1、关间检查点17，工作树覆盖层见`docs/compatibility/updates/build58-skyfall-working-tree.json`。此条优先于下方历史Build52/57。默认交付带资源和汉化的完整包；构建及产物见PC[修复记录](../re-plants-vs-zombies/docs/SKYFALL-FIX-BUILD58-2026-10-16.md)。
+
 ## 2026-10-15 Build52 检查点（优先于下方历史）
 
 固定PC来源 `d30f30a5e75f6b9f65471882a0505ae21a277f61` / Build52。已实现关间借用专属buff取最高、到期恢复与v16检查点，以及战斗阳光求援、回执重发去重。保留此前Build51词条、观战和石材UI迁入。双端编译与21项核心检查通过，Android对原生会话验证借入及求援到账/重复不再加账。完整双端实战和观战仍未验，`onlineGameReady=false`保留。
@@ -24,6 +44,8 @@
 - vcpkg ports：上游锁定提交 `e8709ee8703328fe121eab33cda73a406a7626b7`，本地压缩包展开；Git registry fetch 遇到连接重置，改用此固定版本的本地 ports。
 
 ## 当前状态
+
+**2026-10-16校准更新：当前共同规则为Build57，源码含未提交覆盖层；109项功能与113条增益目录的最新核对见[发布前校准](docs/RELEASE-CALIBRATION-2026-10-16.md)。本轮四处补修已进入候选APK，双端构建/15项定点通过，尚未安装及整局验收，onlineGameReady仍false。下段Build46/旧APK为历史状态，不能作当前发布依据。**
 
 当前同步至固定 PC Build 46 / `8bfc67ea9c85be37cac0a182c3416f3add2c1640`：血量计算、首领接力、16 位投票流程与重摇币面口径已迁入；手机战斗新增消息、表情、送阳光三个入口，已有房间/开局/选卡屏障保留。源码 UI 非原版风格清单已记录，整体美术替换尚未执行。最新 APK 为 `pvz-online-keyboard-arm64.apk`，28,167,140 字节，已安装 MuMu，v2 签名与 16 KB 对齐通过；新增 1–9/0 选植物与 Q 铲子，交付和有限验收见 [快捷键结果](docs/KEYBOARD-CONTROLS-STATUS.md)。协作与受控投票代表检查见 [协作结果](docs/MOBILE-COOP-STATUS.md)，后续界面替换见 [UI 盘点](docs/UI-STYLE-AUDIT.md)。PC 快捷键尚未同步；完整 PC 战斗/跨关仍待验收，onlineGameReady=false。
 

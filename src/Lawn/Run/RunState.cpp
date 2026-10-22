@@ -1,10 +1,14 @@
 #include "RunState.h"
+#include "RunHistory.h"
 #include "RunBuffs.h"
 #include "RunCheckpointIO.h"
+#include "EndlessLawn.h"
 #include "../System/PlayerInfo.h"
 #include "../ModText.h"
 #include "RunPortSupport.h"
 #include <cstring>
+#include <ctime>
+#include <sys/stat.h>
 #include "../LawnCommon.h"
 #include <format>
 #include "../../PvzpLib/PvzpDebug.h"
@@ -52,7 +56,10 @@
 //     其余档读平，场景按 0 续。关数校验按 LevelCountForMode(3)=60000 封口（软上限）。
 
 static const unsigned int RUN_CHECKPOINT_MAGIC = 0x314E5552;	// 'RUN1'
-static const unsigned short RUN_CHECKPOINT_VERSION = 17;
+// v19: independent slots, endless rule bits, lineup mask, hashed lawn/retry snapshots,
+// snapshot phase and completed zombie ballot rounds. Older saves retain endless options 0.
+
+static const unsigned short RUN_CHECKPOINT_VERSION = 23; // v23 adds a tenth zombie stack; v18-v22 retain nine.
 
 static std::vector<unsigned char>& AppendU16(std::vector<unsigned char>& theData, unsigned int theValue)
 {
@@ -98,6 +105,21 @@ public:
 		return true;
 	}
 
+    bool ReadBlob(std::vector<unsigned char>& out) {
+        int n=0;if(!ReadI32(n)||n<0||n>24*1024*1024||n>mLength-mOffset)return false;
+        out.assign(mData+mOffset,mData+mOffset+n);mOffset+=n;unsigned hash=0;return ReadU32(hash) && hash==EndlessRules::Hash(out.data(),out.size());
+    }
+    void ReadStats(std::vector<unsigned char>& out)
+    {
+        out.clear();
+        int length = 0;
+        if (!ReadI32(length) || length < 0 || length > 8192 || length > mLength - mOffset - 4) return;
+        const unsigned char* bytes = mData + mOffset;
+        mOffset += length;
+        unsigned hash = 0;
+        if (ReadU32(hash) && hash == EndlessRules::Hash(bytes, static_cast<size_t>(length)))
+            out.assign(bytes, bytes + length);
+    }
 private:
 	const unsigned char*	mData;
 	int						mLength;
@@ -128,9 +150,16 @@ static void FillPoolWithAllPlants(std::vector<SeedType>& thePool)
 	}
 }
 
-void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag, int theBuffMult, int theLadder, int theZombieBuff, int theSpeedTier)
+void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag, int theBuffMult, int theLadder, int theZombieBuff, int theSpeedTier, int theFirstWave, int theEndlessOptions)
 {
+    mCrowdRule = CrowdRules::CURRENT; // @pvz-online: new runs only; old checkpoints load LEGACY.
+	mEndlessOptions = theRunMode == RUN_MODE_ENDLESS && EndlessRules::Valid(theEndlessOptions) ? theEndlessOptions : 0;
+    mEndlessFocusMask=0; mEndlessSnapshotLevel=-1; mEndlessSnapshotPhase=0;
+    mEndlessVoteRounds=0;mEndlessVoteIds[0]=mEndlessVoteIds[1]=255;
+    mEndlessLawn.clear(); mEndlessRetryLawn.clear();
 	mRunSeed = theRunSeed;
+    mDamageHistory.clear();
+    mAdmission=Admission::State{};
 	mMode = theRunMode;
 	mDiff = theRunDiff;
 	// 无尽档锁定的场景（0..4）：入口链/线传/读档三处都过了闸，这里再夹一次兜底——
@@ -148,6 +177,7 @@ void RunState::StartNew(int theRunSeed, int theRunMode, int theRunDiff, int theR
 	// 两端对齐/存档往返必须保真——线传了多少就原样带多少）。
 	mLadder = theLadder;
     mSpeedTier=theSpeedTier;
+	mFirstWave = theFirstWave >= RUN_FIRSTWAVE_STD && theFirstWave <= RUN_FIRSTWAVE_LONG ? theFirstWave : RUN_FIRSTWAVE_STD;
 	// 僵尸 buff（2026-10-14）：本局层数表清零（叠层只在一局内累积），投票记账归哨兵。
 	mZombieBuffMode = theZombieBuff;
 	memset(mZombieBuffStacks, 0, sizeof(mZombieBuffStacks));
@@ -242,6 +272,8 @@ void RunState::BeginLevelEndPicks()
 	if (mMode == RUN_MODE_ENDLESS)
 	{
 		aBuffs = 2;
+        int p=EndlessBossPeriod();
+        if(p && mLevelIndex>0 && mLevelIndex%p==0) ++aBuffs;
 	}
 	else if (mMode == RUN_MODE_NORMAL)
 	{
@@ -284,8 +316,9 @@ static bool RunChoiceBlockedByCounterpart(const RunState* theRun, int theId)
         return theRun->GetBuffCount(RUN_BUFF_COUNT + RUN_UPGRADE_SNOWPEA) > 0;
     if (theId == RUN_BUFF_COUNT + RUN_UPGRADE_KERNELPULT)
         return theRun->GetBuffCount(base + RUN_BUFF2_BUTTERFEAST) > 0 ||
-            theRun->GetBuffCount(base + RUN_BUFF2_BUTTER_SPLASH) > 0;
-    if (theId == base + RUN_BUFF2_BUTTERFEAST || theId == base + RUN_BUFF2_BUTTER_SPLASH)
+            theRun->GetBuffCount(base + RUN_BUFF2_BUTTER_SPLASH) > 0 ||
+            theRun->GetBuffCount(base + RUN_BUFF2_BUTTER_HEAVY) > 0;
+    if (theId == base + RUN_BUFF2_BUTTERFEAST || theId == base + RUN_BUFF2_BUTTER_SPLASH || theId == base + RUN_BUFF2_BUTTER_HEAVY)
         return theRun->GetBuffCount(RUN_BUFF_COUNT + RUN_UPGRADE_KERNELPULT) > 0;
     // @pvz-online: 「Nut Bowling」（2026-10-15）三角互斥：老表「耐砸」/扩展表「荆棘之壁」
     // 把坚果往站桩更硬推，保龄球把坚果变成滚撞击杀——口径相反，两两不可共存。
@@ -444,7 +477,7 @@ void RunState::RollChoices(bool theReroll)
 			int aCap = GetRunChoiceMaxStacks(i);
 			if (aCap > 0 && GetBuffCount(i) >= aCap) continue;
 			aCandidates[aCount] = i;
-			aWeights[aCount] = GetRunChoiceWeight(i);
+			aWeights[aCount] = GetChoiceWeight(i);
 			aTotalW += aWeights[aCount];
 			aCount++;
 		}
@@ -457,7 +490,7 @@ void RunState::RollChoices(bool theReroll)
 			if (aCap > 0 && GetBuffCount(aId) >= aCap) continue;
 			if (RunChoiceBlockedByCounterpart(this, aId)) continue;
 			aCandidates[aCount] = aId;
-			aWeights[aCount] = GetRunChoiceWeight(aId);
+			aWeights[aCount] = GetChoiceWeight(aId);
 			aTotalW += aWeights[aCount];
 			aCount++;
 		}
@@ -467,12 +500,17 @@ void RunState::RollChoices(bool theReroll)
 		{
 			int aId = RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + i;
 			if (!RunPlantBuff2InPool(i)) continue;
-			if (!HasPlant(GetRunPlantBuff2Def(i).mPlant)) continue;
+            // @pvz-online: family traits appear once if any permanent pool member is eligible.
+            const uint64_t mask = GetRunChoicePlantMask(aId);
+            bool owned = false;
+            for (SeedType plant : mPool)
+                if (plant >= 0 && plant < 64 && (mask & (uint64_t(1) << plant))) { owned = true; break; }
+            if (!owned) continue;
 			int aCap = GetRunChoiceMaxStacks(aId);
 			if (aCap > 0 && GetBuffCount(aId) >= aCap) continue;
 			if (RunChoiceBlockedByCounterpart(this, aId)) continue;
 			aCandidates[aCount] = aId;
-			aWeights[aCount] = GetRunChoiceWeight(aId);
+			aWeights[aCount] = GetChoiceWeight(aId);
 			aTotalW += aWeights[aCount];
 			aCount++;
 		}
@@ -535,24 +573,31 @@ void RunState::RollChoices(bool theReroll)
 				mBuffChoices[aSlot] = RUN_BUFF_CHOICE_NONE;
 				continue;
 			}
-			int aPickW = (int)aRNG.Next((unsigned long)aTotalW);
+			int aDrawTotal=aTotalW;
+            bool aFocus=false;
+            if(aSlot==0 && HasLineupPreference()) {
+                int sum=0;for(int j=0;j<aCount;++j)if((GetRunChoicePlantMask(aCandidates[j]) & mEndlessFocusMask) != 0)sum+=aWeights[j];
+                if(sum>0){aDrawTotal=sum;aFocus=true;}
+            }
+            int aPickW = (int)aRNG.Next((unsigned long)aDrawTotal);
 			int aPick = 0;
 			for (int i = 0; i < aCount; i++)
 			{
+				if(aFocus && (GetRunChoicePlantMask(aCandidates[i]) & mEndlessFocusMask) == 0)continue;
 				aPickW -= aWeights[i];
 				if (aPickW < 0) { aPick = i; break; }
 			}
 			mBuffChoices[aSlot] = (unsigned short)aCandidates[aPick];
-			SeedType aChoicePlant = GetRunChoicePlant(mBuffChoices[aSlot]);
+			const uint64_t aChoicePlants = GetRunChoicePlantMask(mBuffChoices[aSlot]);
 			aTotalW -= aWeights[aPick];
 			aCandidates[aPick] = aCandidates[aCount - 1];
 			aWeights[aPick] = aWeights[aCount - 1];
 			aCount--;
-			if (aChoicePlant != SeedType::SEED_NONE)
+			if (aChoicePlants != 0)
 			{
 				for (int i = aCount - 1; i >= 0; i--)
 				{
-					if (GetRunChoicePlant(aCandidates[i]) == aChoicePlant)
+					if ((GetRunChoicePlantMask(aCandidates[i]) & aChoicePlants) != 0)
 					{
 						aTotalW -= aWeights[i];
 						aCandidates[i] = aCandidates[aCount - 1];
@@ -671,6 +716,26 @@ void RunState::NotePlantScreenConsumed(SeedType theTakenSeed)
 		if (mPickSeenPlants[i] != (unsigned short)theTakenSeed) mPickCooldownPlants[aCount++] = mPickSeenPlants[i];
 	}
 	mPickCooldownPlantCount = aCount;
+}
+
+// @pvz-online: replaced purple effects have one level, including restored/borrowed legacy stacks.
+static int ClampPurpleReplacementStacks(int id, int count)
+{
+    int base = RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT;
+    if (id == RUN_BUFF_COUNT + RUN_UPGRADE_WINTERMELON || id == base + RUN_BUFF2_DEEPFREEZE || id == base + RUN_BUFF2_GOLDTOUCH)
+        return std::min(count, 1);
+    return count;
+}
+
+// @pvz-online: scale all weights equally so a 3-star combination can have a fractional weight.
+int RunState::GetChoiceWeight(int theId) const
+{
+    const int cob = RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + RUN_BUFF2_TWINCOB;
+    const int conversion = RUN_BUFF_COUNT + RUN_UPGRADE_KERNELPULT;
+    int weight = GetRunChoiceWeight(theId) * 16;
+    if (theId == cob) return GetBuffCount(conversion) > 0 ? 1 : 4;
+    if (theId == conversion && GetBuffCount(cob) > 0) weight /= 4;
+    return weight;
 }
 
 int RunState::GetBuffCount(int theBuffId) const
@@ -866,29 +931,53 @@ void RunState::NoteLevelFailed()
 	mFailCounts[mLevelIndex % RUN_LEVEL_COUNT]++;
 }
 
-std::string RunState::GetCheckpointName(int theProfileId)
+std::string RunState::GetCheckpointName(int theProfileId, int theMode, int theScene, uint64_t theTeam)
 {
-	return GetAppDataFolder() + std::format("userdata/android_run{}.dat", theProfileId);
+	return GetAppDataFolder() + "userdata/android_run" + std::to_string(theProfileId) +
+        (theMode==RUN_MODE_ENDLESS ? "_endless"+std::to_string(theScene) : "_finite") + (theTeam?"_team"+std::to_string(theTeam):"") + ".dat";
 }
 
-bool RunState::HasCheckpoint(int theProfileId)
+std::string RunState::CheckpointSummary(int theProfileId, int theMode, int theScene)
 {
-	return gSexyAppBase && gSexyAppBase->FileExists(GetCheckpointName(theProfileId));
+    RunState saved;
+    if(!saved.Load(theProfileId,theMode,theScene))return {};
+    std::string text=ModText::Tr("存档：第 ","Saved: level ")+std::to_string(saved.mLevelIndex+1)+ModText::Tr(" 关","");
+    if(saved.IsEndless() && !saved.IsNewEndless())text+=ModText::Tr("（旧规则，仅进度）"," (legacy, progress only)");
+    const auto path=GetCheckpointName(theProfileId,saved.mMode,saved.mEndlessScene);
+    std::tm local{};
+#ifdef _WIN32
+    struct _stat64 info{};
+    if(_stat64(path.c_str(),&info)!=0 || localtime_s(&local,&info.st_mtime)!=0)return text;
+#else
+    struct stat info{};
+    if(stat(path.c_str(),&info)!=0 || !localtime_r(&info.st_mtime,&local))return text;
+#endif
+    char date[32]{};
+    if(std::strftime(date,sizeof(date),"%Y-%m-%d %H:%M",&local))text+=std::string("\n")+ModText::Tr("保存于 ","Saved at ")+date;
+    return text;
+}
+
+bool RunState::HasCheckpoint(int theProfileId, int theMode, int theScene)
+{
+    RunState temp; return temp.Load(theProfileId,theMode,theScene);
 }
 
 void RunState::DeleteCheckpoint(int theProfileId)
 {
 	if (gSexyAppBase && RunCheckpointIO::Recover(GetCheckpointName(theProfileId),
         GetAppDataFolder()+"userdata/user"+std::to_string(theProfileId)+".dat"))
-        gSexyAppBase->EraseFile(GetCheckpointName(theProfileId));
+        {
+            gSexyAppBase->EraseFile(GetCheckpointName(theProfileId));
+            gSexyAppBase->EraseFile(GetCheckpointName(theProfileId)+".bak");
+        }
 }
 
 // @pvz-online: 探读（2026-10-10）：完整做一遍 Load 才回填，失败一律返回 false——
 // 调用方（两处「续不续」问句）靠它分辨盘上这份档属于哪一档，别再自己看文件在不在。
-bool RunState::PeekCheckpoint(int theProfileId, int& theRunMode, int& theEndlessScene)
+bool RunState::PeekCheckpoint(int theProfileId, int& theRunMode, int& theEndlessScene, int theMode, int theScene)
 {
 	RunState aTemp;
-	if (!aTemp.Load(theProfileId)) return false;
+	if (!aTemp.Load(theProfileId,theMode,theScene)) return false;
 	theRunMode = aTemp.mMode;
 	theEndlessScene = aTemp.mEndlessScene;
 	return true;
@@ -925,13 +1014,13 @@ std::vector<unsigned char> RunState::EncodeCheckpoint() const
 	// 不抬版本；消费端 BuffMultValueFor 钳非法档）。v14 启用 bit7..9 = 场景难度阶梯档
 	// （老档读 0 = 现状标准档）、bit10..11 = 僵尸 buff 档（老档读 0 = 不开）；bit12..15 仍空闲。
 	AppendU16(aData, (unsigned int)((mScale & 3) | ((mTempo & 3) << 2) | ((mZombotany & 1) << 4) | ((mBuffMult & 3) << 5)
-		| ((mLadder & 7) << 7) | ((mZombieBuffMode & 3) << 10) | ((mSpeedTier & 3) << 12)));
+		| ((mLadder & 7) << 7) | ((mZombieBuffMode & 3) << 10) | ((mSpeedTier & 3) << 12) | ((mFirstWave & 3) << 14)));
 	// v11（第二 buff 批 0）：buff 列表格式不变（BuffStack 通用 id+count），但 mBuffs 里
 	// 从此可能出现第二表 id（57..95）。老版本读到会当老单株解出错误条目，故抬版本号让
 	// 老构建直接拒档；v10 及更老档没有这类 id，读平即可，不需要迁移链。
 	AppendU16(aData, (unsigned int)mEndlessScene);	// v12：无尽档锁定的场景（非无尽档恒 0）
 	AppendU16(aData, (unsigned int)mBossFlag);	// v13：关底巨型 boss 开关（无尽档恒 0）
-	// v14：僵尸强化——8 条层数（u16×8，值域 0..255）与"上一票投在第几关"（0xFFFF = 没投过）。
+	// v18：僵尸强化——9 条层数（u16×9，值域 0..255）与"上一票投在第几关"（0xFFFF = 没投过）。
 	for (int i = 0; i < RUN_ZOMBIE_BUFF_COUNT; i++)
 	{
 		AppendU16(aData, (unsigned int)mZombieBuffStacks[i]);
@@ -953,38 +1042,74 @@ std::vector<unsigned char> RunState::EncodeCheckpoint() const
     };
     writeSet(mPickSeenBuffs,mPickSeenBuffCount); writeSet(mPickCooldownBuffs,mPickCooldownBuffCount);
     writeSet(mPickSeenPlants,mPickSeenPlantCount); writeSet(mPickCooldownPlants,mPickCooldownPlantCount);
+    AppendU16(aData,mEndlessOptions);
+    AppendI32(aData,(int)mEndlessFocusMask);AppendI32(aData,(int)(mEndlessFocusMask>>32));
+    AppendI32(aData,mEndlessSnapshotLevel);AppendU16(aData,mEndlessSnapshotPhase);
+    for(const auto* bytes : {&mEndlessLawn,&mEndlessRetryLawn}) {
+        AppendI32(aData,(int)bytes->size());aData.insert(aData.end(),bytes->begin(),bytes->end());
+        AppendI32(aData,(int)EndlessRules::Hash(bytes->data(),bytes->size()));
+    }
+
+    AppendU16(aData,mEndlessVoteRounds);AppendU16(aData,mEndlessVoteIds[0]);AppendU16(aData,mEndlessVoteIds[1]);
+    AppendI32(aData,static_cast<int>(mDamageHistory.size()));
+    aData.insert(aData.end(),mDamageHistory.begin(),mDamageHistory.end());
+    AppendI32(aData,static_cast<int>(EndlessRules::Hash(mDamageHistory.data(),mDamageHistory.size())));
+    const auto admission=Admission::Encode(mAdmission);
+    AppendI32(aData,static_cast<int>(admission.size()));aData.insert(aData.end(),admission.begin(),admission.end());
+    AppendI32(aData,static_cast<int>(EndlessRules::Hash(admission.data(),admission.size())));
+    AppendU16(aData, static_cast<unsigned int>(mCrowdRule)); // @pvz-online: v22, validated on load.
     return aData;
 }
 
 bool RunState::Save(int theProfileId) const
 {
+    const auto previousHistory = mDamageHistory;
+    if(gLawnApp && gLawnApp->GetRunState()==this) { gLawnApp->mDamageStats.Flush(); gLawnApp->mDamageStats.CaptureCheckpoint(*this); }
+    if(gLawnApp && gLawnApp->GetRunState()==this && !EndlessLawn::Capture(gLawnApp->mBoard)) { mDamageHistory = previousHistory; return false; }
     MkDir(GetAppDataFolder() + "userdata");
-    const auto path=GetCheckpointName(theProfileId);
+    const auto path=GetCheckpointName(theProfileId,mMode,mEndlessScene,mAdmission.phase!=Admission::NONE?mAdmission.run:0);
     const auto user=GetAppDataFolder()+"userdata/user"+std::to_string(theProfileId)+".dat";
-    return RunCheckpointIO::Recover(path,user) && RunCheckpointIO::AtomicWrite(path,EncodeCheckpoint());
+    const bool saved = RunCheckpointIO::Recover(path,user) && RunCheckpointIO::AtomicWrite(path,EncodeCheckpoint());
+    if (!saved) mDamageHistory = previousHistory;
+    if(saved && gLawnApp && gLawnApp->GetRunState()==this)RunHistory::Capture(gLawnApp);
+    return saved;
 }
 bool RunState::SaveWithPlayer(PlayerInfo& player) const
 {
+    const auto previousHistory = mDamageHistory;
+    if(gLawnApp && gLawnApp->GetRunState()==this) { gLawnApp->mDamageStats.Flush(); gLawnApp->mDamageStats.CaptureCheckpoint(*this); }
+    if(gLawnApp && gLawnApp->GetRunState()==this && !EndlessLawn::Capture(gLawnApp->mBoard)) { mDamageHistory = previousHistory; return false; }
     MkDir(GetAppDataFolder() + "userdata");
-    return RunCheckpointIO::Commit(GetCheckpointName(player.mId),
+    const bool saved = RunCheckpointIO::Commit(GetCheckpointName(player.mId,mMode,mEndlessScene,mAdmission.phase!=Admission::NONE?mAdmission.run:0),
         GetAppDataFolder()+"userdata/user"+std::to_string(player.mId)+".dat",EncodeCheckpoint(),player.EncodeDetails());
+    if (!saved) mDamageHistory = previousHistory;
+    if(saved && gLawnApp && gLawnApp->GetRunState()==this)RunHistory::Capture(gLawnApp);
+    return saved;
 }
 
-bool RunState::Load(int theProfileId)
+bool RunState::Load(int theProfileId, int theMode, int theScene, bool theBackup, uint64_t theTeam)
 {
-    if (!RunCheckpointIO::Recover(GetCheckpointName(theProfileId),
-        GetAppDataFolder()+"userdata/user"+std::to_string(theProfileId)+".dat")) return false;
+    std::string aLoadPath=GetCheckpointName(theProfileId,theMode,theScene,theTeam)+(theBackup?".bak":"");
+    if (!gSexyAppBase) return false;
+    if(!theTeam && !theBackup && !gSexyAppBase->FileExists(aLoadPath) && !gSexyAppBase->FileExists(aLoadPath+".txn"))
+        {
+            aLoadPath=GetAppDataFolder()+"userdata/android_run"+std::to_string(theProfileId)+".dat";
+            if(gSexyAppBase->FileExists(aLoadPath+".migrated"))return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
+        }
+
+    if (!RunCheckpointIO::Recover(aLoadPath,
+        GetAppDataFolder()+"userdata/user"+std::to_string(theProfileId)+".dat")) return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 	Buffer aBuffer;
-	if (!gSexyAppBase->ReadBufferFromFile(GetCheckpointName(theProfileId), &aBuffer, false))
+	if (!gSexyAppBase->ReadBufferFromFile(aLoadPath, &aBuffer, false))
 	{
-		return false;
+		return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 	}
 
 	RunReader aReader((const unsigned char*)aBuffer.GetDataPtr(), aBuffer.GetDataLen());
 	unsigned int aMagic = 0, aVersion = 0, aReserved = 0;
 	if (!aReader.ReadU32(aMagic) || !aReader.ReadU16(aVersion) || !aReader.ReadU16(aReserved))
 	{
-		return false;
+		return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 	}
 	// v3 才有时长档、v4 才有难度档、v5 才有推车记账（v6 与 v5 的保留位含义相同）。老版本
 	// 占的保留位恒 0，恰好是各自默认档——v2 的档按完整版续、v3 的档按标准难度续，都不作废；
@@ -1000,27 +1125,27 @@ bool RunState::Load(int theProfileId)
 	// v13 才有关底 boss 开关；v14 才有僵尸强化字段（位包 bit7..11 与尾追加 8×u16+u16）。
 	int aMode = RUN_MODE_FULL;
 	int aDiff = RUN_DIFF_STD;
-	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 16 && aVersion != 15 && aVersion != 14 && aVersion != 13 && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
+	if (aMagic != RUN_CHECKPOINT_MAGIC || (aVersion != RUN_CHECKPOINT_VERSION && aVersion != 22 && aVersion != 21 && aVersion != 20 && aVersion != 19 && aVersion != 18 && aVersion != 17 && aVersion != 16 && aVersion != 15 && aVersion != 14 && aVersion != 13 && aVersion != 12 && aVersion != 11 && aVersion != 10 && aVersion != 9 && aVersion != 8 && aVersion != 7 && aVersion != 6 && aVersion != 5 && aVersion != 4 && aVersion != 3 && aVersion != 2))
 	{
 		PvzpLogLn("[run] checkpoint magic/version mismatch, ignored");
-		return false;
+		return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 	}
 	if (aVersion >= 3)
 	{
 		aMode = (int)(aReserved & 0xFF);
 		if (aMode < RUN_MODE_FULL || aMode > RUN_MODE_ENDLESS)
 		{
-			return false;
+			return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 		}
 		if (aMode == RUN_MODE_ENDLESS && aVersion < 12)
 		{
 			PvzpLogLn("[run] pre-v12 checkpoint claims the endless mode, ignored");
-			return false;
+			return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 		}
 		if (aVersion < 7 && aMode != RUN_MODE_FULL)
 		{
 			PvzpLogLn("[run] pre-v7 checkpoint with the old mode table, ignored");
-			return false;
+			return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 		}
 	}
 	if (aVersion >= 4)
@@ -1028,32 +1153,32 @@ bool RunState::Load(int theProfileId)
 		aDiff = (int)((aReserved >> 8) & 0xFF);
 		if (aDiff < RUN_DIFF_EASY || aDiff > RUN_DIFF_HIGH)
 		{
-			return false;
+			return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 		}
 	}
 
 	int aRunSeed = 0, aLevelIndex = 0;
 	if (!aReader.ReadI32(aRunSeed) || !aReader.ReadI32(aLevelIndex))
 	{
-		return false;
+		return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 	}
 	if (aLevelIndex < 0 || aLevelIndex > LevelCountForMode(aMode))
 	{
-		return false;
+		return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 	}
 
 	int aFailCounts[RUN_LEVEL_COUNT] = { 0 };
 	for (int i = 0; i < RUN_LEVEL_COUNT; i++)
 	{
 		unsigned int aCount = 0;
-		if (!aReader.ReadU16(aCount)) return false;
+		if (!aReader.ReadU16(aCount)) return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 		aFailCounts[i] = (int)aCount;
 	}
 
 	unsigned int aPoolCount = 0;
 	if (!aReader.ReadU16(aPoolCount) || aPoolCount > RUN_POOL_MAX)
 	{
-		return false;
+		return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 	}
 	std::vector<SeedType> aPool;
 	for (unsigned int i = 0; i < aPoolCount; i++)
@@ -1061,7 +1186,7 @@ bool RunState::Load(int theProfileId)
 		unsigned int aSeed = 0;
 		if (!aReader.ReadU16(aSeed) || aSeed >= (unsigned int)SeedType::NUM_SEED_TYPES)
 		{
-			return false;
+			return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 		}
 		aPool.push_back((SeedType)aSeed);
 	}
@@ -1069,7 +1194,7 @@ bool RunState::Load(int theProfileId)
 	unsigned int aBuffCount = 0;
 	if (!aReader.ReadU16(aBuffCount) || aBuffCount > RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + RUN_PLANT_BUFF2_COUNT)
 	{
-		return false;
+		return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 	}
 	std::vector<BuffStack> aBuffs;
 	for (unsigned int i = 0; i < aBuffCount; i++)
@@ -1077,7 +1202,7 @@ bool RunState::Load(int theProfileId)
 		unsigned int aId = 0, aCount = 0;
 		if (!aReader.ReadU16(aId) || !aReader.ReadU16(aCount))
 		{
-			return false;
+			return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 		}
 		BuffStack aStack;
 		aStack.mId = (unsigned short)aId;
@@ -1112,11 +1237,12 @@ bool RunState::Load(int theProfileId)
 		}
 		// @pvz-online: old mine entries become the replacement choices; cap1 prevents misleading legacy stacks.
 		if (aStack.mId >= RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + RUN_PLANT_BUFF2_COUNT || aStack.mCount == 0)
-			return false;
+			return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 		if (aStack.mId == RUN_BUFF_COUNT + RUN_UPGRADE_POTATOMINE ||
 			aStack.mId == RUN_BUFF_COUNT + RUN_PLANT_UPGRADE_COUNT + RUN_BUFF2_MINEREGROW)
 			aStack.mCount = 1;
-		for (const BuffStack& aPrevious : aBuffs) if (aPrevious.mId == aStack.mId) return false;
+        aStack.mCount = (unsigned short)ClampPurpleReplacementStacks(aStack.mId, aStack.mCount);
+		for (const BuffStack& aPrevious : aBuffs) if (aPrevious.mId == aStack.mId) return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 		aBuffs.push_back(aStack);
 	}
 
@@ -1124,7 +1250,7 @@ bool RunState::Load(int theProfileId)
 	unsigned int aMowerUsedRows = 0;
 	if (aVersion >= 5 && !aReader.ReadU16(aMowerUsedRows))
 	{
-		return false;
+		return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 	}
 
 	// v10 才有高级选项位包；v9 及更老的档读不到，按 标准/标准/关 续。位掩码天然合法
@@ -1132,7 +1258,7 @@ bool RunState::Load(int theProfileId)
 	unsigned int aOptions = 0;
 	if (aVersion >= 10 && !aReader.ReadU16(aOptions))
 	{
-		return false;
+		return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 	}
 
 	// v12 才有场景字段。无尽档的场景必须真落在 0..4——GetLevel 的取模救不了坏场景
@@ -1140,14 +1266,14 @@ bool RunState::Load(int theProfileId)
 	unsigned int aEndlessScene = 0;
 	if (aVersion >= 12 && !aReader.ReadU16(aEndlessScene))
 	{
-		return false;
+		return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 	}
 	if (aMode == RUN_MODE_ENDLESS)
 	{
 		if (aEndlessScene >= (unsigned int)RUN_SCENE_COUNT)
 		{
 			PvzpLogLn("[run] endless checkpoint with a bad scene, ignored");
-			return false;
+			return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 		}
 	}
 	else
@@ -1160,7 +1286,7 @@ bool RunState::Load(int theProfileId)
 	unsigned int aBossFlag = 0;
 	if (aVersion >= 13 && !aReader.ReadU16(aBossFlag))
 	{
-		return false;
+		return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 	}
 	if (aMode == RUN_MODE_ENDLESS) aBossFlag = 0;
 
@@ -1171,26 +1297,33 @@ bool RunState::Load(int theProfileId)
 	unsigned int aZombieVotedLevel = RUN_ZOMBIE_VOTED_NONE;
 	if (aVersion >= 14)
 	{
-		for (int i = 0; i < RUN_ZOMBIE_BUFF_COUNT; i++)
+		const int aSavedCount = aVersion >= 23 ? RUN_ZOMBIE_BUFF_COUNT : aVersion >= 18 ? RunZombieBuffRules::PRE_TAX_COUNT : RunZombieBuffRules::LEGACY_COUNT;
+		for (int i = 0; i < aSavedCount; i++)
 		{
 			unsigned int aStack = 0;
 			if (!aReader.ReadU16(aStack))
 			{
-				return false;
+				return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 			}
 			if (aStack > 255) aStack = 255;
 			aZombieStacks[i] = (unsigned char)aStack;
 		}
 		if (!aReader.ReadU16(aZombieVotedLevel))
 		{
-			return false;
+			return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 		}
 	}
+
+    // @pvz-online: old full immunity becomes both capped effects without losing run progress.
+    if (aVersion < 18 && aZombieStacks[ZOMBIE_BUFF_STEADFAST] > 0)
+        aZombieStacks[ZOMBIE_BUFF_SOFTRESIST] = 1;
+    aZombieStacks[ZOMBIE_BUFF_STEADFAST] = aZombieStacks[ZOMBIE_BUFF_STEADFAST] ? 1 : 0;
+    aZombieStacks[ZOMBIE_BUFF_SOFTRESIST] = aZombieStacks[ZOMBIE_BUFF_SOFTRESIST] ? 1 : 0;
 
 	unsigned int aVouchers = 0;
 	int aAwardedLevel = -1;
 	if (aVersion >= 15 && (!aReader.ReadU16(aVouchers) || aVouchers > 2 ||
-		!aReader.ReadI32(aAwardedLevel) || aAwardedLevel < -1 || aAwardedLevel > aLevelIndex)) return false;
+		!aReader.ReadI32(aAwardedLevel) || aAwardedLevel < -1 || aAwardedLevel > aLevelIndex)) return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
 	mRerollVouchers = (int)aVouchers;
 	mRerollAwardedLevel = aAwardedLevel;
 
@@ -1199,27 +1332,27 @@ bool RunState::Load(int theProfileId)
         unsigned count=0;
         if(!aReader.ReadI32(mLoanPlant)||!aReader.ReadI32(mLoanLevel)||!aReader.ReadI32(mLentLevel)||
             !aReader.ReadU16(count)||count>16||mLoanPlant < -1 || mLoanPlant>=48 ||
-            mLoanLevel < -1 || mLoanLevel>aLevelIndex || mLentLevel < -1 || mLentLevel>aLevelIndex)return false;
-        for(unsigned i=0;i<count;++i){unsigned id=0,stacks=0;if(!aReader.ReadU16(id)||!aReader.ReadU16(stacks)||!stacks)return false;
-            if(id<RUN_BUFF_COUNT || id>=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT+RUN_PLANT_BUFF2_COUNT || GetRunChoicePlant((int)id)!=(SeedType)mLoanPlant)return false;
-            for(const auto& b:mLoanBuffs)if(b.mId==id)return false;
-            BuffStack b;b.mId=(unsigned short)id;b.mCount=(unsigned short)stacks;mLoanBuffs.push_back(b);}
-        if(mLoanPlant<0 && (count || mLoanLevel>=0))return false;
+            mLoanLevel < -1 || mLoanLevel>aLevelIndex || mLentLevel < -1 || mLentLevel>aLevelIndex)return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
+        for(unsigned i=0;i<count;++i){unsigned id=0,stacks=0;if(!aReader.ReadU16(id)||!aReader.ReadU16(stacks)||!stacks)return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
+            if(id<RUN_BUFF_COUNT || id>=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT+RUN_PLANT_BUFF2_COUNT || GetRunChoicePlant((int)id)!=(SeedType)mLoanPlant)return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
+            for(const auto& b:mLoanBuffs)if(b.mId==id)return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
+            BuffStack b;b.mId=(unsigned short)id;b.mCount=(unsigned short)ClampPurpleReplacementStacks((int)id,(int)stacks);mLoanBuffs.push_back(b);}
+        if(mLoanPlant<0 && (count || mLoanLevel>=0))return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
     }
     RunState picks;
     if(aVersion>=17) {
         int seed=0; unsigned value=0;
         if(!aReader.ReadI32(picks.mPendingPlantPicks)||!aReader.ReadI32(picks.mPendingBuffPicks)||
-            picks.mPendingPlantPicks<0||picks.mPendingPlantPicks>10000||picks.mPendingBuffPicks<0||picks.mPendingBuffPicks>10000)return false;
+            picks.mPendingPlantPicks<0||picks.mPendingPlantPicks>10000||picks.mPendingBuffPicks<0||picks.mPendingBuffPicks>400000)return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
         for(int i=0;i<RUN_CHOICES;++i) {
             if(!aReader.ReadI32(seed)||seed<(int)SEED_NONE||seed>=RUN_POOL_MAX||!aReader.ReadU16(value)||
-                (value!=RUN_BUFF_CHOICE_NONE&&value>=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT+RUN_PLANT_BUFF2_COUNT))return false;
+                (value!=RUN_BUFF_CHOICE_NONE&&value>=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT+RUN_PLANT_BUFF2_COUNT))return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
             picks.mPlantChoices[i]=(SeedType)seed; picks.mBuffChoices[i]=(unsigned short)value;
         }
-        if(!aReader.ReadU32(picks.mPickCounter)||!aReader.ReadU32(picks.mPickSalt)||!aReader.ReadU16(value)||value>1)return false;
+        if(!aReader.ReadU32(picks.mPickCounter)||!aReader.ReadU32(picks.mPickSalt)||!aReader.ReadU16(value)||value>1)return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
         picks.mChoicesRolled=value!=0;
         if(!aReader.ReadI32(picks.mPaidRerollCount)||picks.mPaidRerollCount<0||picks.mPaidRerollCount>1000000||
-            !aReader.ReadI32(picks.mCatchUpLevel)||picks.mCatchUpLevel < -1||picks.mCatchUpLevel>LevelCountForMode(aMode))return false;
+            !aReader.ReadI32(picks.mCatchUpLevel)||picks.mCatchUpLevel < -1||picks.mCatchUpLevel>LevelCountForMode(aMode))return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
         auto readSet=[&](unsigned short* values,int& count,unsigned limit) {
             unsigned n=0,id=0;if(!aReader.ReadU16(n)||n>RUN_CHOICES*2)return false;
             count=(int)n;for(unsigned i=0;i<n;++i){if(!aReader.ReadU16(id)||id>=limit)return false;values[i]=(unsigned short)id;}return true;
@@ -1228,9 +1361,37 @@ bool RunState::Load(int theProfileId)
         if(!readSet(picks.mPickSeenBuffs,picks.mPickSeenBuffCount,buffLimit)||
             !readSet(picks.mPickCooldownBuffs,picks.mPickCooldownBuffCount,buffLimit)||
             !readSet(picks.mPickSeenPlants,picks.mPickSeenPlantCount,RUN_POOL_MAX)||
-            !readSet(picks.mPickCooldownPlants,picks.mPickCooldownPlantCount,RUN_POOL_MAX))return false;
+            !readSet(picks.mPickCooldownPlants,picks.mPickCooldownPlantCount,RUN_POOL_MAX))return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
     }
 
+    mEndlessOptions=0;mEndlessFocusMask=0;mEndlessSnapshotLevel=-1;mEndlessSnapshotPhase=0;
+    mEndlessLawn.clear();mEndlessRetryLawn.clear();
+    mEndlessVoteRounds=0;mEndlessVoteIds[0]=mEndlessVoteIds[1]=255;
+    if(aVersion>=19) {
+        unsigned opt=0,lo=0,hi=0,phase=0;
+        if(!aReader.ReadU16(opt)||!EndlessRules::Valid((int)opt)||
+            !aReader.ReadU32(lo)||!aReader.ReadU32(hi)||(hi&0xffff0000u)||
+            !aReader.ReadI32(mEndlessSnapshotLevel)||mEndlessSnapshotLevel < -1||mEndlessSnapshotLevel>aLevelIndex||
+            !aReader.ReadU16(phase)||phase>5||!aReader.ReadBlob(mEndlessLawn)||!aReader.ReadBlob(mEndlessRetryLawn))return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
+        mEndlessOptions=(int)opt;mEndlessFocusMask=(uint64_t(hi)<<32)|lo;mEndlessSnapshotPhase=(int)phase;
+        unsigned rounds=0,first=0,second=0;
+        if(!aReader.ReadU16(rounds)||rounds>2||!aReader.ReadU16(first)||!aReader.ReadU16(second)||
+            (first!=255&&first>=RUN_ZOMBIE_BUFF_COUNT)||(second!=255&&second>=RUN_ZOMBIE_BUFF_COUNT))return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
+        mEndlessVoteRounds=(int)rounds;mEndlessVoteIds[0]=(unsigned char)first;mEndlessVoteIds[1]=(unsigned char)second;
+    }
+    mDamageHistory.clear();
+    if(aVersion>=21) { if(!aReader.ReadBlob(mDamageHistory))return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam); }
+    else if(aVersion>=20) aReader.ReadStats(mDamageHistory);
+    mAdmission=Admission::State{};
+    if(aVersion>=21) {std::vector<unsigned char> bytes;if(!aReader.ReadBlob(bytes)||!Admission::Decode(bytes,mAdmission))return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);}
+    // @pvz-online: constructor/StartNew defaults cannot silently upgrade an older saved run.
+    unsigned int crowdRule = CrowdRules::LEGACY;
+    if (aVersion >= 22 && (!aReader.ReadU16(crowdRule) || !CrowdRules::Valid(crowdRule)))
+        return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
+    if(theTeam && (mAdmission.run!=theTeam || mAdmission.phase==Admission::NONE))return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
+    if(theMode==RUN_MODE_ENDLESS ? (aMode!=RUN_MODE_ENDLESS || (int)aEndlessScene!=theScene) : aMode==RUN_MODE_ENDLESS)return !theBackup && Load(theProfileId,theMode,theScene,true,theTeam);
+
+    mCrowdRule = static_cast<int>(crowdRule);
 	mRunSeed = aRunSeed;
 	mMode = aMode;
 	mDiff = aDiff;
@@ -1245,6 +1406,8 @@ bool RunState::Load(int theProfileId)
 	// 变难度）；读到非法档（5..7）也不拒档——LadderPermilleFor 消费时按 STD 处理。
 	mLadder = (int)((aOptions >> 7) & 7);
     mSpeedTier=(int)((aOptions>>12)&3);
+	mFirstWave = (int)((aOptions >> 14) & 3);
+	if (mFirstWave > RUN_FIRSTWAVE_LONG) mFirstWave = RUN_FIRSTWAVE_STD;
 	// 僵尸 buff 档（2026-10-14，位包 bit10..11）：v13 及更老的档恒 0 = 不开；非法档（3）
 	// 消费端 GetZombieBuffPerScene 按 0 处理。
 	mZombieBuffMode = (int)((aOptions >> 10) & 3);
@@ -1271,6 +1434,29 @@ bool RunState::Load(int theProfileId)
     copySet(mPickCooldownBuffs,mPickCooldownBuffCount,picks.mPickCooldownBuffs,picks.mPickCooldownBuffCount);
     copySet(mPickSeenPlants,mPickSeenPlantCount,picks.mPickSeenPlants,picks.mPickSeenPlantCount);
     copySet(mPickCooldownPlants,mPickCooldownPlantCount,picks.mPickCooldownPlants,picks.mPickCooldownPlantCount);
+
+    const std::string legacy=GetAppDataFolder()+"userdata/android_run"+std::to_string(theProfileId)+".dat";
+    if(aLoadPath==legacy) {
+        const auto* raw=(const unsigned char*)aBuffer.GetDataPtr();
+        std::vector<unsigned char> backup(raw,raw+aBuffer.GetDataLen());
+        if(!RunCheckpointIO::AtomicWrite(legacy+".legacy-backup",backup) ||
+            !RunCheckpointIO::AtomicWrite(GetCheckpointName(theProfileId,mMode,mEndlessScene),EncodeCheckpoint()) ||
+            !RunCheckpointIO::AtomicWrite(legacy+".migrated",std::vector<unsigned char>{1}))return false;
+    }
+
+    if(theBackup) {
+        // Quarantine the damaged head before publishing the verified backup, preserving .bak.
+        std::string head=GetCheckpointName(theProfileId,theMode,theScene,theTeam);
+        if(gSexyAppBase->FileExists(head)) {
+#ifdef _WIN32
+            if(!MoveFileExA(head.c_str(),(head+".rejected").c_str(),MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))return false;
+#else
+            if(std::rename(head.c_str(),(head+".rejected").c_str())!=0)return false;
+#endif
+        }
+        const auto* raw=(const unsigned char*)aBuffer.GetDataPtr();
+        if(!RunCheckpointIO::AtomicWrite(head,std::vector<unsigned char>(raw,raw+aBuffer.GetDataLen())))return false;
+    }
 
 	return true;
 }
@@ -1309,6 +1495,13 @@ int RunState::LadderPermilleFor(int theLadder, int theScene)
 	if (theLadder < RUN_LADDER_STD || theLadder > RUN_LADDER_X2) theLadder = RUN_LADDER_STD;
 	if (theScene < 0 || theScene >= RUN_SCENE_COUNT) theScene = 0;
 	return aTables[theLadder][theScene];
+}
+
+int RunState::FirstWaveDelayTicks() const
+{
+	if (mFirstWave == RUN_FIRSTWAVE_VANILLA) return 1800;
+	if (mFirstWave == RUN_FIRSTWAVE_LONG) return 6000;
+	return 3000;
 }
 
 int RunState::SpeedGrowthPermilleFor(int theSpeedTier, int theSceneIndex)
@@ -1377,18 +1570,20 @@ void RunState::RollZombieVoteChoices(int theLevelIndex, unsigned char theOut[RUN
 		^ 0x27D4EB2Fu;
 	Sexy::MTRand aRNG(aSeed);
 	int aPool[RUN_ZOMBIE_BUFF_COUNT];
-	for (int i = 0; i < RUN_ZOMBIE_BUFF_COUNT; i++) aPool[i] = i;
-	for (int i = RUN_ZOMBIE_BUFF_COUNT - 1; i > 0; i--)
+	int aPoolCount = 0;
+	for (int i = 0; i < RUN_ZOMBIE_BUFF_COUNT; i++)
+		if (CanAddZombieBuffStack(i)) aPool[aPoolCount++] = i;
+	for (int i = aPoolCount - 1; i > 0; i--)
 	{
 		int j = (int)aRNG.Next((unsigned long)(i + 1));
 		int aTmp = aPool[i];
 		aPool[i] = aPool[j];
 		aPool[j] = aTmp;
 	}
-	for (int i = 0; i < RUN_ZOMBIE_VOTE_CHOICES; i++) theOut[i] = (unsigned char)aPool[i];
+	for (int i = 0; i < RUN_ZOMBIE_VOTE_CHOICES; i++) theOut[i] = i<aPoolCount ? (unsigned char)aPool[i] : 0xff;
 }
 
-// 池子 8 条的展示文案（投票框与结果横幅共用）。中文名/说明走宽字符直绘（GDI，无位图
+// 池子 9 条的展示文案（投票框与结果横幅共用）。中文名/说明走宽字符直绘（GDI，无位图
 // 字库缺字风险）；英文名上石材按钮的位图字体路径，保持 ASCII。
 namespace
 {
@@ -1404,12 +1599,14 @@ struct ZombieBuffText
 static const ZombieBuffText kZombieBuffTexts[RunState::RUN_ZOMBIE_BUFF_COUNT] = {
 	{ "Swift", "迅捷", "僵尸移动速度 +30%/层（至多 ×4）", "Zombie walk speed +30% per stack (up to x4)" },
 	{ "Iron", "铁壁", "僵尸生命值 ×1.5/层（至多 ×100）", "Zombie health x1.5 per stack (up to x100)" },
-	{ "Heartguard", "护心", "首次受到的大额伤害封顶 200；只挡一次（多层不再递减）", "First big hit capped at 200; blocks once (extra stacks don't lower the cap)" },
+	{ "Heartguard", "护心", "首次受到的大额伤害封顶 200；只挡一次（最高1层）", "First big hit capped at 200; blocks once (max 1 stack)" },
 	{ "Ravenous", "狂食", "每口啃咬伤害 ×2/层（至多 ×32）", "Bite damage x2 per stack (up to x32)" },
-	{ "Regen", "再生", "每秒回复 0.5% 最大生命/层（至多 25%）", "Regen 0.5% max HP per second per stack (up to 25%)" },
-	{ "Steadfast", "免控", "免疫减速、冰冻、黄油、击退、换道与魅惑", "Immune to slow, freeze, butter, knockback, lane change and charm" },
-	{ "Gravekeeper", "墓碑者", "巨人砸碎植物时，原地留下墓碑", "Gargantuars leave a gravestone where they crush a plant" },
-	{ "Ghostwalk", "无视阻挡", "普通僵尸不再停下啃咬，直接走过植物", "Normal zombies walk through plants instead of chewing them" },
+	{ "Regen", "再生", "每秒回复本体生命上限0.5%/层，每层最高500（总比例至多25%）", "Regen 0.5% max body HP/sec/stack, capped at 500 per stack (up to 25%)" },
+	{ "Steadfast", "免硬控", "免疫冰冻、黄油定身、击退、换道与魅惑；仍可减速（最高1层）", "Immune to freeze, butter, knockback, lane change and charm; slows still work (max 1 stack)" },
+	{ "Gravekeeper", "墓碑者", "巨人砸碎植物时，原地留下墓碑（最高1层）", "Gargantuars leave a gravestone where they crush a plant (max 1 stack)" },
+	{ "Ghostwalk", "无视阻挡", "普通僵尸不再停下啃咬，直接走过植物；巨人及橄榄球BOSS除外（最高1层）", "Walk through plants instead of chewing; excludes Gargantuars and Football bosses (max 1 stack)" },
+	{ "Soft Resist", "软控缩时", "减速持续时间缩短50%，幅度不变；与BOSS抗性不叠加（最高1层）", "Slow duration -50%; strength unchanged; does not stack with boss resistance (max 1 stack)" },
+    { "Inflation", "加价", "所有植物最终种植费用 +25 阳光/层，包括原本免费和被增益降到免费的植物", "Final planting cost +25 sun per stack for every plant, including normally free and buff-discounted plants" },
 };
 
 static const ZombieBuffText& ZombieBuffTextAt(int theId)
@@ -1441,14 +1638,14 @@ int RunState::GetEffectiveBuffCount(int id) const
     int base=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT;
     if(id==RUN_BUFF_COUNT+RUN_UPGRADE_SNOWPEA && GetBuffCount(base+RUN_BUFF2_FROSTPIERCE)>0)return value;
     if(id==base+RUN_BUFF2_FROSTPIERCE && GetBuffCount(RUN_BUFF_COUNT+RUN_UPGRADE_SNOWPEA)>0)return value;
-    if(id==RUN_BUFF_COUNT+RUN_UPGRADE_KERNELPULT && (GetBuffCount(base+RUN_BUFF2_BUTTERFEAST)>0 || GetBuffCount(base+RUN_BUFF2_BUTTER_SPLASH)>0))return value;
-    if((id==base+RUN_BUFF2_BUTTERFEAST || id==base+RUN_BUFF2_BUTTER_SPLASH) && GetBuffCount(RUN_BUFF_COUNT+RUN_UPGRADE_KERNELPULT)>0)return value;
+    if(id==RUN_BUFF_COUNT+RUN_UPGRADE_KERNELPULT && (GetBuffCount(base+RUN_BUFF2_BUTTERFEAST)>0 || GetBuffCount(base+RUN_BUFF2_BUTTER_SPLASH)>0 || GetBuffCount(base+RUN_BUFF2_BUTTER_HEAVY)>0))return value;
+    if((id==base+RUN_BUFF2_BUTTERFEAST || id==base+RUN_BUFF2_BUTTER_SPLASH || id==base+RUN_BUFF2_BUTTER_HEAVY) && GetBuffCount(RUN_BUFF_COUNT+RUN_UPGRADE_KERNELPULT)>0)return value;
     if((id==RUN_BUFF_COUNT+RUN_UPGRADE_WALLNUT || id==base+RUN_BUFF2_THORNS) && GetBuffCount(base+RUN_BUFF2_NUT_BOWLING)>0)return value;
     if(id==base+RUN_BUFF2_NUT_BOWLING && (GetBuffCount(RUN_BUFF_COUNT+RUN_UPGRADE_WALLNUT)>0 || GetBuffCount(base+RUN_BUFF2_THORNS)>0))return value;
 
     if(mLoanLevel==mLevelIndex && mLoanPlant>=0 && id>=RUN_BUFF_COUNT && GetRunChoicePlant(id)==(SeedType)mLoanPlant)
         for(const auto& b:mLoanBuffs)if(b.mId==id)value=std::max(value,(int)b.mCount);
-    return value;
+    return ClampPurpleReplacementStacks(id,value);
 }
 bool RunState::HasUsablePlant(SeedType plant) const
 {
@@ -1473,8 +1670,18 @@ bool RunState::ValidateLoan(SeedType plant,const std::vector<BuffStack>& buffs) 
     int base=RUN_BUFF_COUNT+RUN_PLANT_UPGRADE_COUNT;
     if(plant==SEED_SNOWPEA && has(RUN_BUFF_COUNT+RUN_UPGRADE_SNOWPEA) && has(base+RUN_BUFF2_FROSTPIERCE))return false;
     if(plant==SEED_KERNELPULT && has(RUN_BUFF_COUNT+RUN_UPGRADE_KERNELPULT) &&
-        (has(base+RUN_BUFF2_BUTTERFEAST)||has(base+RUN_BUFF2_BUTTER_SPLASH)))return false;
+        (has(base+RUN_BUFF2_BUTTERFEAST)||has(base+RUN_BUFF2_BUTTER_SPLASH)||has(base+RUN_BUFF2_BUTTER_HEAVY)))return false;
     if(plant==SEED_WALLNUT && has(base+RUN_BUFF2_NUT_BOWLING) &&
         (has(RUN_BUFF_COUNT+RUN_UPGRADE_WALLNUT)||has(base+RUN_BUFF2_THORNS)))return false;
     return true;
+}
+
+const char* RunState::EndlessThemeName(int theme) {
+    switch(theme) {
+    case 1:return ModText::Tr("装甲队", "Armored ranks");
+    case 2:return ModText::Tr("快速队", "Fast ranks");
+    case 3:return ModText::Tr("空袭队", "Air raid");
+    case 4:return ModText::Tr("水路队", "Pool assault");
+    default:return ModText::Tr("自由出怪", "Mixed ranks");
+    }
 }

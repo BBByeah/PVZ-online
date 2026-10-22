@@ -1,0 +1,35 @@
+{
+  "modBuild": 74,
+  "date": "2026-10-18",
+  "previousOverlay": "docs/compatibility/updates/build73-football-bite-working-tree.json",
+  "includesPreviousUncommittedBuild": 73,
+  "checkpointVersion": 21,
+  "protocolVersion": 1,
+  "onlineGameReady": false,
+  "changes": [
+    "Render list capacity follows current entity counts; prior fixed 2048-entry overflow removed",
+    "Projectiles 1024 -> 2048; attachment slots 1024 -> 4096, allocated before live objects exist",
+    "Opt-in checked DataArray allocation; projectile and attachment callers handle failure",
+    "Protect sixteen effects per attachment; failed cosmetic ownership transfer cleaned up; essential animation retained",
+    "Validate pool counts, IDs, free lists and portable item lengths; PC preflights pool sections before modifying board",
+    "Preserve Build73 football boss bite and normal-football growth changes"
+  ],
+  "limits": [
+    "At the hard projectile limit, failed shots are skipped safely; no deferred shot queue yet",
+    "Animation and coin pool exhaustion not comprehensively fixed",
+    "Zombie spawn queue, spatial collision optimization and stable segmented pools remain pending",
+    "Portable saves from old smaller pools load into new larger pools; downgrade after using expanded capacity is unsupported",
+    "Not a complete validation of every raw snapshot pointer or gameplay field"
+  ],
+  "validation": {
+    "pcEngineChecks": 30,
+    "portableModuleChecksOnWindowsHost": 21,
+    "zombieRegressionChecks": 17,
+    "densityScenarios": 6,
+    "pcRuntimeUpdatedAndOpened": true,
+    "androidNativeCompiled": true,
+    "androidInstalled": false,
+    "fullMultiplayerSession": false
+  },
+  "pcReport": "re-plants-vs-zombies/docs/POOL-SAFETY-BUILD74-2026-10-18.md"
+}

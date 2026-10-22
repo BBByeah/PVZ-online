@@ -18,4 +18,12 @@
     <string name="no_save_data">没有可导出的存档。</string>
     <string name="shortcut_manage_data">数据管理</string>
     <string name="shortcut_manage_data_long">管理资源与存档</string>
+    <string name="bundled_preparing">首次启动正在准备游戏…\n只需等待一次，完成后会自动进入。</string>
+    <string name="bundled_failed">游戏准备未完成，请确认手机剩余空间充足后重试。</string>
+    <string name="bundled_retry">重试</string>
+    <string name="lan_host_title">正在托管局域网房间</string>
+    <string name="lan_host_starting">正在准备房间…</string>
+    <string name="lan_host_running">房间服务运行中，端口 %1$d</string>
+    <string name="lan_host_failed">开房未成功，请回游戏查看原因。</string>
+    <string name="lan_host_end">结束房间</string>
 </resources>

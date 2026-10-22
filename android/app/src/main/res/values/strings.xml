@@ -25,4 +25,12 @@
     <string name="no_save_data">No save data found to export.</string>
     <string name="shortcut_manage_data">Manage Data</string>
     <string name="shortcut_manage_data_long">Manage Resources &amp; Saves</string>
+    <string name="bundled_preparing">Preparing the game for the first launch…\nThis happens only once. The game will start automatically.</string>
+    <string name="bundled_failed">Could not prepare the game. Check that your device has enough free space, then tap Retry.</string>
+    <string name="bundled_retry">Retry</string>
+    <string name="lan_host_title">Hosting a LAN room</string>
+    <string name="lan_host_starting">Preparing the room…</string>
+    <string name="lan_host_running">Room service running on port %1$d</string>
+    <string name="lan_host_failed">Could not host. Return to the game for details.</string>
+    <string name="lan_host_end">End room</string>
 </resources>

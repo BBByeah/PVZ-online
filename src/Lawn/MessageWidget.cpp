@@ -58,8 +58,8 @@ void MessageWidget::ClearReanim()
 		if (aReanim)
 		{
 			aReanim->ReanimationDie();
-			mTextReanimID[i] = ReanimationID::REANIMATIONID_NULL;
 		}
+		mTextReanimID[i] = ReanimationID::REANIMATIONID_NULL;
 	}
 }
 
@@ -217,6 +217,13 @@ void MessageWidget::LayoutReanimText()
 			break;
 
 		Reanimation* aReanimText = mApp->AddReanimation(aCurPosX, aCurPosY, 0, mReanimType);
+		if (!aReanimText)
+		{
+			ClearReanim();
+			mReanimType = ReanimationType::REANIM_NONE;
+			mTextReanimCount = 0;
+			return;
+		}
 		aReanimText->mIsAttachment = true;
 		aReanimText->PlayReanim("anim_enter", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0.0f, 0.0f);
 		mTextReanimID[aCharIdx] = mApp->ReanimationGetID(aReanimText);

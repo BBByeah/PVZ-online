@@ -62,6 +62,8 @@ public:
 	std::unique_ptr<GameButton>	mZombieButton;
 	AlmanacPage					mOpenPage;
     int mRunEntryPage=0;
+    int mRunEntryPageCount=1;
+    int mRunEntryDown=0;
 	Reanimation*				mReanim[4];
 	SeedType					mSelectedSeed;
 	ZombieType					mSelectedZombie;
@@ -93,6 +95,7 @@ public:
 	void						MouseUp(int x, int y, int theClickCount) override;
 	void						MouseDown(int x, int y, int theClickCount) override;
 	void						KeyDown(KeyCode theKey) override;
+	void LostFocus() override;
 //	virtual void				KeyChar(char theChar);
 
 	static ZombieType			GetZombieType(int theIndex);

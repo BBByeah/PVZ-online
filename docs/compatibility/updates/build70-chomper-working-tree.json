@@ -1,0 +1,30 @@
+{
+  "modBuild": 70,
+  "date": "2026-10-18",
+  "previousOverlay": "docs/compatibility/updates/build69-roof-regen-working-tree.json",
+  "includesPreviousUncommittedBuild": 69,
+  "checkpointVersion": 21,
+  "protocolVersion": 1,
+  "onlineGameReady": false,
+  "sourceState": "PC x86 and Android ARM64 native builds passed; 30 production-engine Chomper checks passed. No Android APK installation, full player package or production deployment.",
+  "changes": [
+    "Wolf digestion reduced from 20 to 8 seconds",
+    "Chain Bite grants 2 follow-ups per stack and searches 2 tiles ahead during follow-ups",
+    "Appended single-stack three-star Giant Bite: 10000 base bite damage with chains and digestion after kills"
+  ],
+  "pcReport": "re-plants-vs-zombies/docs/CHOMPER-BUILD70-MAGNET-DISCUSSION-2026-10-18.md",
+  "pending": [
+    "five-player Boss field and visual verification",
+    "physical Android runtime acceptance",
+    "full player package and fresh startup acceptance"
+  ],
+  "localPCVerification": {
+    "record": "tools/audit/runtime70-deployment-result.json",
+    "androidInstalled": false,
+    "productionDeployed": false,
+    "build": 70,
+    "runtimeUpdated": true,
+    "gameOpenedForUser": true,
+    "savedGamesPreserved": true
+  }
+}

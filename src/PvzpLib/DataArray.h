@@ -64,8 +64,11 @@ public:
 	void DataArrayInitialize(unsigned int theMaxSize, const char* theName)
 	{
 		PVZP_ASSERT(mItems == nullptr);
-		mItems = std::make_unique<DataArrayItem[]>(theMaxSize);
-		mItemIds = std::make_unique<unsigned int[]>(theMaxSize);
+		// Commit only after both allocations succeed; a larger-pool retry stays safe.
+		auto items = std::make_unique<DataArrayItem[]>(theMaxSize);
+		auto ids = std::make_unique<unsigned int[]>(theMaxSize);
+		mItems = std::move(items);
+		mItemIds = std::move(ids);
 		mMaxSize = theMaxSize;
 		mNextKey = 1001U;
 		mName = theName;
@@ -162,6 +165,49 @@ public:
 		return theItem != nullptr;
 	}
 
+	// Checked allocation is opt-in until every legacy caller handles failure.
+	bool DataArrayCanAllocate(unsigned int theCount = 1) const
+	{
+		if (mMaxUsedCount > mMaxSize || mSize > mMaxUsedCount || mFreeListHead > mMaxUsedCount)
+			return false;
+		if ((mFreeListHead == mMaxUsedCount) != (mSize == mMaxUsedCount)) return false;
+		return theCount <= mMaxSize - mSize;
+	}
+
+	T* DataArrayTryAlloc()
+	{
+		if (!DataArrayCanAllocate()) return nullptr;
+		if (!mItems || !mItemIds) return nullptr;
+		if (mFreeListHead < mMaxUsedCount &&
+			(mItemIds[mFreeListHead] > mMaxUsedCount || mItemIds[mFreeListHead] == mFreeListHead)) return nullptr;
+		return DataArrayAlloc();
+	}
+
+	// Validate loaded IDs/free links before callers can iterate or allocate.
+	bool DataArrayValidateState() const
+	{
+		if (!DataArrayCanAllocate(0) || mNextKey == 0 || mNextKey >= DATA_ARRAY_MAX_SIZE) return false;
+		unsigned int aLive = 0;
+		for (unsigned int i = 0; i < mMaxUsedCount; ++i)
+		{
+			const unsigned int aId = mItemIds[i];
+			if (aId & DATA_ARRAY_KEY_MASK)
+			{
+				if ((aId & DATA_ARRAY_INDEX_MASK) != i) return false;
+				++aLive;
+			}
+			else if (aId > mMaxUsedCount) return false;
+		}
+		if (aLive != mSize) return false;
+		unsigned int aNext = mFreeListHead;
+		for (unsigned int n = 0; n < mMaxUsedCount - mSize; ++n)
+		{
+			if (aNext >= mMaxUsedCount) return false;
+			aNext = mItemIds[aNext];
+		}
+		return aNext == mMaxUsedCount;
+	}
+
 	T* DataArrayAlloc()
 	{
 		PVZP_ASSERT(mSize < mMaxSize, "Data array full: {}", mName);
@@ -185,7 +231,7 @@ public:
 
 	T* DataArrayTryToGet(unsigned int theId)
 	{
-		if (!theId || (theId & DATA_ARRAY_INDEX_MASK) >= mMaxSize)
+		if (!theId || !(theId & DATA_ARRAY_KEY_MASK) || (theId & DATA_ARRAY_INDEX_MASK) >= mMaxUsedCount)
 			return nullptr;
 
 		unsigned int anIndex = theId & DATA_ARRAY_INDEX_MASK;

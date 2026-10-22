@@ -137,6 +137,7 @@ void CutScene::PlaceAZombie(ZombieType theZombieType, int theGridX, int theGridY
 	}
 
 	Zombie* aZombie = mBoard->AddZombieInRow(theZombieType, theGridY, -2);
+	if (aZombie == nullptr) return;
 	PVZP_ASSERT(aZombie);
 	aZombie->mPosX = theGridX * 56 + 830;
 	aZombie->mPosY = theGridY * 90 + 70;
@@ -606,18 +607,19 @@ void CutScene::PlaceLawnItems()
 	{
 		return;
 	}
-	mPlacedLawnItems = true;
+
 
 	if (!IsSurvivalRepick())
 	{
+		if (!AddFlowerPots()) return;
 		mBoard->InitLawnMowers();
-		AddFlowerPots();
 	}
 
 	if (!IsSurvivalRepick())
 	{
 		mBoard->PlaceRake();
 	}
+    mPlacedLawnItems = true;
 }
 
 bool CutScene::IsSurvivalRepick()
@@ -814,7 +816,7 @@ void CutScene::StartLevelIntro()
 	{
 		mCrazyDaveDialogStart = mApp->IsFirstTimeAdventureMode() ? 1301 : 1304;
 	}
-	else if (!mApp->IsFirstTimeAdventureMode() && aLevel == 1 && !mApp->IsRunMode())
+	else if (mApp->IsAdventureMode() && !mApp->IsFirstTimeAdventureMode() && aLevel == 1 && !mApp->IsRunMode())
 	{
 		mCrazyDaveDialogStart = 1601;
 	}
@@ -958,6 +960,8 @@ bool CutScene::IsBeforePreloading()
 
 void CutScene::CancelIntro()
 {
+    if (mBoard->mDeferredPlantSetup.IsWaiting()) return;
+    const int beforeSetupTime=mCutsceneTime;
 	PreloadResources();
 	PlaceStreetZombies();
 	if (mCutsceneTime < mCrazyDaveTime + TimePanRightEnd)
@@ -983,6 +987,7 @@ void CutScene::CancelIntro()
 		while (mApp->mCrazyDaveMessageIndex != -1)
 		{
 			AdvanceCrazyDaveDialog(true);
+            if (mBoard->mDeferredPlantSetup.IsWaiting()) { mCutsceneTime=beforeSetupTime; return; }
 		}
 
 		if (mBoard->mLevel == 5)
@@ -1004,13 +1009,22 @@ void CutScene::CancelIntro()
 		mCutsceneTime = TimeIntroEnd + mLawnMowerTime + mSodTime + mGraveStoneTime + mCrazyDaveTime + mFogTime + mBossTime + mReadySetPlantTime - 20;
 
 		PlaceLawnItems();
+		if (!mPlacedLawnItems)
+		{
+			mCutsceneTime = TimePanLeftStart + mCrazyDaveTime - 10;
+			return;
+		}
 		if (mApp->IsStormyNightLevel())
 		{
 			mBoard->mChallenge->mChallengeStateCounter = 0;
 		}
 		if (mApp->IsFinalBossLevel())
 		{
-			mBoard->mChallenge->PlayBossEnter();
+			if (!mBoard->mChallenge->PlayBossEnter())
+			{
+				mCutsceneTime = TimeReadySetPlantStart + mLawnMowerTime + mCrazyDaveTime - 10;
+				return;
+			}
 		}
 		if (!mApp->IsChallengeWithoutSeedBank())
 		{
@@ -1052,7 +1066,7 @@ void CutScene::AddGraveStoneParticles()
 	}
 }
 
-void CutScene::AddFlowerPots()
+bool CutScene::AddFlowerPots()
 {
 	int aPotColumns = 0;
 	if (mBoard->mLevel == 41)
@@ -1076,16 +1090,23 @@ void CutScene::AddFlowerPots()
 		aPotColumns = 3;
 	}
 
+    unsigned int count = 0;
+    for (int x = 0; x < aPotColumns; ++x)
+        for (int y = 0; y < MAX_GRID_SIZE_Y; ++y)
+            if (mBoard->CanPlantAt(x, y, SeedType::SEED_FLOWERPOT) == PlantingReason::PLANTING_OK) ++count;
+    if (count && !mBoard->PreparePlantAnimations(SeedType::SEED_FLOWERPOT, count)) return false;
+
 	for (int x = 0; x < aPotColumns; x++)
 	{
 		for (int y = 0; y < MAX_GRID_SIZE_Y; y++)
 		{
 			if (mBoard->CanPlantAt(x, y, SeedType::SEED_FLOWERPOT) == PlantingReason::PLANTING_OK)
 			{
-				mBoard->NewPlant(x, y, SeedType::SEED_FLOWERPOT, SeedType::SEED_NONE);
+				if (!mBoard->NewPlant(x, y, SeedType::SEED_FLOWERPOT, SeedType::SEED_NONE)) return false;
 			}
 		}
 	}
+    return true;
 }
 
 int CutScene::CalcPosition(int theTimeStart, int theTimeEnd, int thePositionStart, int thePositionEnd)
@@ -1291,7 +1312,11 @@ void CutScene::AnimateBoard()
 		int aTimeBossEnter = TimeReadySetPlantStart + mLawnMowerTime + mCrazyDaveTime;
 		if (mCutsceneTime == aTimeBossEnter)
 		{
-			mBoard->mChallenge->PlayBossEnter();
+			if (!mBoard->mChallenge->PlayBossEnter())
+			{
+				mCutsceneTime -= 10;
+				return;
+			}
 		}
 	}
 
@@ -1401,6 +1426,14 @@ void CutScene::Update()
 	{
 		PlaceStreetZombies();
 	}
+    if (!mPlacedLawnItems && (IsNonScrollingCutscene() || !mBoard->ChooseSeedsOnCurrentLevel() ||
+        mApp->IsFinalBossLevel() || mApp->IsScaryPotterLevel() || mApp->IsWallnutBowlingLevel() ||
+        mCutsceneTime >= TimePanLeftStart + mCrazyDaveTime))
+    {
+        PlaceLawnItems();
+        if (!mPlacedLawnItems) return;
+    }
+
 	if (IsNonScrollingCutscene() || !mBoard->ChooseSeedsOnCurrentLevel())
 	{
 		PlaceLawnItems();
@@ -1481,25 +1514,28 @@ void CutScene::UpdateZombiesWon()
 		ReanimatorEnsureDefinitionLoaded(ReanimationType::REANIM_ZOMBIES_WON, true);
 		int aRenderPosition = Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_SCREEN_FADE, 0, 0);
 		Reanimation* aReanimation = mApp->AddReanimation(-BOARD_OFFSET, 0, aRenderPosition, ReanimationType::REANIM_ZOMBIES_WON);
-		aReanimation->mAnimRate = 12.0f;
-		aReanimation->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
-		aReanimation->GetTrackInstanceByName("fullscreen")->mTrackColor = Color::Black;
-		mZombiesWonReanimID = mApp->ReanimationGetID(aReanimation);
-		aReanimation->SetFramesForLayer("ZombiesWon");
+		if (aReanimation)
+		{
+    		aReanimation->mAnimRate = 12.0f;
+    		aReanimation->mLoopType = ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD;
+    		aReanimation->GetTrackInstanceByName("fullscreen")->mTrackColor = Color::Black;
+    		mZombiesWonReanimID = mApp->ReanimationGetID(aReanimation);
+    		aReanimation->SetFramesForLayer("ZombiesWon");
+		}
 		mApp->PlayFoley(FoleyType::FOLEY_SCREAM);
 	}
 
 	if (mCutsceneTime == LostTimeBrainGraphicShake)
 	{
-		mApp->ReanimationGet(mZombiesWonReanimID)->SetShakeOverride("ZombiesWon", 1.0f);
+		if (Reanimation* ending = mApp->ReanimationTryToGet(mZombiesWonReanimID)) ending->SetShakeOverride("ZombiesWon", 1.0f);
 	}
 	if (mCutsceneTime == LostTimeBrainGraphicCancelShake)
 	{
-		mApp->ReanimationGet(mZombiesWonReanimID)->SetShakeOverride("ZombiesWon", 0.0f);
+		if (Reanimation* ending = mApp->ReanimationTryToGet(mZombiesWonReanimID)) ending->SetShakeOverride("ZombiesWon", 0.0f);
 	}
 	if (mCutsceneTime == LostTimeBrainGraphicEnd)
 	{
-		mApp->ReanimationGet(mZombiesWonReanimID)->SetFramesForLayer("anim_screen");
+		if (Reanimation* ending = mApp->ReanimationTryToGet(mZombiesWonReanimID)) ending->SetFramesForLayer("anim_screen");
 	}
 
 	if (mCutsceneTime == LostTimeEnd)
@@ -1538,6 +1574,8 @@ void CutScene::ZombieWonClick()
 
 void CutScene::AdvanceCrazyDaveDialog(bool theJustSkipping)
 {
+    if (mBoard->mDeferredPlantSetup.kind == DeferredPlantSetup::SHOVEL &&
+        mBoard->mDeferredPlantSetup.HasPending()) return;
 	if (mApp->mGameMode == GameMode::GAMEMODE_UPSELL || mApp->mCrazyDaveMessageIndex == -1)
 		return;
 
@@ -1551,7 +1589,12 @@ void CutScene::AdvanceCrazyDaveDialog(bool theJustSkipping)
 	// "This is your Tree of Wisdom; I'll give you some fertilizer to get started"
 	if (mApp->mCrazyDaveMessageIndex == 3200)
 	{
-		mApp->mPlayerInfo->mPurchases[STORE_ITEM_TREE_FOOD] = PURCHASE_COUNT_OFFSET + 5;
+		// The offset also records that this profile has received the tree introduction.
+		if (mApp->mPlayerInfo->mPurchases[STORE_ITEM_TREE_FOOD] < PURCHASE_COUNT_OFFSET)
+		{
+			mApp->mPlayerInfo->mPurchases[STORE_ITEM_TREE_FOOD] = PURCHASE_COUNT_OFFSET + 5;
+			mApp->mPlayerInfo->SaveDetails();
+		}
 		mBoard->mMenuButton->mBtnNoDraw = false;
 		mBoard->mStoreButton->mBtnNoDraw = false;
 	}
@@ -1563,7 +1606,7 @@ void CutScene::AdvanceCrazyDaveDialog(bool theJustSkipping)
 		if (mApp->IsFinalBossLevel() && mApp->IsAdventureMode())
 		{
 			Reanimation* aCrazyDaveReanim = mApp->ReanimationTryToGet(mApp->mCrazyDaveReanimID);
-			aCrazyDaveReanim->PlayReanim("anim_grab", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 18.0f);
+			if (aCrazyDaveReanim) aCrazyDaveReanim->PlayReanim("anim_grab", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 18.0f);
 
 			mApp->mMusic->FadeOut(50);
 			if (!theJustSkipping)
@@ -1781,6 +1824,7 @@ void CutScene::ClearUpsellBoard()
 void CutScene::AddUpsellZombie(ZombieType theZombieType, int thePixelX, int theGridY)
 {
 	Zombie* aZombie = mBoard->AddZombieInRow(theZombieType, theGridY, 0);
+	if (aZombie == nullptr) return;
 	aZombie->mPosX = thePixelX;
 	aZombie->mPosY = aZombie->GetPosYBasedOnRow(theGridY);
 	aZombie->SetRow(theGridY);
@@ -2125,22 +2169,27 @@ void CutScene::UpdateUpsell()
 	{
 	case 3305:  // "Like this!"
 	{
+		if (!aCrazyDaveReanim) break;
 		Reanimation* aReanimSquash = mApp->AddReanimation(0, 0, 0, ReanimationType::REANIM_SQUASH);
+		if (!aReanimSquash) break;
 		aReanimSquash->PlayReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 0, 15.0f);
 		AttachEffect* anAttachEffect = AttachReanim(aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand")->mAttachmentID, aReanimSquash, 92.0f, 387.0f);
-		anAttachEffect->mOffset.m00 = 1.2f;
-		anAttachEffect->mOffset.m11 = 1.2f;
+		if (anAttachEffect) anAttachEffect->mOffset.m00 = 1.2f;
+		if (anAttachEffect) anAttachEffect->mOffset.m11 = 1.2f;
 		aCrazyDaveReanim->Update();
 		break;
 	}
 
 	case 3306:  // "And this!"
 	{
+		if (!aCrazyDaveReanim) break;
 		Reanimation* aReanimThreepeater = mApp->AddReanimation(0, 0, 0, ReanimationType::REANIM_THREEPEATER);
+		if (!aReanimThreepeater) break;
 		aReanimThreepeater->PlayReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 0, 15.0f);
 		for (int i = 1; i < 4; i++)
 		{
 			Reanimation* aReanimHead = mApp->AddReanimation(0, 0, 0, ReanimationType::REANIM_THREEPEATER);
+			if (!aReanimHead) break;
 			aReanimHead->mLoopType = ReanimLoopType::REANIM_LOOP;
 			aReanimHead->mAnimRate = aReanimThreepeater->mAnimRate;
 			aReanimHead->SetFramesForLayer(std::format("anim_head_idle{}", i).c_str());
@@ -2155,19 +2204,27 @@ void CutScene::UpdateUpsell()
 
 	case 3307:  // "Later, I'll add this too!"
 	{
+		if (!aCrazyDaveReanim) break;
 		Reanimation* aReanimMagnet = mApp->AddReanimation(0, 0, 0, ReanimationType::REANIM_MAGNETSHROOM);
+		if (!aReanimMagnet) break;
 		aReanimMagnet->PlayReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 0, 15.0f);
 		PvzpScaleRotateTransformMatrix(aReanimMagnet->mOverlayMatrix, 0, 0, 0.3f, 1, 1);
 		AttachEffect* anAttachEffect = AttachReanim(aCrazyDaveReanim->GetTrackInstanceByName("Dave_pot")->mAttachmentID, aReanimMagnet, 25.0f, 49.0f);
-		anAttachEffect->mOffset.m00 = 1.2f;
-		anAttachEffect->mOffset.m11 = 1.2f;
+		if (anAttachEffect) anAttachEffect->mOffset.m00 = 1.2f;
+		if (anAttachEffect) anAttachEffect->mOffset.m11 = 1.2f;
 		aCrazyDaveReanim->Update();
 		break;
 	}
 
 	case 3309:  // "Because I'm cra-zy!!!!"
-		aCrazyDaveReanim->FindSubReanim(ReanimationType::REANIM_THREEPEATER)->ReanimationDie();
-		aCrazyDaveReanim->FindSubReanim(ReanimationType::REANIM_MAGNETSHROOM)->ReanimationDie();
+		if (aCrazyDaveReanim)
+		{
+			if (Reanimation* prop = aCrazyDaveReanim->FindSubReanim(ReanimationType::REANIM_THREEPEATER)) prop->ReanimationDie();
+		}
+		if (aCrazyDaveReanim)
+		{
+			if (Reanimation* prop = aCrazyDaveReanim->FindSubReanim(ReanimationType::REANIM_MAGNETSHROOM)) prop->ReanimationDie();
+		}
 		break;
 
 	case 3312:  // "I'll give you more battles!"

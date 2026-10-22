@@ -69,6 +69,7 @@ class CoopDialog : public LawnDialog {
         } else {
             if(Detail().Contains(x,y)&&LoanActive())return 92;
             if(Cancel().Contains(x,y)&&coop->loanWaiting)return 93;
+            if(Cancel().Contains(x,y)&&LoanActive()&&coop->Preparing()&&coop->pendingCancels.empty())return 95;
             if(!details&&Send().Contains(x,y)&&plant>=0&&CanBorrow())return 94;
             if(!details) {
                 for(int i=0;i<5;++i)if(SeatAt(i)&&Peer(i).Contains(x,y))return 100+i;
@@ -122,10 +123,11 @@ public:
         }
         SeatUi::Button(g,Prev(),ModText::Tr("上页","Prev"),true,down==82);
         SeatUi::Button(g,Next(),ModText::Tr("下页","Next"),true,down==83);
-        if(coop->hasIncoming){SeatUi::Button(g,Cancel(),ModText::Tr("拒绝","Decline"),true,down==81);SeatUi::Button(g,Send(),ModText::Tr("同意借出","Accept"),true,down==80);}
+        if(coop->hasIncoming){SeatUi::Button(g,Cancel(),ModText::Tr("拒绝","Decline"),true,down==81);SeatUi::Button(g,Send(),ModText::Tr("同意申请","Accept"),true,down==80);}
         else {
-            if(LoanActive())SeatUi::Button(g,Detail(),details?ModText::Tr("返回选择","Back"):ModText::Tr("借入详情","Loan details"),true,down==92);
+            if(LoanActive())SeatUi::Button(g,Detail(),details?ModText::Tr("返回选择","Back"):ModText::Tr("植物详情","Loan details"),true,down==92);
             if(coop->loanWaiting)SeatUi::Button(g,Cancel(),ModText::Tr("取消申请","Cancel request"),true,down==93);
+            else if(LoanActive())SeatUi::Button(g,Cancel(),ModText::Tr("取消使用","Return plant"),coop->Preparing()&&coop->pendingCancels.empty(),down==95);
             if(!details)SeatUi::Button(g,Send(),coop->loanWaiting?ModText::Tr("等待答复","Waiting"):ModText::Tr("发送申请","Send request"),plant>=0&&CanBorrow(),down==94);
         }
     }
@@ -136,6 +138,7 @@ public:
         if(action==80||action==81){coop->Answer(action==80);detailPage=0;return;}
         if(action==92){details=!details;detailPage=0;return;}
         if(action==93){coop->CancelLoanRequest();return;}
+        if(action==95){coop->ReturnLoan();if(!LoanActive()){details=false;detailPage=0;wasLoanActive=false;}return;}
         if(action==94){if(plant>=0&&CanBorrow())coop->Ask(peer,(SeedType)plant);return;}
         if(action==82||action==83){int delta=action==82?-1:1;
             if(coop->hasIncoming||details){int pages=std::max(1,((int)Traits().size()+3)/4);detailPage=std::clamp(detailPage+delta,0,pages-1);}

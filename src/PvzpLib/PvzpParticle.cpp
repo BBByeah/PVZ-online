@@ -1253,12 +1253,12 @@ PvzpParticleSystem* PvzpParticleHolder::AllocParticleSystemFromDef(float theX, f
 {
 	if (mParticleSystems.mSize == mParticleSystems.mMaxSize)
 	{
-		PvzpLogLn("Too many particle systems");
+		PvzpTraceWithoutSpamming("Too many particle systems");
 		return nullptr;
 	}
 	if (theDefinition->mEmitterDefCount + mEmitters.mSize > mEmitters.mMaxSize)
 	{
-		PvzpLogLn("Too many particle emitters");
+		PvzpTraceWithoutSpamming("Too many particle emitters");
 		return nullptr;
 	}
 

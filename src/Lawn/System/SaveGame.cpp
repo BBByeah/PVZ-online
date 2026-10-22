@@ -22,6 +22,13 @@
 #include "Music.h"
 #include "SaveGame.h"
 #include "../Board.h"
+#include "../Run/RunDotEffects.h"
+#include "../Run/RunWaveHitSave.h"
+#include "../Run/WaveHealthSave.h"
+#include "../Run/WaveSpawnRetrySave.h"
+#include "../Run/DeferredZombieSpawnSave.h"
+#include "../Run/DeferredPlantSetupSave.h"
+#include "../Widget/NextWaveControl.h"
 #include "../Challenge.h"
 #include "../SeedPacket.h"
 #include "../../LawnApp.h"
@@ -38,6 +45,7 @@
 #include "../../PvzpLib/DataArray.h"
 #include "../../PvzpLib/PvzpList.h"
 #include "DataSync.h"
+#include "PoolSaveValidation.h"
 #include "misc/Buffer.h"
 #include <algorithm>
 #include <cstdint>
@@ -47,7 +55,7 @@
 
 static constexpr const char* FILE_COMPILE_TIME_STRING = "Jul  2 201011:47:03"; // save files are tied to this exact timestamp string
 static constexpr const uint32_t SAVE_FILE_MAGIC_NUMBER = 0xFEEDDEAD;
-static constexpr const uint32_t SAVE_FILE_VERSION = 2U;
+static constexpr const uint32_t SAVE_FILE_VERSION = 3U; // @pvz-online: reject obsolete raw object layouts; portable v4 remains compatible.
 static const uint32_t SAVE_FILE_DATE = crc32(0, (Bytef*)FILE_COMPILE_TIME_STRING, strlen(FILE_COMPILE_TIME_STRING));
 
 static constexpr const char SAVE_FILE_MAGIC_V4[12] = "PVZP_SAVE4";
@@ -97,7 +105,8 @@ enum SaveChunkTypeV4
 	SAVE4_CHUNK_EXPANDED_WAVES = 103,
 	SAVE4_CHUNK_ZOMBIE_CONTROL = 104,
     SAVE4_CHUNK_BUILD51_EFFECTS = 105,
-    SAVE4_CHUNK_RELAY_MARKS = 106
+    SAVE4_CHUNK_RELAY_MARKS = 106,
+    SAVE4_CHUNK_PURPLE_EFFECTS = 107
 };
 
 static constexpr const uint32_t SAVE4_CHUNK_VERSION = 1U;
@@ -660,6 +669,8 @@ static void SyncAttachmentTailPortable(PortableSaveContext& theContext, Attachme
 	for (int i = 0; i < MAX_EFFECTS_PER_ATTACHMENT; i++)
 		SyncAttachEffectPortable(theContext, theAttachment.mEffectArray[i]);
 	theContext.SyncInt32(theAttachment.mNumEffects);
+	if (theAttachment.mNumEffects < 0 || theAttachment.mNumEffects > MAX_EFFECTS_PER_ATTACHMENT)
+	{ theAttachment.mNumEffects = 0; theContext.mFailed = true; return; }
 	theContext.SyncBool(theAttachment.mDead);
 }
 
@@ -861,6 +872,7 @@ static void SyncZombieTailPortable(PortableSaveContext& theContext, Zombie& theZ
 
 static void SyncPlantTailPortable(PortableSaveContext& theContext, Plant& thePlant)
 {
+    if (theContext.mReading) thePlant.mRunPurpleShots = thePlant.mRunSunCollectTicks = 0;
 	SyncEnum32(theContext, thePlant.mSeedType);
 	theContext.SyncInt32(thePlant.mPlantCol);
 	theContext.SyncInt32(thePlant.mAnimCounter);
@@ -913,6 +925,12 @@ static void SyncPlantTailPortable(PortableSaveContext& theContext, Plant& thePla
 
 static void SyncProjectileTailPortable(PortableSaveContext& theContext, Projectile& theProjectile)
 {
+    if (theContext.mReading)
+    {
+        theProjectile.mRunSourceSeed = SeedType::SEED_NONE;
+        theProjectile.mRunHuntHitsLeft = theProjectile.mRunLaunchDelay = 0;
+        theProjectile.mRunIceWave = false;
+    }
 	theContext.SyncInt32(theProjectile.mFrame);
 	theContext.SyncInt32(theProjectile.mNumFrames);
 	theContext.SyncInt32(theProjectile.mAnimCounter);
@@ -944,7 +962,7 @@ static void SyncProjectileTailPortable(PortableSaveContext& theContext, Projecti
 
 static void SyncCoinTailPortable(PortableSaveContext& theContext, Coin& theCoin)
 {
-    if (theContext.mReading) theCoin.mVisualOnly = false;
+    if (theContext.mReading) { theCoin.mVisualOnly = false; theCoin.mRunSunBonus = 0; }
 	theContext.SyncFloat(theCoin.mPosX);
 	theContext.SyncFloat(theCoin.mPosY);
 	theContext.SyncFloat(theCoin.mVelX);
@@ -1372,65 +1390,41 @@ static void SyncTrailPortable(Board* theBoard, Trail* theTrail, PortableSaveCont
 template <typename T, typename TSyncFn>
 static void SyncDataArrayPortable(PortableSaveContext& theContext, DataArray<T>& theDataArray, TSyncFn theSyncFn)
 {
-	theContext.SyncUInt32(theDataArray.mFreeListHead);
-	theContext.SyncUInt32(theDataArray.mMaxUsedCount);
-	theContext.SyncUInt32(theDataArray.mSize);
-	theContext.SyncUInt32(theDataArray.mNextKey);
-	uint32_t aMaxSize = theDataArray.mMaxSize;
-	theContext.SyncUInt32(aMaxSize);
-	if (theContext.mReading && aMaxSize != theDataArray.mMaxSize)
-	{
-		theContext.mFailed = true;
-	}
+	if (!SyncPoolMetadata(theContext, theDataArray)) return;
 
-	for (uint32_t i = 0; i < theDataArray.mMaxUsedCount; i++)
+	for (uint32_t i = 0; i < theDataArray.mMaxUsedCount && !theContext.mFailed; i++)
 	{
 		theContext.SyncUInt32(theDataArray.DataArrayGetIDAt(i));
 		theSyncFn(theDataArray.DataArrayGetItemAt(i));
 	}
+	FinishPoolRead(theContext, theDataArray);
 }
 
 template <typename T>
 static void SyncDataArrayIdsOnlyPortable(PortableSaveContext& theContext, DataArray<T>& theDataArray)
 {
-	theContext.SyncUInt32(theDataArray.mFreeListHead);
-	theContext.SyncUInt32(theDataArray.mMaxUsedCount);
-	theContext.SyncUInt32(theDataArray.mSize);
-	theContext.SyncUInt32(theDataArray.mNextKey);
-	uint32_t aMaxSize = theDataArray.mMaxSize;
-	theContext.SyncUInt32(aMaxSize);
-	if (theContext.mReading && aMaxSize != theDataArray.mMaxSize)
-	{
-		theContext.mFailed = true;
-	}
+	if (!SyncPoolMetadata(theContext, theDataArray)) return;
 
-	for (uint32_t i = 0; i < theDataArray.mMaxUsedCount; i++)
+	for (uint32_t i = 0; i < theDataArray.mMaxUsedCount && !theContext.mFailed; i++)
 	{
 		theContext.SyncUInt32(theDataArray.DataArrayGetIDAt(i));
 	}
+	FinishPoolRead(theContext, theDataArray);
 }
 
 template <typename T, typename TWriteFn, typename TReadFn>
 static void SyncDataArrayPortableTLV(PortableSaveContext& theContext, DataArray<T>& theDataArray, TWriteFn theWriteFn, TReadFn theReadFn)
 {
-	theContext.SyncUInt32(theDataArray.mFreeListHead);
-	theContext.SyncUInt32(theDataArray.mMaxUsedCount);
-	theContext.SyncUInt32(theDataArray.mSize);
-	theContext.SyncUInt32(theDataArray.mNextKey);
-	uint32_t aMaxSize = theDataArray.mMaxSize;
-	theContext.SyncUInt32(aMaxSize);
-	if (theContext.mReading && aMaxSize != theDataArray.mMaxSize)
-	{
-		theContext.mFailed = true;
-	}
+	if (!SyncPoolMetadata(theContext, theDataArray)) return;
 
-	for (uint32_t i = 0; i < theDataArray.mMaxUsedCount; i++)
+	for (uint32_t i = 0; i < theDataArray.mMaxUsedCount && !theContext.mFailed; i++)
 	{
 		theContext.SyncUInt32(theDataArray.DataArrayGetIDAt(i));
 		if (theContext.mReading)
 		{
 			uint32_t aItemSize = 0;
 			theContext.SyncUInt32(aItemSize);
+			if (!CanReadPortableItemData(theContext, aItemSize)) return;
 			T& anItem = theDataArray.DataArrayResetItemAt(i);
 			std::vector<unsigned char> aItemData;
 			aItemData.resize(aItemSize);
@@ -1448,6 +1442,7 @@ static void SyncDataArrayPortableTLV(PortableSaveContext& theContext, DataArray<
 					break;
 				theReadFn(aFieldId, aFieldData, aFieldSize, anItem);
 			}
+			if (!aReader.mOk) theContext.mFailed = true;
 		}
 		else
 		{
@@ -1464,6 +1459,7 @@ static void SyncDataArrayPortableTLV(PortableSaveContext& theContext, DataArray<
 				theContext.SyncBytes(aItemData.data(), aItemSize);
 		}
 	}
+	FinishPoolRead(theContext, theDataArray);
 }
 
 // Syncs a DataArray of entities: GameObject field (1U) only when T derives from GameObject, plus the tail field.
@@ -1902,6 +1898,7 @@ static void SyncSeedPacketsPortable(PortableSaveContext& theContext, Board* theB
 		{
 			uint32_t aItemSize = 0;
 			theContext.SyncUInt32(aItemSize);
+			if (!CanReadPortableItemData(theContext, aItemSize)) return;
 			std::vector<unsigned char> aItemData;
 			aItemData.resize(aItemSize);
 			if (aItemSize > 0)
@@ -2079,7 +2076,7 @@ static void SyncRelayMarksPortable(PortableSaveContext& context, Board* board)
     std::sort(ids.begin(), ids.end());
     uint32_t count = (uint32_t)ids.size();
     context.SyncUInt32(count);
-    if (context.mFailed || count > 1024) { context.mFailed = true; return; }
+    if (context.mFailed || count > board->mZombies.mMaxSize) { context.mFailed = true; return; }
     if (context.mReading) { board->mRelayedZombieIds.clear(); ids.resize(count); }
     for (auto& id : ids)
     {
@@ -2089,10 +2086,35 @@ static void SyncRelayMarksPortable(PortableSaveContext& context, Board* board)
     }
 }
 
+// @pvz-online: optional purple extension; all older portable chunks retain their layouts.
+static void SyncPurpleEffectsPortable(PortableSaveContext& context, Board* board)
+{
+    SyncRunEffectArray(context, board->mPlants, [](PortableSaveContext& c, Plant& p) {
+        c.SyncInt32(p.mRunPurpleShots); c.SyncInt32(p.mRunSunCollectTicks);
+        if (p.mRunPurpleShots < 0 || p.mRunPurpleShots > 5 || p.mRunSunCollectTicks < 0 || p.mRunSunCollectTicks >= 500) c.mFailed = true;
+    });
+    SyncRunEffectArray(context, board->mProjectiles, [](PortableSaveContext& c, Projectile& p) {
+        SyncEnum32(c, p.mRunSourceSeed);
+        c.SyncInt32(p.mRunHuntHitsLeft); c.SyncInt32(p.mRunLaunchDelay); c.SyncBool(p.mRunIceWave);
+        if (p.mRunIceWave) for (unsigned slot = 0; slot < RunWaveHitPacking::LegacySlots; ++slot) {
+            ZombieID id = c.mReading ? ZombieID::ZOMBIEID_NULL : static_cast<ZombieID>(RunWaveHitPacking::LegacyId(p.mRunWaveHitIds, slot));
+            SyncEnum32(c, id);
+            if (c.mReading) p.mRunWaveHitIds[slot] = id; // converted only after all chunks are restored
+        }
+        if (p.mRunHuntHitsLeft < 0 || p.mRunHuntHitsLeft > 3 || p.mRunLaunchDelay < 0 || p.mRunLaunchDelay > 80) c.mFailed = true;
+    });
+    SyncRunEffectArray(context, board->mCoins, [](PortableSaveContext& c, Coin& coin) {
+        c.SyncInt32(coin.mRunSunBonus); c.SyncBool(coin.mVisualOnly);
+        if (coin.mRunSunBonus < 0 || coin.mRunSunBonus > 10) c.mFailed = true;
+    });
+}
+
 static ChunkSyncFn GetChunkSyncFn(uint32_t theChunkType)
 {
 	switch (theChunkType)
 	{
+	case SAVE4_CHUNK_PURPLE_EFFECTS:
+        return SyncPurpleEffectsPortable;
 	case SAVE4_CHUNK_RELAY_MARKS:
         return SyncRelayMarksPortable;
 	case SAVE4_CHUNK_BUILD51_EFFECTS:
@@ -2227,6 +2249,9 @@ static void FixBoardAfterLoad(Board* theBoard)
 		{
 			aPlant->mApp = theBoard->mApp;
 			aPlant->mBoard = theBoard;
+			if (!aPlant->mDead && aPlant->mSeedType == SeedType::SEED_GLOOMSHROOM &&
+				theBoard->mApp->IsRunMode() && theBoard->mApp->RunPlantBuff2Count(SeedType::SEED_GLOOMSHROOM) > 0)
+				aPlant->RefreshRunMaxHealth();
 		}
 	}
 	{
@@ -2354,6 +2379,24 @@ static void FixBoardAfterLoad(Board* theBoard)
 		{
 			aLawnMower->mApp = theBoard->mApp;
 			aLawnMower->mBoard = theBoard;
+			if (!aLawnMower->mDead && theBoard->mApp->IsRunMode() && !theBoard->StageHasRoof() &&
+				theBoard->mPlantRow[aLawnMower->mRow] == PlantRowType::PLANTROW_POOL &&
+				aLawnMower->mMowerType == LawnMowerType::LAWNMOWER_LAWN &&
+				(aLawnMower->mMowerState == LawnMowerState::MOWER_READY ||
+				 aLawnMower->mMowerState == LawnMowerState::MOWER_ROLLING_IN))
+			{
+				theBoard->mApp->RemoveReanimation(aLawnMower->mReanimID);
+				aLawnMower->mMowerType = LawnMowerType::LAWNMOWER_POOL;
+				Reanimation* aMowerReanim = theBoard->mApp->AddReanimation(0.0f, 18.0f,
+					aLawnMower->mRenderOrder, ReanimationType::REANIM_POOL_CLEANER);
+				aMowerReanim->mAnimRate = 0.0f;
+				aMowerReanim->mLoopType = ReanimLoopType::REANIM_LOOP;
+				aMowerReanim->mIsAttachment = true;
+				aMowerReanim->OverrideScale(0.8f, 0.8f);
+				aMowerReanim->SetFramesForLayer("anim_land");
+				aMowerReanim->SetTruncateDisappearingFrames(nullptr, false);
+				aLawnMower->mReanimID = theBoard->mApp->ReanimationGetID(aMowerReanim);
+			}
 		}
 	}
 	{
@@ -2430,6 +2473,14 @@ static bool LawnLoadGameV4(Board* theBoard, const std::string& theFilePath)
 		return false;
 
 	FixBoardAfterLoad(theBoard);
+	if (!WaveHealthSave::LoadTrailer(theBoard, aBuffer.GetDataPtr(), static_cast<size_t>(aBuffer.GetDataLen()))) return false;
+	if (!WaveSpawnRetrySave::LoadTrailer(theBoard, aBuffer.GetDataPtr(), static_cast<size_t>(aBuffer.GetDataLen()))) return false;
+	if (!DeferredZombieSpawnSave::LoadTrailer(theBoard, aBuffer.GetDataPtr(), static_cast<size_t>(aBuffer.GetDataLen()))) return false;
+	if (!DeferredPlantSetupSave::LoadTrailer(theBoard, aBuffer.GetDataPtr(), static_cast<size_t>(aBuffer.GetDataLen()))) return false;
+	NextWaveControl::LoadTrailer(theBoard, aBuffer.GetDataPtr(), static_cast<size_t>(aBuffer.GetDataLen()));
+	theBoard->mApp->mDamageStats.LoadSaveTrailer(theBoard, aBuffer.GetDataPtr(), static_cast<size_t>(aBuffer.GetDataLen()));
+	if (!RunDotEffects::LoadTrailer(theBoard, aBuffer.GetDataPtr(), static_cast<size_t>(aBuffer.GetDataLen()))) return false;
+	if (!RunWaveHitSave::LoadTrailer(theBoard, aBuffer.GetDataPtr(), static_cast<size_t>(aBuffer.GetDataLen()), sizeof(SaveFileHeaderV4) + aHeader.mPayloadSize)) return false;
 	theBoard->mApp->mGameScene = GameScenes::SCENE_PLAYING;
 	return true;
 }
@@ -2812,6 +2863,12 @@ template <typename T> inline static void SyncDataArray(SaveGameContext& theConte
 	theContext.SyncUInt32(theDataArray.mFreeListHead);
 	theContext.SyncUInt32(theDataArray.mMaxUsedCount);
 	theContext.SyncUInt32(theDataArray.mSize);
+	if (theContext.mFailed || !theDataArray.DataArrayCanAllocate(0))
+	{
+		theContext.mFailed = true;
+		theDataArray.mFreeListHead = theDataArray.mMaxUsedCount = theDataArray.mSize = 0;
+		return;
+	}
 	auto aBlock = std::make_unique<LegacyDataArrayItem<T>[]>(theDataArray.mMaxUsedCount);
 	if (!theContext.mReading)
 	{
@@ -2820,6 +2877,16 @@ template <typename T> inline static void SyncDataArray(SaveGameContext& theConte
 			auto& aSlot = aBlock[i];
 			std::copy_n(reinterpret_cast<unsigned char*>(&theDataArray.DataArrayGetItemAt(i)), sizeof(T), aSlot.mItem);
 			aSlot.mID = theDataArray.DataArrayGetIDAt(i);
+			if constexpr (std::is_same_v<T, Projectile>) {
+				const auto& projectile = theDataArray.DataArrayGetItemAt(i);
+				if ((aSlot.mID & DATA_ARRAY_KEY_MASK) && projectile.mRunIceWave) {
+					std::array<ZombieID, RunWaveHitPacking::LegacySlots> legacy{};
+					for (unsigned slot = 0; slot < legacy.size(); ++slot)
+						legacy[slot] = static_cast<ZombieID>(RunWaveHitPacking::LegacyId(projectile.mRunWaveHitIds, slot));
+					const size_t offset = reinterpret_cast<const unsigned char*>(projectile.mRunWaveHitIds) - reinterpret_cast<const unsigned char*>(&projectile);
+					std::memcpy(aSlot.mItem + offset, legacy.data(), sizeof(legacy));
+				}
+			}
 		}
 	}
 	theContext.SyncBytes(aBlock.get(), theDataArray.mMaxUsedCount * sizeof(aBlock[0]));
@@ -2929,12 +2996,21 @@ bool LawnLoadGame(Board* theBoard, const std::string& theFilePath)
 
 	PvzpLogLn("Loaded save game (legacy)");
 	FixBoardAfterLoad(theBoard);
+	if (!WaveHealthSave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
+	if (!WaveSpawnRetrySave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
+	if (!DeferredZombieSpawnSave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
+	if (!DeferredPlantSetupSave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
+	NextWaveControl::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()));
+	theBoard->mApp->mDamageStats.LoadSaveTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()));
+	if (!RunDotEffects::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
+	if (!RunWaveHitSave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()), static_cast<size_t>(aContext.mBuffer.mReadBitPos / 8))) return false;
 	theBoard->mApp->mGameScene = GameScenes::SCENE_PLAYING;
 	return true;
 }
 
 bool LawnSaveGame(Board* theBoard, const std::string& theFilePath)
 {
+	theBoard->SyncLegacyWaveHealth();
 	std::vector<unsigned char> aPayload;
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_BOARD_BASE, theBoard)) return false;
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_ZOMBIES, theBoard)) return false;
@@ -2963,6 +3039,7 @@ bool LawnSaveGame(Board* theBoard, const std::string& theFilePath)
 	if (!WriteChunkV4(aPayload, SAVE4_CHUNK_ZOMBIE_CONTROL, theBoard)) return false;
     if (!WriteChunkV4(aPayload, SAVE4_CHUNK_BUILD51_EFFECTS, theBoard)) return false;
     if (!WriteChunkV4(aPayload, SAVE4_CHUNK_RELAY_MARKS, theBoard)) return false;
+    if (!WriteChunkV4(aPayload, SAVE4_CHUNK_PURPLE_EFFECTS, theBoard)) return false;
 
 	SaveFileHeaderV4 aHeader{};
 	memcpy(aHeader.mMagic, SAVE_FILE_MAGIC_V4, sizeof(aHeader.mMagic));
@@ -2975,5 +3052,21 @@ bool LawnSaveGame(Board* theBoard, const std::string& theFilePath)
 	memcpy(aOutBuffer.data(), &aHeader, sizeof(aHeader));
 	memcpy(aOutBuffer.data() + sizeof(aHeader), aPayload.data(), aPayload.size());
 
+	const auto waveHits=RunWaveHitSave::SaveTrailer(theBoard);
+	aOutBuffer.insert(aOutBuffer.end(),waveHits.begin(),waveHits.end());
+	const auto retry=WaveSpawnRetrySave::SaveTrailer(theBoard);
+	aOutBuffer.insert(aOutBuffer.end(),retry.begin(),retry.end());
+	const auto auxiliary=DeferredZombieSpawnSave::SaveTrailer(theBoard);
+	aOutBuffer.insert(aOutBuffer.end(),auxiliary.begin(),auxiliary.end());
+	const auto plants=DeferredPlantSetupSave::SaveTrailer(theBoard);
+	aOutBuffer.insert(aOutBuffer.end(),plants.begin(),plants.end());
+	const auto health=WaveHealthSave::SaveTrailer(theBoard);
+	aOutBuffer.insert(aOutBuffer.end(),health.begin(),health.end());
+	const auto dots=RunDotEffects::SaveTrailer(theBoard);
+	aOutBuffer.insert(aOutBuffer.end(),dots.begin(),dots.end());
+	const auto nextWave=NextWaveControl::SaveTrailer(theBoard);
+	aOutBuffer.insert(aOutBuffer.end(),nextWave.begin(),nextWave.end());
+	const auto stats = theBoard->mApp->mDamageStats.SaveTrailer();
+	aOutBuffer.insert(aOutBuffer.end(), stats.begin(), stats.end());
 	return gSexyAppBase->WriteBytesToFile(theFilePath, aOutBuffer.data(), static_cast<int>(aOutBuffer.size()));
 }

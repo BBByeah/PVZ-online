@@ -25,6 +25,7 @@
 #include "Challenge.h"
 #include "SeedPacket.h"
 #include "Run/RunBuffs.h"
+#include "Run/RunState.h"
 #include "../LawnApp.h"
 #include "CursorObject.h"
 #include "../Resources.h"
@@ -675,7 +676,7 @@ void SeedPacket::Draw(Graphics* g)
 		{
 			aPercentDark = 0.0f;
 		}
-		else if ((!mBoard->CanTakeSunMoney(aCost) && aDrawCost) || aPercentDark > 1.0f || !mBoard->PlantingRequirementsMet(aUseSeedType))
+		else if ((mApp->AdmissionBuilding() && !CanPickUp()) || (!mBoard->CanTakeSunMoney(aCost) && aDrawCost) || aPercentDark > 1.0f || !mBoard->PlantingRequirementsMet(aUseSeedType))
 		{
 			aGrayness = 128;
 		}
@@ -687,6 +688,7 @@ void SeedPacket::Draw(Graphics* g)
 
 bool SeedPacket::CanPickUp()
 {
+    if(mApp->AdmissionBuilding() && (mPacketType==SEED_CHERRYBOMB || mPacketType==SEED_JALAPENO || mPacketType==SEED_DOOMSHROOM || mPacketType==SEED_ICESHROOM || mPacketType==SEED_GRAVEBUSTER))return false;
 	if (mBoard->mPaused || mApp->mGameScene != GameScenes::SCENE_PLAYING || mPacketType == SeedType::SEED_NONE)
 	{
 		return false;
@@ -727,6 +729,7 @@ bool SeedPacket::CanPickUp()
 
 void SeedPacket::MouseDown([[maybe_unused]] int x, [[maybe_unused]] int y, [[maybe_unused]] int theClickCount)
 {
+    if(mApp->AdmissionBuilding() && !CanPickUp())return;
 	if (mBoard->mPaused || mApp->mGameScene != GameScenes::SCENE_PLAYING || mPacketType == SeedType::SEED_NONE)
 	{
 		return;
@@ -984,7 +987,7 @@ void SeedBank::Draw(Graphics* g)
 
 	if (!mBoard->HasConveyorBeltSeedBank())
 	{
-		std::string aMoneyLabel = std::to_string(std::max(mBoard->mSunMoney, 0));
+		std::string aMoneyLabel = std::to_string(std::max(mApp->AdmissionBuilding()?mApp->GetRunState()->mAdmission.budget:mBoard->mSunMoney,0));
 		Color aMoneyColor(0, 0, 0);
 		if (mBoard->mOutOfMoneyCounter > 0 && mBoard->mOutOfMoneyCounter % 20 < 10)
 		{

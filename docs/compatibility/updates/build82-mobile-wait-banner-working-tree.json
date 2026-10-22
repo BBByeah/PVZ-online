@@ -1,0 +1,13 @@
+{
+  "pcModBuild": 82,
+  "description": "Mobile no longer displays recurring lawn banners while the local lawn is clear and teammates are still fighting, while waiting for the host, or while waiting for start acknowledgements. Completion reporting, all-player barriers and other gameplay advice are retained. PC gameplay display is unchanged.",
+  "status": "working-tree",
+  "validation": {
+    "pcNativeBuildPassed": true,
+    "androidArm64NativeBuildPassed": true,
+    "threeWaitAdviceWritersRemoved": true,
+    "completionAndTransitionCallsRetained": true,
+    "androidInstalled": false,
+    "androidDeviceConnected": false
+  }
+}

@@ -42,6 +42,22 @@ import java.io.File;
 public class PvZPortableActivity extends SDLActivity {
     private static final String TAG = "PvZPortable";
     private OnBackInvokedCallback mBackCallback;
+    private boolean mLanNativeReady;
+    private static native void nativePrivateBackground(boolean background);
+
+    public void startLanHost(int port) { runOnUiThread(() -> LanHostController.start(this, port)); }
+    public int getLanHostPort() { return LanHostController.poll(); }
+    public String getLanHostError() { return LanHostController.error(); }
+    public void stopLanHost() { runOnUiThread(LanHostController::stop); }
+
+    @Override protected void onPause() {
+        if (mLanNativeReady) nativePrivateBackground(true);
+        super.onPause();
+    }
+    @Override protected void onResume() {
+        if (mLanNativeReady) nativePrivateBackground(false);
+        super.onResume();
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,12 +67,14 @@ public class PvZPortableActivity extends SDLActivity {
 
         if (!hasGameResources(extDir)) {
             super.onCreate(savedInstanceState);
-            startActivity(new Intent(this, ResourceImportActivity.class));
+            startActivity(new Intent(this, GameLaunchActivity.class));
             finish();
             return;
         }
 
         super.onCreate(savedInstanceState);
+        mLanNativeReady = true;
+        nativePrivateBackground(false);
         hideSystemUI();
         setupImeLayoutAdjustment();
 
@@ -82,6 +100,7 @@ public class PvZPortableActivity extends SDLActivity {
 
     @Override
     protected void onDestroy() {
+        if (isFinishing()) LanHostController.stop();
         if (mBackCallback != null) {
             getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(mBackCallback);
             mBackCallback = null;
@@ -154,9 +173,6 @@ public class PvZPortableActivity extends SDLActivity {
     }
 
     private static boolean hasGameResources(File dir) {
-        if (dir == null || !dir.isDirectory()) return false;
-        File pak = new File(dir, "main.pak");
-        File props = new File(dir, "properties");
-        return pak.exists() && props.isDirectory();
+        return BundledGameResources.hasResources(dir);
     }
 }

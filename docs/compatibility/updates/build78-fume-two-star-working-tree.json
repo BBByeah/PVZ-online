@@ -1,0 +1,11 @@
+{
+  "pcModBuild": 78,
+  "description": "Fume-shroom Continuous Fumes (疾雾, continuous 5 hits/sec) changes from three stars to two stars. Includes Build77 DOT buffs.",
+  "status": "working-tree",
+  "validation": {
+    "pcNativeBuildPassed": true,
+    "androidArm64NativeBuildPassed": true,
+    "twoStarConfigurationChecked": true,
+    "androidInstalled": false
+  }
+}

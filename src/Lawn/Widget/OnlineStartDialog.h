@@ -23,5 +23,7 @@ private:
     LawnApp* mApp;
     Notify mNotify;
     std::string mTitle, mBody;
+    std::vector<std::string> mPages;
+    size_t mPage = 0;
     std::vector<std::unique_ptr<Sexy::ButtonWidget>> mButtons;
 };

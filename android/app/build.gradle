@@ -10,6 +10,8 @@ configurations.all {
 
 // -PusePrebuiltLibs=true packages prebuilt jniLibs (CI); otherwise build via CMake.
 def prebuilt = project.hasProperty('usePrebuiltLibs') && project.usePrebuiltLibs.toBoolean()
+// @pvz-online: player packages carry local resources outside the source repository.
+def bundledGameAssets = project.findProperty('bundledGameAssets')
 
 // Version from git, mirroring archlinux/PKGBUILD's pkgver(); fall back to 0.1/1 without git or tags.
 def gitVersionName = {
@@ -50,11 +52,11 @@ android {
 
     defaultConfig {
         // @pvz-online: use a separate development app and data directory from the community APK.
-        applicationId "io.github.pvzonline.android"
+        applicationId (project.findProperty('testApplicationId') ?: "io.github.pvzonline.android")
         minSdk 24
         targetSdk 36
-        versionCode gitVersionCode
-        versionName "${gitVersionName}-online${onlineBuild}.${sourceRevision}"
+        versionCode Math.max(gitVersionCode, onlineBuild.toInteger())
+        versionName "${gitVersionName}-online${onlineBuild}.${sourceRevision}${bundledGameAssets ? '-full' : ''}"
 
         ndk {
             abiFilters 'arm64-v8a'
@@ -104,6 +106,8 @@ android {
 
     sourceSets {
         main {
+            if (bundledGameAssets) assets.srcDir(file(bundledGameAssets))
+            if (project.findProperty('lanHostLibraries')) jniLibs.srcDir(file(project.lanHostLibraries))
             java.srcDirs = [
                 'src/main/java',
                 "${project.rootDir}/../sdl2-src/android-project/app/src/main/java"

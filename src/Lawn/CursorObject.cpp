@@ -22,6 +22,7 @@
 #include "Board.h"
 #include "Cutscene.h"
 #include "ZenGarden.h"
+#include "System/ReanimationLawn.h"
 #include "../LawnApp.h"
 #include "CursorObject.h"
 #include "../Resources.h"
@@ -205,7 +206,8 @@ void CursorObject::Draw(Graphics* g)
 	}
 
 	case CursorType::CURSOR_TYPE_HAMMER:
-		mApp->ReanimationGet(mReanimCursorID)->Draw(g);
+        if (Reanimation* hammer = mApp->ReanimationTryToGet(mReanimCursorID)) hammer->Draw(g);
+        else mApp->mReanimatorCache->DrawReanimatorFrame(g, -25.0f, 16.0f, ReanimationType::REANIM_HAMMER, "anim_whack_zombie", DrawVariation::VARIATION_NORMAL);
 		break;
 
 	case CursorType::CURSOR_TYPE_COBCANNON_TARGET:

@@ -1,6 +1,8 @@
+#include "Run/EndlessLawn.h"
 #include "CoopPlay.h"
 // Game session flow from pinned PC Build 45 (0e08297), with native ownership/UI adapters.
 #include "../LawnApp.h"
+#include "Run/RunHistory.h"
 #include "Board.h"
 #include "Zombie.h"
 #include "Cutscene.h"
@@ -41,9 +43,9 @@ bool LawnApp::IsOnlineGame()
 bool LawnApp::IsOnlineStartAllowed()
 {
 	if (!mOnlineSession || !mOnlineSession->IsActive()) return true;
-	if (mOnlineSession->GetState() == NetSession::State::DEAD) return true;
+	if (mOnlineSession->GetState() == NetSession::State::DEAD) return !mOnlineSession->IsRelay();
 
-	return mOnlineSession->IsConnected() && mOnlineSession->GetRole() == NetSession::Role::HOST;
+    return mOnlineSession->CanHostStart();
 }
 
 bool LawnApp::IsOnlineClient()
@@ -57,7 +59,7 @@ bool LawnApp::WillWaitForStartAck()
 	return mOnlineSession != nullptr
 		&& mOnlineSession->IsConnected()
 		&& mOnlineSession->GetRole() == NetSession::Role::HOST
-		&& mOnlineSession->HasOtherSeats();
+		&& (mOnlineSession->HasOtherSeats() || mOnlineSession->HasRoundFlow());
 }
 
 void LawnApp::SetOnlineStartOverride(int theLevel, int theSeed)
@@ -81,9 +83,14 @@ void LawnApp::ClearOnlineStartOverride()
 	mHasOnlineStart = false;
 }
 
+#include "Online/StartScene.inl"
+
 void LawnApp::UpdateOnlineStart()
 {
-	if (!mOnlineSession) return;
+	if (!mOnlineSession || mOnlineSession->IsReconnecting()) return;
+    if(mOnlineWaitingStartAck && mOnlineSession->GetRole()!=NetSession::Role::HOST) {
+        mOnlineWaitingStartAck=false;KillDialog(Dialogs::DIALOG_ONLINE_START);ClearOnlineStartOverride();
+    }
 
 	// 主机侧：开局命令已经广播出去了，等队友的 START_ACK。等待期间主菜单留着
 	// （GameSelector::Update 会保住它），所以每条出路都得让菜单重新可用：
@@ -113,7 +120,7 @@ void LawnApp::UpdateOnlineStart()
 		// 回菜单"（ShowGameSelector 会把这一局的内存态一并丢掉）：撤掉这次等待，下一帧
 		// 按单人的路自己进场（棋盘在 → UpdateRunPick 的点名门；不在 → 它那条收口）。
 		// 非闯关的等待不用这条：④ 的超时会作废它。
-		if (mOnlineSession->IsConnected() && IsRunMode() && !mOnlineSession->HasOtherSeats())
+		if (mOnlineSession->IsConnected() && IsRunMode() && !mOnlineSession->HasOtherSeats() && !mOnlineSession->HasRoundFlow())
 		{
 			mOnlineWaitingStartAck = false;
 			KillDialog(Dialogs::DIALOG_ONLINE_START);
@@ -136,15 +143,7 @@ void LawnApp::UpdateOnlineStart()
 			AddDialog(Dialogs::DIALOG_ONLINE_START, aWaitDialog);
 		}
 
-		// @pvz-online: 联机闯关（R5）的换关等待：上一关的棋盘留在屏幕上当背景（UpdateRunPick
-		// 特意不拆），挂一句等待说明，别让队友看着一块不动的草坪以为卡住了。等待期间每帧
-		// 看看说明还在不在、够不够长，自己给自己续期（清理由是换关成功后棋盘一换就没了）。
-		if (IsRunMode() && mBoard != nullptr
-			&& (!mBoard->mAdvice->IsBeingDisplayed() || mBoard->mAdvice->mDuration < 50))
-		{
-			mBoard->DisplayAdvice(ModText::Tr("等待队友确认……", "Waiting for your teammate..."),
-				MessageStyle::MESSAGE_STYLE_BIG_MIDDLE, AdviceType::ADVICE_NONE);
-		}
+        // Mobile: keep the lawn unobstructed while START acknowledgements arrive.
 
 		// 收下这一轮的 ACK。记账在会话层按席位（四个人里谁答了、谁还没答，那儿看得清），
 		// 这儿只是把它们取走——留着的话下一帧会当成"迟到的 ACK"。
@@ -185,7 +184,7 @@ void LawnApp::UpdateOnlineStart()
 			// @pvz-online: 无尽局原地续关（无尽续草坪批）：全队在等这条 ACK 的换关里，
 			// 本机的草坪是"刚打赢的那块"——留着当下一关的地，别建新场（房里没别人时
 			// 走的是 EnterRunLevel 的收口，那儿挂的是同一句判断）。
-			if (!TryKeepEndlessLawn()) NewGame();
+			EndlessLawn::Enter(this);
 			// @pvz-online: 联机闯关（R6）：全队都回话了才算人齐——广播放行，各席位
 			// 在自己的草坪上开始做三选一（新建的草坪上面那句 NewGame 已经建好，无尽局
 			// 留下的草坪由 TryKeepEndlessLawn 压住开场，欠下的选项屏都由 UpdateRunPick
@@ -270,6 +269,17 @@ void LawnApp::UpdateOnlineStart()
 	}
 
 	if (!mOnlineSession->TakePendingStartLevel(aStart)) return;
+    if(mOnlineSession->NeedsRoundRejoin() && !mOnlineSession->IsWaitingForNextRound(mOnlineSession->GetLocalSeat())) {
+        KillBoard();mGameScene=GameScenes::SCENE_MENU;
+        mOnlineSession->FinishRoundRejoin();
+        mOnlineRunStartHeld=false;mOnlineRunGo=false;mRunIntroHeld=false;
+    }
+
+    if (IsOnlineStartLobby())
+    {
+        ShowOnlineStartPrompt(aStart);
+        return;
+    }
 
 	// @pvz-online: 联机闯关（R5/R6）：先无条件对齐主机的进度，命令本身寄存住。ACK 从
 	// "我选完了、进场了"改成"命令收到、我这就进场"（R6）：先让主机知道人齐、由主机广播
@@ -287,21 +297,14 @@ void LawnApp::UpdateOnlineStart()
 			return;
 		}
 
-		// @pvz-online: 人停在主菜单上的（起第一关 / 中途被拉进来）先看一眼"是否加入"，
-		// 命令寄存在询问框里，点了"加入"才对齐进度（见 OnlineStartPromptAnswer）。
-		// 人已经在闯关里被叫去换关的不问：那是正常推进，问了反而把流程卡住。
-		if (mGameScene == GameScenes::SCENE_MENU && mBoard == nullptr)
-		{
-			ShowOnlineStartPrompt(aStart);
-			return;
-		}
+		// Existing run lawns advance automatically; menu/garden invitations were handled above.
 
 		NetworkLog("[run] the host calls us into level index %u (run seed %d)",
 			(unsigned)aStart.mRunLevelIndex, (int)aStart.mRunSeed);
 		AlignRunToHost((int)aStart.mRunSeed, (int)aStart.mRunLevelIndex, (int)aStart.mRunMode, (int)aStart.mRunDiff,
 			(int)aStart.mRunScale, (int)aStart.mRunTempo, (int)aStart.mRunZombotany,
 			(int)aStart.mRunEndlessScene, (int)aStart.mRunBossFlag, (int)aStart.mRunBuffMult,
-			(int)aStart.mRunLadder, (int)aStart.mRunZombieBuff, aStart.mZombieStacks,aStart.mRunSpeedTier);
+			(int)aStart.mRunLadder, (int)aStart.mRunZombieBuff, aStart.mZombieStacks,aStart.mRunSpeedTier, aStart.mRunFirstWave,aStart.mRunEndlessOptions, aStart.mRunCrowdRule);
 		mOnlineRunStartHeld = true;
 		mOnlineRunGo = false;		// 这条是新命令：上一次的放行作废
 		mOnlineSession->SendStartAck();
@@ -331,11 +334,6 @@ void LawnApp::UpdateOnlineStart()
 	// @pvz-online: 开局流程改成"房主开始 → 其他人确认"：菜单上的人先看询问框，点了"加入"
 	// 才走下面那条进场路（见 OnlineStartPromptAnswer → EnterOnlineStart）。走到这儿的
 	// 只剩一种客人：停在吃脑子残局上、主机点了整队重来的人——那个不问，重开是整队的决定。
-	if (mGameScene == GameScenes::SCENE_MENU && mBoard == nullptr)
-	{
-		ShowOnlineStartPrompt(aStart);
-		return;
-	}
 
 	EnterOnlineStart(aStart);
 }
@@ -359,6 +357,7 @@ void LawnApp::OnlineReconnectCancelled()
 
 void LawnApp::EnterOnlineStart(const NetProto::MsgStartLevel& theMsg)
 {
+    LeaveLocalSceneForOnlineStart();
 	KillDialog(Dialogs::DIALOG_ONLINE);
 	KillGameSelector();
 	SetOnlineStartOverride((int)theMsg.mLevel, (int)theMsg.mLevelSeed);
@@ -405,6 +404,7 @@ void LawnApp::OnlineStartPromptAnswer(bool theAccepted)
 
 	if (mOnlineSession == nullptr) return;
 
+	LeaveLocalSceneForOnlineStart();
 	NetProto::MsgStartLevel aMsg = mOnlineStartPromptMsg;
 	if (aMsg.mIsRun)
 	{
@@ -415,7 +415,7 @@ void LawnApp::OnlineStartPromptAnswer(bool theAccepted)
 		AlignRunToHost((int)aMsg.mRunSeed, (int)aMsg.mRunLevelIndex, (int)aMsg.mRunMode, (int)aMsg.mRunDiff,
 			(int)aMsg.mRunScale, (int)aMsg.mRunTempo, (int)aMsg.mRunZombotany,
 			(int)aMsg.mRunEndlessScene, (int)aMsg.mRunBossFlag, (int)aMsg.mRunBuffMult,
-			(int)aMsg.mRunLadder, (int)aMsg.mRunZombieBuff, aMsg.mZombieStacks,aMsg.mRunSpeedTier);
+			(int)aMsg.mRunLadder, (int)aMsg.mRunZombieBuff, aMsg.mZombieStacks,aMsg.mRunSpeedTier, aMsg.mRunFirstWave,aMsg.mRunEndlessOptions, aMsg.mRunCrowdRule);
 		mOnlineRunStartHeld = true;
 		mOnlineRunGo = false;
 		mOnlineSession->SendStartAck();
@@ -436,6 +436,8 @@ void LawnApp::DismissOnlineStartPrompt(bool theSendAck)
 
 static void EnsureSeedsWaitDialog(LawnApp* theApp)
 {
+    // @pvz-online: the seat page owns the modal surface until the player returns to waiting.
+    if(theApp->GetDialog(Dialogs::DIALOG_ONLINE_SWAP))return;
     if (theApp->GetDialog(Dialogs::DIALOG_ONLINE_START) != nullptr) return;
     // @pvz-online: compact live roster; the existing UpdateOnlineSeeds owns release.
     theApp->AddDialog(Dialogs::DIALOG_ONLINE_START, new OnlineReadyDialog(theApp));
@@ -455,10 +457,14 @@ bool LawnApp::TryHoldSeedChooserForTeammates()
 
 	if (mOnlineSeedsHeld) return true;			// 已经拦下过一次：继续等（放行走 UpdateOnlineSeeds）
 
+    if(mRunState && mRunState->IsNewEndless() && mRunState->mLevelIndex>0 && mOnlineSession->SupportsAdmission() &&
+        mOnlineSession->IsPreparationActive() && mOnlineSession->GetPreparationPhase()!=PreparationWire::GO) {
+        mOnlineSeedsHeld=true;EnsureSeedsWaitDialog(this);return true;
+    }
 	mOnlineSession->SendSeedsReady(true);
 	// 房里就我一个：没有人可等，原版节奏直接开打（拦下来等的是不存在的队友）
-	if (!mOnlineSession->HasOtherSeats()) return false;
-	if (mOnlineSession->IsPeerSeedsReady())
+	if (!mOnlineSession->HasOtherSeats() && !mOnlineSession->IsPreparationActive()) return false;
+	if (mOnlineSession->IsPeerSeedsReady() && FinalizePreparationSeats())
 	{
 		NetworkLog("[net] the teammate picked their plants too - starting right away");
 		return false;
@@ -470,11 +476,24 @@ bool LawnApp::TryHoldSeedChooserForTeammates()
 	return true;
 }
 
+void LawnApp::ToggleOnlineSeedsReady()
+{
+    if (!mOnlineSeedsHeld || !IsOnlineGame() || !mBoard) return;
+    const bool ready=mOnlineSession->IsSeatSeedsReady(mOnlineSession->GetLocalSeat());
+    if(ready) {
+        // The waiting dialog restores the existing chooser only after authority confirms.
+        mOnlineSession->RequestSeedsReadyCancel();
+        return;
+    }
+    if(mOnlineSession->CanReadyPreparation())mOnlineSession->SendSeedsReady(true);
+}
+
 void LawnApp::UpdateOnlineSeeds()
 {
     if (mBoard && IsLocalOnlyMode(mGameMode)) return; // @pvz-online: local garden/tree only.
     if(mCoopPlay && mCoopPlay->Blocking())return;
 	if (!mOnlineSeedsHeld) return;
+    if(AdmissionBuilding())return;
 
 	// @pvz-online MOD_BUILD 39：重连期断的是我自己的线，不是"队友没了"——放行条件
 	// （IsOnlineGame）在这期间天然为假，不加这条约束会把等待门当成"等的人不会来了"
@@ -486,6 +505,23 @@ void LawnApp::UpdateOnlineSeeds()
 		return;
 	}
 
+    if(IsOnlineGame()) {
+        const auto cancel=mOnlineSession->GetReadyCancelState();
+        if(cancel==NetSession::ReadyCancelState::PENDING || cancel==NetSession::ReadyCancelState::CONFIRMED) {
+            EnsureSeedsWaitDialog(this);return;
+        }
+    }
+
+    // @pvz-online: do not release any lawn until every player has applied and saved final seat rules.
+    if(IsOnlineGame() && mOnlineSession->IsPreparationActive() &&
+        mOnlineSession->GetPreparationPhase()==PreparationWire::SEAL) {
+        if(FinalizePreparationSeats())mOnlineSession->ConfirmPreparationConfiguration();
+        EnsureSeedsWaitDialog(this);return;
+    }
+    if (IsOnlineGame() && !mOnlineSession->IsSeatSeedsReady(mOnlineSession->GetLocalSeat())) {
+        EnsureSeedsWaitDialog(this);
+        return;
+    }
 	bool aConnected = IsOnlineGame();
 	bool aSomebodyToWait = aConnected && mOnlineSession->HasOtherSeats()
 		&& !mOnlineSession->IsPeerSeedsReady();
@@ -507,14 +543,16 @@ void LawnApp::UpdateOnlineSeeds()
 	{
 		NetworkLog("[net] the whole team is ready - here we go");
 	}
+	if(!FinalizePreparationSeats())return;
+    KillDialog(Dialogs::DIALOG_ONLINE_SWAP);
 	KillDialog(Dialogs::DIALOG_ONLINE_START);
 	mOnlineSeedsHeld = false;
 	// @pvz-online: 两道门共用这一个开合（R7）。卡池>10 拦的是选卡界面的关屏（Let's Rock），
 	// 放行 = 再走一遍关屏（这一遍门会放行）。卡池≤10 的关卡没有选卡界面（"选卡"是草坪上
 	// 的三选一屏，门在 UpdateRunPick 的 ①），放行 = 解冻 + 开场——和那道门口的收口对上。
-	if (mBoard != nullptr && mBoard->ChooseSeedsOnCurrentLevel())
+	if (mBoard != nullptr && mBoard->ChooseSeedsOnCurrentLevel() && mSeedChooserScreen != nullptr)
 	{
-		if (mSeedChooserScreen != nullptr) mSeedChooserScreen->CloseSeedChooser();
+		mSeedChooserScreen->CloseSeedChooser();
 	}
 	else if (mBoard != nullptr && mRunIntroHeld)
 	{
@@ -529,31 +567,40 @@ void LawnApp::UpdateOnlineRelay()
 	if (!mOnlineSession) return;
 
 	NetProto::MsgEscapedZombie aMsg;
-	while (mOnlineSession->TakePendingEscapedZombie(aMsg))
+	while (mOnlineSession->PeekPendingEscapedZombie(aMsg))
 	{
 		if (mBoard == nullptr)
 		{
+			mOnlineSession->TakePendingEscapedZombie(aMsg);
 			NetworkLog("[net] dropped a relayed zombie: no board to put it on (row %u type %u)",
 				(unsigned)aMsg.mRow, (unsigned)aMsg.mZombieType);
 			continue;
 		}
 
+        // Match AddRelayedZombie's content checks before distinguishing invalid data
+        // from temporary pool pressure. Invalid packets must not block the FIFO.
+        const auto type=static_cast<ZombieType>(aMsg.mZombieType);
+        const bool boss=(aMsg.mFlags & NetProto::ESCAPED_FLAG_RUN_BOSS)!=0;
+        if(aMsg.mRow>=MAX_GRID_SIZE_Y || type<0 || type>=ZombieType::NUM_ZOMBIE_TYPES ||
+            aMsg.mBodyHealth<=0 || (aMsg.mFlags & ~NetProto::ESCAPED_FLAG_RUN_BOSS) ||
+            (boss && type!=ZombieType::ZOMBIE_REDEYE_GARGANTUAR &&
+                type!=ZombieType::ZOMBIE_FOOTBALL && type!=ZombieType::ZOMBIE_ZAMBONI)) {
+            mOnlineSession->TakePendingEscapedZombie(aMsg);
+            NetworkLog("[net] rejected invalid relayed zombie: row %u type %u hp %d",
+                (unsigned)aMsg.mRow,(unsigned)aMsg.mZombieType,(int)aMsg.mBodyHealth);
+            continue;
+        }
+
 		Zombie* aZombie = mBoard->AddRelayedZombie((int)aMsg.mRow, (ZombieType)aMsg.mZombieType,
 			(int)aMsg.mBodyHealth, (int)aMsg.mHelmHealth, (int)aMsg.mShieldHealth, (int)aMsg.mFlyingHealth,
             aMsg.mFlags, aMsg.mBodyMaxHealth, aMsg.mHelmMaxHealth, aMsg.mShieldMaxHealth, aMsg.mFlyingMaxHealth, (int)aMsg.mSrcSeat);
-		if (aZombie == nullptr)
-		{
-			// 满场或包内容越界。掉一只怪等于把队友的惩罚取消了，但除了日志没有别的办法。
-			NetworkLog("[net] could not put the relayed zombie on the board: row %u type %u hp %d",
-				(unsigned)aMsg.mRow, (unsigned)aMsg.mZombieType, (int)aMsg.mBodyHealth);
-			continue;
-		}
+        if (aZombie == nullptr)break; // Leave the head queued; never lose a transferred zombie.
+        mOnlineSession->TakePendingEscapedZombie(aMsg); // Commit only after successful spawn.
 
 		NetworkLog("[net] relayed zombie is on the board: row %u type %u hp %d/%d/%d/%d",
 			(unsigned)aMsg.mRow, (unsigned)aMsg.mZombieType,
 			(int)aMsg.mBodyHealth, (int)aMsg.mHelmHealth,
-			(int)aMsg.mShieldHealth, (int)aMsg.mFlyingHealth,
-            aMsg.mFlags, aMsg.mBodyMaxHealth, aMsg.mHelmMaxHealth, aMsg.mShieldMaxHealth, aMsg.mFlyingMaxHealth);
+			(int)aMsg.mShieldHealth, (int)aMsg.mFlyingHealth);
 	}
 
 	// @pvz-online: 发阳光（MOD_BUILD 38）——队友发来的到账额直接入账（封顶 9990）+
@@ -659,6 +706,12 @@ void LawnApp::UpdateOnlineEvents()
 		switch (anEvent.mType)
 		{
 		case NetSession::EventType::CONNECTED:
+            // A fresh join during battle waits for the next stage, without replaying waves.
+            if(IsRunMode() && mBoard && mGameScene==GameScenes::SCENE_PLAYING &&
+                !mRunIntroHeld && !mOnlineRunStartHeld && !mOnlineWaitingStartAck &&
+                mRunState->GetLevel()==mBoard->mLevel &&
+                mOnlineSession->WaitForNextRound(mOnlineSession->GetPeerSeat()))break;
+
 			NetworkLog("[net] the teammate is here - you can pick a level now");
 			// @pvz-online: 联机闯关（R5）：本机正跑着一局、队友才连进来——立刻把他拉进
 			// 当前这一关（他没检查点/对不上就走补发追赶）。不拉的话，这一关的"全队判胜"
@@ -677,7 +730,7 @@ void LawnApp::UpdateOnlineEvents()
 					(uint8_t)mRunState->mScale, (uint8_t)mRunState->mTempo, (uint8_t)mRunState->mZombotany,
 					(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag,
 					(uint8_t)mRunState->mBuffMult, (uint8_t)mRunState->mLadder,
-					(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks,(uint8_t)mRunState->mSpeedTier);
+					(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks,(uint8_t)mRunState->mSpeedTier, (uint8_t)mRunState->mFirstWave, (uint8_t)mRunState->mEndlessOptions, (uint8_t)mRunState->mCrowdRule);
 			}
 			break;
 
@@ -690,6 +743,10 @@ void LawnApp::UpdateOnlineEvents()
 			// 不回 ACK——会话都没了。主机那边等待中的看板框由 UpdateOnlineStart 自己收
 			// （它每帧查 IsConnected）。
 			DismissOnlineStartPrompt(false);
+            if(mOnlineSession->IsRelay() && mBoard) {
+                DoOnlineDialog();
+                break;
+            }
 			// @pvz-online: 闯关的"等放行"空档里掉线（命令收下了、RUN_GO 还没来）：放行
 			// 永远等不到了，寄存作废。棋盘在的话下面整队收摊（ShowGameSelector 再清一遍）；
 			// 人还在菜单上的就此放手——等不来放行，照旧按单机那条路进场（mRunState 不动）。
@@ -726,6 +783,13 @@ void LawnApp::UpdateOnlineEvents()
 			break;
 
 		case NetSession::EventType::PEER_JOINED:
+            // A fresh join during battle waits for the next stage, without replaying waves.
+            if(IsRunMode() && mBoard && mGameScene==GameScenes::SCENE_PLAYING &&
+                !mRunIntroHeld && !mOnlineRunStartHeld && !mOnlineWaitingStartAck &&
+                mRunState->GetLevel()==mBoard->mLevel &&
+                mOnlineSession->WaitForNextRound(anEvent.mSeat))break;
+
+            if(mRunState && mRunState->IsNewEndless() && mRunState->mLevelIndex>0 && mOnlineSession->SupportsAdmission())break;
 			// @pvz-online: 中继：有人进了房（mSeat 说清是谁）——直连没有这条，那边的
 			// 第一个人就是 CONNECTED。本机在棋盘上跑着闯关局、又是主机：当场把他拉进
 			// 当前这一关（他没检查点/对不上就走补发追赶）。不拉的话这一关的"全队判胜"
@@ -744,7 +808,7 @@ void LawnApp::UpdateOnlineEvents()
 					(uint8_t)mRunState->mScale, (uint8_t)mRunState->mTempo, (uint8_t)mRunState->mZombotany,
 					(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag,
 					(uint8_t)mRunState->mBuffMult, (uint8_t)mRunState->mLadder,
-					(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks,(uint8_t)mRunState->mSpeedTier);
+					(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks,(uint8_t)mRunState->mSpeedTier, (uint8_t)mRunState->mFirstWave, (uint8_t)mRunState->mEndlessOptions, (uint8_t)mRunState->mCrowdRule);
 			}
 			break;
 
@@ -783,7 +847,20 @@ void LawnApp::UpdateOnlineEvents()
 			mOnlineSession->PostNotice(ModText::Tr("已重新连接。", "Reconnected."));
 			break;
 
-		case NetSession::EventType::PEER_OFFLINE:
+		case NetSession::EventType::HOST_CHANGED:
+            DismissOnlineStartPrompt(false);
+            ZombieVoteCloseUI();mZombieVoteFrames=0;mZombieVoteMyChoice=-1;mZombieVoteSeatMask=0;mZombieVoteVotedSeats=0;
+            if(mOnlineSession->NeedsHostStartRecovery()) {
+                mOnlineWaitingStartAck=true;mOnlineStartWaitFrames=0;
+                mOnlineRunStartHeld=false;mOnlineRunGo=true;
+                mOnlineSession->FinishHostStartRecovery();
+            } else if(mOnlineSession->GetRole()!=NetSession::Role::HOST) {
+                mOnlineWaitingStartAck=false;
+            }
+            mOnlineSession->PostNotice(ModText::Tr("房主已交接，队伍继续。","A new host has taken over."));
+            break;
+
+        case NetSession::EventType::PEER_OFFLINE:
 			{
 				// 队友掉线、席位进了保留期：给个说法。等待门不动（他那格还占着）——全队
 				// 一起等他回来；保留期走完服务器会广播 PEER_LEAVE，那时才清格放行。
@@ -813,11 +890,22 @@ void LawnApp::UpdateOnlineEvents()
 
 void LawnApp::UpdateOnlineEnd()
 {
+    if (mOnlineSession && mOnlineSession->RelayBattleHeld()) return;
     if (mBoard && IsLocalOnlyMode(mGameMode)) return; // @pvz-online: local garden/tree only.
-	if (!mOnlineSession) return;
+	if (!mOnlineSession || mOnlineSession->IsReconnecting()) return;
+    const bool canComplete = mBoard && mGameScene == GameScenes::SCENE_PLAYING &&
+        !mOnlineWaitingStartAck && !mOnlineRunStartHeld && !mRunIntroHeld &&
+        (!IsRunMode() || (!mRunState->HasPendingPick() && !mRunState->IsCatchingUp() &&
+            mRunState->GetLevel() == mBoard->mLevel));
+
+    NetProto::MsgEscapedZombie pendingRelay;
+    const bool hasPendingRelay=mOnlineSession->PeekPendingEscapedZombie(pendingRelay);
+    // A delayed team-complete message cannot overrule the current local board.
+    const bool localClear = canComplete && !hasPendingRelay && mBoard->mLevelAwardSpawned &&
+        !mBoard->AreEnemyZombiesOnScreen();
 
 	// ①
-	if (mBoard != nullptr)
+	if (canComplete)
 	{
 		// @pvz-online: 联机闯关（R5）的换关空档：点名还在飞的时候（主机等 ACK / 客户端把
 		// 命令寄存着），屏幕上这块是**上一关**的棋盘——它当然清完了，但这一关的记账已经
@@ -826,30 +914,15 @@ void LawnApp::UpdateOnlineEnd()
 		bool aHandoff = mOnlineWaitingStartAck || mOnlineRunStartHeld;
 		if (!aHandoff)
 		{
-			bool aClear = mBoard->mLevelAwardSpawned && !mBoard->AreEnemyZombiesOnScreen();
+			bool aClear = localClear;
 			mOnlineSession->SendLevelDone(aClear);
 
-			// 单方先清完：棋盘上挂一句"等队友们"，别让人以为卡住了。这条消息自己会过期
-			// （15 秒），所以在快到期时续一次，让等待期间一直看得见。房里没别人时不挂
-			//（等的是不存在的队友，紧接着就按"全队清完"收摊）。
-			bool aWaiting = aClear && mOnlineSession->HasOtherSeats()
-				&& !mOnlineSession->IsPeerLevelDone();
-			if (aWaiting && (!mBoard->mAdvice->IsBeingDisplayed() || mBoard->mAdvice->mDuration < 50))
-			{
-				mBoard->DisplayAdvice(ModText::Tr("等待队友完成这一关……", "Waiting for the teammates..."),
-					MessageStyle::MESSAGE_STYLE_BIG_MIDDLE, AdviceType::ADVICE_NONE);
-				mOnlineWaitingAdviceOn = true;
-			}
-			else if (!aWaiting && mOnlineWaitingAdviceOn)
-			{
-				mBoard->ClearAdvice(AdviceType::ADVICE_NONE);
-				mOnlineWaitingAdviceOn = false;
-			}
+            // Completion is still reported above; mobile waits without a lawn banner.
 		}
 	}
 
 	// ② 全队清完
-	if (mOnlineSession->TakeAllLevelsDone())
+	if (localClear && mOnlineSession->TakeAllLevelsDone())
 	{
 		// 等到齐了：那句"等队友们"当场撤掉——棋盘还要当换关的背景 / 三选一屏的地，
 		// 别让它挂在那儿过期。
@@ -869,21 +942,28 @@ void LawnApp::UpdateOnlineEnd()
 				NetworkLog("[net] every lawn is clear - the run moves on");
 				AwardRunRerollVoucher();
         ExpireCoopLoan();
+        if(EndlessLawn::StopAtLimit(this))return;
+        EndlessLawn::RememberLineup(mBoard);
         mRunState->AdvanceLevel();
 				if (mRunState->IsComplete())
 				{
 					NetworkLog("[run] the run is complete");
-					RunState::DeleteCheckpoint(mPlayerInfo->mId);
+					RunHistory::Capture(this,RunHistory::COMPLETE);
+                    RunState::DeleteCheckpoint(mPlayerInfo->mId);
 					// 通关收尾（批十）：亮奖杯屏，回主菜单交给屏上的按钮——mRunState 那一刻
 					// 才由 ShowGameSelector 收掉，在那之前它得留着（屏要把关数报出来）。
 					// 这局已经结束：棋盘不再当换关背景，和其它收尾一样拆掉。
 					KillBoard();
-					ShowGameSelector();
-					LawnMessageBox(DIALOG_MESSAGE, ModText::Tr("闯关完成", "Run complete"), ModText::Tr("这一局已通过全部关卡。", "Every level in this run is complete."), "OK", "", Dialog::BUTTONS_FOOTER);
+					ShowAwardScreen(AWARD_RUN_COMPLETE, false);
 				}
 				else
 				{
 					mRunState->BeginLevelEndPicks();
+                // @pvz-online: freeze the old lawn during rewards; a playing scene cannot run the next intro.
+                if(mRunState->IsEndless() && mBoard) {
+                    mRunIntroHeld=true;mGameScene=GameScenes::SCENE_LEVEL_INTRO;
+                }
+                mRunState->Save(mPlayerInfo->mId);
 				}
 			}
 			else
@@ -923,6 +1003,8 @@ void LawnApp::RetryOnlineLevel()
 {
 	if (mOnlineSession == nullptr || mBoard == nullptr) return;
 	if (mOnlineSession->GetRole() != NetSession::Role::HOST) return;
+    if (mOnlineWaitingStartAck || !mOnlineSession->CanHostStart()) return;
+    KillDialog(Dialogs::DIALOG_GAME_OVER);
 
 	// @pvz-online: 联机闯关（R5）：整队重来本关，这一局不能丢——走"回主菜单再开局"那条路
 	// 会把 mRunState 删掉（ShowGameSelector），队友收到的就是一条没有闯关上下文的开局命令。
@@ -953,7 +1035,7 @@ void LawnApp::RetryOnlineLevel()
 			(uint8_t)mRunState->mScale, (uint8_t)mRunState->mTempo, (uint8_t)mRunState->mZombotany,
 			(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag,
 			(uint8_t)mRunState->mBuffMult, (uint8_t)mRunState->mLadder,
-			(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks,(uint8_t)mRunState->mSpeedTier);
+			(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks,(uint8_t)mRunState->mSpeedTier, (uint8_t)mRunState->mFirstWave, (uint8_t)mRunState->mEndlessOptions, (uint8_t)mRunState->mCrowdRule);
 		return;
 	}
 
@@ -980,6 +1062,9 @@ void LawnApp::RetryOnlineLevel()
 
 void LawnApp::EnterRunLevel()
 {
+    if (mOnlineSession && mOnlineSession->IsRelay() &&
+        mOnlineSession->GetRole() == NetSession::Role::HOST && !mOnlineSession->CanHostStart())
+    { DoOnlineDialog(); return; }
 	KillRunFlowScreen();
 	int aLevel = mRunState->GetLevel();
 	int aSeed = mRunState->GetLevelSeed();
@@ -1005,7 +1090,7 @@ void LawnApp::EnterRunLevel()
 			(uint8_t)mRunState->mScale, (uint8_t)mRunState->mTempo, (uint8_t)mRunState->mZombotany,
 			(uint8_t)mRunState->mEndlessScene, (uint8_t)mRunState->mBossFlag,
 			(uint8_t)mRunState->mBuffMult, (uint8_t)mRunState->mLadder,
-			(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks,(uint8_t)mRunState->mSpeedTier);
+			(uint8_t)mRunState->mZombieBuffMode, mRunState->mZombieBuffStacks,(uint8_t)mRunState->mSpeedTier, (uint8_t)mRunState->mFirstWave, (uint8_t)mRunState->mEndlessOptions, (uint8_t)mRunState->mCrowdRule);
 		return;
 	}
 
@@ -1029,15 +1114,16 @@ void LawnApp::EnterRunLevel()
 	if (mOnlineSession != nullptr && mOnlineSession->GetRole() == NetSession::Role::HOST)
 	{
 		mOnlineSession->DiscardLevelPackets();
+        if(mRunState->IsNewEndless() && mOnlineSession->SupportsAdmission())SendAdmissionStart(NetProto::SEAT_UNSET);
 	}
 	// @pvz-online: 无尽局原地续关（无尽续草坪批）：这块草坪刚打赢（单机 mLevelComplete /
 	// 联机 mLevelAwardSpawned），留着当地——下一关的波次与三选一收尾都在放开开场那一刻。
-	if (!TryKeepEndlessLawn()) NewGame();
+	EndlessLawn::Enter(this);
 }
 
 void LawnApp::AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode, int theRunDiff,
 	int theRunScale, int theRunTempo, int theZombotany, int theEndlessScene, int theBossFlag,
-	int theBuffMult, int theLadder, int theZombieBuff, const uint8_t* theZombieStacks,int theSpeedTier)
+	int theBuffMult, int theLadder, int theZombieBuff, const uint8_t* theZombieStacks,int theSpeedTier, int theFirstWave, int theEndlessOptions, int theCrowdRule)
 {
 	// 时长档来自对端（构建代次不同只提示、不拒连）：非法值按完整版处理，别让它把
 	// 越界模式一路带进关卡表。无尽档（3）是合法档，得放行——钳成完整版会让客户端
@@ -1117,7 +1203,7 @@ void LawnApp::AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode,
 	}
 
 	if (mRunState != nullptr
-		&& (mRunState->mRunSeed != theRunSeed || mRunState->mMode != theRunMode
+		&& ((mOnlineSession->HasAdmissionOffer(theTargetIndex) && mRunState->mAdmission.run!=mOnlineSession->mAdmissionOffer.run) || mRunState->mRunSeed != theRunSeed || mRunState->mMode != theRunMode
 			|| mRunState->mDiff != theRunDiff
 			|| mRunState->mEndlessScene != theEndlessScene
 			|| mRunState->mLevelIndex > theTargetIndex))
@@ -1125,14 +1211,21 @@ void LawnApp::AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode,
 		NetworkLog("[run] the local run does not match the host (seed %d vs %d, mode %d vs %d, diff %d vs %d, scene %d vs %d, index %d vs %d) - rebuilding",
 			mRunState->mRunSeed, theRunSeed, mRunState->mMode, theRunMode, mRunState->mDiff, theRunDiff,
 			mRunState->mEndlessScene, theEndlessScene, mRunState->mLevelIndex, theTargetIndex);
+        KillRunFlowScreen(); // Rebuild labels and actions for the replacement run.
 		mRunState.reset();
 		mRunState = nullptr;
 	}
 
+    bool initializeStartPicks = false;
 	if (mRunState == nullptr)
 	{
 		mRunState = std::make_unique<RunState>();
-		if (!mRunState->Load(mPlayerInfo->mId)
+        bool loaded=mRunState->Load(mPlayerInfo->mId,theRunMode,theEndlessScene,false,mOnlineSession->HasAdmissionOffer(theTargetIndex)?mOnlineSession->mAdmissionOffer.run:0);
+        if(!loaded && mOnlineSession->HasAdmissionOffer(theTargetIndex)) {
+            loaded=mRunState->Load(mPlayerInfo->mId,theRunMode,theEndlessScene);
+            if(loaded && (mRunState->mAdmission.run!=mOnlineSession->mAdmissionOffer.run || mRunState->mAdmission.player!=mOnlineSession->mCoopToken))loaded=false;
+        }
+		if (!loaded
 			|| mRunState->mRunSeed != theRunSeed
 			|| mRunState->mMode != theRunMode
 			|| mRunState->mDiff != theRunDiff
@@ -1141,7 +1234,7 @@ void LawnApp::AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode,
 		{
 			mRunState->StartNew(theRunSeed, theRunMode, theRunDiff,
 				RunState::RUN_SCALE_STD, RunState::RUN_TEMPO_STD, 0, theEndlessScene);
-			mRunState->BeginStartPicks();
+            initializeStartPicks = true;
 			NetworkLog("[run] aligning to the host: a fresh run at seed %d (mode %d, diff %d, scene %d), catching up to index %d",
 				theRunSeed, theRunMode, theRunDiff, theEndlessScene, theTargetIndex);
 		}
@@ -1156,19 +1249,31 @@ void LawnApp::AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode,
 	// 房主的值覆盖（不参与上面的重建判等——改这三样不该把队友手里的整局作废）。
 	// 增益倍选（MOD_BUILD 43）同口径：房间级设置、只覆盖不参与重建判等。
 	// 场景难度阶梯 + 僵尸 buff 档（MOD_BUILD 45）同理（前者也无尽档不生效，照存）。
-	// 8 条强化层数是"本局进度"而非设置：权威快照在主机（投票结果只驱动 UI、层数只信
+	// 9 条强化层数是"本局进度"而非设置：权威快照在主机（投票结果只驱动 UI、层数只信
 	// START_LEVEL），一律按这条命令的 8 字节覆盖——中途加入/追赶/重试不走样。
 	mRunState->mScale = theRunScale;
 	mRunState->mTempo = theRunTempo;
 	mRunState->mZombotany = theZombotany;
 	mRunState->mBossFlag = mRunState->mMode != RunState::RUN_MODE_ENDLESS ? theBossFlag : 0;
     mRunState->mSpeedTier=theSpeedTier>=0 && theSpeedTier<=2 ? theSpeedTier : 0;
+	mRunState->mFirstWave = theFirstWave >= RunState::RUN_FIRSTWAVE_STD && theFirstWave <= RunState::RUN_FIRSTWAVE_LONG ? theFirstWave : RunState::RUN_FIRSTWAVE_STD;
+	mRunState->mEndlessOptions = EndlessRules::Valid(theEndlessOptions) && mRunState->IsEndless() ? theEndlessOptions : 0;
+    // @pvz-online: retain local progress but never restore a lawn created under another crowd rule.
+    const int crowdRule = CrowdRules::Valid(static_cast<unsigned>(theCrowdRule)) ? theCrowdRule : CrowdRules::LEGACY;
+    if (mRunState->mCrowdRule != crowdRule) {
+        mRunState->mEndlessLawn.clear(); mRunState->mEndlessRetryLawn.clear();
+        mRunState->mEndlessSnapshotLevel = -1; mRunState->mEndlessSnapshotPhase = 0;
+    }
+    mRunState->mCrowdRule = crowdRule;
 	mRunState->mBuffMult = theBuffMult;
 	mRunState->mLadder = theLadder;
 	mRunState->mZombieBuffMode = theZombieBuff;
 	for (int i = 0; i < RunState::RUN_ZOMBIE_BUFF_COUNT; i++)
 		mRunState->mZombieBuffStacks[i] = theZombieStacks ? theZombieStacks[i] : 0;
 
+    ApplyAdmissionOffer(theTargetIndex);
+    if(initializeStartPicks && mRunState->mAdmission.phase==Admission::NONE && mRunState->mLevelIndex==0)
+        mRunState->BeginStartPicks();
 	if (mRunState->mLevelIndex < theTargetIndex)
 	{
 		mRunState->BeginCatchUp(theTargetIndex);
@@ -1205,30 +1310,44 @@ bool LawnApp::TryKeepEndlessLawn()
 
 void LawnApp::ReleaseRunIntro()
 {
+    // @pvz-online: admission already consumed its chooser; restarting that intro dereferences it.
+    if(mBoard && mRunState && mRunState->IsNewEndless() && mRunState->mAdmission.phase>=Admission::PREPARED && !mSeedChooserScreen) {
+        mRunIntroHeld=false;mBoard->mCutScene->mSeedChoosing=false;
+        mBoard->RemoveCutsceneZombies();mBoard->mMenuButton->mBtnNoDraw=false;
+        mBoard->mShowShovel=true;mBoard->Move(0,0);mBoard->mSeedBank->Move(10,0);
+        mBoard->mSeedBank->mCutSceneDarken=0;StartPlaying();return;
+    }
 	if (mBoard != nullptr && mRunState != nullptr && mRunState->IsEndless()
 		&& mBoardResult != BoardResult::BOARDRESULT_LOST
 		&& (mBoard->mLevelComplete || mBoard->mLevelAwardSpawned))
 	{
 		mBoard->InitEndlessRunStage();
 	}
+// @pvz-online: restarting an intro requires its scene as well as a cleared hold flag.
+    mGameScene = GameScenes::SCENE_LEVEL_INTRO;
 	mRunIntroHeld = false;
 	mBoard->mCutScene->StartLevelIntro();
 }
 
 void LawnApp::UpdateRunPick()
 {
-	if (mRunState == nullptr) return;
+	if (mRunState == nullptr || (mOnlineSession && mOnlineSession->IsReconnecting())) return;
+    if(mRunState->mAdmission.fast || AdmissionBuilding())return;
 
 	// @pvz-online: 通关收尾期（批十：奖杯屏挂着、mRunState 还没被屏上按钮后的
 	// ShowGameSelector 收掉）什么都不做——尤其别走底下"棋盘不在就开下一关"那条：
 	// 关序号已经越界（== 关数），一开就是坏局。
-	if (mRunState->IsComplete()) return;
+	if (mRunState->IsComplete() || mRunState->mEndlessSnapshotPhase==4) return;
 
 	// ① 新草坪已经建好、开场压着（R6 起联机与单机闯关都走这条）：三选一屏就摆在草坪上，
 	// 补发追赶一屏接一屏地补。全都清完才按最新的卡池重填卡槽、放开选卡与开场——
 	// 和 NewGame 的收尾两行同款。草坪没建起来之前一张屏都不摆，这正是 R6 要的：
 	// 选项不再盖在主菜单 / 上一关的残局上。
-	if (mRunIntroHeld && mBoard != nullptr)
+	// @pvz-online: a retained cleared lawn must finish START/ACK/RUN_GO before reward/intro release.
+    // The completion latch resets when the next command is sent/received; waiting flags cover its flight.
+    const bool waitingEndlessHandoff = IsOnlineGame() && mRunState->IsEndless() &&
+        (mOnlineSession->IsLocalLevelDone() || mOnlineWaitingStartAck || mOnlineRunStartHeld);
+    if (mRunIntroHeld && mBoard != nullptr && !waitingEndlessHandoff)
 	{
         if (TryOpenZombieVote()) return;
 		if (mRunState->HasPendingPick())
@@ -1289,7 +1408,7 @@ void LawnApp::UpdateRunPick()
 		// 队友没齐就等。等待期草坪继续冻着（mRunIntroHeld 保持 true，CutScene::Update
 		// 一步不走）；齐了由 UpdateOnlineSeeds 撤框、解冻、开场。
 		if (!mBoard->ChooseSeedsOnCurrentLevel() && IsOnlineGame()
-			&& mOnlineSession->HasOtherSeats() && !mOnlineSession->IsPeerSeedsReady())
+			&& (mOnlineSession->HasOtherSeats() || mOnlineSession->IsPreparationActive()) && !mOnlineSession->IsPeerSeedsReady())
 		{
 			mOnlineSeedsHeld = true;
 			NetworkLog("[net] no seed chooser on this level - holding the intro until the whole team is ready");
@@ -1317,8 +1436,7 @@ void LawnApp::UpdateRunPick()
 			// 点不重。自己欠的三选一不在这儿做（R6）：人各进各的新草坪，那几屏在 ① 做。
 			// 房里没别人时（一个人开的房 / 队友都走了）没有要等的人：自己清完就点名——
 			// 单人房不通这条的话，这一局到这儿就没人动了（2026-10-03 实机复现）。
-			if (!mOnlineWaitingStartAck && mOnlineSession->IsLocalLevelDone()
-				&& (mOnlineSession->IsPeerLevelDone() || !mOnlineSession->HasOtherSeats()))
+			if (!mOnlineWaitingStartAck && (mOnlineSession->HasCompletedRound() || (mBoardResult==BoardResult::BOARDRESULT_LOST && mOnlineSession->CanHostStart())))
 			{
 				if (TryOpenZombieVote()) return;
             EnterRunLevel();
@@ -1331,15 +1449,8 @@ void LawnApp::UpdateRunPick()
 			if (TryOpenZombieVote()) return;
             EnterRunLevel();
 		}
-		else if (aMyLevelOver
-			&& (!mBoard->mAdvice->IsBeingDisplayed() || mBoard->mAdvice->mDuration < 50))
-		{
-			// 本关打完、还进不了下一关的这段：客户端是在等主机点名 / 放行，主机自己是在等
-			// 队友把这一关打完 / 回话（主机点名的那两个前提都在别处挂着提示，这里只是兜底）。
-			bool aHostRole = mOnlineSession->GetRole() == NetSession::Role::HOST;
-			mBoard->DisplayAdvice(aHostRole ? ModText::Tr("等待队友……", "Waiting for the teammate...") : ModText::Tr("等待房主……", "Waiting for the host..."),
-				MessageStyle::MESSAGE_STYLE_BIG_MIDDLE, AdviceType::ADVICE_NONE);
-		}
+        // Mobile: waiting for the host/other lawns never replaces gameplay advice.
+
 		return;
 	}
 
@@ -1348,8 +1459,12 @@ void LawnApp::UpdateRunPick()
 	// 会话断了的客户端不在此列（IsOnlineClient 为假）：等不来放行，照旧按单机那条路进场。
 	if (IsOnlineClient())
 	{
-		if (mOnlineRunGo) if (TryOpenZombieVote()) return;
-            EnterRunLevel();
+		// @pvz-online: the client must wait for RUN_GO even when no old board remains.
+		if (mOnlineRunGo)
+		{
+			if (TryOpenZombieVote()) return;
+			EnterRunLevel();
+		}
 		return;
 	}
 	// @pvz-online: 点名已经发出去了（主机在等 START_ACK）就别再点——这条路口每帧都经过，
@@ -1418,6 +1533,7 @@ void LawnApp::DoOnlineDialog()
 		if (mPlayerInfo) mOnlineSession->SetLocalName(mPlayerInfo->mName.c_str());
 	}
 
+	InitializeAdmissionIdentity();
 	KillDialog(Dialogs::DIALOG_ONLINE);
 
 	OnlineDialog* aDialog = new OnlineDialog(this);
@@ -1477,6 +1593,12 @@ bool LawnApp::TryOpenZombieVote()
 	// aLevel = 新场景首票，轮次与横幅累积归零。
 	if ((int)mRunState->mZombieVotedLevel == aLevel)
 	{
+        if(mRunState->IsNewEndless() && mZombieVoteRoundsDone==0) {
+            mZombieVoteRoundsDone=mRunState->mEndlessVoteRounds;
+            mZombieVoteBannerCount=0;
+            for(int i=0;i<2;++i)if(mRunState->mEndlessVoteIds[i]<RunState::RUN_ZOMBIE_BUFF_COUNT)
+                mZombieVoteBannerIds[mZombieVoteBannerCount++]=mRunState->mEndlessVoteIds[i];
+        }
 		if (mZombieVoteRoundsDone <= 0 || mZombieVoteRoundsDone >= mRunState->GetZombieBuffPerScene())
 			return false;
 	}
@@ -1490,6 +1612,13 @@ bool LawnApp::TryOpenZombieVote()
 
 	unsigned char aCandidates[RunState::RUN_ZOMBIE_VOTE_CHOICES];
 	mRunState->RollZombieVoteChoices(aLevel, aCandidates);
+        if(!mRunState->HasZombieBuffChoices()) {
+            mRunState->mZombieVotedLevel=(unsigned short)aLevel;
+            mZombieVoteRoundsDone=mRunState->GetZombieBuffPerScene();
+            mRunState->mEndlessVoteRounds=mZombieVoteRoundsDone;
+            if(mBoard)mBoard->PushCustomBanner(ModText::Tr("僵尸强化已全部达到上限，本次跳过。","All zombie boosts are capped; this ballot is skipped."));
+            mRunState->Save(mPlayerInfo->mId); return false;
+        }
 	// 两屏制第二屏：候选剔除本场景已入的条目（延续单屏「取前 N 个不同候选」的语义——
 	// 档 2 = 两条不同强化，不叠同条）。替换从"全池减已入"里按固定顺位取，不再开 RNG：
 	// 候选本就随 OPEN 广播，两端不需要各自复算这一步。
@@ -1502,7 +1631,7 @@ bool LawnApp::TryOpenZombieVote()
 			bool aIn = false;
 			for (int b = 0; b < mZombieVoteBannerCount; b++)
 				if (mZombieVoteBannerIds[b] == (unsigned char)i) { aIn = true; break; }
-			if (!aIn) aLeft[aLeftCount++] = (unsigned char)i;
+			if (!aIn && mRunState->CanAddZombieBuffStack(i)) aLeft[aLeftCount++] = (unsigned char)i;
 		}
 		for (int c = 0; c < RunState::RUN_ZOMBIE_VOTE_CHOICES; c++)
 		{
@@ -1510,6 +1639,7 @@ bool LawnApp::TryOpenZombieVote()
 			for (int b = 0; b < mZombieVoteBannerCount; b++)
 				if (mZombieVoteBannerIds[b] == aCandidates[c]) { aDup = true; break; }
 			if (!aDup) continue;
+            aCandidates[c]=0xff;
 			for (int l = 0; l < aLeftCount; l++)
 			{
 				bool aTaken = false;
@@ -1519,6 +1649,15 @@ bool LawnApp::TryOpenZombieVote()
 			}
 		}
 	}
+        int compact=0;for(int c=0;c<3;++c)if(aCandidates[c]<RunState::RUN_ZOMBIE_BUFF_COUNT)aCandidates[compact++]=aCandidates[c];
+        while(compact<3)aCandidates[compact++]=0xff;
+        if(aCandidates[0]==0xff && aCandidates[1]==0xff && aCandidates[2]==0xff) {
+            mRunState->mZombieVotedLevel=(unsigned short)aLevel;
+            mZombieVoteRoundsDone=mRunState->GetZombieBuffPerScene();
+            mRunState->mEndlessVoteRounds=mZombieVoteRoundsDone;
+            mRunState->Save(mPlayerInfo->mId);return false;
+        }
+
 	// 房主广播 OPEN（候选以房主这份为准——两端同种子同算法本可以各推各的，但广播一下就
 	// 不再要求"算法逐位一致"）；单机跳过协议直接弹框。
 	if (IsOnlineGame() && mOnlineSession->GetRole() == NetSession::Role::HOST)
@@ -1559,6 +1698,7 @@ void LawnApp::ZombieVoteOpenLocal(int theLevel, const unsigned char* theCandidat
 
 void LawnApp::ZombieVoteRegister(int theSeat, int theChoice)
 {
+    if (theChoice < 0 || theChoice > 3 || (theChoice < 3 && (!mRunState || !mRunState->CanAddZombieBuffStack(mZombieVoteCandidates[theChoice])))) return;
 	if (theSeat < 0 || theSeat >= 32) return;
 	unsigned int aBit = 1u << theSeat;
 	if (mZombieVoteSeatMask & aBit) return;		// 一席一票（重发 / 第二次点击不重计）
@@ -1595,6 +1735,12 @@ int LawnApp::ZombieVoteExpectedVoters()
 void LawnApp::ZombieVoteResolve()
 {
 	if (!mZombieVoteActive || mRunState == nullptr) return;
+    bool anyCandidate=false;
+    for(int i=0;i<RunState::RUN_ZOMBIE_VOTE_CHOICES;++i){
+        if(!mRunState->CanAddZombieBuffStack(mZombieVoteCandidates[i])){mZombieVoteCandidates[i]=255;mZombieVoteVotes[i]=0;}
+        else anyCandidate=true;
+    }
+    if(!anyCandidate){ZombieVoteCloseUI();TryOpenZombieVote();return;}
 
 	// 两屏制（MOD_BUILD 56，与 PC 同批同口径）：每屏一票一条件——原「按票数取前 aWant 个
 	// 不同候选」的档位拆到屏上：档 1 一屏一条、档 2 同场景两屏各一条。
@@ -1610,7 +1756,7 @@ void LawnApp::ZombieVoteResolve()
 		int aBest = -1;
 		for (int i = 0; i < RunState::RUN_ZOMBIE_VOTE_CHOICES; i++)
 		{
-			if (mZombieVoteVotes[i] <= 0) continue;
+			if (mZombieVoteVotes[i] <= 0 || mZombieVoteCandidates[i]>=RunState::RUN_ZOMBIE_BUFF_COUNT) continue;
 			if (aBest < 0 || mZombieVoteVotes[i] > mZombieVoteVotes[aBest]) aBest = i;
 		}
 		if (aBest >= 0) aPicked[aPickedCount++] = mZombieVoteCandidates[aBest];
@@ -1619,13 +1765,13 @@ void LawnApp::ZombieVoteResolve()
 	{
 		// PC Build 47 per-screen carry-over: abstaining still grants one random candidate.
 		// 两屏制下每屏独立结算：档 2 全弃权 = 两屏各随机 1 条。
-		aPicked[aPickedCount++] = mZombieVoteCandidates[Rand(RunState::RUN_ZOMBIE_VOTE_CHOICES)];
+		aPicked[aPickedCount++] = mZombieVoteCandidates[([&](){int ids[3],n=0;for(int i=0;i<3;++i)if(mZombieVoteCandidates[i]<RunState::RUN_ZOMBIE_BUFF_COUNT)ids[n++]=i;return ids[Rand(n)];})()];
 	}
 	if (aPickedCount <= 0)
 	{
 		// 全队一个人都没表态（纯超时）：种子兜底取候选首位——票开了就得有结果，不能因为
 		// 没人理这事儿把全队钉住（等待必须有出路）。
-		aPicked[aPickedCount++] = mZombieVoteCandidates[0];
+		for(int i=0;i<RunState::RUN_ZOMBIE_VOTE_CHOICES;++i)if(mZombieVoteCandidates[i]<RunState::RUN_ZOMBIE_BUFF_COUNT){aPicked[aPickedCount++]=mZombieVoteCandidates[i];break;}
 	}
 
 	mRunState->AddZombieBuffStack(aPicked[0]);
@@ -1633,6 +1779,11 @@ void LawnApp::ZombieVoteResolve()
 	if (mZombieVoteBannerCount < 2) mZombieVoteBannerIds[mZombieVoteBannerCount++] = aPicked[0];
 	mZombieVoteRoundsDone++;
 	mRunState->mZombieVotedLevel = (unsigned short)mZombieVoteLevel;
+    if(mRunState->IsNewEndless()) {
+        mRunState->mEndlessVoteRounds=mZombieVoteRoundsDone;
+        for(int i=0;i<2;++i)mRunState->mEndlessVoteIds[i]=i<mZombieVoteBannerCount?mZombieVoteBannerIds[i]:255;
+        mRunState->Save(mPlayerInfo->mId);
+    }
 
 	// RESULT 广播（房主）：先于下一张 OPEN / START_LEVEL 发——公示与层数快照不拧巴。
 	if (IsOnlineGame() && mOnlineSession->GetRole() == NetSession::Role::HOST)
@@ -1686,6 +1837,7 @@ void LawnApp::ResetZombieVote()
 void LawnApp::ZombieVoteChosen(int theChoice)
 {
 	if (!mZombieVoteActive) return;
+    if(theChoice<0 || theChoice>3 || (theChoice<3 && (!mRunState || !mRunState->CanAddZombieBuffStack(mZombieVoteCandidates[theChoice]))))return;
 	// 一席一票：本端已经投过就忽略（投票框点过就把按钮锁上了，这里是双保险）。
 	if (mZombieVoteMyChoice >= 0) return;
 	mZombieVoteMyChoice = theChoice;
@@ -1724,43 +1876,34 @@ std::string LawnApp::ZombieVoteStatusText()
 
 void LawnApp::UpdateZombieVote()
 {
+    if (mOnlineSession && mOnlineSession->IsReconnecting()) return;
 	// ① 客户端：收 OPEN（弹框）与 RESULT（公示 + 关框）。层数不在这儿动——等 START_LEVEL。
 	if (IsOnlineClient() && mOnlineSession != nullptr)
 	{
-		NetProto::MsgZombieVoteOpen aOpen;
-		while (mOnlineSession->TakePendingZombieVoteOpen(aOpen))
-		{
-			// 已经在投的票不重开框（重开会把已经投过的那一票从框上"解锁"）。两屏制（56，
-			// 与 PC 同批同口径）：客户端同样按轮次走——OPEN 的场景号换新 = 新场景首票，
-			// 轮次与横幅累积归零；同场景再来一张 OPEN = 第二屏，只要本场景结算轮数没满
-			// 档位就开；全结后迟到的 OPEN 挡住。
-			if (!mZombieVoteActive && mRunState != nullptr)
-			{
-				if ((int)mRunState->mZombieVotedLevel != (int)aOpen.mSceneIndex)
-				{
-					mZombieVoteRoundsDone = 0;
-					mZombieVoteBannerCount = 0;
-					mZombieVoteBannerIds[0] = 0;
-					mZombieVoteBannerIds[1] = 0;
-				}
-				if (mZombieVoteRoundsDone < mRunState->GetZombieBuffPerScene())
-					ZombieVoteOpenLocal((int)aOpen.mSceneIndex, aOpen.mCandidates);
-			}
-		}
-		NetProto::MsgZombieVoteResult aResult;
-		while (mOnlineSession->TakePendingZombieVoteResult(aResult))
-		{
-			if (mRunState != nullptr) mRunState->mZombieVotedLevel = (unsigned short)aResult.mSceneIndex;
-			// 横幅累积（两屏两条合一；老房主混搭单发 count=2 的旧版结果也照装）。
-			for (unsigned int i = 0; i < aResult.mCount && mZombieVoteBannerCount < 2; i++)
-				mZombieVoteBannerIds[mZombieVoteBannerCount++] = aResult.mIds[i];
-			mZombieVotePendingBanner = ZombieVoteBannerText(mZombieVoteBannerCount, mZombieVoteBannerIds);
-			if (mZombieVoteActive)
-			{
-				mZombieVoteRoundsDone++;	// 框还开着 = 这是一次正常结算；迟到的重发不虚增轮数
-				ZombieVoteCloseUI();
-			}
-		}
+        for (;;) {
+            NetProto::MsgZombieVoteOpen opening;
+            NetProto::MsgZombieVoteResult result;
+            if (mOnlineSession->TakePendingZombieVoteOpen(opening)) {
+                if (mRunState && !mZombieVoteActive) {
+                    if (mZombieVoteLevel != (int)opening.mSceneIndex &&
+                        (int)mRunState->mZombieVotedLevel != (int)opening.mSceneIndex) {
+                        mZombieVoteRoundsDone = 0;
+                        mZombieVoteBannerCount = 0;
+                    }
+                    if (mZombieVoteRoundsDone < mRunState->GetZombieBuffPerScene())
+                        ZombieVoteOpenLocal((int)opening.mSceneIndex, opening.mCandidates);
+                }
+            } else if (mOnlineSession->TakePendingZombieVoteResult(result)) {
+                if (!mRunState || !mZombieVoteActive || mZombieVoteLevel != (int)result.mSceneIndex)
+                    continue;
+                mRunState->mZombieVotedLevel = result.mSceneIndex;
+                for (unsigned int index = 0; index < result.mCount && mZombieVoteBannerCount < 2; ++index)
+                    mZombieVoteBannerIds[mZombieVoteBannerCount++] = result.mIds[index];
+                mZombieVotePendingBanner = ZombieVoteBannerText(mZombieVoteBannerCount, mZombieVoteBannerIds);
+                ++mZombieVoteRoundsDone;
+                ZombieVoteCloseUI();
+            } else break;
+        }
 	}
 	// 房主：收队友的票记账（本机这一票在 ZombieVoteChosen 里直接记，不走网络）。
 	else if (mOnlineSession != nullptr)
@@ -1807,3 +1950,8 @@ void LawnApp::UpdateZombieVote()
 		ZombieVoteCloseUI();
 	}
 }
+
+#include "LawnMower.h"
+#include "Online/PreparationGame.inl"
+
+#include "Online/AdmissionGame.inl"

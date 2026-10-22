@@ -239,7 +239,7 @@ void AchievementsWidget::MouseWheel(int theDelta) {
 }
 
 void ReportAchievement::GiveAchievement(LawnApp* theApp, int theAchievement, bool theForceGive) {
-	if (!theApp->mPlayerInfo || theApp->mRunState)
+	if (!theApp || !theApp->mPlayerInfo || theApp->mRunState || theAchievement < 0 || theAchievement >= MAX_ACHIEVEMENTS)
 		return;
 
 	if (theApp->mPlayerInfo->mEarnedAchievements[theAchievement])

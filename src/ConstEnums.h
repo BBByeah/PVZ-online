@@ -107,6 +107,7 @@ enum AwardType : int32_t
 	AWARD_HELP_ZOMBIENOTE,
 	AWARD_ACHIEVEMENTONLY,
 	AWARD_PRECREDITS_ZOMBIENOTE,
+	AWARD_RUN_COMPLETE,
 };
 enum BackgroundType : int32_t
 {
@@ -326,6 +327,9 @@ enum Dialogs : int32_t
     DIALOG_ZOMBIE_VOTE,
 	DIALOG_COOP_PLAY,
     DIALOG_ONLINE_SWAP,                         // @pvz-online: 大厅换位选人框（任选队友 + 换后预览），2026-10-15
+    DIALOG_ROOM_DIRECTORY,                     // @pvz-online: public live room browser.
+    DIALOG_RUN_HISTORY,                        // @pvz-online: local per-profile recent runs.
+    DIALOG_SERVER_SELECT,                      // @pvz-online: explicit relay node selection.
     NUM_DIALOGS
 };
 enum DebugTextMode : int32_t
@@ -1388,10 +1392,117 @@ enum ZombieType : int32_t
 	ZOMBIE_JALAPENO_HEAD_DOOR,
 	ZOMBIE_GATLING_HEAD_DOOR,
 	ZOMBIE_SQUASH_HEAD_DOOR,
+    // 2026-10-22: append only; old real zombie/save IDs stay fixed.
+    ZOMBIE_PEA_HEAD_CONE,
+    ZOMBIE_PEA_HEAD_CONE_DOOR,
+    ZOMBIE_PEA_HEAD_PAIL,
+    ZOMBIE_PEA_HEAD_PAIL_DOOR,
+    ZOMBIE_WALLNUT_HEAD_CONE,
+    ZOMBIE_WALLNUT_HEAD_CONE_DOOR,
+    ZOMBIE_WALLNUT_HEAD_PAIL,
+    ZOMBIE_WALLNUT_HEAD_PAIL_DOOR,
+    ZOMBIE_GATLING_HEAD_CONE,
+    ZOMBIE_GATLING_HEAD_CONE_DOOR,
+    ZOMBIE_GATLING_HEAD_PAIL,
+    ZOMBIE_GATLING_HEAD_PAIL_DOOR,
+    ZOMBIE_TALLNUT_HEAD_CONE,
+    ZOMBIE_TALLNUT_HEAD_CONE_DOOR,
+    ZOMBIE_TALLNUT_HEAD_PAIL,
+    ZOMBIE_TALLNUT_HEAD_PAIL_DOOR,
+    ZOMBIE_TALLNUT_HEAD_DOOR,
 	NUM_ZOMBIE_TYPES,
 	ZOMBIE_CACHED_POLEVAULTER_WITH_POLE,
 	NUM_CACHED_ZOMBIE_TYPES
 };
+
+// Plant-zombie variants keep their legacy IDs; outer armor uses the otherwise
+// unused ground-zombie flying-health channel. Behavior and equipment are independent.
+namespace PlantZombies {
+inline ZombieType Base(ZombieType type) {
+    switch(type) {
+    case ZOMBIE_PEA_HEAD_CONE: return ZOMBIE_PEA_HEAD;
+    case ZOMBIE_PEA_HEAD_CONE_DOOR: return ZOMBIE_PEA_HEAD_DOOR;
+    case ZOMBIE_PEA_HEAD_PAIL: return ZOMBIE_PEA_HEAD;
+    case ZOMBIE_PEA_HEAD_PAIL_DOOR: return ZOMBIE_PEA_HEAD_DOOR;
+    case ZOMBIE_WALLNUT_HEAD_CONE: return ZOMBIE_WALLNUT_HEAD;
+    case ZOMBIE_WALLNUT_HEAD_CONE_DOOR: return ZOMBIE_WALLNUT_HEAD_DOOR;
+    case ZOMBIE_WALLNUT_HEAD_PAIL: return ZOMBIE_WALLNUT_HEAD;
+    case ZOMBIE_WALLNUT_HEAD_PAIL_DOOR: return ZOMBIE_WALLNUT_HEAD_DOOR;
+    case ZOMBIE_GATLING_HEAD_CONE: return ZOMBIE_GATLING_HEAD;
+    case ZOMBIE_GATLING_HEAD_CONE_DOOR: return ZOMBIE_GATLING_HEAD_DOOR;
+    case ZOMBIE_GATLING_HEAD_PAIL: return ZOMBIE_GATLING_HEAD;
+    case ZOMBIE_GATLING_HEAD_PAIL_DOOR: return ZOMBIE_GATLING_HEAD_DOOR;
+    case ZOMBIE_TALLNUT_HEAD_CONE: return ZOMBIE_TALLNUT_HEAD;
+    case ZOMBIE_TALLNUT_HEAD_CONE_DOOR: return ZOMBIE_TALLNUT_HEAD;
+    case ZOMBIE_TALLNUT_HEAD_PAIL: return ZOMBIE_TALLNUT_HEAD;
+    case ZOMBIE_TALLNUT_HEAD_PAIL_DOOR: return ZOMBIE_TALLNUT_HEAD;
+    case ZOMBIE_TALLNUT_HEAD_DOOR: return ZOMBIE_TALLNUT_HEAD;
+    default: return type;
+    }
+}
+inline int Family(ZombieType type) {
+    switch(Base(type)) {
+    case ZOMBIE_PEA_HEAD: case ZOMBIE_PEA_HEAD_DOOR: return 0;
+    case ZOMBIE_WALLNUT_HEAD: case ZOMBIE_WALLNUT_HEAD_DOOR: return 1;
+    case ZOMBIE_GATLING_HEAD: case ZOMBIE_GATLING_HEAD_DOOR: return 2;
+    case ZOMBIE_TALLNUT_HEAD: return 3;
+    default: return -1;
+    }
+}
+inline int Armor(ZombieType type) {
+    switch(type) {
+    case ZOMBIE_PEA_HEAD_CONE:
+    case ZOMBIE_PEA_HEAD_CONE_DOOR:
+    case ZOMBIE_WALLNUT_HEAD_CONE:
+    case ZOMBIE_WALLNUT_HEAD_CONE_DOOR:
+    case ZOMBIE_GATLING_HEAD_CONE:
+    case ZOMBIE_GATLING_HEAD_CONE_DOOR:
+    case ZOMBIE_TALLNUT_HEAD_CONE:
+    case ZOMBIE_TALLNUT_HEAD_CONE_DOOR:
+        return 1;
+    case ZOMBIE_PEA_HEAD_PAIL:
+    case ZOMBIE_PEA_HEAD_PAIL_DOOR:
+    case ZOMBIE_WALLNUT_HEAD_PAIL:
+    case ZOMBIE_WALLNUT_HEAD_PAIL_DOOR:
+    case ZOMBIE_GATLING_HEAD_PAIL:
+    case ZOMBIE_GATLING_HEAD_PAIL_DOOR:
+    case ZOMBIE_TALLNUT_HEAD_PAIL:
+    case ZOMBIE_TALLNUT_HEAD_PAIL_DOOR:
+        return 2;
+    default: return 0;
+    }
+}
+inline bool Door(ZombieType type) {
+    switch(type) {
+    case ZOMBIE_PEA_HEAD_DOOR:
+    case ZOMBIE_WALLNUT_HEAD_DOOR:
+    case ZOMBIE_GATLING_HEAD_DOOR:
+    case ZOMBIE_TALLNUT_HEAD_DOOR:
+    case ZOMBIE_PEA_HEAD_CONE_DOOR:
+    case ZOMBIE_PEA_HEAD_PAIL_DOOR:
+    case ZOMBIE_WALLNUT_HEAD_CONE_DOOR:
+    case ZOMBIE_WALLNUT_HEAD_PAIL_DOOR:
+    case ZOMBIE_GATLING_HEAD_CONE_DOOR:
+    case ZOMBIE_GATLING_HEAD_PAIL_DOOR:
+    case ZOMBIE_TALLNUT_HEAD_CONE_DOOR:
+    case ZOMBIE_TALLNUT_HEAD_PAIL_DOOR:
+        return true;
+    default: return false;
+    }
+}
+inline int HatOffsetX(int family) { const int value[]={5,-12,8,-15};return value[family]; }
+inline int HatOffsetY(int family) { const int value[]={-5,-16,-15,-49};return value[family]; }
+inline ZombieType Form(int family,int armor,bool door) {
+    static const ZombieType types[4][6]={
+        {ZOMBIE_PEA_HEAD,ZOMBIE_PEA_HEAD_CONE,ZOMBIE_PEA_HEAD_PAIL,ZOMBIE_PEA_HEAD_DOOR,ZOMBIE_PEA_HEAD_CONE_DOOR,ZOMBIE_PEA_HEAD_PAIL_DOOR},
+        {ZOMBIE_WALLNUT_HEAD,ZOMBIE_WALLNUT_HEAD_CONE,ZOMBIE_WALLNUT_HEAD_PAIL,ZOMBIE_WALLNUT_HEAD_DOOR,ZOMBIE_WALLNUT_HEAD_CONE_DOOR,ZOMBIE_WALLNUT_HEAD_PAIL_DOOR},
+        {ZOMBIE_GATLING_HEAD,ZOMBIE_GATLING_HEAD_CONE,ZOMBIE_GATLING_HEAD_PAIL,ZOMBIE_GATLING_HEAD_DOOR,ZOMBIE_GATLING_HEAD_CONE_DOOR,ZOMBIE_GATLING_HEAD_PAIL_DOOR},
+        {ZOMBIE_TALLNUT_HEAD,ZOMBIE_TALLNUT_HEAD_CONE,ZOMBIE_TALLNUT_HEAD_PAIL,ZOMBIE_TALLNUT_HEAD_DOOR,ZOMBIE_TALLNUT_HEAD_CONE_DOOR,ZOMBIE_TALLNUT_HEAD_PAIL_DOOR},
+    };
+    return types[family][(door?3:0)+armor];
+}
+}
+
 
 // Enums are not supposed to have invalid values, a typedef is much more appropriate
 enum AttachmentID      : int32_t { ATTACHMENTID_NULL };

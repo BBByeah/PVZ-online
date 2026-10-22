@@ -84,13 +84,10 @@ void DataReader::ReadBytes(void* theMem, uint32_t theNumBytes)
 {
 	if (mData)
 	{
-		mDataPos += theNumBytes;
-		if (mDataPos > mDataLen)
-		{
+		if (mDataPos > mDataLen || theNumBytes > mDataLen - mDataPos)
 			throw DataReaderException();
-		}
-
-		memcpy(theMem, mData + mDataPos - theNumBytes, theNumBytes);
+		memcpy(theMem, mData + mDataPos, theNumBytes);
+		mDataPos += theNumBytes;
 	}
 	else if (!mFile || fread(theMem, sizeof(char), theNumBytes, mFile) != theNumBytes)
 	{

@@ -3,6 +3,7 @@
 #include "../../Resources.h"
 #include "../ModText.h"
 #include "GameButton.h"
+#include "MobileButtonFont.h"
 #include "graphics/Font.h"
 #include "graphics/Graphics.h"
 #include "graphics/Image.h"
@@ -21,8 +22,7 @@ inline std::string MobileTextLine(Sexy::_Font* font, std::string text, int width
 
 // Same stone/down art as PC; keep state and UTF-8 layout local to this draw.
 inline void DrawMobileStone(Sexy::Graphics *g, const Sexy::Rect &rect, const std::string &label,
-                            bool down = false, bool enabled = true, int size = 22,
-                            bool selected = false, Sexy::_Font* labelFont = nullptr)
+                            bool down = false, bool enabled = true, bool selected = false)
 {
     Sexy::Graphics stone(*g);
     stone.SetColorizeImages(!enabled);
@@ -37,18 +37,15 @@ inline void DrawMobileStone(Sexy::Graphics *g, const Sexy::Rect &rect, const std
         Sexy::Rect(0, 0, middle->mWidth, middle->mHeight));
     stone.DrawImage(right, Sexy::Rect(rect.mX + rect.mWidth - right->mWidth, rect.mY,
         right->mWidth, rect.mHeight), Sexy::Rect(0, 0, right->mWidth, right->mHeight));
-    auto *font = labelFont ? labelFont : ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, size);
-    while(size > 20 && font->StringWidth(label) > rect.mWidth - 24)
-        font = ModText::FontFor(Sexy::FONT_DWARVENTODCRAFT18, --size);
+    MobileButtonFont artwork(down || selected);
+    auto* font = &artwork;
     const auto line = MobileTextLine(font, label, rect.mWidth - 24);
     Sexy::Graphics text(*g);
     text.ClipRect(rect.mX+10,rect.mY,rect.mWidth-20,rect.mHeight);
     text.SetFont(font);
     int x=rect.mX+(rect.mWidth-font->StringWidth(line))/2;
     int y=rect.mY+(rect.mHeight+font->GetAscent())/2-3;
-    text.SetColor(Sexy::Color(25,24,35)); text.DrawString(line,x+1,y+1);
-    text.SetColor(!enabled ? Sexy::Color(205,200,180) : down || selected ?
-        Sexy::Color(255,246,210) : Sexy::Color(245,230,165));
+    text.SetColor(enabled ? Sexy::Color::White : Sexy::Color(145,145,145));
     text.DrawString(line,x,y);
 }
 
@@ -61,7 +58,7 @@ class MobileStoneButton : public Sexy::ButtonWidget
     void Draw(Sexy::Graphics *g) override
     {
         DrawMobileStone(g, Sexy::Rect(0, 0, mWidth, mHeight), mLabel, mIsDown && mIsOver,
-            !mDisabled, 24, mInverted, mFont.get());
+            !mDisabled, mInverted);
     }
 };
 

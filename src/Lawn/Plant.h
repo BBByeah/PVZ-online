@@ -222,6 +222,8 @@ public:
 	float mSquashFromX = 0.0f;
 	float mSquashFromY = 0.0f;
 	int32_t mRunDispatchCursor = 0, mRunAliveTicks = 0, mRunGarlicCooldown = 0;
+    // @pvz-online: purple ability cadence survives portable snapshots.
+    int32_t mRunPurpleShots = 0, mRunSunCollectTicks = 0;
 	int32_t mMineregrowsLeft = 0;
 	int32_t mChainBitesLeft = 0;
 
@@ -255,6 +257,7 @@ public:
 	static bool  IsFlying(SeedType theSeedtype);
 	static bool  IsUpgrade(SeedType theSeedtype);
 	void                    UpdateAbilities();
+    void UpdatePurpleBuffs();
 	void                    Squish();
 	void                    DoRowAreaDamage(int theDamage, unsigned int theDamageFlags);
 	int                     GetDamageRangeFlags(PlantWeapon thePlantWeapon = PlantWeapon::WEAPON_PRIMARY);

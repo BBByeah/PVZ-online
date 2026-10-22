@@ -20,6 +20,16 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#ifdef __ANDROID__
+#include <jni.h>
+#endif
+
+static std::atomic<bool> privateAppBackground{false};
+#ifdef __ANDROID__
+extern "C" JNIEXPORT void JNICALL Java_io_github_wszqkzqk_pvzportable_PvZPortableActivity_nativePrivateBackground(JNIEnv*,jclass,jboolean value) {
+    privateAppBackground.store(value==JNI_TRUE);
+}
+#endif
 
 namespace
 {
@@ -34,6 +44,13 @@ struct Worker
 {
     std::atomic<State> state{State::IDLE};
     std::atomic<bool> stop{false};
+    std::atomic<bool> backgroundSensitive{false};
+    bool Suspended() {
+        if(!backgroundSensitive.load()||!privateAppBackground.load())return false;
+        if(socket>=0)shutdown(socket,SHUT_RDWR);
+        Fail("The local player paused. Reconnecting when the game resumes.");
+        return true;
+    }
     std::atomic<int> socket{-1}, listener{-1}, attempts{0};
     std::thread thread;
     std::mutex queueMutex, errorMutex, doneMutex;
@@ -120,6 +137,7 @@ struct Worker
         int received = 0;
         while (received < size && !stop && state == State::CONNECTED)
         {
+            if(Suspended())return false;
             if (!Wait(socket, POLLIN)) continue;
             int count = recv(socket, bytes + received, size - received, 0);
             if (count > 0) { received += count; continue; }
@@ -134,7 +152,7 @@ struct Worker
         NetLink::Packet packet{};
         if (!ReceiveExact(packet.mData, NetProto::HEADER_SIZE)) return;
         int payload = packet.mData[2] | (packet.mData[3] << 8);
-        if (payload > NetProto::MAX_PAYLOAD) { Fail("A player sent a malformed packet."); return; }
+        if (payload > NetProto::MAX_WIRE_PAYLOAD) { Fail("A player sent a malformed packet."); return; }
         if (payload && !ReceiveExact(packet.mData + NetProto::HEADER_SIZE, payload)) return;
         packet.mSize = NetProto::HEADER_SIZE + payload;
         std::lock_guard lock(queueMutex);
@@ -145,6 +163,7 @@ struct Worker
     {
         while (!stop)
         {
+            if(Suspended())break;
             if (state == State::LISTENING)
             {
                 if (Wait(listener, POLLIN))
@@ -170,6 +189,7 @@ struct Worker
 
 struct NetLink::Impl { std::shared_ptr<Worker> worker = std::make_shared<Worker>(); };
 NetLink::NetLink() : mImpl(new Impl) {}
+void NetLink::SetBackgroundSensitive(bool value){mImpl->worker->backgroundSensitive=value;}
 NetLink::~NetLink() { Close(); delete mImpl; }
 
 void NetLink::Close()

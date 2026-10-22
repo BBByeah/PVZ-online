@@ -1,4 +1,4 @@
-param([ValidateSet('Dependencies','Native','Apk','All')][string]$Stage = 'All')
+param([ValidateSet('Dependencies','Native','Apk','All')][string]$Stage = 'All', [switch]$WithoutGameResources)
 $ErrorActionPreference = 'Stop'
 $projectDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $taskRoot = Split-Path $projectDir -Parent
@@ -65,6 +65,13 @@ if ($Stage -in @('Native','All')) {
 if ($Stage -in @('Apk','All')) {
     if (!(Test-Path "$projectDir\android\app\src\main\jniLibs\arm64-v8a\libmain.so")) { throw 'Native library missing; run Native stage first.' }
     Set-Content "$projectDir\android\local.properties" ('sdk.dir=' + ($env:ANDROID_HOME -replace '\\','/'))
-    Invoke-BuildTool "$taskRoot\android-build-tools\gradle-8.12\bin\gradle.bat" @('-p',"$projectDir\android",'assembleRelease','-PusePrebuiltLibs=true','--no-daemon','--console=plain')
+    # @pvz-online: complete, ready-to-play APKs are the user's default player delivery.
+    $apkArguments = @('-p',"$projectDir\android",'assembleRelease','-PusePrebuiltLibs=true','--no-daemon','--console=plain')
+    if (!$WithoutGameResources) {
+        $assetDirectory = Join-Path $taskRoot 'android-artifacts\bundled-game-build57\assets'
+        & "$PSScriptRoot\prepare-bundled-resources.ps1" -OutputDirectory $assetDirectory
+        $apkArguments += "-PbundledGameAssets=$assetDirectory"
+    }
+    Invoke-BuildTool "$taskRoot\android-build-tools\gradle-8.12\bin\gradle.bat" $apkArguments
     Write-Output "APK: $projectDir\android\app\build\outputs\apk\release\app-release.apk"
 }

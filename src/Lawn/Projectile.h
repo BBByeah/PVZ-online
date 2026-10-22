@@ -78,6 +78,11 @@ public:
 	int32_t mPricklyHitCount = 0;
 	bool mRunIceSource=false, mRunCactusSource=false, mRunScaredySource=false;
 	int32_t mRunCrystalDamage=0;
+    // @pvz-online: source-isolated purple abilities with bounded hit history.
+    SeedType mRunSourceSeed = SeedType::SEED_NONE;
+    int32_t mRunHuntHitsLeft = 0, mRunLaunchDelay = 0;
+    bool mRunIceWave = false;
+    ZombieID mRunWaveHitIds[1024];
 	int GetRunFixedDamageBonus(Zombie* zombie);
 	bool WasZombiePricklyHit(Zombie* theZombie);
 	void RecordPricklyHit(Zombie* theZombie);
@@ -92,6 +97,8 @@ public:
 	void                    DrawShadow(Graphics* g);
 	void                    Die();
 	void                    DoImpact(Zombie* theZombie);
+    Zombie* FindHuntTarget();
+    void UpdatePurpleWave();
 	void                    UpdateMotion();
 	void                    CheckForCollision();
 	Zombie*                 FindCollisionTarget();

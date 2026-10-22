@@ -1,0 +1,20 @@
+{
+  "modBuild": 63,
+  "date": "2026-10-17",
+  "previousOverlay": "docs/compatibility/updates/build62-endless-working-tree.json",
+  "pcWorkingTreeHead": "678b7190fe32401cc409a720240abc8345600b5a",
+  "androidWorkingTreeHead": "c01ab12b5bc39a7c155424d0fd1c688481c5bd27",
+  "sourceState": "uncommitted working tree; full PC and Android player test packages built; isolated startup and packaging checks passed; not installed over player copies; full gameplay acceptance pending",
+  "checkpointVersion": 20,
+  "protocolVersion": 1,
+  "startLevelPayloadBytes": 44,
+  "damageSnapshotPayloadBytes": 134,
+  "onlineGameReady": false,
+  "changes": [
+    "Preserve the Build62 endless implementation and prior Build59-61 field-feedback fixes.",
+    "Add player-attributed effective damage counters, separate total and boss displays, local advanced preferences, low-frequency team snapshots and checkpoint/lawn persistence.",
+    "Include existing battle music selection, boss music switching, original-art help buttons and survival entry layout changes.",
+    "Advance Android package versionCode to at least MOD_BUILD without inventing a committed source revision."
+  ],
+  "report": "docs/PLAYER-FULL-BUILD63-2026-10-17.md"
+}

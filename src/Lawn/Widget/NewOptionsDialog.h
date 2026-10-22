@@ -23,6 +23,9 @@
 #define __NEWOPTIONSDIALOG_H__
 
 #include "widget/Dialog.h"
+#include "RunInfoView.h"
+#include "MusicSelectionView.h"
+#include "RunSettingsView.h"
 #include "widget/SliderListener.h"
 #include "widget/CheckboxListener.h"
 #include <memory>
@@ -50,7 +53,9 @@ protected:
 		NewOptionsDialog_SoundVolume,
 		NewOptionsDialog_Fullscreen,
 		NewOptionsDialog_HardwareAcceleration,
-		NewOptionsDialog_Language,
+        NewOptionsDialog_Help,
+        NewOptionsDialog_Bilibili,
+        NewOptionsDialog_Afdian,
 	};
 
 public:
@@ -63,10 +68,42 @@ public:
 	std::unique_ptr<LawnStoneButton>	mBackToMainButton;
 	std::unique_ptr<LawnStoneButton>	mRestartButton;
 	std::unique_ptr<NewLawnButton>		mBackToGameButton;
-	std::unique_ptr<Sexy::ButtonWidget> mLanguageButton;
 	bool								mFromGameSelector;
 
 public:
+    bool mRunInfoOpen = false;
+    bool mRunInfoWidgetVis[11]{};
+    std::unique_ptr<LawnStoneButton> mHelpButton;
+    std::unique_ptr<LawnStoneButton> mBilibiliButton;
+    std::unique_ptr<LawnStoneButton> mAfdianButton;
+    void OpenCreatorLink(int action);
+    bool RunInfoAvailable();
+    Sexy::Rect RunInfoEntryRect();
+    void OpenRunInfo();
+    void CloseRunInfo();
+    void DrawRunInfo(Sexy::Graphics* graphics);
+    void RunInfoFlipPage(int delta);
+    void MouseDown(int x, int y, int theClickCount) override;
+    void MouseWheel(int delta) override;
+    RunInfoView mRunInfoView;
+    static constexpr int PAUSE_WIDTH = 600;
+    static constexpr int PAUSE_HEIGHT = 560;
+    MusicSelectionView mMusicView;
+    RunSettingsView mRunSettingsView;
+    bool mRunSettingsOpen = false;
+    bool mRunSettingsEntryDown = false;
+    Sexy::Rect RunSettingsEntryRect();
+    void OpenRunSettings();
+    bool mMusicOpen = false;
+    bool mMusicEntryDown = false;
+    Sexy::Rect MusicEntryRect();
+    void OpenOptionsPage(bool music, bool settings = false);
+    void OpenMusic();
+    void MusicAction(int action);
+    Sexy::Rect mOptionsRect;
+    int mRunInfoDown = -1;
+    void MouseUp(int x, int y, int theClickCount) override;
+    void LostFocus() override;
 	NewOptionsDialog(LawnApp* theApp, bool theFromGameSelector);
 	~NewOptionsDialog() override;
 

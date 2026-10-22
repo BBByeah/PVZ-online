@@ -1,4 +1,5 @@
 #include "ModText.h"
+#include "Run/RunCheckpointIO.h"
 #include "Common.h"
 #include "paklib/PakInterface.h"
 #include "../PvzpLib/PvzpDebug.h"
@@ -62,4 +63,17 @@ const char* ModText::SettingName()
     if (setting == MODLANG_CHINESE) return Tr("中文", "Chinese");
     if (setting == MODLANG_ENGLISH) return "English";
     return Tr("自动", "Auto");
+}
+
+bool ModText::ReadSlideCollect()
+{
+    std::ifstream file(Sexy::PathFromU8(Sexy::GetAppDataPath("userdata/android-slide-collect.txt")));
+    int enabled = 1;
+    return !(file >> enabled) || enabled != 0;
+}
+
+bool ModText::SaveSlideCollect(bool enabled)
+{
+    return RunCheckpointIO::AtomicWrite(Sexy::GetAppDataPath("userdata/android-slide-collect.txt"),
+        {static_cast<unsigned char>(enabled ? '1' : '0'), '\n'});
 }

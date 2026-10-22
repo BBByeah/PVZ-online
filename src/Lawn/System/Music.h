@@ -122,6 +122,16 @@ public:
 	void				PlayMusic(MusicTune theMusicTune, int theOffset = -1, int theDrumsOffset = -1);
 	Mix_Music*		GetMusicHandle(MusicFile theMusicFile);
 	void						StartGameMusic();
+    MusicTune GetSceneMusicTune();
+    MusicTune PrepareGameMusic();
+    MusicTune ResolveBattleMusic();
+    void LoadBattleMusicSettings();
+    bool SaveBattleMusicSettings(int tune, bool bossMusic);
+    bool IsMusicTuneAvailable(MusicTune tune);
+    bool RefreshBattleMusic(bool resuming = false);
+    void RestoreGameMusicAfterLoad();
+    bool StartMusicPreview(MusicTune tune);
+    void StopMusicPreview();
 	void				LoadSong(MusicFile theMusicFile, std::string_view theFileName);
 	void						UpdateMusicBurst();
 	void				StartBurst();

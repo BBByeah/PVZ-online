@@ -1,0 +1,82 @@
+{
+  "basePcCommit": "4ec113e0c1dcfc8eb7a18d31b2c96772743e2746",
+  "pcModBuild": 57,
+  "status": "reviewed local working tree overlay; not a committed release",
+  "scope": "purple buffs; gravity well deferred",
+  "files": [
+    {
+      "path": "Lawn/Plant.cpp",
+      "pcSha256": "9d8410df518796d708a98caf6fcd0e699ff95e002a81f7e11d480561ed358859",
+      "androidSha256": "21a07aadf0cc843e224a8b86dcf8df6ff42b14319bfd095363ccac807ac31cbb"
+    },
+    {
+      "path": "Lawn/Plant.h",
+      "pcSha256": "9526110c87cbd0592f69f19ec8e2d1d7a864310e490fcc40faff0fbed1e23b66",
+      "androidSha256": "215d86f8eee377fc1021d5c9cf486fdf38a8abb57b96bc809d6c7649fa9487bc"
+    },
+    {
+      "path": "Lawn/Projectile.cpp",
+      "pcSha256": "7d6ffa3fbd8d8040d97a8ffbcd9bdaf8ae4288e4e56005a58837492634206947",
+      "androidSha256": "8e16b8634bc8ab7b339ae4086f268ad24a86c235d889a64e477b5ab9b04ee7ba"
+    },
+    {
+      "path": "Lawn/Projectile.h",
+      "pcSha256": "ca175db838c811e789a08ea0c7c9bdacfcc6cc4a57b2582267001ac1d2eae15a",
+      "androidSha256": "81498f66a3e6e53a83f5dba001b3e8e302736f34e77da6b1a759c8e0aff0e7eb"
+    },
+    {
+      "path": "Lawn/Coin.cpp",
+      "pcSha256": "605d19780592635d0be3d91fb918e0acb03344f3486dc73db9b4ec3462786f8d",
+      "androidSha256": "dee3c007401a5d7723d42a7405744519d125a8b8220c799ee54949bc2924d794"
+    },
+    {
+      "path": "Lawn/Coin.h",
+      "pcSha256": "b7f2e28904fa8334f5426778eb05145c7ed21f1c0b29d2820731da2b2fe79a73",
+      "androidSha256": "0badfd2d9c50a3497569ec98f20c5dcd60c4a622bb3ebf7343f5147747cf52d4"
+    },
+    {
+      "path": "Lawn/Zombie.cpp",
+      "pcSha256": "640ee9ee59f07bd3154a118413ccebdd24f2d97e517bd7783794371d9bfce7b3",
+      "androidSha256": "37398a17296b2a31d7e59d0a60c3ba15fe8ac187c5976dc14a07521b6ac93df8"
+    },
+    {
+      "path": "Lawn/Run/RunBuffs.cpp",
+      "pcSha256": "3cc687cd33ffc74908d956f7ebdbbce658e6bb6a771cbf31ec643aea2d03d971",
+      "androidSha256": "e199b4531261dc1a44beac2a634e2fea7dd26c34a7bb755ff0a8641ff424165c"
+    },
+    {
+      "path": "Lawn/Run/RunBuffs.h",
+      "pcSha256": "c62cfe0d9e3571d784124d8731400abe4791333fd4e160b6f679de3efc7337f4",
+      "androidSha256": "c62cfe0d9e3571d784124d8731400abe4791333fd4e160b6f679de3efc7337f4"
+    },
+    {
+      "path": "Lawn/Run/RunState.cpp",
+      "pcSha256": "8c56d38e173a95900e43ee401649e2b1c59509344d0c74dd595b56f85b794702",
+      "androidSha256": "2e1eb10a8c0903da9e245ed2e7bdf1016d1b981995afbc69f10faf423dacc5d3"
+    },
+    {
+      "path": "Lawn/Run/RunState.h",
+      "pcSha256": "9bc669f9168e913f349b84cd179589a996ef5f51736723a589fb2daf35faa708",
+      "androidSha256": "9bc669f9168e913f349b84cd179589a996ef5f51736723a589fb2daf35faa708"
+    },
+    {
+      "path": "Lawn/System/SaveGame.cpp",
+      "pcSha256": "a1191fcbe7f30a26241bb6b8cfb48b0073b24ccca70fcbe2eebf7b05a39bcbd6",
+      "androidSha256": "51b277a558ebcd8c0578526c2b9b2d8be1a7863a6ecc8647ee0a11eede1b8754"
+    },
+    {
+      "path": "Lawn/Online/NetProtocol.h",
+      "pcSha256": "7044515f2ff5888f9fab1730dea28d6ee13c0ca3393630ee58a011b9ee610fcf",
+      "androidSha256": "7044515f2ff5888f9fab1730dea28d6ee13c0ca3393630ee58a011b9ee610fcf"
+    }
+  ],
+  "validation": {
+    "pcDebug": "passed",
+    "pcRelease": "passed",
+    "androidArm64Native": "passed",
+    "mechanismChecks": 50,
+    "crossPlatformFunctions": 8,
+    "fullGameplay": "not tested",
+    "deployed": false
+  }
+}

@@ -315,7 +315,7 @@ void PlayerInfo::Reset()
 void PlayerInfo::AddCoins(int theAmount)
 {
 	mCoins += theAmount;
-	mCoins = std::clamp(mCoins, 0, 99999);
+	mCoins = std::clamp(mCoins, 0, 99999999);
 }
 
 void PlayerInfo::ResetChallengeRecord(GameMode theGameMode)

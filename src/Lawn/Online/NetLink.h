@@ -49,6 +49,7 @@ public:
 	// 是唯一的中止方式（对调用方来说，这就是"取消连接等待时限"）。
 	bool			Connect(const char* theHost, uint16_t thePort);
 	void			Close();						// 收摊；之后可以重新 Listen/Connect
+	void SetBackgroundSensitive(bool value);
 
 	State			GetState() const;
 	bool			IsConnected() const;

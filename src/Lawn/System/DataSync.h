@@ -44,6 +44,8 @@ public:
 	bool					OpenFile(const std::string& theFileName);
 	void					OpenMemory(const void* theData, uint32_t theDataLen, bool takeOwnership);
 	void					Close();
+	// Portable save chunks are memory backed; inspect length before allocating.
+	uint32_t RemainingMemoryBytes() const { return mDataPos <= mDataLen ? mDataLen - mDataPos : 0; }
 	void					ReadBytes(void* theMem, uint32_t theNumBytes);
 	void					Rewind(uint32_t theNumBytes);
 	uint64_t				ReadUInt64();

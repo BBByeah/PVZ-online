@@ -2550,7 +2550,7 @@ void NetSession::HandlePacket(const NetLink::Packet& thePacket)
 					mBoardWatcherMask |= (uint8_t)(1u << aMsg.mSrcSeat);
 					TodLog("[net] seat %u starts watching my board", (unsigned)aMsg.mSrcSeat);
 				}
-                if(aMsg.mOp==NetProto::WATCH_BEGIN){mFullWatch->ackEpoch[aMsg.mSrcSeat]=0;mFullWatch->ackRevision[aMsg.mSrcSeat]=0;}
+                if(aMsg.mOp==NetProto::WATCH_BEGIN){mFullWatch->ClearSend(aMsg.mSrcSeat);mFullWatch->ackEpoch[aMsg.mSrcSeat]=0;mFullWatch->ackRevision[aMsg.mSrcSeat]=0;}
 				mBoardWatcherFrames[aMsg.mSrcSeat] = 0;
 			}
 			else if (aMsg.mOp == NetProto::WATCH_END)
@@ -3616,17 +3616,18 @@ void NetSession::PublishRoundWait() {
 bool NetSession::SendBoardSnapshot(uint8_t seat,const uint8_t* body,int size) {
     if(!IsConnected() || !body || size<=0 || size>(int)snapshot::MaxEnvelope ||
        seat<1 || seat>NetProto::MAX_PLAYERS || !(mBoardWatcherMask&(1u<<seat)))return false;
-    auto& packet=mFullWatch->outgoing[seat];snapshot::release(packet);
-    if(!snapshot::allocate(packet,size))return false;
-    memcpy(packet.data,body,size);mFullWatch->offsets[seat]=0;return true;
+    return mFullWatch->QueueSnapshot(seat,body,static_cast<DWORD>(size));
 }
 void NetSession::PumpFullWatch() {
     if(!IsConnected())return;
-    for(int budget=0;budget<12;++budget) {
+    const int allowance=mFullWatch->PumpBudget(GetTickCount());
+    for(int budget=0;budget<allowance;++budget) {
         BYTE seat=0;
         for(int attempt=0;attempt<NetProto::MAX_PLAYERS;++attempt) {
             BYTE next=mFullWatch->nextSeat;
             mFullWatch->nextSeat=next==NetProto::MAX_PLAYERS?1:next+1;
+            if(!(mBoardWatcherMask&(1u<<next))){mFullWatch->ClearSend(next);continue;}
+            mFullWatch->Promote(next);
             if((mBoardWatcherMask&(1u<<next)) && mFullWatch->outgoing[next].data &&
                mFullWatch->offsets[next]<mFullWatch->outgoing[next].size){seat=next;break;}
         }

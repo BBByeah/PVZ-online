@@ -1,5 +1,9 @@
 #include "../Lawn/Online/FullWatchFragments.h"
 #include "../Lawn/Online/FullWatchSendQueue.h"
+#include "../Lawn/Online/FullWatchNet.h"
+#include <vector>
+#include <cstring>
+#include <cstdio>
 
 // @pvz-online: focused transport checks; no game window or profile is needed.
 int main() {
@@ -40,5 +44,29 @@ int main() {
     if(result[0]!=2 || result[1]!=3 || result[2]!=9 || queue.count)return 14;
     queue.push(b,2,1,2);
     if(queue.pump([](const BYTE*,UINT){return 0;},8)!=0 || queue.offset)return 15;
+    if(snapshot::crc32("123456789",9)!=0xcbf43926u)return 16;
+    // A raw snapshot above 1 MiB must be accepted when its compressed packet fits.
+    std::vector<BYTE> large(2*1024*1024,42);
+    if(!codec.encode(large.data(),static_cast<DWORD>(large.size()),18,300,packed))return 17;
+    if(!codec.decode(packed.data,packed.size,decoded) || decoded.size!=large.size() ||
+        std::memcmp(decoded.data,large.data(),large.size()))return 18;
+    std::printf("large snapshot raw=%zu packed=%lu roundtrip passed\n",large.size(),packed.size);
+    snapshot::release(packed);snapshot::release(decoded);
+    for(auto& value:large){random^=random<<13;random^=random>>17;random^=random<<5;value=BYTE(random);}
+    // The actual compressed payload limit is still enforced and failures free memory.
+    if(codec.encode(large.data(),static_cast<DWORD>(large.size()),19,400,packed) || packed.data || packed.size)return 19;
+    std::puts("oversized compressed snapshot rejected; CRC wire compatibility passed");
+    FullWatchNet paced;
+    if(paced.PumpBudget(100)!=8 || paced.PumpBudget(100)!=0 || paced.PumpBudget(119)!=0 ||
+       paced.PumpBudget(120)!=8 || paced.PumpBudget(10000)!=8 || paced.PumpBudget(10000)!=0)return 20;
+    paced.lastPump=0xfffffff0u;
+    if(paced.PumpBudget(3)!=0 || paced.PumpBudget(4)!=8)return 21;
+    if(!paced.QueueSnapshot(2,a,3))return 22;
+    paced.offsets[2]=1;
+    if(!paced.QueueSnapshot(2,b,2) || !paced.QueueSnapshot(2,control,1) ||
+       paced.outgoing[2].size!=3 || paced.outgoing[2].data[0]!=1)return 23;
+    paced.offsets[2]=3;paced.Promote(2);
+    if(paced.outgoing[2].size!=1 || paced.outgoing[2].data[0]!=9 || paced.pending[2].data || paced.offsets[2])return 24;
+    std::puts("snapshot wall-clock pacing and in-flight generation preservation passed");
     return 0;
 }

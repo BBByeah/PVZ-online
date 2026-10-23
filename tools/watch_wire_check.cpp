@@ -22,5 +22,9 @@ int main(){
     s.Edit();s.Edit();CHECK(!s.Due(2099));CHECK(s.Due(2100));s.Sent(2100);
     CHECK(!s.Due(7099));CHECK(s.Due(7100));CHECK(s.Due(3100,true));
     s.Sent(0xffffff00u);s.Edit();CHECK(!s.Due(0x100u));CHECK(s.Due(0x300u));
+    Schedule failed;CHECK(failed.Due(100));failed.Attempt(100);failed.Edit();
+    CHECK(!failed.Due(1099,true));CHECK(failed.Due(1100,true));
+    failed.Attempt(1100);CHECK(!failed.Due(1101));CHECK(failed.Due(2100));
+    failed.Sent(2100);CHECK(!failed.dirty);CHECK(!failed.Due(7099));CHECK(failed.Due(7100));
     std::puts("PWV2: six independent caches, late join, revision/epoch changes, malformed packets and 1s coalescing passed");
 }

@@ -14,6 +14,7 @@
 #include <filesystem>
 #include <fstream>
 #include <cstring>
+#include <chrono>
 
 // @pvz-online: PWV2 field-based spectator state. Process-global effects stay
 // isolated in the child; native saves and RUN1 checkpoints are no longer sent.
@@ -99,6 +100,7 @@ bool StartChild() {
     ResumeThread(child.hThread);CloseHandle(child.hThread);child.hThread=nullptr;childStarted=GetTickCount();return true;
 }
 bool Restore(const std::vector<unsigned char>& bytes,const Bundle& h) {
+    const bool firstDisplay=!loaded;
     const bool incremental=incrementalUpdates && !forceFullUpdate && loaded &&
         h.epoch==loadedHeader.epoch && h.revision==loadedHeader.revision &&
         h.seat==loadedHeader.seat && h.mode==loadedHeader.mode && h.paused==loadedHeader.paused &&
@@ -113,11 +115,31 @@ bool Restore(const std::vector<unsigned char>& bytes,const Bundle& h) {
     TodLog("[watch] restore seq=%u seat=%u state=%u config=%u sun=%d cards=%d",h.sequence,h.seat,h.stateBytes,h.configBytes,app->mBoard->mSunMoney,app->mBoard->mSeedBank->mNumPackets);
     TodLog("[watch] update=%s",incremental?"incremental":"full");
     Write(Root()/"ready",&loadedSequence,sizeof(loadedSequence));
-    MoveWindow(app->mHWnd,0,0,800,600,TRUE);
-    ShowWindow(app->mHWnd,SW_SHOW);SetFocus(app->mHWnd);return true;
+    // AttachWindow already sizes the child. Repeating window/focus operations
+    // on every snapshot synchronizes UI threads and disturbs other windows.
+    if(firstDisplay) {
+        ShowWindow(app->mHWnd,SW_SHOWNOACTIVATE);
+        if(GetForegroundWindow()==GetAncestor(Parent(),GA_ROOT))SetFocus(app->mHWnd);
+    }
+    return true;
 }
 }
 bool IsObserver() {static bool value=!Env("PVZ_FULL_WATCH_PARENT").empty()&&!Env("PVZ_FULL_WATCH_DIR").empty();return value;}
+bool CoversParent() {
+    if(IsObserver() || !app || !child.hProcess || !app->mBoard ||
+        app->GetDialogCount()>0 || !app->mOnlineSession || !app->mOnlineSession->IsWatching())return false;
+    RECT parent{};GetClientRect(app->mHWnd,&parent);
+    if(parent.right<=0 || parent.bottom<=0)return false;
+    MapWindowPoints(app->mHWnd,nullptr,reinterpret_cast<POINT*>(&parent),2);
+    for(HWND window=GetWindow(app->mHWnd,GW_CHILD);window;window=GetWindow(window,GW_HWNDNEXT)) {
+        DWORD pid=0;GetWindowThreadProcessId(window,&pid);
+        if(pid!=child.dwProcessId || !IsWindowVisible(window))continue;
+        RECT bounds{};if(!GetWindowRect(window,&bounds))continue;
+        return bounds.left<=parent.left && bounds.top<=parent.top &&
+            bounds.right>=parent.right && bounds.bottom>=parent.bottom;
+    }
+    return false;
+}
 std::string ObserverDataRoot(){return Env("PVZ_FULL_WATCH_DIR");}
 bool ObserverPaused(){return remotePaused || !loaded || GetTickCount()-receivedAt>15000;}
 void PrepareApp(LawnApp* value) {
@@ -194,8 +216,12 @@ void TickBoard(Board* board) {
     bool newcomer=false;for(int i=0;i<n;++i)if(s->mFullWatch->ackEpoch[seats[i]]!=epoch || s->mFullWatch->ackRevision[seats[i]]!=revision)newcomer=true;
     if(lastPaused!=board->mPaused || lastComplete!=board->mLevelComplete){schedule.Edit();lastPaused=board->mPaused;lastComplete=board->mLevelComplete;}
     DWORD now=GetTickCount();if(!schedule.Due(now,newcomer))return;
+    // Failed capture/compression/queueing must not retry on every simulation frame.
+    schedule.Attempt(now);
+    const auto captureStart=std::chrono::steady_clock::now();
     WatchWire::Bytes config,state;
     if(!WatchState::Capture(board,config,state))return;
+    const auto captureEnd=std::chrono::steady_clock::now();
     if(config!=lastConfig){lastConfig=config;if(!++revision)++revision;}
     Bundle h;h.epoch=epoch;h.revision=revision;h.sequence=++sequence;h.seat=s->GetLocalSeat();
     h.mode=board->mApp->mGameMode;h.paused=board->mPaused?1:0;h.relay=s->GetRelayTargetSeat()?1:0;
@@ -210,6 +236,10 @@ void TickBoard(Board* board) {
         snapshot::release(packet);
     }
     if(sent)schedule.Sent(now);
+    const auto sendEnd=std::chrono::steady_clock::now();
+    TodLog("[watch] cost capture=%.3fms encode_queue=%.3fms viewers=%d state=%u",
+        std::chrono::duration<double,std::milli>(captureEnd-captureStart).count(),
+        std::chrono::duration<double,std::milli>(sendEnd-captureEnd).count(),n,(unsigned)state.size());
 }
 bool Key(int key) {
     if(!app)return false;

@@ -4,6 +4,7 @@
 #endif
 #include <windows.h>
 #include <cstdint>
+#include <array>
 
 // Versioned whole-snapshot envelope. The game protocol's fragmentation layer
 // must reassemble this envelope before decode; never feed partial data to PVZ.
@@ -21,11 +22,18 @@ inline bool allocate(Buffer& b,DWORD size) {
     b.size=b.data?size:0;return b.data!=nullptr;
 }
 inline DWORD crc32(const void* source,DWORD length) {
+    // Same IEEE CRC-32 wire value; avoid eight polynomial steps per snapshot byte.
+    static constexpr auto table=[] {
+        std::array<DWORD,256> values{};
+        for(DWORD i=0;i<256;++i) {
+            DWORD value=i;
+            for(int bit=0;bit<8;++bit)value=(value>>1)^(0xedb88320u & (0u-(value&1)));
+            values[i]=value;
+        }
+        return values;
+    }();
     const BYTE* bytes=static_cast<const BYTE*>(source);DWORD crc=0xffffffff;
-    for(DWORD i=0;i<length;++i) {
-        crc^=bytes[i];
-        for(int bit=0;bit<8;++bit) crc=(crc>>1)^(0xedb88320u & (0u-(crc&1)));
-    }
+    for(DWORD i=0;i<length;++i)crc=(crc>>8)^table[(crc^bytes[i])&0xff];
     return ~crc;
 }
 struct Codec {
@@ -58,11 +66,13 @@ struct Codec {
         if(!createEncoder(4,nullptr,&encoder)) return false;
         SIZE_T needed=0;
         compress(encoder,raw,bytes,nullptr,0,&needed);
-        if(!needed || needed>MaxPacked || !allocate(out,needed+sizeof(Header))) {closeEncoder(encoder);return false;}
+        // Compress reports scratch capacity here, not the final compressed size.
+        // Bound that allocation separately; enforce the wire limit after compression.
+        if(!needed || needed>SIZE_T(MaxRaw)*2 || !allocate(out,static_cast<DWORD>(needed+sizeof(Header)))) {closeEncoder(encoder);return false;}
         SIZE_T written=0;
         bool ok=compress(encoder,raw,bytes,out.data+sizeof(Header),needed,&written)!=0;
         closeEncoder(encoder);
-        if(!ok || !written || written>needed) {release(out);return false;}
+        if(!ok || !written || written>needed || written>MaxPacked) {release(out);return false;}
         auto h=reinterpret_cast<Header*>(out.data);
         h->magic=Magic;h->version=Version;h->rawBytes=bytes;h->packedBytes=written;
         h->rawCrc=crc32(raw,bytes);h->sequence=sequence;h->tick=tick;

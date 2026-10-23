@@ -40,9 +40,10 @@ struct Cache {
 };
 // First edit sends at the next board tick. Bursts coalesce at the earliest allowed time.
 struct Schedule {
-    uint32_t last=0;bool sent=false,dirty=false;
+    uint32_t last=0,lastAttempt=0;bool sent=false,dirty=false,attempted=false;
     void Edit(){dirty=true;}
-    bool Due(uint32_t now,bool newcomer=false)const{return !sent || (now-last>=1000 && (dirty || newcomer || now-last>=5000));}
-    void Sent(uint32_t now){last=now;sent=true;dirty=false;}
+    bool Due(uint32_t now,bool newcomer=false)const{return (!attempted || now-lastAttempt>=1000) && (!sent || (now-last>=1000 && (dirty || newcomer || now-last>=5000)));}
+    void Attempt(uint32_t now){lastAttempt=now;attempted=true;}
+    void Sent(uint32_t now){Attempt(now);last=now;sent=true;dirty=false;}
 };
 }

@@ -10,6 +10,7 @@ namespace FullWatch {
 // global effect systems, run state and the player's own board independent.
 bool IsObserver();
 bool ObserverPaused();
+bool CoversParent();
 void AttachWindow(void* window);
 void PrepareApp(LawnApp* app);
 void TickApp(LawnApp* app);

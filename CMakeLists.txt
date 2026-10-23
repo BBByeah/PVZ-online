@@ -15,8 +15,23 @@ set(CMAKE_CXX_STANDARD 23)
 
 # @Patoke todo: probably add MSVC counterparts?
 if(MSVC)
-    # @pvz-online: Ninja must parse the same /showIncludes language as cl; mismatches silently lose header dependencies.
-    set(CMAKE_CL_SHOWINCLUDES_PREFIX "Note: including file: ")
+    # Some MSVC installations ignore VSLANG when the English language pack is absent.
+    # Probe the actual UTF-8 output instead of silently losing header dependencies.
+    if(CMAKE_GENERATOR MATCHES "Ninja")
+        set(include_probe "${CMAKE_BINARY_DIR}/pvz_include_probe")
+        file(WRITE "${include_probe}.h" "#pragma once\n")
+        file(WRITE "${include_probe}.cpp" "#include \"pvz_include_probe.h\"\n")
+        execute_process(COMMAND "${CMAKE_COMMAND}" -E env VSLANG=1033
+            "${CMAKE_CXX_COMPILER}" /nologo /showIncludes /c "${include_probe}.cpp" "/Fo${include_probe}.obj"
+            OUTPUT_VARIABLE include_output ERROR_VARIABLE include_error
+            RESULT_VARIABLE include_result ENCODING UTF-8)
+        string(REGEX MATCH "([^\r\n]+: +)[A-Za-z]:[/\\\\][^\r\n]*pvz_include_probe.h"
+            include_match "${include_output}${include_error}")
+        if(NOT include_result EQUAL 0 OR NOT include_match)
+            message(FATAL_ERROR "Cannot detect MSVC /showIncludes prefix: ${include_output}${include_error}")
+        endif()
+        set(CMAKE_CL_SHOWINCLUDES_PREFIX "${CMAKE_MATCH_1}")
+    endif()
     set(CMAKE_C_COMPILER_LAUNCHER "${CMAKE_COMMAND};-E;env;VSLANG=1033")
     set(CMAKE_CXX_COMPILER_LAUNCHER "${CMAKE_COMMAND};-E;env;VSLANG=1033")
     # sources are UTF-8 (no BOM); MSVC defaults to system codepage and misparses CJK comments

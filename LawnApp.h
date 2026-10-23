@@ -527,6 +527,7 @@ public:
 	virtual void					ButtonMouseLeave(int theId);
 	virtual void					ButtonMouseMove(int theId, int theX, int theY);
 	virtual void					UpdateFrames();
+    bool DrawDirtyStuff() override;
 	virtual bool					UpdateApp();
 	/*inline*/ bool					IsAdventureMode();
 	/*inline*/ bool					IsSurvivalMode();

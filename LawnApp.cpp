@@ -478,10 +478,29 @@ void LawnApp::WriteToRegistry()
 	SexyAppBase::WriteToRegistry();
 }
 
+bool LawnApp::DrawDirtyStuff()
+{
+    // Keep simulation/network updates running; only the fully covered parent
+    // render is redundant while the spectator child owns the visible lawn.
+    if (FullWatch::CoversParent()) {
+        mHasPendingDraw = false;
+        mLastDrawWasEmpty = true;
+        return false;
+    }
+    return SexyApp::DrawDirtyStuff();
+}
+
 //0x44F530
 void LawnApp::ReadFromRegistry()
 {
 	SexyApp::ReadFromRegistry();
+    // Observer silence must be applied after saved settings, which can replace
+    // both MusicVolume and Muted set by FullWatch::PrepareApp.
+    if (FullWatch::IsObserver()) {
+        mMuteCount = std::max(mMuteCount, 1);
+        SetMusicVolume(0.0);
+        SetSfxVolume(0.0);
+    }
 }
 
 //0x44F540
@@ -1567,6 +1586,18 @@ void LawnApp::UpdateOnlineEnd()
 
     NetProto::MsgEscapedZombie pendingRelay;
     const bool hasPendingRelay=mOnlineSession->PeekPendingEscapedZombie(pendingRelay);
+    // Instant clears can kill the last wave before the grave-spawn delay ends.
+    // If that delay produces no enemies, no later death calls the award gate.
+    // Recheck only completed online run waves, including all deferred spawns.
+    if (canComplete && IsOnlineGame() && IsRunMode() && !hasPendingRelay &&
+        !mBoard->mLevelAwardSpawned && mBoard->mNumWaves > 0 &&
+        mBoard->mCurrentWave >= mBoard->mNumWaves &&
+        !mBoard->AreEnemyZombiesOnScreen() && !mBoard->HasLivingBoss() &&
+        mBoardResult != BoardResult::BOARDRESULT_LOST)
+    {
+        mBoard->mLevelAwardSpawned = true;
+        mBoardResult = BoardResult::BOARDRESULT_WON;
+    }
     // A delayed team-complete message cannot overrule the current local board.
     const bool localClear = canComplete && !hasPendingRelay && mBoard->mLevelAwardSpawned &&
         !mBoard->AreEnemyZombiesOnScreen();

@@ -1043,8 +1043,7 @@ bool NetSession::SendPauseState(bool thePaused)
 {
 	if (mRole == Role::NONE || !IsConnected()) return false;
 
-	// 状态没变就不发。这一条是暂停同步能收敛的全部秘密：收端为了队友弹菜单、
-	// 关菜单时本机检测器都会看到界面变了，但那时两边认可的状态已经是对的，不会回发。
+	// 状态没变就不发。P 键提交明确的暂停状态，接收端只应用状态，不回发或操作菜单。
 	if (thePaused == mSharedPaused) return false;
 
 	NetProto::MsgPause aMsg;

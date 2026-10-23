@@ -175,8 +175,6 @@ LawnApp::LawnApp()
 	mOnlineWasConnected = false;
 	mOnlineWaitingStartAck = false;
 	mOnlineStartWaitFrames = 0;
-	mPauseMenuWasOpen = false;
-	mPauseMenuFromPeer = false;
 	mOnlineWaitingAdviceOn = false;
 	mRunState = nullptr;
 	mPendingAdventure = false;
@@ -457,7 +455,7 @@ void LawnApp::LostFocus()
     NextWaveControl::Suspend(mBoard);
 	// @pvz-online: 联机环境里切出去一律不暂停——建房等待、连接中、已连上都算（用户拍板：
 	// 这个简化框开的 DIALOG_PAUSED 不参与暂停同步，一弹就是"只停自己"：队友还在打，
-	// 僵尸照样往这边漏；哪怕房还空着，跑局中途也可能有人连进来）。要暂停请按 ESC 走
+	// 僵尸照样往这边漏；哪怕房还空着，跑局中途也可能有人连进来）。要暂停请按 P 走
 	// 同步的那条路。只有完全没碰过联机面板的单机局保留原版行为。
 	if (mOnlineSession != nullptr && mOnlineSession->IsActive()) return;
 
@@ -1326,60 +1324,28 @@ void LawnApp::UpdateOnlineLevelExit()
 	mOnlineSession->PostNotice(ModText::Tr("队友离开了关卡。", "A teammate left the level."));
 }
 
-// @pvz-online: 暂停同步。规则（已拍板）：任一方都能暂停，也任一方都能继续。
-//
-// 本机"我暂停了/我继续了"不挂钩子，看状态：暂停菜单（DIALOG_NEWOPTIONS）开着没有，
-// 与上一帧比。这样 ESC、右上角 Menu、选卡界面的 Menu、Back to Game、Main Menu……
-// 所有开合路径一网打尽，不用在六处调用点各加一行，也不会漏。
-// 刻意不参与同步的是 DoPauseDialog 那个简化框（现在就剩空格键开的——联机环境下
-// 切出去不再开它，见 LostFocus）：自己切出去不该把队友强按进暂停菜单。
+// Menus are local UI. Only P sends the shared battle pause state.
+bool LawnApp::UsesManualOnlinePause()
+{
+    return !FullWatch::IsObserver() && mBoard && !IsLocalOnlyMode(mGameMode) &&
+        mGameScene==SCENE_PLAYING && mOnlineSession && mOnlineSession->IsConnected();
+}
+
+bool LawnApp::HandleOnlinePauseKey(int key)
+{
+    if(key!='P' || !UsesManualOnlinePause())return false;
+    if(mWidgetManager->mIsKeyRepeat)return true;
+    if(mOnlineSession->SendPauseState(!mOnlineSession->IsSharedPaused()))
+        mBoard->Pause(mOnlineSession->IsSharedPaused());
+    return true;
+}
+
 void LawnApp::UpdateOnlinePause()
 {
-    if (mBoard && IsLocalOnlyMode(mGameMode)) return; // @pvz-online: local garden/tree only.
-	if (!mOnlineSession) return;
-
-	// ① 队友按了暂停 / 继续
-	bool aPaused = false;
-	if (mOnlineSession->TakePauseState(aPaused))
-	{
-		if (aPaused)
-		{
-			// 绝不直写 mBoard->mPaused：走 DoNewOptions 自己的模态链，让 ModalOpen 去停棋盘
-			// （音效/音乐也跟着停）。已经有暂停框就只记状态，不叠第二个。
-			if (mBoard != nullptr && GetDialog(Dialogs::DIALOG_NEWOPTIONS) == nullptr)
-			{
-				DoNewOptions(false);
-				// 这一步是替队友做的，不算本机操作：下一段的检测器不该把它当成"我按的"
-				mPauseMenuWasOpen = true;
-				mPauseMenuFromPeer = true;
-			}
-		}
-		else if (GetDialog(Dialogs::DIALOG_NEWOPTIONS) != nullptr)
-		{
-			// 任一方都能继续：不管这菜单是谁开的都收掉
-			KillNewOptionsDialog();
-		}
-	}
-
-	// ② 本机自己开/关了暂停菜单 → 告诉队友（SendPauseState 自己会做去重，没连上会返回 false）
-	bool aNowOpen = mBoard != nullptr && GetDialog(Dialogs::DIALOG_NEWOPTIONS) != nullptr;
-	if (aNowOpen != mPauseMenuWasOpen)
-	{
-		mPauseMenuWasOpen = aNowOpen;
-		mPauseMenuFromPeer = false;
-		mOnlineSession->SendPauseState(aNowOpen);
-	}
-
-	// ③ 队友掉线了：他那张"替队友弹的"暂停菜单没人能解（玩家自己没按过），收掉；
-	// 玩家自己按出来的暂停菜单不动——那是他的操作，掉不掉线都该留着。
-	if (mPauseMenuFromPeer && !mOnlineSession->IsConnected()
-		&& GetDialog(Dialogs::DIALOG_NEWOPTIONS) != nullptr)
-	{
-		TodLog("[net] the teammate vanished while the pause menu was theirs - closing it");
-		KillNewOptionsDialog();
-		mPauseMenuWasOpen = false;
-		mPauseMenuFromPeer = false;
-	}
+    if(!mOnlineSession || FullWatch::IsObserver())return;
+    bool paused=false;
+    mOnlineSession->TakePauseState(paused); // Consume notification; never open/close UI.
+    if(UsesManualOnlinePause())mBoard->Pause(mOnlineSession->IsSharedPaused());
 }
 
 // @pvz-online: 会话事件的收口。以前没人取 PollEvent，事件在队列里越堆越多，掉线这件事
@@ -3794,6 +3760,7 @@ void LawnApp::DoContinueDialog()
 //0x4502C0
 void LawnApp::DoPauseDialog()
 {
+    if(mOnlineSession && mOnlineSession->IsActive() && !IsLocalOnlyMode(mGameMode))return;
 	mBoard->Pause(true);
 	//FinishModelessDialogs();
 
@@ -4233,6 +4200,7 @@ bool LawnApp::KillAlmanacDialog()
 bool LawnApp::NeedPauseGame()
 {
     if(FullWatch::IsObserver())return FullWatch::ObserverPaused();
+    if(UsesManualOnlinePause())return mOnlineSession->IsSharedPaused();
 	if (mDialogList.size() == 0)
 		return false;
 

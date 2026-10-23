@@ -21,10 +21,12 @@ bool (*gAppHasUsedCheatKeys)();
 SexyString (*gGetCurrentLevelName)();
 using namespace Sexy;
 static bool host=false;
+static bool pauseQA=false;
 static std::string relayHost,relayCode;
 class ProbeApp : public LawnApp {
     bool ready=false,watchStarted=false,returned=false,reentered=false,roomLogged=false;
     int editStep=0;
+    unsigned pauseSteps=0;int pauseFrame=0;
     bool relayStarted=false;
     DWORD begun=GetTickCount(),connectedAt=0,lastReport=0;
 public:
@@ -71,6 +73,7 @@ public:
         if(!relayHost.empty())mOnlineSession->mDirectoryPublic=false; // Code-only QA room, not a public listing.
         fprintf(stderr,"QA TRANSPORT relay=%d server=%s port=%d\n",!relayHost.empty(),relayHost.empty()?"127.0.0.1":relayHost.c_str(),relayHost.empty()?28463:97);
         fprintf(stderr,"QA START role=%c net=%d data=%s\n",host?'A':'B',ok,GetAppDataFolder().c_str());fflush(stderr);
+        if(pauseQA)EnableWindow(mHWnd,FALSE); // Keep manual input out of the timed assertions.
         ready=true;SetWindowPos(mHWnd,HWND_TOP,host?20:840,50,0,0,SWP_NOSIZE|SWP_NOACTIVATE);
     }
     void UpdateFrames() override {
@@ -92,6 +95,27 @@ public:
             if(mRunState){mRunState->mPendingPlantPicks=0;mRunState->mPendingBuffPicks=0;}
             if(mOnlineSession->CanReadyPreparation())mOnlineSession->SendSeedsReady(true);
             KillDialog(Dialogs::DIALOG_ONLINE);
+        }
+        if(pauseQA && connectedAt){
+            DWORD age=now-connectedAt;
+            auto step=[&](int n,DWORD when){if(age<when || (pauseSteps&(1u<<n)))return false;pauseSteps|=1u<<n;return true;};
+            auto press=[&](){mWidgetManager->KeyDown((KeyCode)'P');mWidgetManager->KeyUp((KeyCode)'P');};
+            auto check=[&](const char* label,bool expected,bool menu){fprintf(stderr,"QA PAUSE %s role=%c ok=%d paused=%d menu=%d frame=%d\n",label,host?'A':'B',mBoard->mPaused==expected && (GetDialog(DIALOG_NEWOPTIONS)!=nullptr)==menu,mBoard->mPaused,GetDialog(DIALOG_NEWOPTIONS)!=nullptr,mBoard->mMainCounter);fflush(stderr);};
+            if(step(0,3000)){pauseFrame=mBoard->mMainCounter;if(host)DoNewOptions(false);}
+            if(step(1,5000)){check("menu-local",false,host);fprintf(stderr,"QA MENU advancing=%d\n",mBoard->mMainCounter>pauseFrame);}
+            if(step(2,6000)&&host)press();
+            if(step(3,7500)){check("P-pauses",true,host);pauseFrame=mBoard->mMainCounter;}
+            if(step(4,8500)){fprintf(stderr,"QA FROZEN role=%c ok=%d\n",host?'A':'B',mBoard->mMainCounter==pauseFrame);if(host)KillNewOptionsDialog();}
+            if(step(5,9500))check("menu-close-keeps-pause",true,false);
+            if(step(6,10500)&&!host)press();
+            if(step(7,12000))check("peer-resumes",false,false);
+            if(step(8,13000)&&host)DoNewOptions(false);
+            if(step(9,14500)&&!host)press();
+            if(step(10,16000))check("peer-pause-keeps-menu",true,host);
+            if(step(11,17000)&&host)press();
+            if(step(12,18500))check("menu-P-resumes",false,host);
+            if(age>20000){if(host)KillNewOptionsDialog();mOnlineSession->Close();mShutdown=true;}
+            return;
         }
         if(connectedAt && host){
             DWORD age=now-connectedAt;
@@ -144,6 +168,7 @@ public:
     }
 };
 int main(int argc,char** argv) {
+    pauseQA=GetEnvironmentVariableA("PVZ_WATCH_QA_PAUSE",nullptr,0)>0;
     char role[8]{};GetEnvironmentVariableA("PVZ_WATCH_QA_ROLE",role,sizeof(role));host=role[0]=='A';
     char server[256]{},code[16]{};GetEnvironmentVariableA("PVZ_WATCH_QA_RELAY",server,sizeof(server));GetEnvironmentVariableA("PVZ_WATCH_QA_CODE",code,sizeof(code));relayHost=server;relayCode=code;
     if(auto f=(BOOL(WINAPI*)())GetProcAddress(GetModuleHandleA("user32.dll"),"SetProcessDPIAware"))f();

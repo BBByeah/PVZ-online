@@ -392,6 +392,7 @@ void NewOptionsDialog::CheckboxChecked(int theId, bool checked)
 //0x45D290
 void NewOptionsDialog::KeyDown(Sexy::KeyCode theKey)
 {
+    if(mApp->HandleOnlinePauseKey(theKey))return;
     if (mWidgetManager && mWidgetManager->mIsKeyRepeat &&
         (theKey == KEYCODE_ESCAPE || theKey == KEYCODE_SPACE || theKey == KEYCODE_RETURN)) return;
     if (mMusicOpen) {

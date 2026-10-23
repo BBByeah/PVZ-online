@@ -210,6 +210,7 @@ void LawnDialog::CheckboxChecked()
 //0x457340
 void LawnDialog::KeyDown(KeyCode theKey)
 {
+    if(mApp->HandleOnlinePauseKey(theKey))return;
     if (mId == DIALOG_PAUSED && mApp->mBoard)
     {
         mApp->mBoard->DoTypingCheck(theKey);

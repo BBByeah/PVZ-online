@@ -392,6 +392,7 @@ public:
 
 	// 现在这个暂停是队友按的（菜单上据此注明"队友暂停了"）。
 	// 双方同时按的时候谁也不抢这个署名——只有"收到 0→1"才置真。
+	bool IsSharedPaused() const { return mSharedPaused; }
 	bool			IsPausedByPeer() const { return mSharedPaused && mPauseCameFromPeer; }
 
 	// 给玩家看的即时说明（几秒后自己消失）。握手/换位之外的地方也要能写一句，

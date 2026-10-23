@@ -156,11 +156,6 @@ public:
 	// 这次等待已经持续了多少帧。等太久（对面卡了/忙）就当这次开局作废，人留在菜单上，
 	// 总好过盯着一个点不动的界面。
 	int								mOnlineStartWaitFrames;
-	// 上一帧那个暂停菜单（DIALOG_NEWOPTIONS）开着没有 + 它是不是"替队友弹的"。
-	// 联机同步靠这两个：跟上一帧比就知道本机刚才是暂停了还是继续了（不用在
-	// 每个开合入口挂钩子）；掉线时要收掉的是"替队友弹的那张"，玩家自己按的不动。
-	bool							mPauseMenuWasOpen;
-	bool							mPauseMenuFromPeer;
 	// 棋盘上那句"等队友们"是不是我们挂上去的。是的话状态一变要由我们收掉——
 	// 不记这一笔就会把别人（戴夫、波次提示）的 advice 一起擦掉。
 	bool							mOnlineWaitingAdviceOn;
@@ -334,9 +329,11 @@ public:
 	// @pvz-online: 队友退关了我这边跟着退。theNotifyOnline=false 用于"是我先退的/我是被通知的"，
 	// 免得两边互相回话形成回声。
 	void							UpdateOnlineLevelExit();
-	// @pvz-online: 队友暂停/继续了，本机跟着弹/收暂停菜单；本机自己开了关了也告诉队友。
+	// @pvz-online: 仅 P 键同步战场暂停；菜单开合留在本机，不互相弹窗。
 	// 任一方都能暂停、也任一方都能继续（共识模型，不搞请求/同意）。
 	void							UpdateOnlinePause();
+    bool UsesManualOnlinePause();
+    bool HandleOnlinePauseKey(int key);
 	// @pvz-online: 会话事件（连上了 / 掉线了）的收口。以前没人取，事件在队列里越堆越多。
 	void							UpdateOnlineEvents();
 	// @pvz-online: 这一关对全队结束没有——报"我清完了"、全队清完就一起回菜单、

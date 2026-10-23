@@ -10169,6 +10169,7 @@ void Board::DrawKeyboardHint(Graphics* g, int theSlot, int theX, int theY)
 //0x41B820
 void Board::KeyDown(KeyCode theKey)
 {
+    if(mApp->HandleOnlinePauseKey(theKey))return;
     if (FullWatch::IsObserver()) { FullWatch::Key(theKey); return; }
     if ((theKey=='V' || theKey==KEYCODE_F10) && mWidgetManager->mIsKeyRepeat) return;
     if (mApp->mOnlineSession && mApp->mOnlineSession->RelayBattleHeld()) { mApp->DoOnlineDialog(); return; }

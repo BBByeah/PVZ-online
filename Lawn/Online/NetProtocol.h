@@ -721,7 +721,7 @@ struct MsgBoardWatch
 enum WatchOp : uint8_t
 {
 	WATCH_BEGIN		= 0x81,	// 观看者→被看者：开始看你（被看方凭这个开始推快照）
-	WATCH_KEEPALIVE	= 0x81,	// 观看者→被看者：还在看（每 2 秒一条，被看方 6 秒收不到就停推）
+	WATCH_KEEPALIVE	= 0x82,	// 观看者→被看者：还在看（每 2 秒一条，被看方 6 秒收不到就停推）
 	WATCH_END		= 0x83		// 观看者→被看者：不看了（被看方立刻停推；被看方离开关卡时也发这条）
 };
 

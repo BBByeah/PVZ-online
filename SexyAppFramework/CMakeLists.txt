@@ -72,6 +72,7 @@ set(Lawn__Online__Online_Source
     "../Lawn/Online/NetLink.cpp"
     "../Lawn/Online/NetSession.cpp"
     "../Lawn/Online/FullWatch.cpp"
+    "../Lawn/Online/WatchState.cpp"
     "../Lawn/Online/RelayCatalog.cpp"
     "../third_party/ed25519/src/fe.c"
     "../third_party/ed25519/src/ge.c"

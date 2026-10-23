@@ -14,6 +14,8 @@ void AttachWindow(void* window);
 void PrepareApp(LawnApp* app);
 void TickApp(LawnApp* app);
 void TickBoard(Board* board);
+void BoardCreated(Board* board);
+void BoardEdited(Board* board);
 void DrawControls(Sexy::Graphics* graphics);
 bool Key(int key);
 void Click(int x,int y);

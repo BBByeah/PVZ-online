@@ -9,7 +9,7 @@
 // must reassemble this envelope before decode; never feed partial data to PVZ.
 namespace snapshot {
 constexpr DWORD Magic=0x31535750; // PWS1, little-endian
-constexpr DWORD Version=4;       // Raw payload is a same-generation Board/RUN1 bundle
+constexpr DWORD Version=5;       // Raw payload is PWV2, not a native Board/RUN1 bundle
 constexpr DWORD MaxRaw=8*1024*1024;
 constexpr DWORD MaxPacked=1024*1024;
 struct Header {DWORD magic,version,rawBytes,packedBytes,rawCrc,sequence,tick,context,packedCrc,headerCrc;};

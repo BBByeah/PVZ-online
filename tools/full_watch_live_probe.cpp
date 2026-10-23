@@ -8,10 +8,12 @@
 #include "Lawn/Widget/TitleScreen.h"
 #include "Lawn/Widget/CoopHud.h"
 #include "Lawn/Online/FullWatch.h"
+#include "Lawn/Online/WatchState.h"
 #include "SexyAppFramework/widget/WidgetManager.h"
 #include "Sexy.TodLib/TodStringFile.h"
 #include <filesystem>
 #include <cstdio>
+#include <fstream>
 
 // Standalone QA entry point, linked against the same game objects. Not shipped.
 bool (*gAppCloseRequest)();
@@ -19,8 +21,11 @@ bool (*gAppHasUsedCheatKeys)();
 SexyString (*gGetCurrentLevelName)();
 using namespace Sexy;
 static bool host=false;
+static std::string relayHost,relayCode;
 class ProbeApp : public LawnApp {
-    bool ready=false,watchStarted=false,returned=false,reentered=false;
+    bool ready=false,watchStarted=false,returned=false,reentered=false,roomLogged=false;
+    int editStep=0;
+    bool relayStarted=false;
     DWORD begun=GetTickCount(),connectedAt=0,lastReport=0;
 public:
     void InitPropertiesHook() override {
@@ -46,9 +51,25 @@ public:
         auto* z=mBoard->AddZombieInRow(host?ZOMBIE_TRAFFIC_CONE:ZOMBIE_NORMAL,2,0);
         z->mPosX=z->mX=650;z->mBodyHealth=z->mBodyMaxHealth=10000;
         mBoard->AddCoin(400,180,COIN_SUN,COIN_MOTION_FROM_SKY);
+        if(host){
+            WatchWire::Bytes configBefore,stateBefore,configAfter,stateAfter;
+            bool before=WatchState::Capture(mBoard,configBefore,stateBefore);
+            for(int i=0;i<5;++i)mBoard->AddCoin(200+i*40,180,COIN_SUN,COIN_MOTION_FROM_SKY);
+            mRunState->mDamageHistory.assign(4096,123);mRunState->mEndlessLawn.assign(2048,88);
+            bool after=WatchState::Capture(mBoard,configAfter,stateAfter);
+            // Coin creation advances the global RNG; compare the combat fields before that trailer.
+            bool same=before&&after&&configBefore==configAfter&&stateBefore.size()==stateAfter.size()&&stateBefore.size()>2504&&
+                std::equal(stateBefore.begin(),stateBefore.end()-2504,stateAfter.begin());
+            fprintf(stderr,"QA EXCLUSION sun/history/endless=%d config=%zu state=%zu\n",same,configAfter.size(),stateAfter.size());
+            if(!same){mShutdown=true;return;}
+        }
         mWidgetManager->SetFocus(mBoard);
         mOnlineSession=new NetSession();
-        bool ok=host?mOnlineSession->StartHost(28463):mOnlineSession->StartJoin("127.0.0.1",28463);
+        mOnlineSession->SetLocalName(host?"WatchQA_A":"WatchQA_B");
+        bool ok=relayHost.empty()?(host?mOnlineSession->StartHost(28463):mOnlineSession->StartJoin("127.0.0.1",28463)):
+            (host?mOnlineSession->StartRoomHost(relayHost.c_str(),97):mOnlineSession->StartRoomJoin(relayHost.c_str(),relayCode.c_str(),97));
+        if(!relayHost.empty())mOnlineSession->mDirectoryPublic=false; // Code-only QA room, not a public listing.
+        fprintf(stderr,"QA TRANSPORT relay=%d server=%s port=%d\n",!relayHost.empty(),relayHost.empty()?"127.0.0.1":relayHost.c_str(),relayHost.empty()?28463:97);
         fprintf(stderr,"QA START role=%c net=%d data=%s\n",host?'A':'B',ok,GetAppDataFolder().c_str());fflush(stderr);
         ready=true;SetWindowPos(mHWnd,HWND_TOP,host?20:840,50,0,0,SWP_NOSIZE|SWP_NOACTIVATE);
     }
@@ -56,9 +77,30 @@ public:
         if(mTitleScreen && mTitleScreen->mLoadingThreadComplete)LoadingCompleted();
         LawnApp::UpdateFrames();
         DWORD now=GetTickCount();
-        if(now-begun>65000){FullWatch::Close();mShutdown=true;return;}
+        if(now-begun>90000){FullWatch::Close();if(mOnlineSession)mOnlineSession->Close();mShutdown=true;return;}
         if(!ready || !mBoard || !mOnlineSession)return;
-        if(mOnlineSession->IsConnected() && !connectedAt)connectedAt=now;
+        if(!relayHost.empty()&&!roomLogged&&mOnlineSession->IsConnected()){
+            roomLogged=true;fprintf(stderr,"QA ROOM code=%s seat=%u endpoint=%s:%u\n",mOnlineSession->GetRoomCode().c_str(),mOnlineSession->GetLocalSeat(),mOnlineSession->GetRelayHost().c_str(),mOnlineSession->GetRelayPort());
+            if(host){std::ofstream room("relay-qa-room.txt",std::ios::trunc);room<<mOnlineSession->GetRoomCode();}
+        }
+        if(mOnlineSession->IsConnected() && mOnlineSession->HasOtherSeats() && !connectedAt)connectedAt=now;
+        if(!relayHost.empty() && connectedAt && host && !relayStarted && mOnlineSession->CanHostStart()){
+            relayStarted=mOnlineSession->SendStartLevel((uint8_t)mGameMode,4,1234,true,1234,0);
+            fprintf(stderr,"QA RELAY START sent=%d epoch=%u\n",relayStarted,mOnlineSession->GetReadyEpoch());
+        }
+        if(!relayHost.empty() && connectedAt){
+            if(mRunState){mRunState->mPendingPlantPicks=0;mRunState->mPendingBuffPicks=0;}
+            if(mOnlineSession->CanReadyPreparation())mOnlineSession->SendSeedsReady(true);
+            KillDialog(Dialogs::DIALOG_ONLINE);
+        }
+        if(connectedAt && host){
+            DWORD age=now-connectedAt;
+            if(editStep==0&&age>10000){mBoard->AddPlant(4,1,SEED_WALLNUT,SEED_NONE);editStep++;fprintf(stderr,"QA EDIT plant at=%lu\n",now);}
+            if(editStep==1&&age>10200){mBoard->AddPlant(5,1,SEED_PEASHOOTER,SEED_NONE);editStep++;fprintf(stderr,"QA EDIT plant at=%lu\n",now);}
+            if(editStep==2&&age>10400){mBoard->MouseDownWithTool(mBoard->GridToPixelX(4,1)+30,mBoard->GridToPixelY(4,1)+40,1,CURSOR_TYPE_SHOVEL);editStep++;fprintf(stderr,"QA EDIT shovel at=%lu\n",now);}
+            if(editStep==3&&age>18000){mBoard->mSeedBank->mSeedPackets[0].SetPacketType(SEED_WALLNUT);FullWatch::BoardEdited(mBoard);editStep++;fprintf(stderr,"QA CONFIG change at=%lu\n",now);}
+
+        }
         if(connectedAt && !host) {
             DWORD age=now-connectedAt;
             if(age>3000 && !watchStarted){CoopHud::Action(mBoard,5);watchStarted=true;fprintf(stderr,"QA WATCH via in-game action\n");}
@@ -68,13 +110,47 @@ public:
         if(now-lastReport>3000){lastReport=now;fprintf(stderr,"QA STATE role=%c linked=%d watch=%d sun=%d cards=%d plants=%u zombies=%u frame=%d\n",host?'A':'B',mOnlineSession->IsConnected(),mOnlineSession->IsWatching(),mBoard->mSunMoney,mBoard->mSeedBank->mNumPackets,mBoard->mPlants.mSize,mBoard->mZombies.mSize,mBoard->mMainCounter);fflush(stderr);}
     }
 };
+// Exercise a mixed-error packet inside the isolated observer, using real entities.
+class ObserverProbe : public LawnApp {
+    bool checked=false,fullClicked=false,incrementalClicked=false;DWORD started=0;
+public:
+    void UpdateFrames() override {
+        LawnApp::UpdateFrames();
+        if(!mBoard || FullWatch::ObserverPaused())return;
+        if(!started)started=GetTickCount();
+        if(!checked){
+            Zombie* zombie=nullptr;if(!mBoard->mZombies.IterateNext(zombie))return;
+            checked=true;auto* board=mBoard;
+            auto* bullet=board->AddProjectile(400,250,0,2,PROJECTILE_PEA);
+            auto zid=board->mZombies.DataArrayGetID(zombie),pid=board->mProjectiles.DataArrayGetID(bullet);
+            const float zx=zombie->mPosX,px=bullet->mPosX;const int hp=zombie->mBodyHealth;
+            WatchWire::Bytes config,state;WatchWire::Header h;h.epoch=1;h.revision=1;h.seat=1;h.mode=mGameMode;
+            bool ok=WatchState::Capture(board,config,state);auto bytes=WatchWire::Pack(h,config,state);ok=ok&&WatchWire::Parse(bytes,h);
+            zombie->mPosX+=2;zombie->mX+=2;zombie->mBodyHealth--;
+            bullet->mPosX+=20;bullet->mX+=20;
+            auto* extra=board->AddProjectile(500,250,0,2,PROJECTILE_PEA);auto extraId=board->mProjectiles.DataArrayGetID(extra);
+            ok=ok&&WatchState::Restore(this,bytes,h,true);
+            zombie=mBoard->mZombies.DataArrayTryToGet(zid);bullet=mBoard->mProjectiles.DataArrayTryToGet(pid);
+            bool partial=ok && mBoard==board && zombie && bullet && zombie->mPosX==zx+2 && zombie->mBodyHealth==hp && bullet->mPosX==px && !mBoard->mProjectiles.DataArrayTryToGet(extraId);
+            if(bullet)mBoard->mProjectiles.DataArrayFree(bullet);
+            bool added=WatchState::Restore(this,bytes,h,true)&&mBoard->mProjectiles.DataArrayTryToGet(pid);
+            bool full=WatchState::Restore(this,bytes,h,false)&&mBoard->mZombies.DataArrayTryToGet(zid)->mPosX==zx;
+            fprintf(stderr,"QA INCREMENTAL mixed=%d add=%d full=%d\n",partial,added,full);fflush(stderr);
+            if(!partial||!added||!full){mShutdown=true;return;}
+        }
+        DWORD age=GetTickCount()-started;
+        if(age>11000&&!fullClicked){FullWatch::Click(720,78);fullClicked=true;}
+        if(age>18000&&!incrementalClicked){FullWatch::Click(720,78);incrementalClicked=true;}
+    }
+};
 int main(int argc,char** argv) {
     char role[8]{};GetEnvironmentVariableA("PVZ_WATCH_QA_ROLE",role,sizeof(role));host=role[0]=='A';
+    char server[256]{},code[16]{};GetEnvironmentVariableA("PVZ_WATCH_QA_RELAY",server,sizeof(server));GetEnvironmentVariableA("PVZ_WATCH_QA_CODE",code,sizeof(code));relayHost=server;relayCode=code;
     if(auto f=(BOOL(WINAPI*)())GetProcAddress(GetModuleHandleA("user32.dll"),"SetProcessDPIAware"))f();
     TodStringListSetColors(gLawnStringFormats,gLawnStringFormatCount);
     gGetCurrentLevelName=LawnGetCurrentLevelName;gAppCloseRequest=LawnGetCloseRequest;
     gAppHasUsedCheatKeys=LawnHasUsedCheatKeys;gExtractResourcesByName=ExtractResourcesByName;
-    gLawnApp=FullWatch::IsObserver()?new LawnApp():new ProbeApp();
+    gLawnApp=FullWatch::IsObserver()?static_cast<LawnApp*>(new ObserverProbe()):new ProbeApp();
     gLawnApp->mChangeDirTo=".";gLawnApp->mCmdLineParsed=true;
     gLawnApp->Init();gLawnApp->Start();gLawnApp->Shutdown();delete gLawnApp;gLawnApp=nullptr;
     return 0;

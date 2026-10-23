@@ -1,9 +1,9 @@
 #include "FullWatch.h"
+#include "WatchState.h"
 #include "NetSession.h"
 #include "../../LawnApp.h"
 #include "../Board.h"
 #include "../Run/RunState.h"
-#include "../System/SaveGame.h"
 #include "../Widget/TitleScreen.h"
 #include "../Widget/CoopHud.h"
 #include "../Widget/GameButton.h"
@@ -15,27 +15,26 @@
 #include <fstream>
 #include <cstring>
 
-// @pvz-online: MOD63 full-board spectator, ported to source APIs. Native saves
-// contain process-global effects: restore only in an isolated child process.
+// @pvz-online: PWV2 field-based spectator state. Process-global effects stay
+// isolated in the child; native saves and RUN1 checkpoints are no longer sent.
 namespace FullWatch {
 namespace {
 namespace fs=std::filesystem;
-constexpr DWORD BundleMagic=0x32574650, BundleVersion=1;
 constexpr UINT Command=WM_APP+0x331;
-constexpr int ObserverProfile=2147483000;
-struct Bundle {
-    DWORD magic,version,boardShape,sequence,boardBytes,runBytes;
-    int gameMode,runMode,scene;
-    DWORD paused,relay,seat;
-};
-static_assert(sizeof(Bundle)==48);
+using Bundle=WatchWire::Header;
+WatchWire::Schedule schedule;
+DWORD epoch=GetTickCount()|1u,revision=0;
+WatchWire::Bytes lastConfig;
+bool lastPaused=false,lastComplete=false;
 LawnApp* app=nullptr;
 PROCESS_INFORMATION child{};
 HANDLE childJob=nullptr;
 WNDPROC previousProc=nullptr;
-DWORD captured=0,sequence=0,receivedAt=0,loadedSequence=0,pollAt=0,childStarted=0;
+DWORD sequence=0,receivedAt=0,loadedSequence=0,pollAt=0,childStarted=0;
 BYTE currentTarget=0;
 bool remotePaused=true,remoteRelay=false,loaded=false;
+bool incrementalUpdates=true,forceFullUpdate=false;
+Bundle loadedHeader{};
 std::string Env(const char* key) {
     char value[32768]{};DWORD n=GetEnvironmentVariableA(key,value,sizeof(value));
     return n && n<sizeof(value)?std::string(value,n):std::string();
@@ -58,13 +57,7 @@ std::vector<unsigned char> Read(const fs::path& path) {
     return bytes;
 }
 bool Validate(const std::vector<unsigned char>& bytes,Bundle& h) {
-    if(bytes.size()<sizeof(h))return false;
-    memcpy(&h,bytes.data(),sizeof(h));
-    return h.magic==BundleMagic && h.version==BundleVersion && h.boardShape==sizeof(Board) &&
-        h.boardBytes>=16 && h.boardBytes<=snapshot::MaxRaw && h.runBytes<=snapshot::MaxRaw &&
-        uint64_t(sizeof(h))+h.boardBytes+h.runBytes==bytes.size() && h.paused<=1 &&
-        h.relay<=1 && h.seat>=1 && h.seat<=NetProto::MAX_PLAYERS &&
-        h.gameMode>=0 && h.gameMode<NUM_GAME_MODES;
+    return WatchWire::Parse(bytes,h) && h.configBytes && h.mode<NUM_GAME_MODES;
 }
 void Select(int seat) {
     if(!app || !app->mBoard || !app->mOnlineSession)return;
@@ -106,30 +99,19 @@ bool StartChild() {
     ResumeThread(child.hThread);CloseHandle(child.hThread);child.hThread=nullptr;childStarted=GetTickCount();return true;
 }
 bool Restore(const std::vector<unsigned char>& bytes,const Bundle& h) {
-    std::unique_ptr<RunState> run;
-    const auto* boardData=bytes.data()+sizeof(h);
-    if(h.runBytes) {
-        run=std::make_unique<RunState>();
-        auto file=RunState::GetCheckpointName(ObserverProfile,h.runMode,h.scene);
-        // No fallback to an older checkpoint if the current generation is invalid.
-        std::error_code ec;fs::remove(file+".bak",ec);fs::remove(file+".pending",ec);
-        if(!Write(file,boardData+h.boardBytes,h.runBytes) || !run->Load(ObserverProfile,h.runMode,h.scene))return false;
-        auto check=run->EncodeCheckpoint();
-        if(check.size()!=h.runBytes || memcmp(check.data(),boardData+h.boardBytes,h.runBytes))return false;
-    }
-    const auto boardFile=Root()/"remote-board.dat";
-    if(!Write(boardFile,boardData,h.boardBytes))return false;
-    app->KillBoard();delete app->mRunState;app->mRunState=run.release();
-    app->mGameMode=static_cast<GameMode>(h.gameMode);
-    app->MakeNewBoard();
-    // @pvz-online: the Board wrapper also loads scene artwork and refreshes draw layers.
-    if(!app->mBoard->LoadGame(boardFile.string())){app->KillBoard();return false;}
+    const bool incremental=incrementalUpdates && !forceFullUpdate && loaded &&
+        h.epoch==loadedHeader.epoch && h.revision==loadedHeader.revision &&
+        h.seat==loadedHeader.seat && h.mode==loadedHeader.mode && h.paused==loadedHeader.paused &&
+        GetTickCount()-receivedAt<=15000;
+    if(!WatchState::Restore(app,bytes,h,incremental))return false;
+    loadedHeader=h;forceFullUpdate=false;
     app->mBoard->mMenuButton->mBtnNoDraw=true;
     app->mBoard->mMenuButton->mDisabled=true;
     remotePaused=h.paused!=0;remoteRelay=h.relay!=0;currentTarget=(BYTE)h.seat;
     loadedSequence=h.sequence;receivedAt=GetTickCount();loaded=true;
     app->mBoard->Pause(remotePaused);
-    TodLog("[watch] restore seq=%u seat=%u board=%u run=%u sun=%d cards=%d",h.sequence,h.seat,h.boardBytes,h.runBytes,app->mBoard->mSunMoney,app->mBoard->mSeedBank->mNumPackets);
+    TodLog("[watch] restore seq=%u seat=%u state=%u config=%u sun=%d cards=%d",h.sequence,h.seat,h.stateBytes,h.configBytes,app->mBoard->mSunMoney,app->mBoard->mSeedBank->mNumPackets);
+    TodLog("[watch] update=%s",incremental?"incremental":"full");
     Write(Root()/"ready",&loadedSequence,sizeof(loadedSequence));
     MoveWindow(app->mHWnd,0,0,800,600,TRUE);
     ShowWindow(app->mHWnd,SW_SHOW);SetFocus(app->mHWnd);return true;
@@ -197,30 +179,37 @@ void TickApp(LawnApp* value) {
     if(!Write(temp,bytes.data(),bytes.size()) || !MoveFileExW(temp.c_str(),dest.c_str(),MOVEFILE_REPLACE_EXISTING))return;
     if(!child.hProcess){if(!StartChild()){Close();return;}currentTarget=s->GetWatchTargetSeat();}
 }
+void BoardCreated(Board*) {
+    if(IsObserver())return;
+    if(!++epoch)++epoch;revision=0;lastConfig.clear();schedule={};
+}
+void BoardEdited(Board*) {if(!IsObserver())schedule.Edit();}
 void TickBoard(Board* board) {
     if(IsObserver())return;
     auto* s=board->mApp->mOnlineSession;
     if(!s || !s->IsConnected() || !s->HasBoardWatchers())return;
-    DWORD now=GetTickCount();if(captured && now-captured<5000)return;captured=now;
-    std::error_code ec;fs::create_directories(Root(),ec);if(ec)return;
-    auto file=Root()/"capture.dat";
-    if(!LawnSaveGame(board,file.string()))return;
-    auto rawBoard=Read(file);if(rawBoard.empty())return;
-    auto* run=board->mApp->mRunState;
-    auto rawRun=run?run->EncodeCheckpoint():std::vector<unsigned char>();
-    Bundle h{BundleMagic,BundleVersion,sizeof(Board),++sequence,(DWORD)rawBoard.size(),(DWORD)rawRun.size(),
-        (int)board->mApp->mGameMode,run?run->mMode:0,run?run->mEndlessScene:0,
-        board->mPaused?1u:0u,s->GetRelayTargetSeat()?1u:0u,s->GetLocalSeat()};
-    std::vector<unsigned char> bytes(sizeof(h)+rawBoard.size()+rawRun.size());
-    memcpy(bytes.data(),&h,sizeof(h));memcpy(bytes.data()+sizeof(h),rawBoard.data(),rawBoard.size());
-    if(!rawRun.empty())memcpy(bytes.data()+sizeof(h)+rawBoard.size(),rawRun.data(),rawRun.size());
-    snapshot::Buffer packet{};
-    if(s->mFullWatch->codec.encode(bytes.data(),(DWORD)bytes.size(),sequence,now,packet)) {
-        TodLog("[watch] capture seq=%u raw=%u packed=%u",sequence,(unsigned)bytes.size(),packet.size);
-        BYTE seats[NetProto::MAX_PLAYERS];int n=s->GetBoardWatcherSeats(seats,NetProto::MAX_PLAYERS);
-        for(int i=0;i<n;++i)s->SendBoardSnapshot(seats[i],packet.data,packet.size);
+    // Never publish a provisional loadout while the seed-selection gate is still up.
+    if(board->mApp->mGameScene!=SCENE_PLAYING || board->mApp->mRunIntroHeld || board->mApp->mOnlineSeedsHeld || s->RelayBattleHeld())return;
+    BYTE seats[NetProto::MAX_PLAYERS];int n=s->GetBoardWatcherSeats(seats,NetProto::MAX_PLAYERS);
+    bool newcomer=false;for(int i=0;i<n;++i)if(s->mFullWatch->ackEpoch[seats[i]]!=epoch || s->mFullWatch->ackRevision[seats[i]]!=revision)newcomer=true;
+    if(lastPaused!=board->mPaused || lastComplete!=board->mLevelComplete){schedule.Edit();lastPaused=board->mPaused;lastComplete=board->mLevelComplete;}
+    DWORD now=GetTickCount();if(!schedule.Due(now,newcomer))return;
+    WatchWire::Bytes config,state;
+    if(!WatchState::Capture(board,config,state))return;
+    if(config!=lastConfig){lastConfig=config;if(!++revision)++revision;}
+    Bundle h;h.epoch=epoch;h.revision=revision;h.sequence=++sequence;h.seat=s->GetLocalSeat();
+    h.mode=board->mApp->mGameMode;h.paused=board->mPaused?1:0;h.relay=s->GetRelayTargetSeat()?1:0;
+    bool sent=false;
+    for(int i=0;i<n;++i){BYTE seat=seats[i];bool init=s->mFullWatch->ackEpoch[seat]!=epoch || s->mFullWatch->ackRevision[seat]!=revision;
+        auto bytes=WatchWire::Pack(h,init?config:WatchWire::Bytes{},state);
+        snapshot::Buffer packet{};
+        if(s->mFullWatch->codec.encode(bytes.data(),static_cast<DWORD>(bytes.size()),sequence,now,packet)){
+            if(s->SendBoardSnapshot(seat,packet.data,packet.size))sent=true;
+            TodLog("[watch] send seq=%u epoch=%u rev=%u to=%u tick=%u init=%u state=%u packed=%u",sequence,epoch,revision,seat,now,init?(unsigned)config.size():0,(unsigned)state.size(),packet.size);
+        }
+        snapshot::release(packet);
     }
-    snapshot::release(packet);
+    if(sent)schedule.Sent(now);
 }
 bool Key(int key) {
     if(!app)return false;
@@ -240,9 +229,20 @@ bool Key(int key) {
     }
     return false;
 }
-void Click(int x,int y){if(IsObserver() && x>=665 && x<790 && y>=8 && y<54)Close();}
+void Click(int x,int y){
+    if(!IsObserver() || x<665 || x>=790)return;
+    if(y>=8 && y<54)Close();
+    else if(y>=58 && y<100){
+        incrementalUpdates=!incrementalUpdates;
+        if(!incrementalUpdates)forceFullUpdate=true;
+        TodLog("[watch] mode selected=%s",incrementalUpdates?"incremental":"full");
+    }
+}
 void DrawControls(Sexy::Graphics* g) {
-    if(IsObserver())CoopHud::SmallButton(g,Sexy::Rect(665,8,125,46),ModText::Tr("返回","Back"),true);
+    if(IsObserver()){
+        CoopHud::SmallButton(g,Sexy::Rect(665,8,125,46),ModText::Tr("返回","Back"),true);
+        CoopHud::SmallButton(g,Sexy::Rect(665,58,125,42),incrementalUpdates?ModText::Tr("增量更新","Incremental"):ModText::Tr("完全更新","Full update"),true);
+    }
 }
 bool IsRelayedExit(Board*){return IsObserver() && remoteRelay;}
 }

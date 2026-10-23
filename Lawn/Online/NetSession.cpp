@@ -1490,7 +1490,7 @@ bool NetSession::BeginWatch(uint8_t theSeat)
 	if (IsWatching() && mWatchTargetSeat != theSeat)
 		SendBoardWatchMsg(mWatchTargetSeat, NetProto::WATCH_END);
 
-	mFullWatch->assembly.reset();mFullWatch->received.clear();
+	mFullWatch->assembly.reset();mFullWatch->received.clear();mFullWatch->configCache.Reset();
 	mWatchTargetSeat = theSeat;
 	mFramesSinceWatchKeepalive = 0;
 	mFramesSinceWatchSnapshot = 0;
@@ -1518,7 +1518,7 @@ void NetSession::EndWatch(bool theNotify)
 
 void NetSession::ClearWatchState(WatchEnd theReason)
 {
-    mFullWatch->assembly.reset();mFullWatch->received.clear();
+    mFullWatch->assembly.reset();mFullWatch->received.clear();mFullWatch->configCache.Reset();
 	bool aWasWatching = IsWatching();
 	mWatchTargetSeat = NetProto::SEAT_UNSET;
 	mFramesSinceWatchKeepalive = 0;
@@ -2515,6 +2515,16 @@ void NetSession::HandlePacket(const NetLink::Packet& thePacket)
 
 	case NetProto::MSG_BOARD_WATCH:
 		{
+            // PWV2 initialization acknowledgement, independent for every viewer.
+            if(aPayloadSize==11 && aPayload[2]==WatchWire::Ack){
+                BYTE seat=aPayload[0];
+                if(seat>=1 && seat<=NetProto::MAX_PLAYERS && seat!=mLocalSeat && aPayload[1]==mLocalSeat && IsSeatOccupied(seat)){
+                    mFullWatch->ackEpoch[seat]=WatchWire::Get(aPayload+3);
+                    mFullWatch->ackRevision[seat]=WatchWire::Get(aPayload+7);
+                }
+                break;
+            }
+
 			// 观战点播/保活/收播（op 见 WatchOp）。**被看端和观看端的收件都在这里**：
 			// BEGIN/KEEPALIVE 落在被看端的观众表上；END 落在被看端（停推）或观看端
 			//（被看方离开关卡时的"别看了"，观看起来是对方主动停推）。
@@ -2541,6 +2551,7 @@ void NetSession::HandlePacket(const NetLink::Packet& thePacket)
 					mBoardWatcherMask |= (uint8_t)(1u << aMsg.mSrcSeat);
 					TodLog("[net] seat %u starts watching my board", (unsigned)aMsg.mSrcSeat);
 				}
+                if(aMsg.mOp==NetProto::WATCH_BEGIN){mFullWatch->ackEpoch[aMsg.mSrcSeat]=0;mFullWatch->ackRevision[aMsg.mSrcSeat]=0;}
 				mBoardWatcherFrames[aMsg.mSrcSeat] = 0;
 			}
 			else if (aMsg.mOp == NetProto::WATCH_END)
@@ -3612,7 +3623,7 @@ bool NetSession::SendBoardSnapshot(uint8_t seat,const uint8_t* body,int size) {
 }
 void NetSession::PumpFullWatch() {
     if(!IsConnected())return;
-    for(int budget=0;budget<2;++budget) {
+    for(int budget=0;budget<12;++budget) {
         BYTE seat=0;
         for(int attempt=0;attempt<NetProto::MAX_PLAYERS;++attempt) {
             BYTE next=mFullWatch->nextSeat;
@@ -3636,8 +3647,12 @@ void NetSession::ReceiveFullWatch(const uint8_t* bytes,int count) {
     auto state=mFullWatch->assembly.accept(bytes,count,mWatchTargetSeat,mLocalSeat,GetTickCount(),complete);
     if(state!=snapshot::Receive::Complete)return;
     if(mFullWatch->codec.decode(complete.data,complete.size,raw)) {
-        mFullWatch->received.assign(raw.data,raw.data+raw.size);
-        mFramesSinceWatchSnapshot=0;
+        WatchWire::Bytes wire(raw.data,raw.data+raw.size),completeState;WatchWire::Header h;
+        if(WatchWire::Parse(wire,h) && h.seat==mWatchTargetSeat && mFullWatch->configCache.Accept(wire,completeState,h)){
+            mFullWatch->received=std::move(completeState);mFramesSinceWatchSnapshot=0;
+            if(h.configBytes){WatchWire::Bytes ack{mLocalSeat,mWatchTargetSeat,WatchWire::Ack};WatchWire::Put(ack,h.epoch);WatchWire::Put(ack,h.revision);
+                Dispatch(NetProto::MSG_BOARD_WATCH,ack.data(),static_cast<int>(ack.size()),mWatchTargetSeat);}
+        }else if(IsWatching())SendBoardWatchMsg(mWatchTargetSeat,NetProto::WATCH_BEGIN);
     }
     snapshot::release(raw);snapshot::release(complete);
 }

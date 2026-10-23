@@ -89,6 +89,7 @@ static void QuickChatDrawEmote(Graphics* g, float theX, float theY, SeedType the
 // GOTY @Patoke: 0x40A3C0
 Board::Board(LawnApp* theApp)
 {
+    FullWatch::BoardCreated(this);
 	mApp = theApp;
     NextWave::Reset(this);
 	mApp->mBoard = this;
@@ -2445,6 +2446,9 @@ Coin* Board::AddCoin(int theX, int theY, CoinType theCoinType, CoinMotion theCoi
 {
 	Coin* aCoin = mCoins.DataArrayAlloc();
 	aCoin->CoinInitialize(theX, theY, theCoinType, theCoinMotion);
+    // Observer callers still receive a valid transient object; no live reward or sun
+    // survives to draw/update. This also catches plant, sky and zombie loot sources.
+    if(FullWatch::IsObserver()){aCoin->Die();return aCoin;}
 	if (mApp->IsFirstTimeAdventureMode() && mLevel == 1)
 	{
 		DisplayAdvice(_S("[ADVICE_CLICK_ON_SUN]"), MessageStyle::MESSAGE_STYLE_TUTORIAL_LEVEL1_STAY, AdviceType::ADVICE_CLICK_ON_SUN);
@@ -2538,6 +2542,7 @@ Plant* Board::NewPlant(int theGridX, int theGridY, SeedType theSeedType, SeedTyp
 	Plant* aPlant = mPlants.DataArrayAlloc();
 	aPlant->mIsOnBoard = true;
 	aPlant->PlantInitialize(theGridX, theGridY, theSeedType, theImitaterType);
+    FullWatch::BoardEdited(this);
 	return aPlant;
 }
 
@@ -4926,6 +4931,7 @@ void Board::MouseDownWithTool(int x, int y, int theClickCount, CursorType theCur
 	{
 		mApp->PlayFoley(FoleyType::FOLEY_USE_SHOVEL);
 		mPlantsShoveled++;
+        FullWatch::BoardEdited(this);
 		aPlant->Die();
 
 		if (aPlant->mSeedType == SeedType::SEED_CATTAIL && GetTopPlantAt(aPlant->mPlantCol, aPlant->mRow, PlantPriority::TOPPLANT_ONLY_PUMPKIN))
@@ -6502,6 +6508,7 @@ bool Board::OnlineWaitingForTeam()
 //0x413A70
 void Board::UpdateSunSpawning()
 {
+    if(FullWatch::IsObserver())return;
 	if ((StageIsNight() && !mApp->RunSkySunAtNight()) ||
 		(HasLevelAwardDropped() && !OnlineWaitingForTeam()) ||
 		mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_RAINING_SEEDS || 

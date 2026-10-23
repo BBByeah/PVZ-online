@@ -69,6 +69,7 @@ public:
 	static std::string	GetLocalIPv4Text();
 
 private:
+    void FlushSend();
 	Impl*			mImpl;
 
 	NetLink(const NetLink&);

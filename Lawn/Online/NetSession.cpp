@@ -61,6 +61,7 @@ std::string SanitizeName(const char* theName, int theMaxBytes)
 
 // 把拼好的快照数据段解析成展示模型（格式见 NetProtocol.h 的 SNAPSHOT_* 注释）。
 // 任何结构对不上都返回 false——调用方保留上一份画面、等下一份自愈，绝不画半份垃圾。
+#if 0 // old: deprecated low-detail parser.
 bool ParseViewSnapshot(const uint8_t* theBody, int theSize, NetSession::ViewSnapshot& theSnapshot)
 {
 	if (theSize < NetProto::SNAPSHOT_HEADER_SIZE) return false;
@@ -101,6 +102,8 @@ bool ParseViewSnapshot(const uint8_t* theBody, int theSize, NetSession::ViewSnap
 	}
 	return !aReader.Overflowed();
 }
+#endif // old
+
 
 }
 
@@ -601,6 +604,7 @@ bool NetSession::ResendLastStartLevel(uint8_t theTargetSeat)
 
 void NetSession::Update()
 {
+    PumpFullWatch();
 	if (mState == State::OFF) return;
 
 	// 死了就是死了，别再泵这个会话。SetDead 不动 NetLink，判死时链路往往还挂着
@@ -1486,6 +1490,7 @@ bool NetSession::BeginWatch(uint8_t theSeat)
 	if (IsWatching() && mWatchTargetSeat != theSeat)
 		SendBoardWatchMsg(mWatchTargetSeat, NetProto::WATCH_END);
 
+	mFullWatch->assembly.reset();mFullWatch->received.clear();
 	mWatchTargetSeat = theSeat;
 	mFramesSinceWatchKeepalive = 0;
 	mFramesSinceWatchSnapshot = 0;
@@ -1513,6 +1518,7 @@ void NetSession::EndWatch(bool theNotify)
 
 void NetSession::ClearWatchState(WatchEnd theReason)
 {
+    mFullWatch->assembly.reset();mFullWatch->received.clear();
 	bool aWasWatching = IsWatching();
 	mWatchTargetSeat = NetProto::SEAT_UNSET;
 	mFramesSinceWatchKeepalive = 0;
@@ -1532,6 +1538,7 @@ NetSession::WatchEnd NetSession::TakeWatchEnded()
 	return aResult;
 }
 
+#if 0 // old: deprecated preview consumer.
 bool NetSession::TakeViewSnapshot(ViewSnapshot& theSnapshot)
 {
 	if (!mHasViewSnapshot) return false;
@@ -1540,6 +1547,8 @@ bool NetSession::TakeViewSnapshot(ViewSnapshot& theSnapshot)
 	mHasViewSnapshot = false;
 	return true;
 }
+#endif // old
+
 
 int NetSession::GetBoardWatcherSeats(uint8_t* theSeats, int theMax) const
 {
@@ -1551,6 +1560,7 @@ int NetSession::GetBoardWatcherSeats(uint8_t* theSeats, int theMax) const
 	return aCount;
 }
 
+#if 0 // old: deprecated simplified preview, not compiled.
 bool NetSession::SendBoardSnapshot(uint8_t theViewerSeat, const uint8_t* theBody, int theSize)
 {
 	if (!IsConnected()) return false;
@@ -1590,6 +1600,8 @@ bool NetSession::SendBoardSnapshot(uint8_t theViewerSeat, const uint8_t* theBody
 	}
 	return true;
 }
+#endif
+
 
 // ====================================================================================================
 // ★ 状态与文案
@@ -1597,6 +1609,7 @@ bool NetSession::SendBoardSnapshot(uint8_t theViewerSeat, const uint8_t* theBody
 
 void NetSession::ResetToOff()
 {
+    mFullWatch=std::make_unique<FullWatchNet>();
     mPrivateRoom=false;
  mFlowSupported=mFlowEnabled=mFlowHelloSent=mFlowDeferred=false;
  mFlowDoneValue=mFlowStartPending=mFlowHostStartRecovery=mFlowLost=false;mReadyCancelState=ReadyCancelState::NONE;mFlowTerm=mFlowEpoch=mFlowGeneration=mFlowAcked=mFlowDoneEpoch=0;mFlowPhase=0;mFlowStartTicks=0;
@@ -2553,6 +2566,10 @@ void NetSession::HandlePacket(const NetLink::Packet& thePacket)
 		break;
 
 	case NetProto::MSG_BOARD_SNAPSHOT:
+        ReceiveFullWatch(aPayload,aPayloadSize);
+        break;
+#if 0 // old: deprecated simplified preview assembly/parser.
+	case NetProto::MSG_BOARD_SNAPSHOT:
 		{
 			// 观战快照（分片到达）。这一族全部**宽松处置**：坏帧丢帧、半份作废、等下一份自愈。
 			// 理由是它和其他帧不同——快照是显示层的附加流，长度又天然变长（最后一片不满），
@@ -2623,6 +2640,8 @@ void NetSession::HandlePacket(const NetLink::Packet& thePacket)
 			}
 		}
 		break;
+#endif
+
 
 	default:
 		// 没见过的消息类型：长度合法性已经在头上查过，帧长（头里的 len）还对得上，
@@ -3580,4 +3599,49 @@ void NetSession::PublishRoundWait() {
     if(mRole!=Role::HOST || !IsConnected() || !mReadyEpoch)return;
     uint8_t bytes[7];NetProto::Writer w(bytes,sizeof(bytes));w.U8(mLocalSeat);w.U8(0);w.U32(mReadyEpoch);w.U8(mRoundWaitMask);
     Dispatch(NetProto::MSG_ROUND_WAIT,bytes,sizeof(bytes));
+}
+
+// @pvz-online: complete compressed generations are paced rather than sending
+// a large burst on the game's update thread. A newer generation supersedes old.
+bool NetSession::SendBoardSnapshot(uint8_t seat,const uint8_t* body,int size) {
+    if(!IsConnected() || !body || size<=0 || size>(int)snapshot::MaxEnvelope ||
+       seat<1 || seat>NetProto::MAX_PLAYERS || !(mBoardWatcherMask&(1u<<seat)))return false;
+    auto& packet=mFullWatch->outgoing[seat];snapshot::release(packet);
+    if(!snapshot::allocate(packet,size))return false;
+    memcpy(packet.data,body,size);mFullWatch->offsets[seat]=0;return true;
+}
+void NetSession::PumpFullWatch() {
+    if(!IsConnected())return;
+    for(int budget=0;budget<2;++budget) {
+        BYTE seat=0;
+        for(int attempt=0;attempt<NetProto::MAX_PLAYERS;++attempt) {
+            BYTE next=mFullWatch->nextSeat;
+            mFullWatch->nextSeat=next==NetProto::MAX_PLAYERS?1:next+1;
+            if((mBoardWatcherMask&(1u<<next)) && mFullWatch->outgoing[next].data &&
+               mFullWatch->offsets[next]<mFullWatch->outgoing[next].size){seat=next;break;}
+        }
+        if(!seat)break;
+        auto& packet=mFullWatch->outgoing[seat];BYTE frame[256];
+        DWORD sequence=reinterpret_cast<const snapshot::Header*>(packet.data)->sequence;
+        DWORD count=snapshot::fragment(packet,sequence,mLocalSeat,seat,mFullWatch->offsets[seat],frame);
+        if(!count || !Dispatch(NetProto::MSG_BOARD_SNAPSHOT,frame,count,seat)) {
+            snapshot::release(packet);continue;
+        }
+        mFullWatch->offsets[seat]+=count-sizeof(snapshot::FragmentHeader);
+    }
+}
+void NetSession::ReceiveFullWatch(const uint8_t* bytes,int count) {
+    if(!IsWatching() || count<=0)return;
+    snapshot::Buffer complete{},raw{};
+    auto state=mFullWatch->assembly.accept(bytes,count,mWatchTargetSeat,mLocalSeat,GetTickCount(),complete);
+    if(state!=snapshot::Receive::Complete)return;
+    if(mFullWatch->codec.decode(complete.data,complete.size,raw)) {
+        mFullWatch->received.assign(raw.data,raw.data+raw.size);
+        mFramesSinceWatchSnapshot=0;
+    }
+    snapshot::release(raw);snapshot::release(complete);
+}
+bool NetSession::TakeFullWatch(std::vector<unsigned char>& data) {
+    if(mFullWatch->received.empty())return false;
+    data.swap(mFullWatch->received);mFullWatch->received.clear();return true;
 }

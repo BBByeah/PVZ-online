@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include "NetLink.h"
+#include "FullWatchNet.h"
 
 // @pvz-online: M2/M3 会话层——"谁建房、谁坐哪个席位、握手、心跳、掉线"这套规矩收在这里，
 // 游戏代码只问状态、只收事件，不碰 socket。
@@ -23,6 +24,10 @@
 class NetSession
 {
 public:
+    std::unique_ptr<FullWatchNet> mFullWatch=std::make_unique<FullWatchNet>();
+    bool TakeFullWatch(std::vector<unsigned char>& data);
+    void PumpFullWatch();
+    void ReceiveFullWatch(const uint8_t* data, int size);
     // Initial create retry information; never infer it from localized text.
     bool mRoomCreateAttempted=false,mRoomCreateBusyRejected=false,mRoomCreateWelcomed=false;
     bool RoomCreateRequestAttempted()const{return mRoomCreateAttempted;}
@@ -128,6 +133,7 @@ public:
 
 	// 一份快照解析后的样子（纯展示数据：接收端照它画，不建任何实体）。
 	// 数组定长给满协议上限——发送端已在源头截断，这里不可能更多。
+	// old: deprecated 15 Hz preview model; retained only for old code layout.
 	struct ViewSnapshot
 	{
 		struct Zombie
@@ -166,7 +172,7 @@ public:
 	static const int	RELAY_HANDSHAKE_FRAMES		= 1000;
 	// 观战（队友场地查看）的三个计时，同样 10ms 一拍：
 	static const int	WATCH_KEEPALIVE_FRAMES		= 200;	// 观看者每 2 秒一条保活
-	static const int	WATCH_SNAPSHOT_FRAMES		= 300;	// 观看者 3 秒没有快照 = 对面没响应，观看收场
+	static const int	WATCH_SNAPSHOT_FRAMES		= 1500;	// @pvz-online: 15 s at 100 Hz; full generations arrive no faster than 5 s.
 	static const int	WATCH_KEEPER_FRAMES			= 600;	// 被看方 6 秒收不到保活 = 观看者没了，停推
 	// @pvz-online MOD_BUILD 39：中继自动重连的三个计时（同样 10ms 一拍），和服务器侧
 	// （30 秒踢人 / 60 秒席位保留）配套成一个账：客户端最迟 15+45=60 秒就放弃，
@@ -485,7 +491,7 @@ public:
 	WatchEnd		TakeWatchEnded();
 	// 观看端：最新一份快照到了没有（取一次就清；棋盘每帧问一次）。快照是"最新覆盖"的流，
 	// 只留一份不排队——过期的战场定格没有展示价值，丢了就丢了。
-	bool			TakeViewSnapshot(ViewSnapshot& theSnapshot);
+	bool			TakeViewSnapshot(ViewSnapshot& theSnapshot); // old: deprecated, not compiled
 
 	// 被看端：现在有人在看我吗（棋盘据此决定这一帧要不要打包快照）。
 	bool			HasBoardWatchers() const { return mBoardWatcherMask != 0; }

@@ -21,8 +21,13 @@ endif()
 # support for windows
 if(MSVC)
     set(libjpeg_binary "jpeg-static.lib")
-    set(zlib_binary "zlibstaticd.lib")
-    set(libpng_binary "libpng16_staticd.lib")
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(zlib_binary "zlibstaticd.lib")
+        set(libpng_binary "libpng16_staticd.lib")
+    else()
+        set(zlib_binary "zlibstatic.lib")
+        set(libpng_binary "libpng16_static.lib")
+    endif()
 else() # linux
     set(libjpeg_binary "libjpeg.a")
     set(zlib_binary "libzlibstatic.a")
@@ -37,6 +42,7 @@ ExternalProject_Add(libjpeg-src
     SOURCE_DIR          "${THIRD_PARTY_DIR}/libjpeg-turbo"
     BINARY_DIR          "${libjpeg_dir}"
     CMAKE_ARGS          "-DCMAKE_TOOLCHAIN_FILE:FILEPATH=${CMAKE_TOOLCHAIN_FILE}"
+                        "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
                         "-DCMAKE_INSTALL_PREFIX=${libjpeg_dir}/install" # unused, have to specify
                         "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
                         "-DCMAKE_C_FLAGS=${universal_cflags}"
@@ -74,6 +80,7 @@ ExternalProject_Add(zlib-src
     UPDATE_COMMAND          ""
     SOURCE_DIR              "${THIRD_PARTY_DIR}/zlib"
     CMAKE_ARGS              "-DCMAKE_TOOLCHAIN_FILE:FILEPATH=${CMAKE_TOOLCHAIN_FILE}"
+                        "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
                             "-DCMAKE_INSTALL_PREFIX=${zlib_dir}"
                             "-DCMAKE_C_FLAGS=${universal_cflags}"
                             "-Wno-dev"
@@ -107,6 +114,7 @@ ExternalProject_Add(libpng-src
     DEPENDS                 zlib-src
     SOURCE_DIR              "${THIRD_PARTY_DIR}/libpng"
     CMAKE_ARGS              "-DCMAKE_TOOLCHAIN_FILE:FILEPATH=${CMAKE_TOOLCHAIN_FILE}"
+                        "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
                             "-DCMAKE_INSTALL_PREFIX=${libpng_dir}"
                             "-DCMAKE_C_FLAGS=${universal_cflags}"
                             "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
@@ -115,9 +123,9 @@ ExternalProject_Add(libpng-src
                             "-DPNG_SHARED=OFF"
                             "-DPNG_EXECUTABLES=OFF"
                             "-DPNG_TESTS=OFF"
-                            "-DPNG_BUILD_ZLIB=${zlib_dir}"
-                            "-DZLIB_INCLUDE_DIRS=${CMAKE_BINARY_DIR}/include/zlib"
-                            "-DZLIB_LIBRARIES=${zlib_dir}/${zlib_binary}"
+                            "-DPNG_BUILD_ZLIB=OFF"
+                            "-DZLIB_INCLUDE_DIR=${CMAKE_BINARY_DIR}/include/zlib"
+                            "-DZLIB_LIBRARY=${zlib_dir}/${zlib_binary}"
                             "-Wno-dev"
 
     BUILD_COMMAND           ${CMAKE_COMMAND} --build "${libpng_dir}" --target png_static

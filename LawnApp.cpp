@@ -1,3 +1,4 @@
+#include "Lawn/Online/FullWatch.h"
 #include "Lawn/Widget/NextWaveControl.h"
 #include "Lawn/Run/EndlessLawn.h"
 #include "Lawn/CoopPlay.h"
@@ -218,6 +219,7 @@ LawnApp::LawnApp()
 //0x44EDD0、0x44EDF0
 LawnApp::~LawnApp()
 {
+    if(!FullWatch::IsObserver())FullWatch::StopChild();
 	if (mBoard)
 	{
 		WriteCurrentUserConfig();
@@ -451,6 +453,7 @@ void LawnApp::GotFocus()
 //0x44F460
 void LawnApp::LostFocus()
 {
+    if(FullWatch::IsObserver())return;
     NextWaveControl::Suspend(mBoard);
 	// @pvz-online: 联机环境里切出去一律不暂停——建房等待、连接中、已连上都算（用户拍板：
 	// 这个简化框开的 DIALOG_PAUSED 不参与暂停同步，一弹就是"只停自己"：队友还在打，
@@ -467,6 +470,7 @@ void LawnApp::LostFocus()
 //0x44F480
 void LawnApp::WriteToRegistry()
 {
+    if(FullWatch::IsObserver())return;
 	if (mPlayerInfo)
 	{
 		ModText::RegWriteString("CurUser", SexyStringToStringFast(mPlayerInfo->mName));
@@ -2446,6 +2450,7 @@ void LawnApp::ReleaseRunIntro()
 // （打赢的完胜场面、打输的吃脑子场面各自都说得通），等待提示挂在上面。
 void LawnApp::UpdateRunPick()
 {
+    if(FullWatch::IsObserver())return;
 	if (mRunState == nullptr || (mOnlineSession && mOnlineSession->IsReconnecting())) return;
     if(mRunState->mAdmission.fast || AdmissionBuilding())return;
 
@@ -4227,6 +4232,7 @@ bool LawnApp::KillAlmanacDialog()
 //0x4516F0
 bool LawnApp::NeedPauseGame()
 {
+    if(FullWatch::IsObserver())return FullWatch::ObserverPaused();
 	if (mDialogList.size() == 0)
 		return false;
 
@@ -4371,6 +4377,7 @@ void LawnApp::Init()
 	//	gSexyCache->Disconnect();
 	//}
 
+    FullWatch::PrepareApp(this);
 	mSessionID = _time64(nullptr);
 	mPlayTimeActiveSession = 0;
 	mPlayTimeInactiveSession = 0;
@@ -4646,6 +4653,7 @@ bool LawnApp::UpdatePlayerProfileForFinishingLevel()
 // GOTY @Patoke: 0x4558E0
 void LawnApp::CheckForGameEnd()
 {
+    if(FullWatch::IsObserver())return;
 	if (mBoard == nullptr || !mBoard->mLevelComplete)
 		return;
 
@@ -4801,6 +4809,7 @@ void LawnApp::UpdatePlayTimeStats()
 //0x452650
 void LawnApp::UpdateFrames()
 {
+    FullWatch::TickApp(this);
     mDamageStats.Update(this);
 	// @pvz-online: 联机会话按真实帧推进，故意放在 aUpdateCount 循环外——心跳和超时算的是
 	// 挂钟时间，不该跟着 slow/fast-mo 一起变快变慢。
@@ -5059,7 +5068,7 @@ void LawnApp::LoadingCompleted()
 	mResourceManager->DeleteImage("IMAGE_TITLESCREEN");
 
 	TodTrace("LawnApp::LoadingCompleted -> ShowGameSelector");
-	ShowGameSelector();
+    if(!FullWatch::IsObserver())ShowGameSelector();
 	TodTrace("LawnApp::LoadingCompleted done");
 }
 

@@ -1,3 +1,4 @@
+#include "Online/FullWatch.h"
 #include <memory>
 #include <new>
 #include "Run/EndlessLawn.h"
@@ -2144,6 +2145,7 @@ LawnMower* Board::GetBottomLawnMower()
 // GOTY @Patoke: 0x40E860
 void Board::UpdateLevelEndSequence()
 {
+    if(FullWatch::IsObserver())return;
 	if (HasLivingBoss()) return;
 	if (mNextSurvivalStageCounter > 0)
 	{
@@ -3766,6 +3768,7 @@ void Board::UpdateCursor()
 //0x40E760
 void Board::MouseMove(int x, int y)
 {
+    if(FullWatch::IsObserver())return;
 	Widget::MouseMove(x, y);
 	mChallenge->MouseMove(x, y);
 }
@@ -5277,6 +5280,7 @@ void Board::PickUpTool(GameObjectType theObjectType)
 //0x411F20
 void Board::MouseDown(int x, int y, int theClickCount)
 {
+    if (FullWatch::IsObserver()) { FullWatch::Click(x,y); return; }
     if (mApp->mOnlineSession && mApp->mOnlineSession->RelayBattleHeld()) { mApp->DoOnlineDialog(); return; }
     if(AdmissionBoard::MouseDown(this,x,y,theClickCount))return;
     if (NextWaveControl::MouseDown(this, x, y, theClickCount)) return;
@@ -5500,6 +5504,7 @@ bool Board::CanInteractWithBoardButtons()
 //0x412540
 void Board::MouseUp(int x, int y, int theClickCount)
 {
+    if (FullWatch::IsObserver()) return;
     if (mApp->mOnlineSession && mApp->mOnlineSession->RelayBattleHeld()) return;
     if(AdmissionBoard::MouseUp(this,x,y,theClickCount))return;
     if (NextWaveControl::MouseUp(this, x, y, theClickCount)) return;
@@ -6231,6 +6236,7 @@ void Board::GiveSunGift(int theAmount, uint8_t theFromSeat)
 // 单机、队友掉线、末席（没有下一席位）这几种情况都返回 false，调用处照原样判负。
 bool Board::TryRelayEscapedZombie(Zombie* theZombie)
 {
+    if (FullWatch::IsRelayedExit(this)) { theZombie->DieNoLoot(); return true; }
 	if (!mApp->IsOnlineGame()) return false;
 
 	NetProto::MsgEscapedZombie aMsg;
@@ -9040,6 +9046,7 @@ void Board::DrawUITop(Graphics* g)
 	mToolTip->Draw(g);
 	DrawDebugText(g);
 	DrawDebugObjectRects(g);
+    FullWatch::DrawControls(g);
 }
 
 //0x41ACF0
@@ -9050,12 +9057,15 @@ void Board::Draw(Graphics* g)
 
 	// @pvz-online: 观战批③——观看态整窗画队友场地（全屏切入；自己的模拟照跑，只是画面让位）。
 	// 判定与进入口径一致（局内 + V 按着 + 订阅在）；结束观看立刻回到自家画面。
+#if 0 // old: full-board observer now renders in an isolated child.
 	if (IsWatchingView())
 	{
 		DrawBoardWatch(g);
         CoopHud::WatchControls(g);
 		return;
 	}
+
+#endif // old
 
 	g->SetLinearBlend(true);
 
@@ -9606,6 +9616,7 @@ int Board::DrawQuickChatBannerRow(Graphics* g, ModText::Font* theFont, int theAs
 // 打包一份战场定格，返回写出的字节数（0 = 缓冲区装不下——正常不会发生，上限 1087B）。
 // 超编裁剪：僵尸留最靠左（最接近防线）的 120 只，裁掉最靠右（还没进场、威胁最小）的；
 // 植物按遍历序收满 60 株为止。裁过就置 TRUNCATED 位（观看端不提示，只是知悉）。
+#if 0 // old: low-detail snapshot generation and 15 Hz update are deprecated.
 int Board::BuildBoardSnapshot(uint8_t* theBuffer, int theCapacity)
 {
 	const int aMaxSize = NetProto::SNAPSHOT_HEADER_SIZE
@@ -9798,6 +9809,9 @@ void Board::UpdateBoardWatch()
 //   · 结束原因 TIMEOUT/TARGET_LEFT 在收场后提示 ~2 秒（DrawWatchNotice）。
 // 绘制全部只读 mRemoteSnapshot（纯展示数据），不建/不碰任何实体；坐标与棋盘同系。
 
+#endif // old
+void Board::UpdateBoardWatch() { FullWatch::TickBoard(this); }
+
 bool Board::IsWatchingView()
 {
 	NetSession* aSession = mApp->mOnlineSession;
@@ -9825,6 +9839,7 @@ uint8_t Board::PickDefaultWatchSeat()
 }
 
 // KeyDown 钩子。返回 true = 这个键被观看功能吃掉（不落给血量键/暂停/ESC 链）。
+#if 0 // old: deprecated simplified spectator; retained for reference.
 bool Board::HandleBoardWatchKey(KeyCode theKey)
 {
 	NetSession* aSession = mApp->mOnlineSession;
@@ -10067,6 +10082,9 @@ void Board::DrawBoardWatch(Graphics* g)
 	}
 }
 
+#endif // old
+bool Board::HandleBoardWatchKey(KeyCode key) { return FullWatch::Key(key); }
+
 void Board::DrawWatchNotice(Graphics* g)
 {
 	ModText::Font* aFont = ModText::GetFont(12, false);
@@ -10144,6 +10162,8 @@ void Board::DrawKeyboardHint(Graphics* g, int theSlot, int theX, int theY)
 //0x41B820
 void Board::KeyDown(KeyCode theKey)
 {
+    if (FullWatch::IsObserver()) { FullWatch::Key(theKey); return; }
+    if ((theKey=='V' || theKey==KEYCODE_F10) && mWidgetManager->mIsKeyRepeat) return;
     if (mApp->mOnlineSession && mApp->mOnlineSession->RelayBattleHeld()) { mApp->DoOnlineDialog(); return; }
     if(NextWaveControl::KeyDown(this,theKey))return;
     // @pvz-online: KeyCode is a VK, not a character: lowercase 't' is F5 and 'b' is NUMPAD2.
@@ -10221,6 +10241,7 @@ void Board::KeyDown(KeyCode theKey)
 
 // @pvz-online: 观战——松开 V 收场（主动发 END，对面立刻停推、不用等 6 秒保活超时）。
 // 失焦时收不到 KeyUp，由 UpdateBoardWatch 的 mKeyDown 轮询兜底。
+#if 0 // old: hold-to-watch release is deprecated.
 void Board::KeyUp(KeyCode theKey)
 {
     NextWaveControl::KeyUp(this,theKey);
@@ -10236,6 +10257,9 @@ void Board::KeyUp(KeyCode theKey)
 	}
 }
 
+#endif // old
+void Board::KeyUp(KeyCode key) { if(!FullWatch::IsObserver())NextWaveControl::KeyUp(this,key); }
+
 static void TodCrash()
 {
 	TOD_ASSERT(false, "Crash%s", "!!!!");
@@ -10244,6 +10268,7 @@ static void TodCrash()
 //0x41B950（原版中废弃）
 void Board::KeyChar(SexyChar theChar)
 {
+    if (FullWatch::IsObserver()) return;
     if(mApp->IsRunMode() && (theChar=='n' || theChar=='N'))return;
     // @pvz-online: H/J are display keys, including with -tod; do not also spawn debug zombies.
     if ((theChar == _S('h') || theChar == _S('H') || theChar == _S('j') || theChar == _S('J')) &&

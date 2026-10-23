@@ -7,6 +7,8 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 #include <process.h>
+#include "FullWatchSendQueue.h"
+#include "FullWatchFragments.h"
 #include <cstring>
 #include <string>
 #include <vector>
@@ -37,6 +39,8 @@ unsigned __stdcall LinkThreadProc(void* theArg);
 
 struct NetLink::Impl
 {
+    transport::Queue sends{};
+    DWORD sendProgress=0;
 	SOCKET				mListenSocket;
 	SOCKET				mSocket;			// 已连接的那个；发布之后只有 Close() 能关它
 	HANDLE				mThread;
@@ -80,7 +84,7 @@ struct NetLink::Impl
 	{
 		// accept() 在 Windows 上会继承监听 socket 的非阻塞标志，connect 前也设过非阻塞，
 		// 所以这里必须显式改回阻塞 + 100ms 超时，否则收包线程会空转。
-		u_long aNonBlocking = 0;
+		u_long aNonBlocking = 1; // @pvz-online: sends must never block the game thread.
 		ioctlsocket(theSocket, FIONBIO, &aNonBlocking);
 
 		int aNoDelay = 1;
@@ -506,6 +510,7 @@ void NetLink::Close()
 	}
 
 	ClearQueue();
+    anImpl->sends.reset();
 	anImpl->SetStateValue(State::IDLE);
 }
 
@@ -525,6 +530,7 @@ int NetLink::GetConnectAttempts() const
 	return mImpl ? (int)InterlockedCompareExchange(&mImpl->mConnectAttempts, 0, 0) : 1;
 }
 
+#if 0 // old: synchronous send stalls the frame thread on full snapshots.
 bool NetLink::Send(const void* theData, int theSize)
 {
 	Impl* anImpl = mImpl;
@@ -577,8 +583,42 @@ bool NetLink::Send(const void* theData, int theSize)
 	return true;
 }
 
+#endif // old
+void NetLink::FlushSend() {
+    auto* p=mImpl;if(!p || p->GetStateValue()!=State::CONNECTED)return;
+    int sent=p->sends.pump([&](const BYTE* bytes,UINT count) {
+        int n=send(p->mSocket,reinterpret_cast<const char*>(bytes),count,0);
+        if(n>0)return n;
+        int error=WSAGetLastError();
+        return error==WSAEWOULDBLOCK || error==WSA_IO_PENDING?0:-1;
+    },8);
+    if(sent<0)p->Fail("Connection lost while sending.");
+    if(sent>0 || !p->sends.count)p->sendProgress=GetTickCount();
+    else if(GetTickCount()-p->sendProgress>5000)p->Fail("The connection stalled while sending.");
+}
+bool NetLink::Send(const void* data,int size) {
+    auto* p=mImpl;
+    if(!p || p->GetStateValue()!=State::CONNECTED || !data || size<=0 || size>NetProto::MAX_PACKET)return false;
+    const BYTE* bytes=static_cast<const BYTE*>(data);
+    UINT stream=0;DWORD generation=0;
+    int type=bytes[0]|(bytes[1]<<8),offset=4;
+    if(type==NetProto::MSG_CLI_FLOW_GAME && size>=14){type=bytes[12]|(bytes[13]<<8);offset=14;}
+    if(type==NetProto::MSG_BOARD_SNAPSHOT && size>=offset+16) {
+        snapshot::FragmentHeader h{};memcpy(&h,bytes+offset,sizeof(h));
+        if(h.magic==snapshot::FragmentMagic){stream=h.sender*8+h.recipient;generation=h.sequence;}
+    }
+    if(stream) {
+        p->sends.discardOlder(stream,generation);
+        if(p->sends.count>=transport::Queue::Capacity-16)return true; // drop snapshot, reserve control capacity
+    }
+    if(!p->sends.count)p->sendProgress=GetTickCount();
+    if(!p->sends.push(bytes,size,stream,generation)){p->Fail("Send queue overflow.");return false;}
+    FlushSend();return p->GetStateValue()==State::CONNECTED;
+}
+
 bool NetLink::Poll(Packet& thePacket)
 {
+    FlushSend();
 	Impl* anImpl = mImpl;
 	if (!anImpl) return false;
 

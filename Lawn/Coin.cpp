@@ -1,3 +1,4 @@
+#include "Online/FullWatch.h"
 #include "Coin.h"
 #include "../Sexy.TodLib/ReanimAtlas.h"
 #include "../Sexy.TodLib/EffectSystem.h"
@@ -870,6 +871,7 @@ SeedType Coin::GetFinalSeedPacketType()
 //0x431810
 void Coin::Draw(Graphics* g)
 {
+    if (FullWatch::IsObserver() && IsSun()) return;
     g->SetColor(GetColor());
     if (mType == CoinType::COIN_DIAMOND)
     {

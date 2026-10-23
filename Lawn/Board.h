@@ -633,11 +633,11 @@ public:
 	// 观看端按住 V 时整窗画队友场地（批③），自己的棋盘照跑不暂停。
 	// 挂在 Update 的 mPaused 早退之前：被看方暂停时也要推（快照带 PAUSED 位）。
 	void							UpdateBoardWatch();
-	int								BuildBoardSnapshot(uint8_t* theBuffer, int theCapacity);
+	int								BuildBoardSnapshot(uint8_t* theBuffer, int theCapacity); // old: deprecated, not compiled
 	bool							HandleBoardWatchKey(KeyCode theKey);	// KeyDown 钩子；true = 吞键
 	bool							IsWatchingView();						// V 按着 + 订阅在 + 局内
 	uint8_t							PickDefaultWatchSeat();
-	void							DrawBoardWatch(Graphics* g);			// 全屏观看层（只读快照）
+	void							DrawBoardWatch(Graphics* g); // old: deprecated, not compiled			// 全屏观看层（只读快照）
 	void							DrawWatchNotice(Graphics* g);			// 结束提示（超时/离开）
 
 	NetSession::ViewSnapshot		mRemoteSnapshot;		// 最新一份队友战场定格（观看端）

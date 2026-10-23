@@ -720,15 +720,16 @@ struct MsgBoardWatch
 
 enum WatchOp : uint8_t
 {
-	WATCH_BEGIN		= 1,	// 观看者→被看者：开始看你（被看方凭这个开始推快照）
-	WATCH_KEEPALIVE	= 2,	// 观看者→被看者：还在看（每 2 秒一条，被看方 6 秒收不到就停推）
-	WATCH_END		= 3		// 观看者→被看者：不看了（被看方立刻停推；被看方离开关卡时也发这条）
+	WATCH_BEGIN		= 0x81,	// 观看者→被看者：开始看你（被看方凭这个开始推快照）
+	WATCH_KEEPALIVE	= 0x81,	// 观看者→被看者：还在看（每 2 秒一条，被看方 6 秒收不到就停推）
+	WATCH_END		= 0x83		// 观看者→被看者：不看了（被看方立刻停推；被看方离开关卡时也发这条）
 };
 
 // 分片的线格式：payload = { srcSeat, dstSeat, u16 seq, u8 part, u8 count, data ≤ 250 }
 // seq 每份快照 +1（u16 回绕），part 是 0..count-1 的片号。TCP 有序，所以同一份的片必然
 // 按序到达——part 只是用来发现"前面有片丢了/这半份是上一代的"，丢了就把半份作废、等下一份，
 // 绝不把两代字节拼在一起。观看端注意：**没有 part seq 的帧是整帧丢的**，只能靠时间超时发现。
+// old: deprecated preview wire format; full snapshots use FullWatchFragments.h.
 const int	SNAPSHOT_PART_HEADER	= 6;	// src, dst, u16 seq, u8 part, u8 count
 const int	SNAPSHOT_PART_PAYLOAD	= MAX_PAYLOAD - SNAPSHOT_PART_HEADER;	// 250
 const int	SNAPSHOT_MAX_PARTS		= 8;	// 一份最多几片（8×250=2000B；实发满编约 5 片）

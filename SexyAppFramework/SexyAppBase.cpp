@@ -1,3 +1,4 @@
+#include "../Lawn/Online/FullWatch.h"
 //#define SEXY_TRACING_ENABLED
 //#define SEXY_PERF_ENABLED
 //#define SEXY_MEMTRACE
@@ -3842,7 +3843,7 @@ void SexyAppBase::HandleNotifyGameMessage(int theType)
 		GetWindowPlacement(mHWnd, &aWindowPlacement);		
 
 		if (aWindowPlacement.showCmd == SW_SHOWMINIMIZED)
-			ShowWindow(mHWnd, SW_RESTORE);
+			if(!FullWatch::IsObserver())::ShowWindow(mHWnd, SW_RESTORE);
 
 		::SetForegroundWindow(mHWnd);
 	}
@@ -4895,7 +4896,8 @@ void SexyAppBase::MakeWindow()
 	sprintf(aStr, "HWND: %d\r\n", mHWnd);
 	OutputDebugString(aStr);*/
 
-	SetWindowLongPtr(mHWnd, GWLP_USERDATA, (intptr_t) this);	
+	SetWindowLongPtr(mHWnd, GWLP_USERDATA, (intptr_t) this);
+    FullWatch::AttachWindow(mHWnd);
 
 	if (mDDInterface == NULL)
 	{
@@ -5157,13 +5159,13 @@ void SexyAppBase::SwitchScreenMode(bool wantWindowed, bool is3d, bool force)
 	//  stealing it away for ourselves
 	if (!mIsOpeningURL)
 	{
-		::ShowWindow(mHWnd, SW_NORMAL);
+		if(!FullWatch::IsObserver())::ShowWindow(mHWnd, SW_NORMAL);
 		::SetForegroundWindow(mHWnd);
 	}
 	else
 	{
 		// Show it but don't activate it
-		::ShowWindow(mHWnd, SW_SHOWNOACTIVATE);
+		if(!FullWatch::IsObserver())::ShowWindow(mHWnd, SW_SHOWNOACTIVATE);
 	}
 
 	if (mSoundManager!=NULL)
@@ -5808,7 +5810,7 @@ void SexyAppBase::RestyleWindow(bool wantWindowed)
 	{
 		// 最大化态直接换无边框会留下残影，先还原
 		if (::IsZoomed(mHWnd))
-			::ShowWindow(mHWnd, SW_RESTORE);
+			if(!FullWatch::IsObserver())::ShowWindow(mHWnd, SW_RESTORE);
 
 		::GetWindowRect(mHWnd, &mWindowedWindowRect);
 
@@ -5870,7 +5872,7 @@ void SexyAppBase::Start()
 	if (mAutoStartLoadingThread)
 		StartLoadingThread();
 
-	::ShowWindow(mHWnd, SW_SHOW);	
+	if(!FullWatch::IsObserver())::ShowWindow(mHWnd, SW_SHOW);
 	::SetFocus(mHWnd);
 
 	timeBeginPeriod(1);
@@ -6322,7 +6324,8 @@ void SexyAppBase::Init()
 	}
 
 	InitPropertiesHook();
-	ReadFromRegistry();	
+	ReadFromRegistry();
+    if(FullWatch::IsObserver()){mIsWindowed=true;mFullScreenWindow=false;mAutoEnable3D=false;}
 
 	if (CheckForVista())
 	{
@@ -6350,6 +6353,7 @@ void SexyAppBase::Init()
 			FreeLibrary(aMod);
 		}
 	}
+    if(FullWatch::IsObserver())SetAppDataFolder(FullWatch::ObserverDataRoot());
 	
 	if (!mCmdLineParsed)
 		DoParseCmdLine();

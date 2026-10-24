@@ -32,6 +32,11 @@ public:
 	};
 
     LawnStoneButton* mFastButton=nullptr;
+    LawnStoneButton* mLockButtons[3]{};
+    int mLockedChoice=-1;
+    unsigned int mExpectedCounter=0;
+    bool mSubmitted=false;
+    void RefreshRerollLabels();
 	RunState*			mRun;					// 这一屏为哪一局开
 	bool				mPlantPick;				// 这一屏发的是植物（true）还是 buff（false）
 	LawnStoneButton*	mChoiceButtons[3];

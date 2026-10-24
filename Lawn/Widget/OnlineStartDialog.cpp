@@ -79,16 +79,17 @@ OnlineStartDialog::OnlineStartDialog(LawnApp* theApp, const char* theTitleUtf8, 
 	mPageY = 0;
 	mPageIndex = 0;
 
-	// 正文按 '\f' 拆页（最多 4 页；单页面孔 = 只有第 0 页）
+	// 正文按 '\f' 完整拆页（单页面孔 = 只有第 0 页）
 	{
 		const std::string aBody = (theBodyUtf8 != nullptr) ? theBodyUtf8 : "";
 		mPageCount = 0;
 		size_t aStart = 0;
-		for (size_t i = 0; i <= aBody.size() && mPageCount < 4; i++)
+		for (size_t i = 0; i <= aBody.size(); i++)
 		{
 			if (i == aBody.size() || aBody[i] == '\f')
 			{
-				mPages[mPageCount++] = aBody.substr(aStart, i - aStart);
+				mPages.push_back(aBody.substr(aStart, i - aStart));
+				++mPageCount;
 				aStart = i + 1;
 			}
 		}

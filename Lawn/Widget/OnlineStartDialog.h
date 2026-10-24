@@ -2,6 +2,7 @@
 #define __ONLINESTARTDIALOG_H__
 
 #include "LawnDialog.h"
+#include <vector>
 #include "../../ConstEnums.h"	// Dialogs::（默认的 theDialogId 参数）
 
 class LawnApp;
@@ -42,7 +43,7 @@ public:
 	};
 
 	// 按钮文案传空指针 = 不摆那个按钮；两个都空 = 纯看板。
-	// 正文里出现 '\f'（0x0C）时按它分页（最多 4 页）：自动在中间两枚按钮的外侧摆
+	// 正文里出现 '\f'（0x0C）时按它完整分页：自动在中间两枚按钮的外侧摆
 	// [上一页] / [下一页]（环绕——末页的"下一页"回第 1 页），正文块下方居中画
 	// "第 n / m 页"。版心按"最宽的一行 + 最高的一页"定，翻页时框大小与正文位置都不动。
 	// theDraggable = 整框可鼠标拖动、且不受屏幕边缘回夹（基线 Dialog 自带拖拽，但钳在
@@ -72,7 +73,7 @@ private:
 	int						MaxBodyLineCount() const;	// 各页行数的最大值（版心与摆位共用）
 
 	std::string				mTitle;			// UTF-8 原样（绘制走 ModText::WideFromUtf8）
-	std::string				mPages[4];		// 每页正文 UTF-8 原样（'\f' 分页；单页面孔 = 只有 [0]）
+	std::vector<std::string>	mPages;		// 每页正文 UTF-8 原样（'\f' 分页；单页面孔 = 只有 [0]）
 	int						mPageCount;
 	int						mPageIndex;
 	int						mTitleY;

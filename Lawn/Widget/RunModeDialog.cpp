@@ -87,7 +87,7 @@ RunModeDialog::RunModeDialog(LawnApp* theApp, bool theShowDiff, int theEndlessSc
 	for (int i = 0; i < 3; i++) mDiffButtons[i] = nullptr;
 	if (mShowDiff)
 	{
-		mDiffCaption = ModText::Tr("出怪难度（全队倍率）", "Zombie difficulty (team multiplier)");
+		mDiffCaption = ModText::Tr("全队出怪难度", "Team zombie difficulty");
 		mDiffLabels[0] = ModText::Tr("轻松 x0.5", "Easy x0.5");
 		mDiffLabels[1] = ModText::Tr("标准 x1", "Standard x1");
 		mDiffLabels[2] = ModText::Tr("高压 x2.0", "High x2.0");
@@ -114,7 +114,7 @@ RunModeDialog::RunModeDialog(LawnApp* theApp, bool theShowDiff, int theEndlessSc
 
 		// 「高级选项…」（MOD_BUILD 35）：与取消并排贴底，点开 RunOptionsDialog 回填三值。
 		CjkStoneButton* aOptions = new CjkStoneButton(RunModeDialog_Options, this);
-		aOptions->SetLabel(ModText::Tr("更多设置", "Advanced Options..."));
+		aOptions->SetLabel(ModText::Tr("更多设置", "More settings"));
 		aOptions->mHasAlpha = true;
 		aOptions->mHasTransparencies = true;
 		mOptionsButton = aOptions;

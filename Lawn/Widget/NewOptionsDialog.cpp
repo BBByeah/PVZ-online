@@ -336,11 +336,7 @@ void NewOptionsDialog::CheckboxChecked(int theId, bool checked)
                 Dialogs::DIALOG_COLORDEPTH_EXP, 
                 true, 
                 ModText::Tr("无窗口模式", "No Windowed Mode"),
-                ModText::Tr( "只有启动游戏时桌面采用 16 位或 32 位色模式，窗口模式才可用。\n\n"
-                    "如果你想用窗口模式运行，需要退出游戏，把桌面切换到 16 或 32 位色模式。",
-                    "Windowed mode is only available if your desktop was running in either\n"
-                    "16 bit or 32 bit color mode when you started the game.\n\n"
-                    "If you'd like to run in Windowed mode then you need to quit the game and switch your desktop to 16 or 32 bit color mode."),
+                ModText::Tr("暂不能切换窗口，请保持全屏。", "Windowed mode is unavailable. Keep Full Screen on."),
                 ModText::Tr("确定", "OK"),
                 Dialog::BUTTONS_FOOTER
             );
@@ -359,13 +355,7 @@ void NewOptionsDialog::CheckboxChecked(int theId, bool checked)
                     Dialogs::DIALOG_INFO,
                     true,
                     ModText::Tr("不支持", "Not Supported"),
-                    ModText::Tr( "这台电脑无法启用硬件加速。\n\n"
-                        "你的显卡不满足\n"
-                        "本游戏的最低要求。",
-                        "Hardware Acceleration cannot be enabled on this computer.\n\n"
-                        "Your video card does not\n"
-                        "meet the minimum requirements\n"
-                        "for this game."),
+                    ModText::Tr("此设备不支持3D加速，请保持关闭。", "This device cannot use 3D. Leave it off."),
                     ModText::Tr("确定", "OK"),
                     Dialog::BUTTONS_FOOTER
                 );
@@ -376,10 +366,7 @@ void NewOptionsDialog::CheckboxChecked(int theId, bool checked)
                     Dialogs::DIALOG_INFO,
                     true,
                     ModText::Tr("警告", "Warning"),
-                    ModText::Tr( "你的显卡可能无法完全支持此功能。\n\n"
-                        "如果觉得游戏变慢，请关闭硬件加速。\n",
-                        "Your video card may not fully support this feature.\n\n"
-                        "If you experience slower performance, please disable Hardware Acceleration.\n"),
+                    ModText::Tr("如画面变卡，请关闭3D加速。", "Turn off 3D if performance gets worse."),
                     ModText::Tr("确定", "OK"),
                     Dialog::BUTTONS_FOOTER
                 );
@@ -627,7 +614,7 @@ void NewOptionsDialog::MouseUp(int x, int y, int theClickCount) {
 #ifdef __ANDROID__
         if (!ModText::SetLanguageSetting((ModText::GetLanguageSetting() + 1) % 3))
             mApp->LawnMessageBox(DIALOG_MESSAGE, ModText::Tr("保存失败", "Save failed"),
-                ModText::Tr("无法保存语言选项。", "Cannot save language."), "OK", "", Dialog::BUTTONS_FOOTER);
+                ModText::Tr("语言设置未保存，请重试。", "Language was not saved. Please retry."), "OK", "", Dialog::BUTTONS_FOOTER);
 #else
         ModText::SetLanguageSetting((ModText::GetLanguageSetting() + 1) % 3);
 #endif
@@ -643,7 +630,7 @@ void NewOptionsDialog::MouseUp(int x, int y, int theClickCount) {
 #endif
         if (saved) mApp->mSlideCollect = next;
         else mApp->LawnMessageBox(DIALOG_MESSAGE, ModText::Tr("保存失败", "Save failed"),
-            ModText::Tr("无法保存划取选项。", "Cannot save collection setting."), "OK", "", Dialog::BUTTONS_FOOTER);
+            ModText::Tr("划取设置未保存，请重试。", "Collection setting was not saved. Retry."), "OK", "", Dialog::BUTTONS_FOOTER);
     }
     if (action == 504) { CloseRunInfo(); mApp->ShowCoopPlay(); return; }
     MarkDirty();
@@ -713,12 +700,12 @@ void NewOptionsDialog::MusicAction(int action) {
     if (action == 201) {
         const bool playing = mApp->mMusic->StartMusicPreview(static_cast<MusicTune>(mMusicView.mTune));
         mMusicView.mError = !playing;
-        mMusicView.mStatus = playing ? ModText::Tr("正在试听；返回或应用结束试听。", "Previewing. Back or Apply ends preview.") :
-            ModText::Tr("音乐暂不可用；请检查音乐音量与资源。", "Music unavailable. Check music volume and resources.");
+        mMusicView.mStatus = playing ? ModText::Tr("试听中；点「应用」保存，返回不保存。", "Previewing. Apply saves; Back does not.") :
+            ModText::Tr("请调高「音乐音量」，再点「试听」。", "Raise Music Volume, then try Preview.");
     } else if (action == 202) {
         const bool saved = mApp->mMusic->SaveBattleMusicSettings(mMusicView.mTune, mMusicView.mBossMusic);
         mMusicView.mError = !saved;
-        mMusicView.mStatus = saved ? ModText::Tr("已应用，仅本机战斗生效。", "Applied to battles on this device.") :
+        mMusicView.mStatus = saved ? ModText::Tr("已保存，只改变本机战斗配乐。", "Saved for battles on this device only.") :
             ModText::Tr("保存失败，原设置未更改。", "Save failed. Previous settings are unchanged.");
     } else {
         mMusicView.mStatus.clear();

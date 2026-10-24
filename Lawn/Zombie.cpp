@@ -21,6 +21,9 @@
 #include "../Sexy.TodLib/TodParticle.h"
 #include "Run/RunBuffs.h"
 #include "Run/RunState.h"
+#include "Run/RunSpeciesEffects.h"
+#include "Run/RunSpeciesRuntime.h"
+#include "Run/TeamAttackContext.h"
 #include "Run/RunMath.h"
 
 ZombieDefinition gZombieDefs[NUM_ZOMBIE_TYPES] = {  //0x69DA80
@@ -719,7 +722,8 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
         aPropellerReanim->mLoopType = ReanimLoopType::REANIM_LOOP_FULL_LAST_FRAME;
         aPropellerReanim->AttachToAnotherReanimation(aBodyReanim, "hat");
 
-        mFlyingHealth = 20;
+        mFlyingHealth = RunSpeciesEffects::Fresh(this) &&
+            RunSpeciesEffects::Count(this,RunSpeciesRules::ARMORED_BALLOON)>0 ? 1100 : 20;
         mZombieRect = Rect(36, 30, 42, 115);
         mZombieAttackRect = Rect(20, 30, 50, 115);
         mVariant = false;
@@ -1045,6 +1049,8 @@ void Zombie::ZombieInitialize(int theRow, ZombieType theType, bool theVariant, Z
     // 初始化时一次性置位；菜单预览/过场僵尸（IsOnBoard false）不吃强化。
     mControlImmune = mApp->IsRunMode() && IsOnBoard()
         && mApp->GetRunState()->ZombieBuffCount(RunState::ZOMBIE_BUFF_STEADFAST) > 0;
+
+    RunSpeciesEffects::ApplyInitialHealth(this);
 
     mHelmMaxHealth = mHelmHealth;
     mBodyMaxHealth = mBodyHealth;
@@ -2280,28 +2286,9 @@ void Zombie::UpdateZombieJackInTheBox()
 
         if (mPhaseCounter <= 0)
         {
-            mApp->PlayFoley(FoleyType::FOLEY_EXPLOSION);
-
-            int aPosX = mX + mWidth / 2;
-            int aPosY = mY + mHeight / 2;
-            if (mMindControlled)
-            {
-                mBoard->KillAllZombiesInRadius(mRow, aPosX, aPosY, JackInTheBoxZombieRadius, 1, true, 127);
-            }
-            else
-            {
-                mBoard->KillAllZombiesInRadius(mRow, aPosX, aPosY, JackInTheBoxZombieRadius, 1, true, 255);
-                mBoard->KillAllPlantsInRadius(aPosX, aPosY, JackInTheBoxPlantRadius);
-            }
-
-            mApp->AddTodParticle(aPosX, aPosY, Board::MakeRenderOrder(RenderLayer::RENDER_LAYER_TOP, 0, 0), ParticleEffect::PARTICLE_JACKEXPLODE);
-            mBoard->ShakeBoard(4, -6);
+            RunSpeciesRuntime::CommitBlast(this,true);
+            if (RunSpeciesEffects::Count(this,RunSpeciesRules::JACK_DEATH)==0) RunSpeciesRuntime::Drain(mBoard);
             DieNoLoot();
-
-            if (mApp->IsScaryPotterLevel())
-            {
-                mBoard->mChallenge->ScaryPotterJackExplode(aPosX, aPosY);
-            }
         }
     }
 }
@@ -2316,6 +2303,8 @@ static void RetryZombieSpawnEvent(Reanimation* animation, float eventTime)
 
 void Zombie::UpdateZombieGargantuar()
 {
+    if (IsDeadOrDying()) return;
+    if (RunSpeciesRuntime::UpdateFlight(this)) return;
     DamageStats::Source aDamageSource(mApp->mDamageStats, mMindControlled);
     if (mZombiePhase == ZombiePhase::PHASE_GARGANTUAR_SMASHING)
     {
@@ -2502,15 +2491,17 @@ void Zombie::UpdateZombieGargantuar()
     if (mZombiePhase == ZombiePhase::PHASE_GARGANTUAR_THROWING)
     {
         Reanimation* aBodyReanim = mApp->ReanimationGet(mBodyReanimID);
-        if (aBodyReanim->ShouldTriggerTimedEvent(0.74f))
+        if (mHasObject && RunSpeciesRuntime::CanThrow(this) && aBodyReanim->ShouldTriggerTimedEvent(0.74f))
         {
-            Zombie* aZombieImp = mBoard->AddZombie(ZombieType::ZOMBIE_IMP, mFromWave);
+            const bool aGiantChild = RunSpeciesRuntime::GiantReplacement(this);
+            Zombie* aZombieImp = mBoard->AddZombie(aGiantChild ? ZombieType::ZOMBIE_GARGANTUAR : ZombieType::ZOMBIE_IMP, mFromWave);
             if (aZombieImp == nullptr)
             {
                 RetryZombieSpawnEvent(aBodyReanim, 0.74f);
                 return;
             }
             mHasObject = false;
+            if (aGiantChild) RunSpeciesRuntime::ChildThrown(this,aZombieImp);
             ReanimShowPrefix("Zombie_imp", RENDER_GROUP_HIDDEN);
             ReanimShowTrack("Zombie_gargantuar_whiterope", RENDER_GROUP_HIDDEN);
             mApp->PlayFoley(FoleyType::FOLEY_SWING);
@@ -2545,7 +2536,7 @@ void Zombie::UpdateZombieGargantuar()
             if (mMindControlled)
             {
                 aZombieImp->mPosX = mPosX + mWidth;
-                aZombieImp->StartMindControlled();
+                if (!aZombieImp->mMindControlled) aZombieImp->StartMindControlled();
                 aZombieImp->mVelX = -3.0f;
             }
             else
@@ -2555,9 +2546,10 @@ void Zombie::UpdateZombieGargantuar()
 #else
             aZombieImp->mVelX = 3.0f;
 #endif
+            if (aGiantChild && mMindControlled) { aZombieImp->mPosX=mPosX+mWidth; aZombieImp->mVelX=-3.0f; }
             aZombieImp->mChilledCounter = mChilledCounter;
-            aZombieImp->mVelZ = 0.5f * (aThrowingDistance / aZombieImp->mVelX) * THOWN_ZOMBIE_GRAVITY;
-            aZombieImp->PlayZombieReanim("anim_thrown", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 18.0f);
+            aZombieImp->mVelZ = 0.5f * (aThrowingDistance / (aGiantChild ? std::abs(aZombieImp->mVelX) : aZombieImp->mVelX)) * THOWN_ZOMBIE_GRAVITY;
+            aZombieImp->PlayZombieReanim(aGiantChild ? "anim_walk" : "anim_thrown", aGiantChild ? ReanimLoopType::REANIM_LOOP : ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, aGiantChild ? 0.0f : 18.0f);
             aZombieImp->UpdateReanim();
             mApp->PlayFoley(FoleyType::FOLEY_IMP);
         }
@@ -2574,7 +2566,7 @@ void Zombie::UpdateZombieGargantuar()
     if (IsImmobilizied() || !mHasHead)
         return;
     
-    if (mHasObject && mBodyHealth < mBodyMaxHealth / 2 && aThrowingDistance > 40.0f)
+    if (mHasObject && RunSpeciesRuntime::CanThrow(this) && mBodyHealth < mBodyMaxHealth / 2 && aThrowingDistance > 40.0f)
     {
         mZombiePhase = ZombiePhase::PHASE_GARGANTUAR_THROWING;
         PlayZombieReanim("anim_throw", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 20, 24.0f);
@@ -3122,8 +3114,13 @@ void Zombie::UpdateZombieDigger()
         if (mPhaseCounter == 0)
         {
             mAltitude = 0.0f;
-            mZombiePhase = ZombiePhase::PHASE_DIGGER_STUNNED;
-            PlayZombieReanim("anim_dizzy", ReanimLoopType::REANIM_LOOP, 10, 12.0f);
+            if (RunSpeciesEffects::Count(this,RunSpeciesRules::DIGGER_AMBUSH)>0) {
+                mZombiePhase=ZombiePhase::PHASE_DIGGER_WALKING;
+                StartWalkAnim(0);
+            } else {
+                mZombiePhase=ZombiePhase::PHASE_DIGGER_STUNNED;
+                PlayZombieReanim("anim_dizzy",ReanimLoopType::REANIM_LOOP,10,12.0f);
+            }
         }
     }
     else if (mZombiePhase == ZombiePhase::PHASE_DIGGER_TUNNELING_PAUSE_WITHOUT_AXE)
@@ -4527,11 +4524,11 @@ void Zombie::UpdateZombieWalking()
 
         if (IsWalkingBackwards() || mZombiePhase == ZombiePhase::PHASE_DANCER_DANCING_IN)
         {
-            mPosX += aSpeed * aBarbedFactor;
+            mPosX += aSpeed * aBarbedFactor * RunSpeciesEffects::WalkFactor(this);
         }
         else
         {
-            mPosX -= aSpeed * aBarbedFactor;
+            mPosX -= aSpeed * aBarbedFactor * RunSpeciesEffects::WalkFactor(this);
         }
 
         if (mZombieType == ZombieType::ZOMBIE_FOOTBALL && mFromWave != Zombie::ZOMBIE_WAVE_WINNER)
@@ -4594,11 +4591,11 @@ void Zombie::UpdateZombieWalking()
 
             if (IsWalkingBackwards())
             {
-                mPosX += aSpeed * aBarbedFactor;
+                mPosX += aSpeed * aBarbedFactor * RunSpeciesEffects::WalkFactor(this);
             }
             else
             {
-                mPosX -= aSpeed * aBarbedFactor;
+                mPosX -= aSpeed * aBarbedFactor * RunSpeciesEffects::WalkFactor(this);
             }
         }
     }
@@ -5830,6 +5827,7 @@ void Zombie::UpdateReanim()
 
     ZombieDrawPosition aDrawPos;
     GetDrawPos(aDrawPos);
+    const float aSpeciesVisualScale=RunSpeciesEffects::VisualScale(this);
     float anOffsetX = aDrawPos.mImageOffsetX + 15.0f;
     float anOffsetY = aDrawPos.mImageOffsetY + aDrawPos.mBodyY - 28.0f + 20.0f;
     if ((mZombieType == ZombieType::ZOMBIE_ZAMBONI || mZombieType == ZombieType::ZOMBIE_CATAPULT) && mZombiePhase != ZombiePhase::PHASE_ZOMBIE_BURNED)
@@ -5846,9 +5844,9 @@ void Zombie::UpdateReanim()
             anOffsetY += RandRangeFloat(-1.0f, 1.0f);
         }
     }
-    if (mZombieType == ZombieType::ZOMBIE_FOOTBALL && mScaleZombie < 1.0f)
+    if (mZombieType == ZombieType::ZOMBIE_FOOTBALL && aSpeciesVisualScale < 1.0f)
     {
-        anOffsetY += 20.0f - mScaleZombie * 20.0f;
+        anOffsetY += 20.0f - aSpeciesVisualScale * 20.0f;
     }
 
     bool anOpposite = false;
@@ -5876,18 +5874,18 @@ void Zombie::UpdateReanim()
     }
     if (anOpposite)
     {
-        anOffsetX += 90.0f * mScaleZombie;
+        anOffsetX += 90.0f * aSpeciesVisualScale;
     }
 
     aBodyReanim->mOverlayMatrix.m10 = 0.0f;
     aBodyReanim->mOverlayMatrix.m20 = 0.0f;
     aBodyReanim->mOverlayMatrix.m11 = 0.0f;
     aBodyReanim->mOverlayMatrix.m21 = 0.0f;
-    aBodyReanim->OverrideScale(mScaleZombie, mScaleZombie);
-    aBodyReanim->SetPosition(anOffsetX + 30.0f - mScaleZombie * 30.0f, anOffsetY + 120.0f - mScaleZombie * 120.0f);
+    aBodyReanim->OverrideScale(aSpeciesVisualScale, aSpeciesVisualScale);
+    aBodyReanim->SetPosition(anOffsetX + 30.0f - aSpeciesVisualScale * 30.0f, anOffsetY + 120.0f - aSpeciesVisualScale * 120.0f);
     if (anOpposite)
     {
-        aBodyReanim->mOverlayMatrix.m00 = -mScaleZombie;
+        aBodyReanim->mOverlayMatrix.m00 = -aSpeciesVisualScale;
     }
 
     Reanimation* aMoweredReanim = mApp->ReanimationTryToGet(mMoweredReanimID);
@@ -7770,6 +7768,7 @@ void Zombie::EatPlant(Plant* thePlant)
         }
     }
 
+    aBiteDamage=RunSpeciesEffects::Attack(this,aBiteDamage);
     thePlant->mPlantHealth -= aBiteDamage;
     // @pvz-online: 「耐砸」2026-10-15 改版（用户定案）：忧郁菇被啃不再固定扣 50——
     // 正常结算（每口 4、狂食照乘）；仅巨人砸击保留每次 -200 特例（Zombie::Update 砸分支）。
@@ -7895,6 +7894,7 @@ void Zombie::EatZombie(Zombie* theZombie)
     {
         aEatZombieDamage = (int)(DAMAGE_PER_EAT * mApp->RunPlantBuff2Mul(SeedType::SEED_HYPNOSHROOM) + 0.5f);
     }
+    aEatZombieDamage=RunSpeciesEffects::Attack(this,aEatZombieDamage);
     theZombie->TakeDamage(aEatZombieDamage, 9U);
     StartEating();
     if (theZombie->mBodyHealth <= 0)
@@ -8101,6 +8101,7 @@ void Zombie::DropLoot()
 //0x5302F0
 void Zombie::DieWithLoot()
 {
+    RunSpeciesRuntime::CombatDeath(this);
     DieNoLoot();
     DropLoot();
 }
@@ -8799,7 +8800,7 @@ void Zombie::TakeDamage(int theDamage, unsigned int theDamageFlags, int theFixed
     bool aFixedCounter = (theDamageFlags & RUN_FIXED_COUNTER_DAMAGE) != 0;
     theDamageFlags &= ~RUN_FIXED_COUNTER_DAMAGE;
     // @pvz-online: fixed counter damage must not grow with Precision or support auras.
-    if (!aFixedCounter)
+    if (!aFixedCounter && !TeamAttackContext::exactBlast)
     {
         // @pvz-online: 批 18 全局「Precision 所有伤害 +15%」——僵尸受击的总入口，先放大再走
         // 各分支（护盾/头盔/本体的依次分配、HITS_SHIELD_AND_BODY 的重置全吃放大值）。
@@ -9554,6 +9555,7 @@ void Zombie::MowDown()
     if (mDead || mZombiePhase == ZombiePhase::PHASE_ZOMBIE_MOWERED || mZombieType == ZombieType::ZOMBIE_BOSS)
         return;
 
+    RunSpeciesRuntime::CombatDeath(this);
     if (mZombieType == ZombieType::ZOMBIE_CATAPULT)
     {
         mApp->AddTodParticle(mPosX + 80.0f, mPosY + 60.0f, mRenderOrder + 1, ParticleEffect::PARTICLE_CATAPULT_EXPLOSION);
@@ -9676,7 +9678,7 @@ void Zombie::ApplyBurn(int theDirectDamage)
     if (mApp->IsRunMode() && !mHeartguardUsed && mApp->GetRunState()->ZombieBuffSingleHitCap() > 0)
     {
         int aBlastBase = theDirectDamage > 0 ? theDirectDamage : 1800;
-        TakeDamage((int)(aBlastBase * mApp->RunBuffMul(RUN_BUFF_BLAST) + 0.5f), 18U);
+        TakeDamage(TeamAttackContext::exactBlast?aBlastBase:(int)(aBlastBase * mApp->RunBuffMul(RUN_BUFF_BLAST) + 0.5f), 18U);
         return;
     }
 
@@ -9686,10 +9688,11 @@ void Zombie::ApplyBurn(int theDirectDamage)
         // 血够厚（≥1800）时走——普通僵尸无论 1800 还是 2340 都是"烧死"，加伤只对血牛有意义。
         // 闯关关卡里的燃烧源就是樱桃/辣椒/末日菇（僵尸自爆类不出现，僵尸侧蹭到也无妨）。
         int aBlastBase = theDirectDamage > 0 ? theDirectDamage : 1800;
-        TakeDamage((int)(aBlastBase * mApp->RunBuffMul(RUN_BUFF_BLAST) + 0.5f), 18U);
+        TakeDamage(TeamAttackContext::exactBlast?aBlastBase:(int)(aBlastBase * mApp->RunBuffMul(RUN_BUFF_BLAST) + 0.5f), 18U);
         return;
     }
 
+    RunSpeciesRuntime::CombatDeath(this);
     mApp->mDamageStats.RecordKill(this);
 
     if ((mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD || mZombieType == ZombieType::ZOMBIE_SQUASH_HEAD_DOOR) && !mHasHead)
@@ -9932,6 +9935,7 @@ void Zombie::PlayDeathAnim(unsigned int theDamageFlags)
     if (mZombiePhase == ZombiePhase::PHASE_ZOMBIE_DYING || mZombiePhase == ZombiePhase::PHASE_ZOMBIE_BURNED || mZombiePhase == ZombiePhase::PHASE_ZOMBIE_MOWERED)
         return;
 
+    RunSpeciesRuntime::CombatDeath(this);
     Reanimation* aBodyReanim = mApp->ReanimationTryToGet(mBodyReanimID);
     if (aBodyReanim == nullptr || !aBodyReanim->TrackExists("anim_death"))
     {

@@ -26,6 +26,10 @@ source_group("Lawn\\Board\\Board Include" FILES ${Lawn__Board__Board_Include})
 set(Lawn__Board__Board_Source
     "../Lawn/Board.cpp"
     "../Lawn/CoopPlay.cpp"
+    "../Lawn/TeamPlay.cpp"
+    "../Lawn/Widget/TeamProgressionDialog.cpp"
+    "../Lawn/Widget/TeamProgressionUi.cpp"
+    "../Lawn/Widget/NameplateShop.cpp"
     "../Lawn/Challenge.cpp"
     "../Lawn/Coin.cpp"
     "../Lawn/CursorObject.cpp"
@@ -92,6 +96,7 @@ source_group("Lawn\\Run\\Run Include" FILES ${Lawn__Run__Run_Include})
 
 set(Lawn__Run__Run_Source
     "../Lawn/Run/RunState.cpp"
+    "../Lawn/Run/RunSpeciesRuntime.cpp"
     "../Lawn/Run/RunCheckpointIO.cpp"
     "../Lawn/Run/RunHistory.cpp"
     "../Lawn/Run/RunBuffs.cpp"
@@ -366,3 +371,7 @@ if(MSVC)
 else()
     target_link_libraries(${PROJECT_NAME} PRIVATE -static -static-libgcc -static-libstdc++ "${ADDITIONAL_LIBRARY_DEPENDENCIES}")
 endif()
+
+target_sources(LawnProject PRIVATE ../Lawn/Observer/ObserverDrawScene.cpp ../Lawn/Observer/ObserverDrawCodec.cpp)
+
+target_include_directories(LawnProject PRIVATE "..")

@@ -14,6 +14,7 @@ using namespace Sexy;
 class Coin;
 class LawnApp;
 class NewLawnButton;
+class NameplateShop;
 
 class StoreScreen : public Dialog
 {
@@ -27,6 +28,7 @@ private:
 
 public:
 	LawnApp*					mApp;                           //+0x150
+    NameplateShop* mNameplateShop=nullptr;
 	NewLawnButton*				mBackButton;                    //+0x154
 	NewLawnButton*				mPrevButton;                    //+0x158
 	NewLawnButton*				mNextButton;                    //+0x15C

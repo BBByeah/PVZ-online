@@ -81,7 +81,9 @@ func TestConfigWatcherWithoutStatusPage(t *testing.T) {
 	cfg.Weight = 250
 	writeOps(t, path, cfg)
 	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) && s.operations().Config.Weight != 250 {
+	// The config swap and the sample publication are separate steps in the
+	// sampling goroutine. Wait for both outcomes before asserting either one.
+	for time.Now().Before(deadline) && (s.operations().Config.Weight != 250 || len(s.historySnapshot()) == 0) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	if s.operations().Config.Weight != 250 {

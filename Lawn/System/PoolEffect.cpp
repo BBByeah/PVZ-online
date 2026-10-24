@@ -109,7 +109,7 @@ void PoolEffect::UpdateWaterEffect()
 //0x469DE0
 void PoolEffect::PoolEffectDraw(Sexy::Graphics* g, bool theIsNight)
 {
-    if (!mApp->Is3DAccelerated())
+    if (!mApp->Is3DAccelerated() || !g->Is3D())
     {
         if (theIsNight)
         {

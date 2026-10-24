@@ -1,3 +1,4 @@
+#include "../Run/RunSpeciesRuntime.h"
 #include "Music.h"
 #include "SaveGame.h"
 #include "../Board.h"
@@ -666,6 +667,7 @@ bool LawnLoadGame(Board* theBoard, const std::string& theFilePath)
 	// Reject damaged pool metadata before replacing any part of the live board.
 	if (!PreflightSavedPools(aContext, theBoard)) return false;
 
+    RunSpeciesRuntime::Reset(theBoard);
 	SyncBoard(aContext, theBoard);
 	if (aContext.mFailed)
 	{
@@ -683,6 +685,7 @@ bool LawnLoadGame(Board* theBoard, const std::string& theFilePath)
 	theBoard->mApp->mDamageStats.LoadSaveTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()));
 	if (!RunDotEffects::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
 	if (!RunWaveHitSave::LoadTrailer(theBoard, aContext.mBuffer.GetDataPtr(), static_cast<size_t>(aContext.mBuffer.GetDataLen()), waveHitBaseEnd)) return false;
+    if (!RunSpeciesRuntime::LoadTrailer(theBoard,aContext.mBuffer.GetDataPtr(),static_cast<size_t>(aContext.mBuffer.GetDataLen()))) return false;
 	theBoard->mApp->mGameScene = GameScenes::SCENE_PLAYING;
 	return true;
 }
@@ -719,5 +722,7 @@ bool LawnSaveGame(Board* theBoard, const std::string& theFilePath)
 	aContext.mBuffer.WriteBytes(nextWave.data(),static_cast<int>(nextWave.size()));
 	const auto stats = theBoard->mApp->mDamageStats.SaveTrailer();
 	if (!stats.empty()) aContext.mBuffer.WriteBytes(stats.data(), static_cast<int>(stats.size()));
+    const auto species=RunSpeciesRuntime::SaveTrailer(theBoard);
+    aContext.mBuffer.WriteBytes(species.data(),static_cast<int>(species.size()));
 	return gSexyAppBase->WriteBufferToFile(theFilePath, &aContext.mBuffer);
 }

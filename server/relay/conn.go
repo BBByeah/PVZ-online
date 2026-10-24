@@ -21,6 +21,8 @@ type outMsg struct {
 }
 
 type Conn struct {
+	observer     observerOutput
+	observerCap  bool
 	created      time.Time
 	credential   [16]byte
 	flow         bool
@@ -64,6 +66,7 @@ func (c *Conn) close() {
 	c.closeOnce.Do(func() {
 		c.srv.connections.Delete(c)
 		c.srv.stats.closed.Add(1)
+		c.observer.clear(c.srv)
 		close(c.done)
 		c.nc.Close()
 	})
@@ -100,6 +103,8 @@ func (c *Conn) readLoop() {
 func (c *Conn) writeLoop() {
 	ticker := time.NewTicker(c.srv.pingInterval)
 	defer ticker.Stop()
+	optionalTicker := time.NewTicker(5 * time.Millisecond)
+	defer optionalTicker.Stop()
 	for {
 		select {
 		case <-c.done:
@@ -111,6 +116,12 @@ func (c *Conn) writeLoop() {
 			if m.closeAfter {
 				c.close()
 				return
+			}
+		case <-optionalTicker.C:
+			if len(c.send) == 0 {
+				if frame := c.observer.pop(c.srv); frame != nil && !c.write(frame) {
+					return
+				}
 			}
 		case <-ticker.C:
 			if c.room.Load() == nil && time.Since(c.created) > 10*time.Second {
@@ -164,6 +175,8 @@ func (s *Server) handle(c *Conn, typ uint16, payload []byte) {
 			return
 		}
 		switch typ {
+		case 0xF023:
+			s.handleObserverCapability(c, payload)
 		case msgCliFlow:
 			s.handleFlow(c, payload)
 		case msgCliFlowProgress:

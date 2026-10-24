@@ -35,6 +35,11 @@ func (s *Server) handlePublish(c *Conn, p []byte) {
 }
 
 func (s *Server) handleList(c *Conn, p []byte) {
+	// v3 is an exact-code read-only lookup, not an enumeration page.
+	if len(p) >= 2 && binary.LittleEndian.Uint16(p) == 3 {
+		s.handleRoomLookup(c, p)
+		return
+	}
 	if len(p) != 6 {
 		s.dropBadControl(c, msgCliList)
 		return

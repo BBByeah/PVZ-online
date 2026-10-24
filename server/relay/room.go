@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -25,6 +26,7 @@ type seatHold struct {
 }
 
 type Room struct {
+	observer      [7]*observerSubscription
 	flow          roundFlow
 	public        bool
 	started       bool
@@ -102,15 +104,22 @@ func (r *Room) broadcast(s *Server, except *Conn, frame []byte) {
 }
 
 type Server struct {
-	privateHost bool // local player hosting; public CLI keeps its existing leave policy
-	mu          sync.Mutex
-	rooms       map[string]*Room
-	connections sync.Map
-	stats       relayCounters
-	status      statusCache
-	ops         operationsState
-	startedAt   time.Time
-	gamePort    int
+	observerBusy        atomic.Bool
+	observerMemory      atomic.Int64
+	observerBudgetAt    time.Time
+	observerBudgetBytes int
+	lookupRates         map[string]lookupRate
+	lookupWindow        time.Time
+	lookupCount         int
+	privateHost         bool // local player hosting; public CLI keeps its existing leave policy
+	mu                  sync.Mutex
+	rooms               map[string]*Room
+	connections         sync.Map
+	stats               relayCounters
+	status              statusCache
+	ops                 operationsState
+	startedAt           time.Time
+	gamePort            int
 
 	pingInterval time.Duration
 	idleTimeout  time.Duration
@@ -259,7 +268,7 @@ func (s *Server) handleJoinFrom(c *Conn, version, build uint16, name, rawCode []
 	r.bySeat[seat] = c
 	s.enqueue(c, encodeFrame(msgSrvWelcome, encodeWelcome(seat, r.hostSeat, code, r.roster())))
 	s.issueCredential(c)
-	if r.flow.started && r.flow.phase != flowSetup {
+	if r.flow.started && (r.flow.phase == flowBattle || r.flow.phase == flowVerify || r.flow.phase == flowComplete) {
 		r.roundWaitMask |= 1 << seat
 	}
 	s.publishFlow(r)
@@ -397,7 +406,7 @@ func (s *Server) handleRejoin(c *Conn, version, build uint16, name, rawCode []by
 	c.seat = seat
 	c.room.Store(r)
 	r.bySeat[seat] = c
-	if r.flow.started && r.flow.phase != flowSetup {
+	if r.flow.started && (r.flow.phase == flowBattle || r.flow.phase == flowVerify || r.flow.phase == flowComplete) {
 		r.roundWaitMask |= 1 << seat
 	} else if r.flow.enabled {
 		r.roundWaitMask &^= 1 << seat
@@ -449,6 +458,10 @@ func (s *Server) forward(c *Conn, typ uint16, payload []byte) {
 		s.logf("dropped %#x to empty seat %d", typ, dst)
 		return
 	}
+	if typ == 30 || typ == 31 {
+		s.observerLocked(r, c, t, typ, payload, false)
+		return
+	}
 	if typ == 3 || typ == 14 {
 		if c != r.host || r.connectedPlayers(typ == 3) < 2 {
 			s.logf("room %s: rejected start without host and two live players", r.code)
@@ -494,6 +507,7 @@ func (s *Server) removeConn(c *Conn, reason uint8) {
 	if r == nil {
 		return
 	}
+	s.clearObserverConn(r, c)
 	c.room.Store(nil)
 	seat := c.seat
 	if seat >= 1 && seat <= maxPlayers && r.bySeat[seat] == c {
@@ -601,6 +615,18 @@ func (s *Server) sweepOnce(now time.Time) {
 
 // sweepRoom 结算一个房间里过期的保留；返回 true = 这个房间该删了。调用方持 s.mu。
 func (s *Server) sweepRoom(r *Room, now time.Time) bool {
+	for i, v := range r.observer {
+		if v != nil {
+			if now.Sub(v.touched) > 4*time.Second || r.bySeat[v.source.seat] != v.source || r.bySeat[v.viewer.seat] != v.viewer || v.term != r.flow.term && r.flow.enabled || v.epoch != r.flow.epoch && r.flow.enabled {
+				s.clearObserverAssembly(v)
+				v.viewer.observer.clear(s)
+				r.observer[i] = nil
+			} else if v.count > 0 && now.Sub(v.started) > 3*time.Second {
+				s.clearObserverAssembly(v)
+			}
+		}
+	}
+
 	r.updateFlowRecovery(now, s.holdDuration)
 	if !r.flow.recoveryUntil.IsZero() && !now.Before(r.flow.recoveryUntil) {
 		// No empty-mask victory and no automatic restart. End only the stranded
@@ -661,6 +687,13 @@ func (r *Room) empty() bool {
 // enqueue 投一帧进连接的写队列（缓冲队列是每连接唯一的写手，帧才不会交错）。
 // 队列满 = 这客户端卡死了：断它。
 func (s *Server) enqueue(c *Conn, frame []byte) bool {
+	// v1 display snapshots are optional and independently refreshed. Never let
+	// them consume the 16 slots reserved for gameplay/control or disconnect an
+	// otherwise recoverable link. Fragment gaps are handled by the old client.
+	if legacyObserverSnapshot(frame) && len(c.send) >= cap(c.send)-16 {
+		s.stats.queueDrops.Add(1)
+		return false
+	}
 	select {
 	case <-c.done:
 		return false

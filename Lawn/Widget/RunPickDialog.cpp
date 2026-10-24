@@ -29,6 +29,17 @@
 
 static ModText::Font* RunPickCjkFont() { return ModText::GetFont(CjkPointSize(20), false); }
 
+class RerollClickButton:public CjkStoneButton
+{
+public:
+    RerollClickButton(int id,ButtonListener* listener):CjkStoneButton(id,listener){}
+    void MouseUp(int x,int y,int button,int clicks) override
+    {
+        if(clicks>1){Widget::MouseUp(x,y,button,clicks);return;}
+        CjkStoneButton::MouseUp(x,y,button,clicks);
+    }
+};
+
 // 一条描述按显式 \n 拆行后的最大行宽——列宽就按它定，不让任何一条被硬折
 static int RunPickDescWidth(ModText::Font* theFont, const char* theUtf8)
 {
@@ -51,12 +62,13 @@ RunPickDialog::RunPickDialog(LawnApp* theApp, RunState* theRun) : LawnDialog(
 	theApp,
 	Dialogs::DIALOG_RUN_PICK,
 	true,
-	theRun->IsPlantPick() ? ModText::Tr("新植物", "NEW PLANT") : ModText::Tr("新增益", "NEW BOOST"),
+	theRun->IsPlantPick() ? ModText::Tr("选择植物", "Choose a plant") : ModText::Tr("选择增益", "Choose a buff"),
 	_S(""),
 	_S(""),
 	Dialog::BUTTONS_NONE)
 {
 	mRun = theRun;
+	mExpectedCounter = theRun->mPickCounter;
 	mPlantPick = theRun->IsPlantPick();
 	mAreaTop = 0;
 	mAreaHeight = 0;
@@ -102,7 +114,7 @@ RunPickDialog::RunPickDialog(LawnApp* theApp, RunState* theRun) : LawnDialog(
 	}
 	// 「放弃」（Skip，2026-10-03 用户定案）：三条都不想要时的出路。按钮文案走位图字体
 	// （② 汉字字形批后中文模式可直接渲染），中英文经 Tr 择串；和「重摇」并排（见 Resize）。
-	mSkipButton = MakeButton(RunPickDialog_Skip, this, ModText::Tr("放弃", "Skip"));
+	mSkipButton = MakeButton(RunPickDialog_Skip, this, ModText::Tr("跳过本次", "Skip this pick"));
 	// 「重摇」（花园批 2026-10-13 加付费态；2026-10-14 用户令「第一次也要花金币」取消免费
 	// 「换一批」——单按钮不再两态，恒为付费重摇）：N = RunState::GetPaidRerollCost 的当前价
 	// （底价 10 币，同一屏里每摇一次 ×10：显示 $100/$1,000/$10,000…，进新一屏回底价——
@@ -111,16 +123,9 @@ RunPickDialog::RunPickDialog(LawnApp* theApp, RunState* theRun) : LawnDialog(
 	// 是同一个串数，玩家在任何地方看到的都是同一个数。钱不够当前价（比原始币）时置灰。
 	// 置灰走框架的 Widget::mDisabled，点在派发层就被拦下（和本作其它置灰石钮同口径：
 	// 不变暗、只是按不动）；重开这一屏时按当时的记账重算（价跟着阶梯计数走，见 RunState::PaidReroll）。
-	int aRefreshCost = theRun->GetPaidRerollCost();
-	char aRefreshUtf8[64];
-	if (theRun->mRerollVouchers > 0)
-		snprintf(aRefreshUtf8, sizeof(aRefreshUtf8), ModText::Tr("免费重摇 (%d)", "Use voucher (%d)"), theRun->mRerollVouchers);
-	else
-		snprintf(aRefreshUtf8, sizeof(aRefreshUtf8), ModText::Tr("重摇 -%s", "Reroll -%s"),
-			LawnApp::GetMoneyString(aRefreshCost).c_str());
-	mRefreshButton = MakeButton(RunPickDialog_Refresh, this, aRefreshUtf8);
-	if (theRun->mRerollVouchers <= 0 && (theApp->mPlayerInfo == nullptr || theApp->mPlayerInfo->mCoins < aRefreshCost))
-		mRefreshButton->mDisabled = true;
+	mRefreshButton = new RerollClickButton(RunPickDialog_Refresh,this);
+    for(int index=0;index<3;++index)mLockButtons[index]=MakeButton(150+index,this,"");
+    RefreshRerollLabels();
 
     if(theRun->mAdmission.phase==Admission::PICKS)
         mFastButton=MakeButton(RunPickDialog_Fast,this,ModText::Tr("快速完成","Quick catch-up"));
@@ -164,7 +169,7 @@ RunPickDialog::RunPickDialog(LawnApp* theApp, RunState* theRun) : LawnDialog(
 	int aFitLineHeight = ModText::LineHeight(aCjkFont) + 3;
 	// 底部是两行按钮（三张卡一行、最底「放弃」单独一行）：最小高与上限高都比原来多让
 	// 出一行（按钮高 + 6，与 Resize 里三张卡那一行上移的量是同一笔账）。卡片区口径不变。
-	int aExtraHeight = IMAGE_BUTTON_LEFT->mHeight + 6;
+	int aExtraHeight = IMAGE_BUTTON_LEFT->mHeight + 40;
 	// 起手宽度：植物屏三列只为放包与名字，不必按增益屏的 430 起步（360 起，两屏的
 	// 标题与边框内缩量会把总宽再抬到比画布窄一截的位置）。
 	int aSizeX = mPlantPick ? 360 : 430;
@@ -208,6 +213,7 @@ RunPickDialog::RunPickDialog(LawnApp* theApp, RunState* theRun) : LawnDialog(
 
 RunPickDialog::~RunPickDialog()
 {
+	for(auto* button:mLockButtons)delete button;
 	for (int i = 0; i < 3; i++) delete mChoiceButtons[i];
 	delete mSkipButton;
 	delete mRefreshButton;
@@ -233,7 +239,7 @@ void RunPickDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 	int aAreaTop = mContentInsets.mTop + mBackgroundInsets.mTop + DIALOG_HEADER_OFFSET;
 	if (mDialogHeader.size() > 0) aAreaTop += mHeaderFont->GetHeight() + mSpaceAfterHeader;
 	aAreaTop += mLinesFont->GetHeight() + 10;
-	mAreaTop = aAreaTop;
+	mAreaTop = aAreaTop + 34;
 
 	// 最底下那一行放两个按钮（2026-10-08 起：「重摇」在左、「放弃」在右，整行居中）：
 	// 三张卡那一行整体上移一行（按钮高 + 6），卡片区的上沿不动、下沿从卡片行反推——
@@ -247,6 +253,7 @@ void RunPickDialog::Resize(int theX, int theY, int theWidth, int theHeight)
 	for (int i = 0; i < 3; i++)
 	{
 		mChoiceButtons[i]->Resize(mColumnX[i], aButtonY, mColumnWidth, aButtonHeight);
+		if(mLockButtons[i])mLockButtons[i]->Resize(mColumnX[i],aAreaTop,mColumnWidth,30);
 	}
 	int aFootCenter = (mColumnX[0] + mColumnX[2] + mColumnWidth) / 2;
 	int aFootWidth = std::min(240, (mWidth - 64) / 2);
@@ -260,6 +267,7 @@ void RunPickDialog::AddedToManager(WidgetManager* theWidgetManager)
 	for (int i = 0; i < 3; i++) AddWidget(mChoiceButtons[i]);
 	AddWidget(mSkipButton);
 	AddWidget(mRefreshButton);
+    for(auto* button:mLockButtons)AddWidget(button);
     if(mFastButton)AddWidget(mFastButton);
 }
 
@@ -269,6 +277,7 @@ void RunPickDialog::RemovedFromManager(WidgetManager* theWidgetManager)
 	for (int i = 0; i < 3; i++) RemoveWidget(mChoiceButtons[i]);
 	RemoveWidget(mSkipButton);
 	RemoveWidget(mRefreshButton);
+    for(auto* button:mLockButtons)RemoveWidget(button);
     if(mFastButton)RemoveWidget(mFastButton);
 }
 
@@ -290,9 +299,9 @@ void RunPickDialog::Draw(Graphics* g)
 	// 2026-10-14：这行是位图字体画的——「局」不在汉化像素字库里（1419 字，逐字查过），
 	// 画出来是个空档（用户报「格子」）。改用字库内的「本次闯关」。
     if(mRun->mAdmission.phase==Admission::PICKS)
-        SeatUi::Text(g,ModText::Tr("补位增益：还需选择 ","Catch-up choices remaining: ")+std::to_string(mRun->mPendingBuffPicks),
+        SeatUi::Text(g,ModText::Tr("请选择增益，还剩 ", "Buff picks left: ")+std::to_string(mRun->mPendingBuffPicks),
             24,aFontY+18,mWidth-48,18,Color(245,230,165),true);
-    else WriteCenteredLine(g, aFontY, mPlantPick ? ModText::Tr("选一株加入本次闯关。", "Pick one to join your run.") : ModText::Tr("选一条增益强化本次闯关。", "Pick one to power up your run."));
+    else WriteCenteredLine(g, aFontY, mPlantPick ? ModText::Tr("点击植物，加入本局卡池。", "Choose a plant to add to this run.") : ModText::Tr("点击一项增益；不想选可跳过。", "Choose a buff, or skip this pick."));
 
 	// 金币余额（花园批 2026-10-13 加；2026-10-14 用户令改版「获得金币显示在下面那个栏位，
 	// 三选一屏也要看得到金币数」）：画成局内左下角同款钱罐——位置、贴图、字体、颜色、数字
@@ -313,6 +322,7 @@ void RunPickDialog::Draw(Graphics* g)
 		std::string aCost = mRun->mRerollVouchers > 0
 			? ModText::Tr("重摇：使用1张券", "Reroll: use 1 voucher")
 			: ModText::Tr("本次重摇：", "Reroll cost: ") + LawnApp::GetMoneyString(mRun->GetPaidRerollCost());
+        if(mLockedChoice>=0)aCost+=ModText::Tr(" + 锁定 "," + lock ")+LawnApp::GetMoneyString(100);
 		if (mRefreshButton->mDisabled) aCost += ModText::Tr(" · 金币不足", " / Not enough coins");
 		SeatUi::Text(g, aCost, 208 - mX, 591 - mY, 548, 18, Color(245, 230, 165));
 	}
@@ -393,8 +403,8 @@ void RunPickDialog::Draw(Graphics* g)
 			int aOwned = mRun->GetBuffCount(aBuffId);
 			int aCap = GetRunChoiceMaxStacks(aBuffId);
 			char aCountUtf8[64];
-			if (aCap > 0) snprintf(aCountUtf8, sizeof(aCountUtf8), ModText::Tr("已有 %d/%d", "Owned %d/%d"), aOwned, aCap);
-			else snprintf(aCountUtf8, sizeof(aCountUtf8), ModText::Tr("已有 %d", "Owned %d"), aOwned);
+			if (aCap > 0) snprintf(aCountUtf8, sizeof(aCountUtf8), ModText::Tr("层数 %d/%d", "Stacks %d/%d"), aOwned, aCap);
+			else snprintf(aCountUtf8, sizeof(aCountUtf8), ModText::Tr("层数 %d", "Stacks %d"), aOwned);
 			std::wstring aCountText = ModText::WideFromUtf8(aCountUtf8);
 			int aCountY = mAreaTop + mAreaHeight - aLineHeight;
 			if (aCountY < mAreaTop) aCountY = mAreaTop;
@@ -407,6 +417,13 @@ void RunPickDialog::Draw(Graphics* g)
 
 void RunPickDialog::ButtonDepress(int theId)
 {
+    if(mSubmitted || mApp->GetRunState()!=mRun || mRun->mPickCounter!=mExpectedCounter)return;
+    if(theId>=150 && theId<153) {
+        const int index=theId-150;
+        if(!mRun->CanLockChoice(index))return;
+        mLockedChoice=mLockedChoice==index?-1:index;
+        RefreshRerollLabels();MarkDirty();return;
+    }
     if(theId==RunPickDialog_Fast){mApp->StartAdmissionFastPicks();return;}
 	if (theId >= RunPickDialog_Choice0 && theId <= RunPickDialog_Choice2)
 	{
@@ -420,8 +437,21 @@ void RunPickDialog::ButtonDepress(int theId)
 	{
 		// 恒付费（2026-10-14 用户令：第一次也花金币，免费「换一批」取消）：扣币、关屏、重抽
 		// 全在 LawnApp::RunPickPaidReroll——这里不设任何免费分流。
-		mApp->RunPickPaidReroll();
+        mSubmitted=true;
+        if(!mApp->RunPickPaidReroll(mLockedChoice,mExpectedCounter))mSubmitted=false;
 	}
+}
+
+void RunPickDialog::RefreshRerollLabels()
+{
+    const int cost=mRun->GetRerollPurchaseCost(mLockedChoice);
+    mRefreshButton->mLabel=cost>0 ? ModText::Tr("重摇 -","Reroll -")+LawnApp::GetMoneyString(cost)
+        : ModText::Tr("使用重摇券","Use voucher");
+    mRefreshButton->SetDisabled(!mApp->mPlayerInfo || mApp->mPlayerInfo->mCoins<cost);
+    for(int index=0;index<3;++index) {
+        mLockButtons[index]->mLabel=mLockedChoice==index?ModText::Tr("取消锁定","Unlock"):ModText::Tr("锁定","Lock");
+        mLockButtons[index]->SetDisabled(!mRun->CanLockChoice(index));
+    }
 }
 
 // 键盘一律不认。按空格/回车会走 LawnDialog::KeyDown 那条"当成点了 Yes"的老路，

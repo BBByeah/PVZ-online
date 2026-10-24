@@ -1,13 +1,18 @@
 #include "Lawn/Online/FullWatch.h"
+#include "Lawn/Widget/PlayerMessageBox.h"
+#include "Lawn/Run/RunSpeciesRuntime.h"
 #include "Lawn/Widget/NextWaveControl.h"
 #include "Lawn/Run/EndlessLawn.h"
-#include "Lawn/CoopPlay.h"
+#include "Lawn/TeamPlay.h"
 #include "Lawn/CoopPlay.h"
 #include <corecrt.h>
 #include <time.h>
 #include "LawnApp.h"
+#include "Lawn/System/NameplateCatalog.h"
+#include "Lawn/Online/RoomPresentation.h"
 #include "Lawn/Run/RunHistory.h"
 #include "Lawn/Board.h"
+#include "Lawn/Observer/ObserverHost.inl"
 #include "Lawn/SeedPacket.h"
 #include "Lawn/MessageWidget.h"
 #include "Lawn/Plant.h"
@@ -218,6 +223,7 @@ LawnApp::LawnApp()
 LawnApp::~LawnApp()
 {
     if(!FullWatch::IsObserver())FullWatch::StopChild();
+    TeamPlay::Detach(this);
 	if (mBoard)
 	{
 		WriteCurrentUserConfig();
@@ -404,6 +410,7 @@ void LawnApp::Shutdown()
 // GOTY @Patoke : 0x452640
 void LawnApp::KillBoard()
 {
+    SetTeamProgressionController(nullptr);
 	FinishModelessDialogs();
 	KillSeedChooserScreen();
 	if (mBoard)
@@ -452,6 +459,7 @@ void LawnApp::GotFocus()
 void LawnApp::LostFocus()
 {
     if(FullWatch::IsObserver())return;
+    if(TeamProgressionInputBlocked())return;
     NextWaveControl::Suspend(mBoard);
 	// @pvz-online: 联机环境里切出去一律不暂停——建房等待、连接中、已连上都算（用户拍板：
 	// 这个简化框开的 DIALOG_PAUSED 不参与暂停同步，一弹就是"只停自己"：队友还在打，
@@ -813,7 +821,7 @@ void LawnApp::UpdateOnlineStart()
 			TodLog("online start: a teammate turned it down");
 			OnlineStartDialog* aDialog = new OnlineStartDialog(this,
 				ModText::Tr("队友暂不加入", "Teammate declined"),
-				ModText::Tr("他可能还在别的关卡里，可以稍后再试。", "They may still be in another level. Try again later."),
+				ModText::Tr("等队友准备好后，再开始游戏。", "Start again when your teammate is ready."),
 				ModText::Tr("知道了", "OK"), nullptr,
 				OnlineStartDialog::NOTIFY_NONE);
 			CenterDialog(aDialog, aDialog->mWidth, aDialog->mHeight);
@@ -855,7 +863,7 @@ void LawnApp::UpdateOnlineStart()
 			TodLog("online start: no answer from the teammate in time, start dropped");
 			OnlineStartDialog* aDialog = new OnlineStartDialog(this,
 				ModText::Tr("没有等到回应", "No answer"),
-				ModText::Tr("队友没有及时确认，可以再试一次。", "The teammate didn't confirm in time. You can try again."),
+				ModText::Tr("等队友准备好后，再开始游戏。", "Start again when your teammate is ready."),
 				ModText::Tr("知道了", "OK"), nullptr,
 				OnlineStartDialog::NOTIFY_NONE);
 			CenterDialog(aDialog, aDialog->mWidth, aDialog->mHeight);
@@ -1292,6 +1300,7 @@ void LawnApp::UpdateOnlineRelay()
 			aMsg.mFlags, aMsg.mBodyMaxHealth, aMsg.mHelmMaxHealth, aMsg.mShieldMaxHealth, aMsg.mFlyingMaxHealth,
 			(int)aMsg.mSrcSeat);
         if (aZombie == nullptr)break; // Leave the head queued; never lose a transferred zombie.
+        RunSpeciesRuntime::ImportRelay(aZombie,aMsg);
         mOnlineSession->TakePendingEscapedZombie(aMsg); // Commit only after successful spawn.
 
 		TodLog("[net] relayed zombie is on the board: row %u type %u hp %d/%d/%d/%d",
@@ -1413,7 +1422,7 @@ void LawnApp::UpdateOnlineEvents()
 			break;
 
 		case NetSession::EventType::DISCONNECTED:
-			TodLog("[net] connection lost: %s", mOnlineSession->GetStatusText().c_str());
+			TodLog("[net] connection lost: %s", mOnlineSession->GetDiagnosticStatusText().c_str());
 			// @pvz-online MOD_BUILD 39：重连框（在手的话）先收——重连失败/被取消都会走到
 			// 这条收摊老路上来，框不能留在屏幕上盖着后面的"连接断开"提示。
 			KillDialog(Dialogs::DIALOG_ONLINE_RECONNECT);
@@ -1637,6 +1646,7 @@ void LawnApp::UpdateOnlineEnd()
 			if (IsRunMode())
 			{
 				TodLog("[net] every lawn is clear - the run moves on");
+                if(!TeamPlay::NoteVictory(this))return;
 				AwardRunRerollVoucher();
 				ExpireCoopLoan();
         if(EndlessLawn::StopAtLimit(this))return;
@@ -2015,7 +2025,7 @@ void LawnApp::UpdateStartupAnnounce()
 	mShowedStartupAnnounce = true;
 
 	OnlineStartDialog* aDialog = new OnlineStartDialog(this,
-		ModText::Tr("欢迎来到 PvZ 联机合作版", "Welcome to PvZ Online Co-op"),
+		ModText::Tr("更新公告", "What's new"),
 		ReleaseNotice::Body(),
 		ModText::Tr("知道了", "OK"), nullptr, OnlineStartDialog::NOTIFY_NONE, true);
 	CenterDialog(aDialog, aDialog->mWidth, aDialog->mHeight);
@@ -2029,6 +2039,7 @@ void LawnApp::StartRun(int theRunMode, int theRunDiff, int theRunScale, int theR
     if (!IsOnlineStartAllowed()) { DoOnlineDialog(); return; }
     mDamageStats.Reset();
 	ResetZombieVote();
+    SetTeamProgressionController(nullptr);
 	delete mRunState;
 	mRunState = new RunState();
 	mRunState->StartNew(MakeRunSeed(mAppCounter), theRunMode, theRunDiff, theRunScale, theRunTempo, theZombotany, theEndlessScene, theBossFlag, theBuffMult, theLadder, theZombieBuff, theSpeedTier, theFirstWave, theEndlessOptions);
@@ -2046,6 +2057,7 @@ void LawnApp::ContinueRun(int theMode,int theScene)
 {
     if (!IsOnlineStartAllowed()) { DoOnlineDialog(); return; }
 	ResetZombieVote();
+    SetTeamProgressionController(nullptr);
 	delete mRunState;
 	mRunState = new RunState();
 
@@ -2054,8 +2066,7 @@ void LawnApp::ContinueRun(int theMode,int theScene)
 	if (!mRunState->Load(mPlayerInfo->mId,theMode,theScene) || mRunState->IsComplete())
 	{
         delete mRunState;mRunState=nullptr;
-        LawnMessageBox(Dialogs::DIALOG_MESSAGE,ModText::Tr("无法继续","Cannot continue"),
-            ModText::Tr("这份存档无法读取，已保留原文件。请返回对应模式重试。","The save could not be read. Its files are retained. Return to the matching mode to retry."),"OK","",Sexy::Dialog::BUTTONS_FOOTER);
+        PlayerMessageBox::Show(this, Dialogs::DIALOG_MESSAGE, ModText::Tr("无法继续","Cannot continue"), ModText::Tr("请回到原来的模式重试，旧存档已保留。","Retry from the original mode. Your old save is kept."));
         return;
 	}
 	else
@@ -2064,8 +2075,7 @@ void LawnApp::ContinueRun(int theMode,int theScene)
 	}
 
     if(mRunState->IsEndless() && !mRunState->IsNewEndless())
-        LawnMessageBox(Dialogs::DIALOG_MESSAGE,ModText::Tr("旧版无尽存档","Legacy endless save"),
-            ModText::Tr("这份旧档仅保存关数和增益，没有草坪阵型。继续时沿用旧规则并重新布阵；新开无尽才启用阶段主题和周期 BOSS。","This legacy save contains progress and buffs, without a lawn. Continuing keeps its old rules and starts a fresh lawn. New runs enable themes and boss cycles."),"OK","",Sexy::Dialog::BUTTONS_FOOTER);
+        PlayerMessageBox::Show(this, Dialogs::DIALOG_MESSAGE, ModText::Tr("旧版无尽存档","Legacy endless save"), ModText::Tr("关数、增益和旧规则保留，需重新布阵。\n想玩新主题和周期BOSS，请新开无尽。","Keep your progress, buffs and old rules.\nRebuild the lawn. For themes and boss cycles,\nstart a new endless run."));
 	EnterRunLevel();
 }
 
@@ -2231,6 +2241,7 @@ void LawnApp::AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode,
 			mRunState->mRunSeed, theRunSeed, mRunState->mMode, theRunMode, mRunState->mDiff, theRunDiff,
 			mRunState->mEndlessScene, theEndlessScene, mRunState->mLevelIndex, theTargetIndex);
         KillDialog(Dialogs::DIALOG_RUN_PICK); // Its labels and run pointer belong to the old transaction.
+        SetTeamProgressionController(nullptr);
 		delete mRunState;
 		mRunState = nullptr;
 	}
@@ -2323,6 +2334,7 @@ void LawnApp::AwardRunRerollVoucher()
 
 void LawnApp::UpdateRunEnd()
 {
+    if(!mRunState||mRunIntroHeld||mRunState->HasPendingPick()||!TeamPlay::NoteVictory(this))return;
 	// @pvz-online: 无尽局原地续关（无尽续草坪批，MOD_BUILD 37）：过关不清草坪——棋盘留着
 	// 当下一关的地，人站在老草坪上把欠下的三选一做完（下一帧由 UpdateRunPick 的 ① 摆上头）。
 	// 这一函数每帧都被 CheckForGameEnd 敲（mLevelComplete 一直立着），翻页只翻一次：翻完
@@ -2390,20 +2402,8 @@ bool LawnApp::TryKeepEndlessLawn()
 	mGameScene = GameScenes::SCENE_LEVEL_INTRO;
 	if (IsOnlineGame() && !IsLocalOnlyMode(mGameMode)) mOnlineSession->SendSeedsReady(false);
 
-	mRunIntroHeld = false;
-	if (mRunState->HasPendingPick() || mRunState->IsCatchingUp())
-	{
-		TodLog("[run] endless: the lawn stays for level %d (index %d) - the picks come first",
-			mRunState->GetLevel(), mRunState->mLevelIndex);
-		mRunIntroHeld = true;
-		return true;
-	}
-
-	TodLog("[run] endless: the lawn stays for level %d (index %d) - nothing to pick, straight in",
-		mRunState->GetLevel(), mRunState->mLevelIndex);
-	mBoard->InitEndlessRunStage();
-	ShowSeedChooserScreen();
-	mBoard->mCutScene->StartLevelIntro();
+	// Every stage crosses the common reward/vote gate, even when personal pools are capped.
+	mRunIntroHeld = true;
 	return true;
 }
 
@@ -2470,7 +2470,7 @@ void LawnApp::UpdateRunPick()
 		// 的几路：单机无尽原地续关（新的那一关不走 EnterRunLevel，票只能在这儿补）、以及
 		// 换关之后各端落到新草坪的时刻（这时票早结清了——上面 (b) 路口开过，这句直接放行）。
 		// 放最前面：票在开的时候连三选一屏都不摆，别让两张框叠在一起。
-		if (TryOpenZombieVote()) return;
+
 
 		if (mRunState->HasPendingPick())
 		{
@@ -2498,6 +2498,9 @@ void LawnApp::UpdateRunPick()
 		// @pvz-online: 卡池≤10 的开场门拦下之后的重入（等队友的那几帧）：下面这些事
 		// 都是"只做一次"的（选卡界面已经建过，再建一次会撞断言），一件都别再碰；
 		// 放行由 UpdateOnlineSeeds 负责，它每帧都在跑。
+        if(TeamPlay::For(this).HoldPersonalRewards())return;
+        if(TryOpenZombieVote())return;
+        if(TeamPlay::For(this).HoldPreparation())return;
 		if (mOnlineSeedsHeld) return;
 
 		TodLog("[run] the picks are done - the chooser and the intro can start");
@@ -2565,7 +2568,7 @@ void LawnApp::UpdateRunPick()
 			{
 				// @pvz-online: 换场景先投票（MOD_BUILD 45）：票结了才点名——START_LEVEL 里
 				// 带的就是结算后的层数（RESULT 与 START_LEVEL 同一帧、RESULT 先发）。
-				if (TryOpenZombieVote()) return;
+
 				EnterRunLevel();
 			}
 		}
@@ -2602,7 +2605,7 @@ void LawnApp::UpdateRunPick()
 	if (mOnlineWaitingStartAck) return;
 	// @pvz-online: 换场景先投票（MOD_BUILD 45）：单机（以及断线单飞的客户端）在这条路口上
 	// 开票——第 5/10/15/20 关（完整档）这种"新场景第一关"进之前，先把僵尸强化的票投了。
-	if (TryOpenZombieVote()) return;
+
 	EnterRunLevel();
 }
 
@@ -2694,7 +2697,12 @@ bool LawnApp::TryOpenZombieVote()
 	if (mZombieVoteActive) return true;
 
 	// 只有房主 / 单机开票；客户端收 OPEN 弹框（UpdateZombieVote），不在这儿开。
-	if (mRunState == nullptr || IsOnlineClient()) return false;
+	if(mRunState==nullptr)return false;
+    if(IsOnlineClient()) {
+        const int level=mRunState->GetPlayingLevelIndex(),period=RunState::LevelsPerScene(mRunState->mMode);
+        return level>0&&period>0&&level%period==0&&mRunState->GetZombieBuffPerScene()>0&&
+            ((int)mRunState->mZombieVotedLevel!=level||(mZombieVoteRoundsDone>0&&mZombieVoteRoundsDone<mRunState->GetZombieBuffPerScene()));
+    }
 	// 追赶期不开（补做的是过去的关，票是"下一场景"的事；追上了自然轮到）。
 	if (mRunState->IsCatchingUp()) return false;
 	// 没开这一档（高级选项「僵尸 buff」默认 0）就不开票——没这回事，一帧账都不记。
@@ -2711,7 +2719,7 @@ bool LawnApp::TryOpenZombieVote()
 	// 横幅累积归零。
 	if ((int)mRunState->mZombieVotedLevel == aLevel)
 	{
-        if(mRunState->IsNewEndless() && mZombieVoteRoundsDone==0) {
+        if(mZombieVoteRoundsDone==0) {
             mZombieVoteRoundsDone=mRunState->mEndlessVoteRounds;
             mZombieVoteBannerCount=0;
             for(int i=0;i<2;++i)if(mRunState->mEndlessVoteIds[i]<RunState::RUN_ZOMBIE_BUFF_COUNT)
@@ -2791,6 +2799,7 @@ void LawnApp::ZombieVoteOpenLocal(int theLevel, const unsigned char* theCandidat
 	// 重入防御：同一轮重复 Open 直接忽略（OPEN 重发 / 迟到都别把已经投过的一票刷掉）。
 	if (mZombieVoteActive) return;
 
+	mZombieVoteOpenRound=mZombieVoteRoundsDone;
 	mZombieVoteActive = true;
 	mZombieVoteLevel = theLevel;
 	for (int i = 0; i < RunState::RUN_ZOMBIE_VOTE_CHOICES; i++)
@@ -2897,7 +2906,7 @@ void LawnApp::ZombieVoteResolve()
 	if (mZombieVoteBannerCount < 2) mZombieVoteBannerIds[mZombieVoteBannerCount++] = aPicked[0];
 	mZombieVoteRoundsDone++;
 	mRunState->mZombieVotedLevel = (unsigned short)mZombieVoteLevel;
-    if(mRunState->IsNewEndless()) {
+    {
         mRunState->mEndlessVoteRounds=mZombieVoteRoundsDone;
         for(int i=0;i<2;++i)mRunState->mEndlessVoteIds[i]=i<mZombieVoteBannerCount?mZombieVoteBannerIds[i]:255;
         mRunState->Save(mPlayerInfo->mId);
@@ -2985,7 +2994,7 @@ std::string LawnApp::ZombieVoteStatusText()
 	if (IsOnlineClient())
 	{
 		snprintf(aBuf, sizeof(aBuf), ModText::Tr("还剩 %d 秒 · %s", "%ds left - %s"), aSeconds,
-			mZombieVoteMyChoice >= 0 ? ModText::Tr("已投", "voted") : ModText::Tr("未投", "not voted"));
+			mZombieVoteMyChoice >= 0 ? ModText::Tr("已投", "voted") : ModText::Tr("点一项投票", "choose a card"));
 	}
 	else
 	{
@@ -3020,11 +3029,18 @@ void LawnApp::UpdateZombieVote()
             } else if (mOnlineSession->TakePendingZombieVoteResult(result)) {
                 if (!mRunState || !mZombieVoteActive || mZombieVoteLevel != (int)result.mSceneIndex)
                     continue;
+                // Commit the same authoritative RESULT locally before a host can
+                // disappear. A SHARED snapshot may already contain this round.
+                if(mZombieVoteRoundsDone<=mZombieVoteOpenRound)
+                    for(unsigned int index=0;index<result.mCount;++index)mRunState->AddZombieBuffStack(result.mIds[index]);
                 mRunState->mZombieVotedLevel = result.mSceneIndex;
                 for (unsigned int index = 0; index < result.mCount && mZombieVoteBannerCount < 2; ++index)
                     mZombieVoteBannerIds[mZombieVoteBannerCount++] = result.mIds[index];
                 mZombieVotePendingBanner = ZombieVoteBannerText(mZombieVoteBannerCount, mZombieVoteBannerIds);
-                ++mZombieVoteRoundsDone;
+                mZombieVoteRoundsDone=std::max(mZombieVoteRoundsDone,mZombieVoteOpenRound+1);
+                mRunState->mEndlessVoteRounds=mZombieVoteRoundsDone;
+                for(int i=0;i<2;++i)mRunState->mEndlessVoteIds[i]=i<mZombieVoteBannerCount?mZombieVoteBannerIds[i]:255;
+                if(mPlayerInfo)mRunState->Save(mPlayerInfo->mId);
                 ZombieVoteCloseUI();
             } else break;
         }
@@ -3083,25 +3099,19 @@ void LawnApp::UpdateZombieVote()
 // 不涉协议。走"关屏 + 重抽"：屏由 UpdateRunPick ① 按新候选重开（尺寸、名字、置灰、标价全
 // 重算）——比就地改标签少一套刷新路径。
 // 守卫：金币不够当前价不扣不摇（按钮在那一档也置着灰，这是防误调的兜底）。
-void LawnApp::RunPickPaidReroll()
+#include "Lawn/Run/RunRerollPurchase.h"
+bool LawnApp::RunPickPaidReroll(int lockedChoice, unsigned int expectedCounter)
 {
-    if (!mRunState || !mPlayerInfo || !mRunState->HasPendingPick() || !mRunState->mChoicesRolled) return;
-    const RunState before = *mRunState;
-    const int coins = mPlayerInfo->mCoins;
-    const int cost = mRunState->GetPaidRerollCost();
-    if (mRunState->mRerollVouchers > 0) --mRunState->mRerollVouchers;
-    else { if (coins < cost) return; mPlayerInfo->AddCoins(-cost); }
-    mRunState->PaidReroll();
-    // @pvz-online: neither new choices nor a debit become visible before the joint commit.
-    if (!mRunState->SaveWithPlayer(*mPlayerInfo)) {
-        *mRunState = before;
-        mPlayerInfo->mCoins = coins;
-        LawnMessageBox(Dialogs::DIALOG_MESSAGE, ModText::Tr("保存失败", "Save failed"),
-            ModText::Tr("重摇未保存，未扣款；请检查可用空间。", "Reroll was not saved or charged. Check available storage."),
-            "OK", "", Sexy::Dialog::BUTTONS_FOOTER);
-        return;
+    if (!mRunState || !mPlayerInfo) return false;
+    const auto result = RunRerollPurchase::Apply(*mRunState, *mPlayerInfo, lockedChoice, expectedCounter,
+        [](RunState& run, PlayerInfo& player) { return run.SaveWithPlayer(player); });
+    if (result == RunRerollPurchase::Result::SAVE_FAILED) {
+        PlayerMessageBox::Show(this, Dialogs::DIALOG_MESSAGE, ModText::Tr("保存失败", "Save failed"), ModText::Tr("未扣金币，请检查存储空间后重试。", "No coins spent. Check storage and retry."));
+        return false;
     }
+    if (result != RunRerollPurchase::Result::APPLIED) return false;
     KillDialog(Dialogs::DIALOG_RUN_PICK);
+    return true;
 }
 
 // R4：输一关就记账——失败次数进检查点（首版只存不用）。紧跟着写盘是刻意的：
@@ -3390,6 +3400,7 @@ void LawnApp::StartPlaying()
 {
 	if(mRunState && mRunState->mAdmission.phase==Admission::PREPARED)mRunState->mAdmission.phase=Admission::PLAYED;
 	KillSeedChooserScreen();
+	TeamPlay::For(this).PrepareBattle();
 	mBoard->StartLevel();
 	mGameScene = GameScenes::SCENE_PLAYING;
     EndlessLawn::RememberLineup(mBoard);
@@ -3456,7 +3467,7 @@ void LawnApp::NewGame()
 	// 的时候，把"选卡 + 开场"压住：人先站在自己的新草坪上，选项屏盖在草坪上做完，
 	// 才由 UpdateRunPick 放开（见那边的 ①）。单关局 / 非闯关一条路都不变。
 	mRunIntroHeld = false;
-	if (IsRunMode() && (mRunState->HasPendingPick() || mRunState->IsCatchingUp()))
+	if (IsRunMode())
 	{
 		mRunIntroHeld = true;
 		TodLog("[run] the lawn is up before the picks - the intro is held");
@@ -3471,9 +3482,9 @@ void LawnApp::NewGame()
 // GOTY @Patoke: 0x452B80
 void LawnApp::ShowGameSelector()
 {
+    SetTeamProgressionController(nullptr);
     if(mRunState && mRunState->IsNewEndless() && mBoard && !mRunState->Save(mPlayerInfo->mId)) {
-        LawnMessageBox(Dialogs::DIALOG_MESSAGE,ModText::Tr("保存失败","Save failed"),
-            ModText::Tr("本次草坪尚未保存，游戏已留在当前画面。请检查可用空间后重试返回菜单。","The lawn could not be saved. The game remains open. Check storage and retry returning to the menu."),"OK","",Sexy::Dialog::BUTTONS_FOOTER);
+        PlayerMessageBox::Show(this, Dialogs::DIALOG_MESSAGE, ModText::Tr("保存失败","Save failed"), ModText::Tr("请勿直接关游戏；\n清理存储空间后再返回菜单。","Keep the game open.\nFree storage, then return to the menu."));
         return;
     }
 
@@ -3699,8 +3710,7 @@ void LawnApp::EndLevel()
 void LawnApp::DoBackToMain(bool theNotifyOnline)
 {
     if(mRunState && mRunState->IsNewEndless() && mBoard && !mRunState->Save(mPlayerInfo->mId)) {
-        LawnMessageBox(Dialogs::DIALOG_MESSAGE,ModText::Tr("保存失败","Save failed"),
-            ModText::Tr("本次草坪尚未保存，游戏已留在当前画面。请检查可用空间后重试返回菜单。","The lawn could not be saved. The game remains open. Check storage and retry returning to the menu."),"OK","",Sexy::Dialog::BUTTONS_FOOTER);
+        PlayerMessageBox::Show(this, Dialogs::DIALOG_MESSAGE, ModText::Tr("保存失败","Save failed"), ModText::Tr("请勿直接关游戏；\n清理存储空间后再返回菜单。","Keep the game open.\nFree storage, then return to the menu."));
         return;
     }
 
@@ -4063,7 +4073,7 @@ void LawnApp::FinishRenameUserDialog(bool isYes)
 	SexyString aNewName = aNewUserDialog->GetName();
 	if (aNewName.empty())
 		return;
-	
+
 	bool isCurrentUser = mProfileMgr->GetProfile(anOldName) == mPlayerInfo;
 	if (!mProfileMgr->RenameProfile(anOldName, aNewName))
 	{
@@ -4537,6 +4547,7 @@ void LawnApp::Start()
 //0x4522C0
 bool LawnApp::DebugKeyDown(int theKey)
 {
+    if(TeamProgressionInputBlocked())return false;
 	return SexyAppBase::DebugKeyDown(theKey);
 }
 
@@ -4809,6 +4820,8 @@ void LawnApp::UpdatePlayTimeStats()
 void LawnApp::UpdateFrames()
 {
     FullWatch::TickApp(this);
+    if(auto* session=RoomPresentation::Session(this))session->SetLocalNameplate(mPlayerInfo?NameplateCatalog::Equipped(*mPlayerInfo):0);
+    UpdateTeamProgressionUi();
     mDamageStats.Update(this);
 	// @pvz-online: 联机会话按真实帧推进，故意放在 aUpdateCount 循环外——心跳和超时算的是
 	// 挂钟时间，不该跟着 slow/fast-mo 一起变快变慢。
@@ -4900,7 +4913,7 @@ void LawnApp::UpdateFrames()
 	for (int i = 0; i < aUpdateCount; i++)
 	{
 		mAppCounter++;
-		
+
 		if (mBoard)
 		{
 			mBoard->ProcessDeleteQueue();
@@ -5019,7 +5032,7 @@ void LawnApp::LoadingThreadProc()
 	TodTrace("loading '%s' %d ms", "trail", (int)aTimer.GetDuration());
 	aTimer.Start();
 	TodHesitationTrace("trail");
-	
+
 	TodParticleLoadDefinitions(gLawnParticleArray, LENGTH(gLawnParticleArray));
 	//aDuration = max(aTimer.GetDuration(), 0.0);
 	aTimer.Start();
@@ -5652,7 +5665,7 @@ SeedType LawnApp::GetAwardSeedForLevel(int theLevel)
 	{
 		aSeedsHasGot = 40;
 	}
-	
+
 	return (SeedType)aSeedsHasGot;
 }
 
@@ -6069,7 +6082,7 @@ void LawnApp::CrazyDaveTalkMessage(const SexyString& theMessage)
 					PlayFoley(FoleyType::FOLEY_CRAZY_DAVE_LONG);
 				}
 			}
-			
+
 			mCrazyDaveState = CrazyDaveState::CRAZY_DAVE_HANDING_TALKING;
 		}
 		else if (theMessage.find(_S("{SHAKE}")) != SexyString::npos)
@@ -6114,12 +6127,12 @@ void LawnApp::CrazyDaveTalkMessage(const SexyString& theMessage)
 			{
     			aWallnutReanim->PlayReanim("anim_idle", ReanimLoopType::REANIM_LOOP, 0, 12.0f);
     			TodTrace("Handed");
-    
+
     			ReanimatorTrackInstance* aHandTrackInstance = aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand");
     			AttachEffect* aAttachEffect = AttachReanim(aHandTrackInstance->mAttachmentID, aWallnutReanim, 100.0f, 393.0f);
     			if (aAttachEffect) aAttachEffect->mOffset.m00 = 1.2f;
     			if (aAttachEffect) aAttachEffect->mOffset.m11 = 1.2f;
-    
+
     			aCrazyDaveReanim->Update();
 			}
 
@@ -6139,12 +6152,12 @@ void LawnApp::CrazyDaveTalkMessage(const SexyString& theMessage)
 			{
     			aHammerReanim->PlayReanim("anim_whack_zombie", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 24.0f);
     			aHammerReanim->mAnimTime = 1.0f;
-    
+
     			ReanimatorTrackInstance* aHandTrackInstance = aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand");
     			AttachEffect* aAttachEffect = AttachReanim(aHandTrackInstance->mAttachmentID, aHammerReanim, 62.0f, 445.0f);
     			if (aAttachEffect) aAttachEffect->mOffset.m00 = 1.5f;
     			if (aAttachEffect) aAttachEffect->mOffset.m11 = 1.5f;
-    
+
     			aCrazyDaveReanim->Update();
 			}
 
@@ -6164,7 +6177,7 @@ void LawnApp::CrazyDaveTalkMessage(const SexyString& theMessage)
 			{
     			aFertilizerReanim->PlayReanim("bag", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 24.0f);
     			aFertilizerReanim->mAnimRate = 0.0f;
-    
+
     			ReanimatorTrackInstance* aHandTrackInstance = aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand");
     			AttachReanim(aHandTrackInstance->mAttachmentID, aFertilizerReanim, 102.0f, 412.0f);
     			aCrazyDaveReanim->Update();
@@ -6186,7 +6199,7 @@ void LawnApp::CrazyDaveTalkMessage(const SexyString& theMessage)
 			{
     			aTreeFoodReanim->PlayReanim("bag", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 24.0f);
     			aTreeFoodReanim->mAnimRate = 0.0f;
-    
+
     			ReanimatorTrackInstance* aHandTrackInstance = aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand");
     			AttachReanim(aHandTrackInstance->mAttachmentID, aTreeFoodReanim, 102.0f, 412.0f);
     			aCrazyDaveReanim->Update();
@@ -6209,7 +6222,7 @@ void LawnApp::CrazyDaveTalkMessage(const SexyString& theMessage)
     			aMoneyBagReanim->PlayReanim("bag", ReanimLoopType::REANIM_PLAY_ONCE_AND_HOLD, 0, 24.0f);
     			aMoneyBagReanim->mAnimRate = 0.0f;
     			aMoneyBagReanim->SetImageOverride("bag", IMAGE_MONEYBAG);
-    
+
     			ReanimatorTrackInstance* aHandTrackInstance = aCrazyDaveReanim->GetTrackInstanceByName("Dave_handinghand");
     			AttachReanim(aHandTrackInstance->mAttachmentID, aMoneyBagReanim, 90.0f, 405.0f);
     			aCrazyDaveReanim->Update();
@@ -6901,8 +6914,9 @@ void LawnApp::UpdateRegisterInfo()
 
 
 
-void LawnApp::UpdateCoopPlay(){if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->Update();}
-void LawnApp::ShowCoopPlay(){if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->Show();}
+void LawnApp::UpdateCoopPlay(){if(FullWatch::IsObserver())return;if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->Update();TeamPlay::For(this).Update();}
+void LawnApp::ShowCoopPlay(){if(TeamProgressionAvailable()&&GetDialogCount()==0){ShowTeamProgression(TeamProgressionView::Page::TEAMMATES);return;}ShowCoopPlayLegacy();}
+void LawnApp::ShowCoopPlayLegacy(){if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->Show();}
 void LawnApp::ExpireCoopLoan(){if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->ExpireLoan();}
 
 #include "Lawn/LawnMower.h"

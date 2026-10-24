@@ -11,6 +11,7 @@
 #include "../SeedPacket.h"
 #include "../Challenge.h"
 #include "../Run/RunState.h"
+#include "../Run/RunSpeciesRuntime.h"
 #include "../../Sexy.TodLib/EffectSystem.h"
 #include "../../Sexy.TodLib/Reanimator.h"
 #include "../../Sexy.TodLib/Attachment.h"
@@ -20,7 +21,7 @@
 #include <stdexcept>
 #include <type_traits>
 
-// @pvz-online: AI-generated, preliminarily tested. Pinned field lists define PWV2 v1;
+// @pvz-online: AI-generated, preliminarily tested. Pinned field lists define PWV2 v2;
 // adding a native class member does NOT silently change the wire format.
 namespace WatchState {
 namespace {
@@ -37,6 +38,7 @@ struct Archive {
         else Put(bytes,v);
     }
     template<class T> void S(T& value){Number(value);}
+    void S(uint64_t& value){uint32_t lo=uint32_t(value),hi=uint32_t(value>>32);Number(lo);Number(hi);if(read)value=(uint64_t(hi)<<32)|lo;}
     void S(bool& value){unsigned char v=value?1:0;if(read){Require(pos<bytes.size());v=bytes[pos++];Require(v<=1);value=v!=0;}else bytes.push_back(v);}
     void S(int64_t& value){uint64_t v=static_cast<uint64_t>(value);uint32_t lo=static_cast<uint32_t>(v),hi=static_cast<uint32_t>(v>>32);Number(lo);Number(hi);if(read)value=static_cast<int64_t>((uint64_t(hi)<<32)|lo);}
     void S(float& value){uint32_t v=0;if(!read)memcpy(&v,&value,4);Number(v);if(read)memcpy(&value,&v,4);Require(std::isfinite(value));}
@@ -378,6 +380,10 @@ void Config(Archive& a,Board& b){
         a.S(r.mLoanPlant);
         a.S(r.mLoanLevel);
         a.S(r.mCrowdRule);
+        // @pvz-online: only combat-relevant team configuration, never transaction/save history.
+        a.S(r.mTeam.shared.plants);
+        for(auto& stack:r.mTeam.shared.stacks)a.S(stack);
+        Require(!(r.mTeam.shared.plants&~TeamProgression::PLANTS) && r.mTeam.shared.stacks[TeamProgression::ARSENAL]<=1);
         a.Vector(r.mPool,48);a.Vector(r.mBuffs,512);a.Vector(r.mLoanBuffs,512);
         Require(r.mMode>=0&&r.mMode<=RunState::RUN_MODE_ENDLESS&&r.mLevelIndex>=0&&r.mLevelIndex<60000);
     }
@@ -513,9 +519,13 @@ void Dynamic(Archive& a,Board& b){
     Pool(a,b.mLawnMowers,[](Archive& a,LawnMower& v){Fields(a,v);});
     Pool(a,b.mGridItems,[](Archive& a,GridItem& v){Fields(a,v);});
     unsigned n=a.Count(static_cast<unsigned>(b.mRunDotStates.size()),b.mZombies.mMaxSize);
-    auto dot=[&](unsigned& id,RunDotState& v){a.S(id);a.S(v.butterFrames);a.S(v.butterTick);a.S(v.scorchTick);a.S(v.emberFrames);a.S(v.emberTick);};
+    auto dot=[&](unsigned& id,RunDotState& v){a.S(id);a.S(v.butterFrames);a.S(v.butterTick);a.S(v.scorchTick);a.S(v.emberFrames);a.S(v.emberTick);a.S(v.scorchPlayer);a.S(v.scorchStrike);a.S(v.scorchStacks);a.S(v.scorchMultiplier);};
     if(a.read){b.mRunDotStates.clear();for(unsigned i=0;i<n;++i){unsigned id=0;RunDotState v;dot(id,v);b.mRunDotStates[id]=v;}}
     else for(auto& entry:b.mRunDotStates){unsigned id=entry.first;dot(id,entry.second);}
+    // @pvz-online: MOD95 species flags and queued blasts live outside Zombie's fields.
+    Bytes species=a.read?Bytes{}:RunSpeciesRuntime::SaveTrailer(&b);
+    a.Vector(species,1024*1024);
+    if(a.read)Require(RunSpeciesRuntime::LoadTrailer(&b,species.data(),species.size()));
     n=a.Count(static_cast<unsigned>(b.mRelayedZombieIds.size()),b.mZombies.mMaxSize);
     if(a.read){b.mRelayedZombieIds.clear();for(unsigned i=0;i<n;++i){unsigned id=0;a.S(id);b.mRelayedZombieIds.insert(id);}}else for(unsigned id:b.mRelayedZombieIds)a.S(id);
     auto& animations=b.mApp->mEffectSystem->mReanimationHolder->mReanimations;

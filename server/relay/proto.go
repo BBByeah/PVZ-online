@@ -41,6 +41,14 @@ const (
 	msgCliPong       = 0xF014
 	msgCliLeaveRoom  = 0xF015
 	msgCliRejoin     = 0xF016
+
+	// Game-frame observer v2 types are intentionally below srvFrameBase and
+	// continue through the ordinary authenticated room flow.  The relay does
+	// not decode presentation bytes; it only applies the existing src/dst,
+	// term/epoch and seat checks.  Gameplay queues must remain higher priority
+	// when the client later enables these frames.
+	msgObserverControl = 30
+	msgObserverFrame   = 31
 )
 
 // REJECT 原因（与 NetProto::RejectReason 对齐）

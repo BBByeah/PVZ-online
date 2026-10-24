@@ -1,6 +1,7 @@
 #include "../Lawn/Online/FullWatchFragments.h"
 #include "../Lawn/Online/FullWatchSendQueue.h"
 #include "../Lawn/Online/FullWatchNet.h"
+#include "../Lawn/Online/NetOutbound.h"
 #include <vector>
 #include <cstring>
 #include <cstdio>
@@ -68,5 +69,15 @@ int main() {
     paced.offsets[2]=3;paced.Promote(2);
     if(paced.outgoing[2].size!=1 || paced.outgoing[2].data[0]!=9 || paced.pending[2].data || paced.offsets[2])return 24;
     std::puts("snapshot wall-clock pacing and in-flight generation preservation passed");
+    NetOutbound outbound;NetOutbound::Bytes popped;bool display=false;
+    BYTE fragment[270]{};int accepted=0;
+    while(outbound.Snapshot(fragment,sizeof(fragment)))++accepted;
+    if(accepted!=65536/270 || !outbound.Critical(control,1))return 25;
+    if(!outbound.Pop(popped,display,0) || display || popped.size()!=1 || popped[0]!=9)return 26;
+    outbound.Completed(display);
+    if(!outbound.Pop(popped,display,0) || !display || popped.size()!=270)return 27;
+    if(!outbound.Snapshot(fragment,sizeof(fragment)))return 28;
+    outbound.Clear();if(outbound.Pop(popped,display,0))return 29;
+    std::puts("MOD95 worker queue: bounded snapshots, gameplay priority and congestion retry passed");
     return 0;
 }

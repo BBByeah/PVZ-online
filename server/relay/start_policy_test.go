@@ -14,7 +14,7 @@ func TestStartSnapshotLengthsForwardWithoutRewriting(t *testing.T) {
 	welcome := decodeWelcome(t, host.create(protocolVersion, 82, "host"))
 	decodeWelcome(t, guest.join(protocolVersion, 82, "guest", welcome.code))
 	host.next(time.Second)
-	for _, length := range []int{44, 45, 46} {
+	for _, length := range []int{44, 45, 46, 53} {
 		payload := make([]byte, length)
 		for i := range payload {
 			payload[i] = byte(i * 7)

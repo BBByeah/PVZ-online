@@ -1,4 +1,6 @@
 #include "NetLink.h"
+#include "NetOutbound.h"
+#include "LegacyObserverQueue.h"
 
 // <winsock2.h> 必须排在所有 <windows.h> 之前。这个文件是工程里唯一同时碰两者的翻译单元：
 // 其余代码只 include NetLink.h（pimpl，没有 winsock 类型），HTTPTransfer.cpp 用的
@@ -7,8 +9,6 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 #include <process.h>
-#include "FullWatchSendQueue.h"
-#include "FullWatchFragments.h"
 #include <cstring>
 #include <string>
 #include <vector>
@@ -39,8 +39,25 @@ unsigned __stdcall LinkThreadProc(void* theArg);
 
 struct NetLink::Impl
 {
-    transport::Queue sends{};
-    DWORD sendProgress=0;
+    NetOutbound outbound;
+    NetOutbound::Bytes outgoing;
+    size_t outgoingAt=0;bool outgoingDisplay=false;DWORD stalledSince=0;
+    bool FlushWrites() {
+        for(int count=0;count<8;++count) {
+            if(outgoing.empty()) {
+                if(!outbound.Pop(outgoing,outgoingDisplay,GetTickCount64()))return true;
+                outgoingAt=0;stalledSince=GetTickCount();
+            }
+            int n=send(mSocket,(const char*)outgoing.data()+outgoingAt,int(outgoing.size()-outgoingAt),0);
+            if(n>0){outgoingAt+=n;stalledSince=GetTickCount();if(outgoingAt==outgoing.size()){outbound.Completed(outgoingDisplay);bool optional=outgoingDisplay;outgoing.clear();/* Recheck critical before each of at most eight fragments per read slice. */}continue;}
+            int error=WSAGetLastError();
+            if(error==WSAETIMEDOUT||error==WSAEWOULDBLOCK||error==WSA_IO_PENDING){
+                if(DWORD(GetTickCount()-stalledSince)<5000)return true;
+                Fail("The connection stalled while sending.");return false;
+            }
+            FailWithError("Connection lost while sending",error);return false;
+        }return true;
+    }
 	SOCKET				mListenSocket;
 	SOCKET				mSocket;			// 已连接的那个；发布之后只有 Close() 能关它
 	HANDLE				mThread;
@@ -84,13 +101,13 @@ struct NetLink::Impl
 	{
 		// accept() 在 Windows 上会继承监听 socket 的非阻塞标志，connect 前也设过非阻塞，
 		// 所以这里必须显式改回阻塞 + 100ms 超时，否则收包线程会空转。
-		u_long aNonBlocking = 1; // @pvz-online: sends must never block the game thread.
+		u_long aNonBlocking = 0;
 		ioctlsocket(theSocket, FIONBIO, &aNonBlocking);
 
 		int aNoDelay = 1;
 		setsockopt(theSocket, IPPROTO_TCP, TCP_NODELAY, (const char*)&aNoDelay, sizeof(aNoDelay));
 
-		int aTimeout = IO_SLICE_MS;
+		int aTimeout = 10;
 		setsockopt(theSocket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&aTimeout, sizeof(aTimeout));
 		setsockopt(theSocket, SOL_SOCKET, SO_SNDTIMEO, (const char*)&aTimeout, sizeof(aTimeout));
 	}
@@ -271,6 +288,7 @@ struct NetLink::Impl
 		while (aGot < theCount)
 		{
 			if (mStop) return false;
+            if(!FlushWrites())return false;
 
 			int aRead = recv(mSocket, (char*)theBuffer + aGot, theCount - aGot, 0);
 			if (aRead > 0)
@@ -325,6 +343,11 @@ struct NetLink::Impl
 	void	PushPacket(const Packet& thePacket)
 	{
 		EnterCriticalSection(&mQueueLock);
+        if (LegacyObserverQueue::IsSnapshot(thePacket.mData, thePacket.mSize) &&
+            mQueue.size() >= LegacyObserverQueue::ReceiveSnapshotBudget) {
+            LeaveCriticalSection(&mQueueLock);
+            return; // Optional legacy fragment; the next complete snapshot heals the gap.
+        }
 		if ((int)mQueue.size() >= MAX_QUEUED_PACKETS)
 		{
 			LeaveCriticalSection(&mQueueLock);
@@ -478,6 +501,10 @@ void NetLink::Close()
 	if (!anImpl) return;
 	if (anImpl->mThreadLeaked) return;		// 放弃过的 Impl，一个字段都别再碰
 
+    // A graceful LEAVE/END queued immediately before Close still reaches the
+    // server; a stalled link never makes the UI wait more than 200 ms here.
+    DWORD drain=GetTickCount();
+    while(anImpl->GetStateValue()==State::CONNECTED&&anImpl->outbound.HasCritical()&&DWORD(GetTickCount()-drain)<200)Sleep(1);
 	InterlockedExchange(&anImpl->mStop, 1);
 
 	if (anImpl->mThread)
@@ -510,7 +537,7 @@ void NetLink::Close()
 	}
 
 	ClearQueue();
-    anImpl->sends.reset();
+    anImpl->outbound.Clear();anImpl->outgoing.clear();anImpl->outgoingAt=0;
 	anImpl->SetStateValue(State::IDLE);
 }
 
@@ -530,95 +557,24 @@ int NetLink::GetConnectAttempts() const
 	return mImpl ? (int)InterlockedCompareExchange(&mImpl->mConnectAttempts, 0, 0) : 1;
 }
 
-#if 0 // old: synchronous send stalls the frame thread on full snapshots.
-bool NetLink::Send(const void* theData, int theSize)
-{
-	Impl* anImpl = mImpl;
-	if (!anImpl || anImpl->GetStateValue() != State::CONNECTED) return false;
-	if (!theData || theSize <= 0 || theSize > NetProto::MAX_PACKET) return false;
-
-	const char* aBytes = (const char*)theData;
-	int aSent = 0;
-	int aRetries = 0;
-	// @pvz-online: 卡顿探针（2026-10-13）——Send 跑在调用线程（帧线程）上，单次耗时
-	// 超过 250ms 就是一次可见卡顿；只记日志（限频 1 条/秒），不改行为。
-	DWORD aProbeStart = GetTickCount();
-	while (aSent < theSize)
-	{
-		int aWrote = send(anImpl->mSocket, aBytes + aSent, theSize - aSent, 0);
-		if (aWrote > 0)
-		{
-			aSent += aWrote;
-			aRetries = 0;
-			continue;
-		}
-
-		int anError = WSAGetLastError();
-		// @pvz-online: 997 与 RecvExact 同理（「还挂着」的瞬时态），并入重试组，重试上限照旧。
-		if (anError == WSAETIMEDOUT || anError == WSAEWOULDBLOCK || anError == WSA_IO_PENDING)
-		{
-			if (++aRetries > SEND_RETRY_LIMIT)
-			{
-				anImpl->Fail("The connection stalled while sending.");
-				return false;
-			}
-			continue;
-		}
-
-		anImpl->FailWithError("Connection lost while sending", anError);
-		return false;
-	}
-
-	DWORD aProbeElapsed = GetTickCount() - aProbeStart;
-	if (aProbeElapsed >= 250)
-	{
-		static DWORD sLastSlowSendLog = 0;
-		DWORD aNow = GetTickCount();
-		if (aNow - sLastSlowSendLog >= 1000)
-		{
-			sLastSlowSendLog = aNow;
-			TodLog("[net] slow send: %u ms, %d bytes", (unsigned)aProbeElapsed, theSize);
-		}
-	}
-	return true;
-}
-
-#endif // old
-void NetLink::FlushSend() {
-    auto* p=mImpl;if(!p || p->GetStateValue()!=State::CONNECTED)return;
-    int sent=p->sends.pump([&](const BYTE* bytes,UINT count) {
-        int n=send(p->mSocket,reinterpret_cast<const char*>(bytes),count,0);
-        if(n>0)return n;
-        int error=WSAGetLastError();
-        return error==WSAEWOULDBLOCK || error==WSA_IO_PENDING?0:-1;
-    },8);
-    if(sent<0)p->Fail("Connection lost while sending.");
-    if(sent>0 || !p->sends.count)p->sendProgress=GetTickCount();
-    else if(GetTickCount()-p->sendProgress>5000)p->Fail("The connection stalled while sending.");
-}
 bool NetLink::Send(const void* data,int size) {
-    auto* p=mImpl;
-    if(!p || p->GetStateValue()!=State::CONNECTED || !data || size<=0 || size>NetProto::MAX_PACKET)return false;
-    const BYTE* bytes=static_cast<const BYTE*>(data);
-    UINT stream=0;DWORD generation=0;
-    int type=bytes[0]|(bytes[1]<<8),offset=4;
-    if(type==NetProto::MSG_CLI_FLOW_GAME && size>=14){type=bytes[12]|(bytes[13]<<8);offset=14;}
-    if(type==NetProto::MSG_BOARD_SNAPSHOT && size>=offset+16) {
-        snapshot::FragmentHeader h{};memcpy(&h,bytes+offset,sizeof(h));
-        if(h.magic==snapshot::FragmentMagic){stream=h.sender*8+h.recipient;generation=h.sequence;}
+    if(!mImpl||mImpl->GetStateValue()!=State::CONNECTED)return false;
+    // @pvz-online: retain MOD95's sole socket writer; snapshot congestion must not kill gameplay.
+    if(data && size>=4){
+        const auto* p=static_cast<const uint8_t*>(data);int type=p[0]|(p[1]<<8),offset=4;
+        if(type==NetProto::MSG_CLI_FLOW_GAME && size>=14){type=p[12]|(p[13]<<8);offset=14;}
+        if(type==NetProto::MSG_BOARD_SNAPSHOT && size>=offset+16 && p[offset+2]==0x53 && p[offset+3]==0x57)
+            return mImpl->outbound.Snapshot(data,size);
     }
-    if(stream) {
-        p->sends.discardOlder(stream,generation);
-        if(p->sends.count>=transport::Queue::Capacity-16)return true; // drop snapshot, reserve control capacity
-    }
-    if(!p->sends.count)p->sendProgress=GetTickCount();
-    if(!p->sends.push(bytes,size,stream,generation)){p->Fail("Send queue overflow.");return false;}
-    FlushSend();return p->GetStateValue()==State::CONNECTED;
+    if(mImpl->outbound.Critical(data,size))return true;
+    mImpl->Fail("Too many pending gameplay messages.");return false;
 }
+bool NetLink::OfferObserver(uint8_t viewer,std::vector<std::vector<uint8_t>> packets){return mImpl&&mImpl->GetStateValue()==State::CONNECTED&&mImpl->outbound.Display(viewer,std::move(packets));}
+bool NetLink::ObserverWritable()const{return mImpl&&mImpl->GetStateValue()==State::CONNECTED&&!mImpl->outbound.HasCritical()&&mImpl->outbound.DisplayBytes()==0;}
+void NetLink::ClearObserverOutput(uint8_t viewer){if(mImpl)mImpl->outbound.ClearDisplay(viewer);}
 
 bool NetLink::Poll(Packet& thePacket)
 {
-    FlushSend();
 	Impl* anImpl = mImpl;
 	if (!anImpl) return false;
 

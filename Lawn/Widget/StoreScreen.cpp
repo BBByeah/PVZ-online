@@ -5,6 +5,8 @@
 #include "LawnDialog.h"
 #include "GameButton.h"
 #include "StoreScreen.h"
+#include "NameplateShop.h"
+#include "OnlineUiDraw.h"
 #include "../ZenGarden.h"
 #include "../SeedPacket.h"
 #include "../../LawnApp.h"
@@ -44,6 +46,7 @@ StoreScreenOverlay::StoreScreenOverlay(StoreScreen* theParent)
 void StoreScreenOverlay::Draw(Graphics* g)
 {
     mParent->DrawOverlay(g);
+    if(!mParent->mNameplateShop)SeatUi::Button(g,Rect(616,520,144,46),ModText::Tr("名牌收藏","Nameplates"),mParent->CanInteractWithButtons());
 }
 
 //0x489DA0
@@ -126,6 +129,7 @@ StoreScreen::StoreScreen(LawnApp* theApp) : Dialog(nullptr, nullptr, DIALOG_STOR
 //0x48A610、0x48A630
 StoreScreen::~StoreScreen()
 {
+    if(mNameplateShop){RemoveWidget(mNameplateShop);delete mNameplateShop;}
     mCoins.DataArrayDispose();
     if (mBackButton) delete mBackButton;
     if (mPrevButton) delete mPrevButton;
@@ -620,12 +624,17 @@ void StoreScreen::StorePreload()
 
 bool StoreScreen::CanInteractWithButtons()
 {
+    if(mNameplateShop)return false;
     return mStoreTime >= 120 && !mBubbleClickToContinue && mHatchTimer <= 0 && !mWaitForDialog;
 }
 
 //0x48BF60
 void StoreScreen::Update()
 {
+    if(mNameplateShop && mNameplateShop->Closed()) {
+        RemoveWidget(mNameplateShop);mApp->SafeDeleteWidget(mNameplateShop);mNameplateShop=nullptr;
+        if(mWidgetManager)mWidgetManager->SetFocus(this);
+    }
     mApp->mMusic->MakeSureMusicIsPlaying(MUSIC_TUNE_TITLE_CRAZY_DAVE_MAIN_THEME);
     mApp->UpdateCrazyDave();
 
@@ -818,6 +827,7 @@ bool StoreScreen::IsPageShown(StorePages thePage)
 //0x48C4D0
 void StoreScreen::ButtonDepress(int theId)
 {
+    if(mNameplateShop)return;
     if (theId == StoreScreen::StoreScreen_Back)
         mResult = 1000;
     else if (theId == StoreScreen::StoreScreen_Prev || theId == StoreScreen::StoreScreen_Next)
@@ -852,6 +862,7 @@ void StoreScreen::ButtonDepress(int theId)
 //0x48C5F0
 void StoreScreen::KeyChar(char theChar)
 {
+    if(mNameplateShop)return;
     if (mBubbleClickToContinue && (theChar == ' ' || theChar == '\r')) AdvanceCrazyDaveDialog();
 }
 
@@ -1107,6 +1118,12 @@ void StoreScreen::AdvanceCrazyDaveDialog()
 //0x48D130
 void StoreScreen::MouseDown(int x, int y, int theClickCount)
 {
+    if(mNameplateShop)return;
+    if(theClickCount==1 && Rect(616,520,144,46).Contains(x,y) && CanInteractWithButtons()) {
+        mNameplateShop=new NameplateShop(mApp);AddWidget(mNameplateShop);
+        if(mWidgetManager)mWidgetManager->SetFocus(mNameplateShop);
+        return;
+    }
     (void)theClickCount;
     if (mBubbleClickToContinue)
     {

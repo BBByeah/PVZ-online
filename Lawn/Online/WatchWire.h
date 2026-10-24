@@ -6,7 +6,7 @@
 // @pvz-online: explicit little-endian wire fields; never expose native object layouts.
 namespace WatchWire {
 using Bytes=std::vector<unsigned char>;
-constexpr uint32_t Magic=0x32565750, Version=1, HeaderBytes=44;
+constexpr uint32_t Magic=0x32565750, Version=2, HeaderBytes=44;
 constexpr uint32_t MaxConfig=256*1024, MaxState=7*1024*1024;
 constexpr unsigned char Ack=0x84;
 inline uint32_t Get(const unsigned char* p) {return uint32_t(p[0])|(uint32_t(p[1])<<8)|(uint32_t(p[2])<<16)|(uint32_t(p[3])<<24);}

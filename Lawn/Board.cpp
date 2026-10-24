@@ -6176,6 +6176,14 @@ bool Board::HandleSunGiftKey(KeyCode theKey)
 	if (!mApp->IsOnlineGame() || !mApp->IsRunMode()) return false;
 	if (mApp->mOnlineSession == nullptr) return false;
 	bool aSelecting = mSunGiftSelectFrames > 0;
+	// @pvz-online: direct seat shortcuts reuse the existing gift transaction and validation.
+	if (theKey >= KEYCODE_F1 && theKey <= KEYCODE_F6)
+	{
+		if (mWidgetManager->mIsKeyRepeat || mApp->GetDialogCount() > 0 ||
+			mApp->mGameScene != GameScenes::SCENE_PLAYING) return true;
+		theKey = (KeyCode)('1' + theKey - KEYCODE_F1);
+		aSelecting = true;
+	}
 
 	if (theKey == 'G')
 	{

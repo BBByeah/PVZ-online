@@ -8,6 +8,7 @@
 #include "../Widget/CoopHud.h"
 #include "../Widget/GameButton.h"
 #include "../../SexyAppFramework/widget/ButtonWidget.h"
+#include "../../SexyAppFramework/widget/WidgetManager.h"
 #include "../../SexyAppFramework/Common.h"
 #include "../../Sexy.TodLib/TodDebug.h"
 #include "../SeedPacket.h"
@@ -22,6 +23,7 @@ namespace FullWatch {
 namespace {
 namespace fs=std::filesystem;
 constexpr UINT Command=WM_APP+0x331;
+constexpr UINT GiftCommand=WM_APP+0x332;
 using Bundle=WatchWire::Header;
 WatchWire::Schedule schedule;
 DWORD epoch=GetTickCount()|1u,revision=0;
@@ -70,6 +72,12 @@ void Select(int seat) {
     if(s->BeginWatch((BYTE)seat)){b->mWatchKeyHeld=true;b->mCoopWatchLatched=true;b->mWatchLastSeat=(BYTE)seat;}
 }
 LRESULT CALLBACK ParentProc(HWND window,UINT message,WPARAM w,LPARAM l) {
+    // @pvz-online: gifts during spectating spend the player's real sun, never the mirrored board's.
+    if(message==GiftCommand) {
+        if(app && app->mBoard && app->mOnlineSession && app->mOnlineSession->IsWatching() &&
+            w>=VK_F1 && w<=VK_F6)app->mBoard->HandleSunGiftKey(static_cast<Sexy::KeyCode>(w));
+        return 0;
+    }
     if(message==Command){Select(static_cast<int>(w));return 0;}
     return CallWindowProcW(previousProc,window,message,w,l);
 }
@@ -244,6 +252,10 @@ void TickBoard(Board* board) {
 bool Key(int key) {
     if(!app)return false;
     if(IsObserver()) {
+        if(key>=VK_F1 && key<=VK_F6) {
+            if(!app->mWidgetManager->mIsKeyRepeat)PostMessageW(Parent(),GiftCommand,key,0);
+            return true;
+        }
         if(key==VK_ESCAPE || key=='V' || key==VK_F10)Close();
         else if(key>='1' && key<='6')PostMessageW(Parent(),Command,key-'0',0);
         return true;

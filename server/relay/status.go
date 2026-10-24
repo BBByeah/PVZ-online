@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const relayRelease = "2026-10-22-zombietax1"
+const relayRelease = "2026-10-24-observer-normal1"
 const defaultAdminAddress = "127.0.0.1:27778"
 const connectionLimit = 512
 const roomLimit = 256
@@ -193,6 +193,7 @@ func (s *Server) sampleStatus(now time.Time) relayStatus {
 		}
 	}
 	v.Operations = s.summarizeOperations(v)
+	s.observerBusy.Store(v.Operations.Busy)
 	s.status.previousCPU = v.Process.CPUSeconds
 	s.status.value = v
 	return v

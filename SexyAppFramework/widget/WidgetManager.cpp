@@ -570,7 +570,8 @@ void WidgetManager::RehupMouse()
 }
 
 bool WidgetManager::MouseUp(int x, int y, int theClickCount)
-{	
+{
+    if(mApp->FilterObserverInput(4,theClickCount,x,y))return true;	
 	mLastInputUpdateCnt = mUpdateCnt;
 	
 	int aMask;
@@ -605,7 +606,8 @@ bool WidgetManager::MouseUp(int x, int y, int theClickCount)
 }
 
 bool WidgetManager::MouseDown(int x, int y, int theClickCount) 
-{	
+{
+    if(mApp->FilterObserverInput(3,theClickCount,x,y))return true;	
 	mLastInputUpdateCnt = mUpdateCnt;
 
 	if (theClickCount < 0)
@@ -672,7 +674,8 @@ bool WidgetManager::MouseDown(int x, int y, int theClickCount)
 }
 
 bool WidgetManager::MouseMove(int x, int y) 
-{	
+{
+    if(mApp->FilterObserverInput(5,0,x,y))return true;	
 	mLastInputUpdateCnt = mUpdateCnt;
 
 	if (mDownButtons)
@@ -749,6 +752,7 @@ bool WidgetManager::MouseExit(int x, int y)
 
 void WidgetManager::MouseWheel(int theDelta)
 {
+    if(mApp->FilterObserverInput(6,theDelta))return;
 	mLastInputUpdateCnt = mUpdateCnt;
 
 	if (mFocusWidget != NULL)
@@ -757,6 +761,7 @@ void WidgetManager::MouseWheel(int theDelta)
 
 bool WidgetManager::KeyChar(SexyChar theChar)
 {
+    if(mApp->FilterObserverInput(2,int(theChar)))return true;
 	mLastInputUpdateCnt = mUpdateCnt;
 
 	if (theChar == KEYCODE_TAB)
@@ -780,6 +785,7 @@ bool WidgetManager::KeyChar(SexyChar theChar)
 
 bool WidgetManager::KeyDown(KeyCode key, bool isRepeat)
 {
+    if(mApp->FilterObserverInput(0,int(key)))return true;
 	mLastInputUpdateCnt = mUpdateCnt;
 	const bool aPreviousRepeat = mIsKeyRepeat;
 	mIsKeyRepeat = isRepeat || ((key >= 0 && key < 0xFF) && mKeyDown[key]);
@@ -796,6 +802,7 @@ bool WidgetManager::KeyDown(KeyCode key, bool isRepeat)
 
 bool WidgetManager::KeyUp(KeyCode key)
 {
+    if(mApp->FilterObserverInput(1,int(key)))return true;
 	mLastInputUpdateCnt = mUpdateCnt;
 
 	if ((key >= 0) && (key < 0xFF))

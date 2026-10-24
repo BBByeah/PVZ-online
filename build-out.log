@@ -1,0 +1,89 @@
+Using VS2022 at C:\Program Files\Microsoft Visual Studio\2022\Enterprise
+'vswhere.exe' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+**********************************************************************
+** Visual Studio 2022 Developer Command Prompt v17.0
+** Copyright (c) 2025 Microsoft Corporation
+**********************************************************************
+[vcvarsall.bat] Environment initialized for: 'x86'
+[1/2] Building CXX object SexyAppFramework\CMakeFiles\LawnProject.dir\__\Lawn\Board.cpp.obj
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x5a8 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x5a9 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x5aa 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x5ac 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x5ae 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x5af 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x5b3 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x5b4 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x5b5 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x5b7 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x5b8 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x5b9 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x605 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x606 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x607 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x608 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x60c 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x60e 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x60f 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x612 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x613 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x616 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x619 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x61a 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x666 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x667 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x668 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x66a 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x66c 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x66e 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x673 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x674 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x675 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x678 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x679 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x6c5 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x6c6 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x6c7 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x6c9 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x6cb 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x6cc 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x6cf 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x6d0 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x6d2 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x6d3 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x6d7 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x6d8 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x6db 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x6dc 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x728 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x729 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x72a 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x72b 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x72c 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x72d 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x72e 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x72f 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x730 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x732 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x73b 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x73e 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x73f 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x740 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x742 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Cutscene.h(1): warning C4828: 文件包含在偏移 0x743 处开始的字符，该字符在当前源字符集中无效(代码页 65001)。
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Board.cpp(1040): warning C4003: 类函数宏的调用“TOD_ASSERT”参数不足
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Board.cpp(1185): warning C4003: 类函数宏的调用“TOD_ASSERT”参数不足
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Board.cpp(1249): warning C4003: 类函数宏的调用“TOD_ASSERT”参数不足
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Board.cpp(1333): warning C4003: 类函数宏的调用“TOD_ASSERT”参数不足
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Board.cpp(2615): warning C4003: 类函数宏的调用“TOD_ASSERT”参数不足
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Board.cpp(4532): warning C4003: 类函数宏的调用“TOD_ASSERT”参数不足
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Board.cpp(5032): warning C4003: 类函数宏的调用“TOD_ASSERT”参数不足
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Board.cpp(6929): warning C4003: 类函数宏的调用“TOD_ASSERT”参数不足
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Board.cpp(7566): warning C4003: 类函数宏的调用“TOD_ASSERT”参数不足
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Board.cpp(8227): warning C4003: 类函数宏的调用“TOD_ASSERT”参数不足
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Board.cpp(10824): warning C4003: 类函数宏的调用“TOD_ASSERT”参数不足
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Board.cpp(11689): warning C4003: 类函数宏的调用“TOD_ASSERT”参数不足
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Board.cpp(11780): warning C4003: 类函数宏的调用“TOD_ASSERT”参数不足
+C:\Users\18611\Desktop\pvz-online\re-plants-vs-zombies\Lawn\Board.cpp(11846): warning C4003: 类函数宏的调用“TOD_ASSERT”参数不足
+[2/2] Linking CXX executable SexyAppFramework.exe

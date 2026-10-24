@@ -24,13 +24,13 @@ ContinueDialog::ContinueDialog(LawnApp* theApp) : LawnDialog(
 {
     if (theApp->IsAdventureMode())
     {
-        mDialogLines = ModText::Tr("你想继续当前的游戏，还是重开本关？", "Do you want to continue your current game or restart the level?");
+        mDialogLines = ModText::Tr("可以继续；重新开始会放弃本关进度。", "Continue, or restart and discard this level's progress.");
         mContinueButton = MakeButton(ContinueDialog::ContinueDialog_Continue, this, _S("[CONTINUE_BUTTON]"));
         mNewGameButton = MakeButton(ContinueDialog::ContinueDialog_NewGame, this, _S("[RESTART_BUTTON]"));
     }
     else
     {
-        mDialogLines = ModText::Tr("你想继续当前的游戏，还是开始新游戏？", "Do you want to continue your current game or start a new game?");
+        mDialogLines = ModText::Tr("可以继续；新游戏会替换当前进度。", "Continue, or start a new game and replace this progress.");
         mContinueButton = MakeButton(ContinueDialog::ContinueDialog_Continue, this, _S("[CONTINUE_BUTTON]"));
         mNewGameButton = MakeButton(ContinueDialog::ContinueDialog_NewGame, this, _S("[NEW_GAME_BUTTON]"));
     }

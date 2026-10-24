@@ -4571,6 +4571,7 @@ bool SexyAppBase::ProcessDeferredMessages(bool singleMessage)
 			case WM_SYSKEYDOWN:
 				mLastUserInputTick = mLastTimerTime;
 
+				if(FilterObserverInput(0,int(wParam)))break;
 				if (wParam==VK_RETURN && uMsg==WM_SYSKEYDOWN && !mForceFullscreen && !mForceWindowed && mAllowAltEnter)
 				{
 					SwitchScreenMode(!mIsWindowed);

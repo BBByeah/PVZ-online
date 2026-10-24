@@ -65,13 +65,13 @@ func flowBegin(t *testing.T, s *Server, code string, h, g *testClient) {
 	flowWait(t, s, code, func(r *Room) bool { return r.flow.phase == flowBattle })
 }
 
-func TestFlowNineAndTenStackStartReplay(t *testing.T) {
-	for _, size := range []int{45, 46} {
+func TestFlowNineTenAndSeventeenStackStartReplay(t *testing.T) {
+	for _, size := range []int{45, 46, 53} {
 		t.Run(fmt.Sprint(size), func(t *testing.T) {
 			s, _, code, h, g := flowPair(t)
 			body := make([]byte, size)
 			body[0], body[1] = 1, 2
-			if size == 46 {
+			if size >= 46 {
 				body[40] = 7 // Cost surcharge stack must not be mistaken for epoch.
 			}
 			binary.LittleEndian.PutUint32(body[size-5:], 1)

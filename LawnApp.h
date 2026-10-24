@@ -1,11 +1,15 @@
 #include <memory>
+#include "Lawn/Observer/ObserverState.h"
 class CoopPlay;
+class TeamProgressionDialog;
+struct TeamProgressionUiState;
 #ifndef __LAWNAPP_H__
 #define __LAWNAPP_H__
 
 #include "ConstEnums.h"
 #include "Lawn/System/BattleMusicState.h"
 #include "Lawn/System/DamageStats.h"
+#include "Lawn/Run/TeamProgressionView.h"
 #include "Lawn/Online/NetProtocol.h"	// @pvz-online: MsgStartLevel 按值存在 LawnApp 里（开局询问框）
 #include "Lawn/Run/RunBuffs.h"			// @pvz-online: RunPlantUpgradeKind（修正批的 Kind 闸门取用口签名）
 #include "Lawn/Run/RunState.h"			// @pvz-online: 僵尸强化投票的候选数/状态字段（MOD_BUILD 45）
@@ -65,6 +69,8 @@ public:
 class LawnApp : public SexyApp
 {
 public:
+    Observer::InputFence mObserverInput;bool mObserverTextTail=false;
+    bool FilterObserverInput(int,int=0,int=0,int=0)override;
     std::unique_ptr<CoopPlay> mCoopPlay;
     BattleMusicState mBattleMusic;
     DamageStats mDamageStats;
@@ -224,11 +230,23 @@ public:
 	int								mZombieVoteVotedSeats;		// 房主计票：已表态席位数
 	unsigned int					mZombieVoteSeatMask;		// 房主计票：已表态席位位图（一席一票，重发/重开框不重计）
 	int								mZombieVoteRoundsDone;		// 本场景已结的票数（两屏制：档 2 结第一票后仍 <2，路口再开第二屏；重开游戏归 0——配合 mZombieVotedLevel 区分"恢复"与"待第二屏"）
+    int mZombieVoteOpenRound=0; // Round at OPEN; RESULT and SHARED can arrive on different queues.
 	unsigned char					mZombieVoteBannerIds[2];	// 本场景结果横幅累积（每屏各记 1 条，全结后合成一条横幅推）
 	int								mZombieVoteBannerCount;		// 横幅累积条数（0..2）
 	std::string						mZombieVotePendingBanner;	// 待推的结果横幅（等草坪真开打再 PushCustomBanner）
 
 public:
+    TeamProgressionView::Controller* mTeamProgressionController=nullptr;
+    TeamProgressionDialog* mTeamProgressionDialog=nullptr;
+    std::shared_ptr<TeamProgressionUiState> mTeamProgressionUi;
+    bool mTeamProgressionInputFence=false;
+    void SetTeamProgressionController(TeamProgressionView::Controller* controller);
+    void ShowTeamProgression(TeamProgressionView::Page page);
+    bool TeamProgressionAvailable() const;
+    bool TeamProgressionInputBlocked() const;
+    void UpdateTeamProgressionUi();
+    void CloseTeamProgressionUi(bool restoreFocus=true);
+    void ShowCoopPlayLegacy();
 	LawnApp();
 	virtual ~LawnApp();
 
@@ -437,7 +455,7 @@ public:
 	// 花金币——免费「换一批」取消）：按 RunState::GetPaidRerollCost 的当前价（底价 100，
 	// 同屏 ×10/次阶梯）花币再摇一批——扣存档钱包 mCoins（同商店），关屏重抽。
 	// 金币不够当前价则原样返回（按钮侧已置灰，这里是双保险）。
-	void							RunPickPaidReroll();
+	bool RunPickPaidReroll(int lockedChoice, unsigned int expectedCounter);
 	// @pvz-online: R4 闯关输一关：失败计数 +1 并立刻写检查点（首版只存不用，
 	// 惩罚留平衡阶段）。由 Board::ZombiesWon 在判负的那一下调。
 	void							RunNoteFailure();

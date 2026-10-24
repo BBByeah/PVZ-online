@@ -1,4 +1,5 @@
-#include "ModText.h"
+#include "Lawn/ModText.h"
+#include "Lawn/Observer/ObserverDrawScene.h"
 #include "SexyAppBase.h"
 #include "graphics/Graphics.h"
 #include "graphics/DDImage.h"
@@ -15,6 +16,7 @@ class ModText::Font
 {
 public:
 	HFONT	mHFont;
+    int mPointSize=16; bool mBold=false;
 	int		mHeight;
 	int		mAscent;
 };
@@ -174,6 +176,7 @@ ModText::Font* ModText::GetFont(int thePointSize, bool theBold)
 	aLogFont.lfPitchAndFamily = DEFAULT_PITCH | FF_DONTCARE;
 	wcscpy_s(aLogFont.lfFaceName, LF_FACESIZE, ModTextCjkFace());
 	aFont->mHFont = CreateFontIndirectW(&aLogFont);
+    aFont->mPointSize=thePointSize;aFont->mBold=theBold;
 
 	TEXTMETRICW aMetrics;
 	HFONT anOldFont = (HFONT)SelectObject(aDC, aFont->mHFont);
@@ -230,6 +233,15 @@ void ModText::DrawTextWide(Graphics* g, Font* theFont, int theX, int theY,
 	const std::wstring& theText, const Color& theColor, const Rect& theClipRect)
 {
 	if (theFont == NULL || theText.empty()) return;
+    if(auto* capture=dynamic_cast<Observer::DrawRecorder*>(g->mDestImage)) {
+        const int count=WideCharToMultiByte(CP_UTF8,0,theText.data(),int(theText.size()),nullptr,0,nullptr,nullptr);
+        if(count<0||count>1024){capture->Fail();return;}
+        std::string utf8(count,'\0');
+        WideCharToMultiByte(CP_UTF8,0,theText.data(),int(theText.size()),utf8.data(),count,nullptr,nullptr);
+        capture->Text(utf8,theX+int(g->mTransX),theY+int(g->mTransY),theFont->mPointSize,theFont->mBold,theColor,theClipRect);
+        return;
+    }
+
 
 	DDImage* aDDImage = dynamic_cast<DDImage*>(g->mDestImage);
 	if (aDDImage != NULL)

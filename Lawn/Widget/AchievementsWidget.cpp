@@ -1,5 +1,6 @@
 // @Patoke: implement file
 #include "AchievementsWidget.h"
+#include "GrowthCollectionView.h"
 #include "../Board.h"
 #include "GameButton.h"
 #include "GameSelector.h"
@@ -77,6 +78,7 @@ AchievementsWidget::~AchievementsWidget() {
 
 // GOTY @Patoke: 0x401A10
 void AchievementsWidget::Update() {
+	if(mGrowthPage){MarkDirty();return;}
 	// @pvz-online: the page is exactly one screen tall now, so there is nothing to scroll.
 	// This guard is not just an optimisation - the clamp further down is wrong once the
 	// page fits: aMaxScroll becomes 2*600 + 50 - 600 == 650, and `aNewY <= aMaxScroll` is
@@ -119,6 +121,8 @@ void AchievementsWidget::Update() {
 
 // GOTY @Patoke: 0x401160
 void AchievementsWidget::Draw(Graphics* g) {
+    if(mGrowthPage){if(!mGrowthCollection)mGrowthCollection=std::make_unique<GrowthCollectionView>(mApp);mGrowthCollection->Draw(g);SeatUi::Button(g,Rect(640,22,144,44),ModText::Tr("常规成就","Achievements"),true);return;}
+
 	// @pvz-online: vanilla drew the wall once and then 70 hole tiles down a 16150px
 	// surface, with the Bejeweled/Zuma gallery art pinned at y=1125..11250 and the CHINA
 	// piece at mHeight-875. Here the tiles simply stop at the screen edge; the gallery
@@ -197,10 +201,12 @@ void AchievementsWidget::Draw(Graphics* g) {
 	if (aBackHighlight)
 		g->DrawImage(IMAGE_ACHEESEMENTS_BACK_HIGHLIGHT, aBackButtonRect,
 			Rect(0, 0, IMAGE_ACHEESEMENTS_BACK_HIGHLIGHT->mWidth, IMAGE_ACHEESEMENTS_BACK_HIGHLIGHT->mHeight));
+	SeatUi::Button(g,Rect(640,22,144,44),ModText::Tr("合作收藏","Team collection"),true);
 }
 
 // GOTY @Patoke: 0x4019D0
 void AchievementsWidget::KeyDown(KeyCode theKey) {
+	if(mGrowthPage){if(theKey==KEYCODE_ESCAPE){mGrowthPage=false;MarkDirty();}return;}
 	if (theKey == KEYCODE_UP) {
 		mScrollValue = mDefaultScrollValue;
 		mScrollDirection = 1;
@@ -220,6 +226,9 @@ void AchievementsWidget::KeyDown(KeyCode theKey) {
 
 // GOTY @Patoke: 0x4017F0
 void AchievementsWidget::MouseDown(int x, int y, int theClickCount) {
+    if(Rect(640,22,144,44).Contains(x,y)){mGrowthTogglePressed=true;return;}
+    if(mGrowthPage){if(mGrowthCollection)mGrowthCollection->Down(x,y);return;}
+
 	(void)theClickCount;
 	if (aBackButtonRect.Contains(x, y))
 		mApp->PlaySample(SOUND_GRAVEBUTTON);
@@ -230,6 +239,9 @@ void AchievementsWidget::MouseDown(int x, int y, int theClickCount) {
 
 // GOTY @Patoke: 0x401890
 void AchievementsWidget::MouseUp(int x, int y, int theClickCount) {
+    if(mGrowthTogglePressed){mGrowthTogglePressed=false;if(Rect(640,22,144,44).Contains(x,y)){mGrowthPage=!mGrowthPage;if(mGrowthPage){mScrollValue=0;mGrowthCollection=std::make_unique<GrowthCollectionView>(mApp);}MarkDirty();}return;}
+    if(mGrowthPage){if(mGrowthCollection)mGrowthCollection->Up(x,y);MarkDirty();return;}
+
 	(void)theClickCount;
 	Point aPos = Point(x, y);
 	if (aBackButtonRect.Contains(aPos)) {
@@ -246,6 +258,7 @@ void AchievementsWidget::MouseUp(int x, int y, int theClickCount) {
 
 // GOTY @Patoke: 0x4019A0
 void AchievementsWidget::MouseWheel(int theDelta) {
+	if(mGrowthPage)return;
 	mScrollValue = mDefaultScrollValue;
 
 	if (theDelta > 0)

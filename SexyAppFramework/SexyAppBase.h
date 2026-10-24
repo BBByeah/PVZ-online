@@ -494,7 +494,8 @@ public:
 	virtual void			GotFocus();
 	virtual void			LostFocus();	
 	virtual bool			IsAltKeyUsed(WPARAM wParam);
-	virtual bool			DebugKeyDown(int theKey);	
+	virtual bool			DebugKeyDown(int theKey);
+    virtual bool FilterObserverInput(int,int=0,int=0,int=0){return false;}	
 //	virtual bool			DebugKeyDownAsync(int theKey, bool ctrlDown, bool altDown);
 	virtual void			CloseRequestAsync();
 	bool					Is3DAccelerated();

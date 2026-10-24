@@ -4,6 +4,8 @@
 #include "LawnDialog.h"
 #include "widget/EditListener.h"
 #include "../Online/RoomCreateAttempt.h"
+#include "../Online/AutoRoomLookup.h"
+#include "RoomShareUi.h"
 
 class LawnApp;
 class LawnEditWidget;
@@ -38,6 +40,7 @@ public:
 		OnlineDialog_Start = 1209,
 		OnlineDialog_IpEdit		= 1210,		// 直连：主机地址
 		OnlineDialog_ServerEdit	= 1211,		// 中继：服务器地址
+        OnlineDialog_Paste=1219,OnlineDialog_CopyCode=1220,OnlineDialog_CopyInvite=1221,OnlineDialog_Share=1222,
         OnlineDialog_Directory=1213,
         OnlineDialog_History=1214,
         OnlineDialog_Visibility=1215,
@@ -74,7 +77,12 @@ public:
     LawnStoneButton *mLocalPageButton,*mServerPageButton,*mSoloButton;
     RelayNodes::Allocator mAllocator;
     RelayNodes::RoomCreateAttempt mCreation;
-    RelayNodes::CatalogDiscovery mJoinLookup;
+    RoomInvite::AutoRoomLookup mJoinLookup;
+    RoomShareUi::Transfer mTransfer;
+    LawnStoneButton *mPasteButton,*mCopyCodeButton,*mCopyInviteButton,*mShareButton;
+    std::string mPastedText,mPastedCode;
+    void ApplyInvite(const std::string& text);
+    std::string EffectiveInvite();
     std::string mPendingJoinCode;
     std::string mServerInputError;
     int mPage=0;
@@ -94,6 +102,7 @@ public:
 	virtual void		ButtonDepress(int theId);
 	virtual void		EditWidgetText(int theId, const SexyString& theString);
 	void KeyDown(KeyCode key) override;
+    void PasteInvite();
 
 private:
     void LeaveRoom();

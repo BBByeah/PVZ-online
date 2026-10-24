@@ -163,7 +163,16 @@ func (s *Server) handleFlowProgress(c *Conn, p []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	r := c.room.Load()
-	if r == nil || !c.flow || !r.flow.started || binary.LittleEndian.Uint32(p) != r.flow.term || binary.LittleEndian.Uint32(p[4:]) != r.flow.epoch || r.flowMask()&(1<<c.seat) == 0 {
+	if r == nil || !c.flow || !r.flow.started || binary.LittleEndian.Uint32(p) != r.flow.term || binary.LittleEndian.Uint32(p[4:]) != r.flow.epoch {
+		return
+	}
+	// A return-to-menu abort is independent of combat participation. In
+	// particular a sole remaining/waiting seat must be able to recover a room.
+	if p[8] == 5 && p[9] == 1 {
+		s.returnFlowToMenu(r, c)
+		return
+	}
+	if r.flowMask()&(1<<c.seat) == 0 {
 		return
 	}
 	bit := uint8(1 << c.seat)
@@ -207,7 +216,7 @@ func (s *Server) handleFlowProgress(c *Conn, p []byte) {
 	s.publishFlow(r)
 }
 func (s *Server) handleFlowStart(c *Conn, p []byte) {
-	if len(p) != 53 && len(p) != 54 {
+	if len(p) != 53 && len(p) != 54 && len(p) != 61 {
 		s.dropBadControl(c, msgCliFlowStart)
 		return
 	}
@@ -227,12 +236,12 @@ func (s *Server) handleFlowStart(c *Conn, p []byte) {
 	if epoch == 0 || snapshot[0] != c.seat || binary.LittleEndian.Uint32(snapshot[len(snapshot)-5:len(snapshot)-1]) != epoch {
 		return
 	}
-	// Both nine- and ten-stack START snapshots keep epoch + crowd rule at the tail.
+	// Nine-, ten- and seventeen-stack snapshots retain epoch + crowd rule at the tail.
 	if !r.flow.started {
 		if epoch != 1 || r.connectedPlayers(true) < 2 {
 			return
 		}
-	} else if epoch != r.flow.epoch+1 || (r.flow.phase != flowIntermission && !r.flow.lost) || (!r.flow.lost && r.flow.applied&r.flowMask() != r.flowMask()) {
+	} else if epoch != r.flow.epoch+1 || (r.flow.phase != flowLobby && r.flow.phase != flowIntermission && !r.flow.lost) || (r.flow.phase != flowLobby && !r.flow.lost && r.flow.applied&r.flowMask() != r.flowMask()) || (r.flow.phase == flowLobby && r.connectedPlayers(true) < 2) {
 		return
 	}
 	r.flow.lost = false
@@ -277,19 +286,37 @@ func (s *Server) handleFlowGame(c *Conn, p []byte) {
 		return
 	}
 	dst := body[1]
+	// Compatibility: an existing MOD90 LEVEL_EXIT must also reset the relay
+	// barrier, not merely move the clients to menus while leaving phase=BATTLE.
+	if typ == 13 && len(body) == 3 && body[2] == 0 && r.flow.started {
+		s.returnFlowToMenu(r, c)
+		return
+	}
+	// Legacy lobby seat toggles cannot arrive after a round started. Current
+	// preparation transactions use type25 and revision-bound consent instead.
+	if r.flow.started && (typ == 10 || typ == 11) {
+		return
+	}
+	if typ == 29 && (len(body) != 4 || body[2] != 1 || body[3] > 3) {
+		return
+	}
 	t := r.bySeat[dst]
 	if t == nil || !t.flow {
 		return
 	}
+	if typ == 30 || typ == 31 {
+		s.observerLocked(r, c, t, typ, body, true)
+		return
+	}
 	if typ == 3 { // Same-round targeted replay only; new rounds use FlowStart.
-		if c != r.host || (len(body) != 45 && len(body) != 46) || binary.LittleEndian.Uint32(body[len(body)-5:]) != r.flow.epoch {
+		if c != r.host || (len(body) != 45 && len(body) != 46 && len(body) != 53) || binary.LittleEndian.Uint32(body[len(body)-5:]) != r.flow.epoch {
 			return
 		}
 	}
 	if (typ == 14 || typ == 20 || typ == 22 || typ == 27 || (typ == 25 && len(body) == 92 && body[2] == 6)) && c != r.host {
 		return
 	}
-	if r.roundWaitMask&(1<<c.seat) != 0 && typ != 16 && typ != 17 && typ != 25 && typ != 23 && typ != 24 && typ != 26 {
+	if r.roundWaitMask&(1<<c.seat) != 0 && typ != 16 && typ != 17 && typ != 25 && typ != 23 && typ != 24 && typ != 26 && typ != 28 && typ != 29 {
 		return
 	}
 	// Late combat after the distributed clear barrier is never delivered.
@@ -326,6 +353,30 @@ func (s *Server) handleFlowGame(c *Conn, p []byte) {
 	if typ == 5 || typ == 6 {
 		s.publishFlow(r)
 	}
+}
+
+// Cancelling a board is not a clear, victory, or loss. Keep epoch monotonic,
+// reopen the room lobby and invalidate all previous battle/preparation state.
+func (s *Server) returnFlowToMenu(r *Room, source *Conn) {
+	if r.flow.phase == flowLobby {
+		return
+	}
+	r.flow.phase = flowLobby
+	r.started = false
+	r.flow.lost = false
+	r.flow.done, r.flow.ack, r.flow.applied = 0, 0, 0
+	r.flow.recoveryUntil = time.Time{}
+	r.flow.prepRevision, r.flow.prepRequest = 0, 0
+	r.flow.prepPhase, r.flow.prepA, r.flow.prepB = 0, 0, 0
+	r.flow.prepCommitted = false
+	r.roundWaitMask = 0
+	r.joinOpen = true
+	for seat := 1; seat <= maxPlayers; seat++ {
+		if t := r.bySeat[seat]; t != nil && t != source && t.flow {
+			s.enqueue(t, flowEnvelope(r, 13, []byte{source.seat, uint8(seat), 0}))
+		}
+	}
+	s.publishFlow(r)
 }
 func (s *Server) electFlowHost(r *Room) bool {
 	for _, mask := range []uint8{r.flowMask(), r.onlineMask()} {

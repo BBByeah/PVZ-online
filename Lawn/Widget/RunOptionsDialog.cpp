@@ -23,11 +23,11 @@ static const int kRowSlots[RunOptionsDialog::RUN_OPTIONS_ROW_COUNT] = { 0, 1, 2,
 static std::string SectionTitle(int page)
 {
 	const char* names[] = {
-		ModText::Tr("高级选项 · 基础", "Advanced / Basics"),
-		ModText::Tr("高级选项 · 成长与首领", "Advanced / Growth and bosses"),
-		ModText::Tr("高级选项 · 场景与强化", "Advanced / Scenes and boosts"),
-		ModText::Tr("高级选项 · 本机辅助", "Advanced / Local assistance"),
-        ModText::Tr("高级选项 · 伤害统计", "Advanced / Damage statistics")
+		ModText::Tr("出怪设置", "Zombie settings"),
+		ModText::Tr("成长与首领", "Growth and bosses"),
+		ModText::Tr("场景与强化", "Scenes and boosts"),
+		ModText::Tr("本机操作", "Local controls"),
+        ModText::Tr("伤害统计", "Damage statistics")
 	};
 	return names[page];
 }
@@ -120,26 +120,26 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 	if (mLadderSel < RunState::RUN_LADDER_STD || mLadderSel > RunState::RUN_LADDER_X2) mLadderSel = RunState::RUN_LADDER_STD;
 	mShowLadderRow = !theEndless;	// 无尽档不吃阶梯 → 整行不摆（2026-10-14 用户裁决）
 
-	mScaleCaption = ModText::Tr("出怪规模（全队倍率）", "Zombie scale (team multiplier)");
+	mScaleCaption = ModText::Tr("全队出怪数量", "Team zombie count");
 	mScaleLabels[0] = ModText::Tr("少 x0.5", "Few x0.5");
 	mScaleLabels[1] = ModText::Tr("标准 x1", "Standard x1");
 	mScaleLabels[2] = ModText::Tr("多 x2", "Many x2");
 	mScaleLabels[3] = ModText::Tr("海量 x4", "Swarm x4");
 
-	mTempoCaption = ModText::Tr("出怪节奏（波间隔）", "Spawn tempo (wave interval)");
+	mTempoCaption = ModText::Tr("波次间隔", "Wave interval");
 	mTempoLabels[0] = ModText::Tr("快 x0.6", "Fast x0.6");
 	mTempoLabels[1] = ModText::Tr("标准 x1", "Standard x1");
 	mTempoLabels[2] = ModText::Tr("慢 x1.6", "Slow x1.6");
 
-	mZombotanyCaption = ModText::Tr("植物僵尸（实验玩法）", "ZomBotany (experimental)");
+	mZombotanyCaption = ModText::Tr("植物僵尸", "ZomBotany");
 	mZombotanyLabels[0] = ModText::Tr("关闭", "Off");
 	mZombotanyLabels[1] = ModText::Tr("开启", "On");
 
-	mSlideCaption = ModText::Tr("滑动收阳光（仅本机，全局生效）", "Slide-collect sun (local, all modes)");
+	mSlideCaption = ModText::Tr("滑动收阳光（本机所有模式）", "Slide-collect sun (all local modes)");
 	mSlideLabels[0] = ModText::Tr("关闭", "Off");
 	mSlideLabels[1] = ModText::Tr("开启", "On");
 
-	mBossCaption = ModText::Tr("巨型 Boss（出场点）", "Giant Boss (spawn points)");
+	mBossCaption = ModText::Tr("巨型BOSS出场", "Giant boss timing");
 	mBossLabels[0] = ModText::Tr("关闭", "Off");
 	mBossLabels[1] = ModText::Tr("仅末关", "Final only");
 	mBossLabels[2] = ModText::Tr("末关+场景3", "Final + Scene 3");
@@ -151,7 +151,7 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 
 	// 第六行「增益倍选」（2026-10-13 用户令，MOD_BUILD 43）：×1/×2/×3——每屏照旧三选一
 	// 拿 1 条，但发放的三选一屏数乘倍（拿到的总数翻倍，代价是连点更多屏）。
-	mBuffMultCaption = ModText::Tr("增益倍选（屏数倍率）", "Buff picks (multiplier)");
+	mBuffMultCaption = ModText::Tr("增益选择次数", "Number of buff picks");
 	mBuffMultLabels[0] = ModText::Tr("x1", "x1");
 	mBuffMultLabels[1] = ModText::Tr("x2", "x2");
 	mBuffMultLabels[2] = ModText::Tr("x3", "x3");
@@ -168,7 +168,7 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 	// 第八行「僵尸 buff」（2026-10-14 用户令，MOD_BUILD 45）：0/1/2 = 每进一个新场景给
 	// 僵尸叠几条强化（全队投票选具体哪几条；无尽档五关一选）。0 = 整条机制不开。
 	// MOD_BUILD 56 起档 2 = 同一场景连开两屏、每屏三选一取 1 条（两屏制，见 LawnApp）。
-	mZombieBuffCaption = theEndless?ModText::Tr("僵尸强化（每五关）","Zombie boosts (every 5 levels)"):ModText::Tr("僵尸 buff（每新场景）", "Zombie buffs (per new scene)");
+	mZombieBuffCaption = theEndless?ModText::Tr("僵尸强化（每五关）","Zombie boosts (every 5 levels)"):ModText::Tr("僵尸强化（每新场景）", "Zombie boosts (per new scene)");
 	mZombieBuffLabels[0] = ModText::Tr("关闭", "Off");
 	mZombieBuffLabels[1] = ModText::Tr("1 条", "1 buff");
 	mZombieBuffLabels[2] = ModText::Tr("2 条", "2 buffs");
@@ -183,7 +183,7 @@ RunOptionsDialog::RunOptionsDialog(LawnApp* theApp, int theScaleSel, int theTemp
 	mLadderLabels[3] = ModText::Tr("x1.5", "x1.5");
 	mLadderLabels[4] = ModText::Tr("x2", "x2");
 
-	mFirstWaveCaption = ModText::Tr("首波出怪", "First wave delay");
+	mFirstWaveCaption = ModText::Tr("首波等待时间", "First wave delay");
 	mFirstWaveLabels[0] = ModText::Tr("18 s", "18 sec");
 	mFirstWaveLabels[1] = ModText::Tr("30 s", "30 sec");
 	mFirstWaveLabels[2] = ModText::Tr("60 s", "60 sec");
@@ -446,7 +446,7 @@ void RunOptionsDialog::Draw(Graphics* g)
 	if (!mTitle.empty())
 	{
 		ModText::Font* aTitleFont = ModText::GetFont(CjkPointSize(28), true);
-		const char* endlessTitles[]={ModText::Tr("无尽 · 出怪设置","Endless / Zombies"),ModText::Tr("无尽 · 阶段挑战","Endless / Challenges"),ModText::Tr("无尽 · 阵容与增益","Endless / Lineup"),ModText::Tr("无尽 · 准备与操作","Endless / Preparation"),ModText::Tr("高级选项 · 伤害统计","Advanced / Damage statistics")};
+		const char* endlessTitles[]={ModText::Tr("无尽 · 出怪设置","Endless / Zombies"),ModText::Tr("无尽 · 阶段挑战","Endless / Challenges"),ModText::Tr("无尽 · 阵容与增益","Endless / Lineup"),ModText::Tr("无尽 · 准备与操作","Endless / Preparation"),ModText::Tr("伤害统计", "Damage statistics")};
         std::wstring aTitle = ModText::WideFromUtf8((mShowLadderRow?SectionTitle(mPage):std::string(endlessTitles[mPage])).c_str());
 		ModText::DrawTextWide(g, aTitleFont,
 			(mWidth - ModText::TextWidth(aTitleFont, aTitle)) / 2, mTitleY,

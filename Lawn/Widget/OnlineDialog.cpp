@@ -49,6 +49,10 @@ namespace
 			LawnEditWidget::KeyChar(theChar);
 		}
 
+		void KeyDown(KeyCode key) override {
+            if(mFilter==FILTER_CODE&&int(key)=='V'&&mWidgetManager&&mWidgetManager->mKeyDown[KEYCODE_CONTROL]){static_cast<OnlineDialog*>(mDialog)->PasteInvite();return;}
+            LawnEditWidget::KeyDown(key);
+        }
 	private:
 		bool Allows(char theChar) const
 		{
@@ -97,7 +101,7 @@ OnlineDialog::OnlineDialog(LawnApp* theApp) :
 	mHostButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Host, this, ModText::Tr("建房", "Host"));
 	mJoinButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Join, this, ModText::Tr("加入", "Join"));
 	mCloseButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Close, this, ModText::Tr("返回", "Back"));
-	mStartButton = MakeOnlineButton(OnlineDialog_Start,this,ModText::Tr("房主开始","Start run"));
+	mStartButton = MakeOnlineButton(OnlineDialog_Start,this,ModText::Tr("开始游戏","Start game"));
 	mDisconnectButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Disconnect, this, ModText::Tr("断开", "Disconnect"));
 	mSwapButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Swap, this, ModText::Tr("队友", "Seats"));
 	mAcceptButton = MakeOnlineButton(OnlineDialog::OnlineDialog_Accept, this, ModText::Tr("同意", "Accept"));
@@ -113,7 +117,11 @@ OnlineDialog::OnlineDialog(LawnApp* theApp) :
 
 	mCodeEditWidget = CreateOnlineEditWidget(OnlineDialog::OnlineDialog_CodeEdit, this, this,
 		OnlineEditWidget::FILTER_CODE);
-	mCodeEditWidget->mMaxChars = RelayNodes::MAX_SHARE_CODE_CHARS;
+	mCodeEditWidget->mMaxChars = 10;
+    mPasteButton=MakeOnlineButton(OnlineDialog_Paste,this,ModText::Tr("粘贴加入","Paste & join"));
+    mCopyCodeButton=MakeOnlineButton(OnlineDialog_CopyCode,this,ModText::Tr("复制房号","Copy code"));
+    mCopyInviteButton=MakeOnlineButton(OnlineDialog_CopyInvite,this,ModText::Tr("复制邀请","Copy invite"));
+    mShareButton=MakeOnlineButton(OnlineDialog_Share,this,ModText::Tr("分享","Share"));
     Sexy::MkDir(Sexy::GetAppDataFolder()+"userdata");
     RelayNodes::SetCatalogCachePath(Sexy::GetAppDataFolder()+"userdata/relay-nodes.bin");
 
@@ -132,6 +140,7 @@ OnlineDialog::OnlineDialog(LawnApp* theApp) :
 OnlineDialog::~OnlineDialog()
 {
     if(mApp->mOnlineSession)mCreation.Cancel(*mApp->mOnlineSession);
+    delete mPasteButton;delete mCopyCodeButton;delete mCopyInviteButton;delete mShareButton;
     delete mLocalPageButton;delete mServerPageButton;delete mSoloButton;
 	delete mDirectoryButton;delete mHistoryButton;delete mVisibilityButton;
 	delete mHostButton;
@@ -152,6 +161,7 @@ void OnlineDialog::Resize(int x,int y,int width,int height)
 {
     LawnDialog::Resize(x,y,width,height);
     using namespace OnlineRoomLayout;
+    mPasteButton->Resize(Paste());mCopyCodeButton->Resize(CopyCode());mCopyInviteButton->Resize(CopyInvite());mShareButton->Resize(Share());
     mLocalPageButton->Resize(LocalPage());mServerPageButton->Resize(ServerPage());mSoloButton->Resize(Solo());
     mDirectoryButton->Resize(40,480,260,46);mHistoryButton->Resize(552,34,168,42);mVisibilityButton->Resize(480,440,232,32);
     mHostButton->Resize(DirectHost());mJoinButton->Resize(DirectJoin());
@@ -166,6 +176,7 @@ void OnlineDialog::Resize(int x,int y,int width,int height)
 void OnlineDialog::AddedToManager(WidgetManager* theWidgetManager)
 {
 	LawnDialog::AddedToManager(theWidgetManager);
+    AddWidget(mPasteButton);AddWidget(mCopyCodeButton);AddWidget(mCopyInviteButton);AddWidget(mShareButton);
     AddWidget(mLocalPageButton);AddWidget(mServerPageButton);AddWidget(mSoloButton);
 	AddWidget(mDirectoryButton);AddWidget(mHistoryButton);AddWidget(mVisibilityButton);
 	AddWidget(mHostButton);
@@ -187,6 +198,7 @@ void OnlineDialog::AddedToManager(WidgetManager* theWidgetManager)
 void OnlineDialog::RemovedFromManager(WidgetManager* theWidgetManager)
 {
 	LawnDialog::RemovedFromManager(theWidgetManager);
+    RemoveWidget(mPasteButton);RemoveWidget(mCopyCodeButton);RemoveWidget(mCopyInviteButton);RemoveWidget(mShareButton);
     RemoveWidget(mLocalPageButton);RemoveWidget(mServerPageButton);RemoveWidget(mSoloButton);
 	RemoveWidget(mDirectoryButton);RemoveWidget(mHistoryButton);RemoveWidget(mVisibilityButton);
 	RemoveWidget(mHostButton);
@@ -208,6 +220,8 @@ void OnlineDialog::Update()
 	LawnDialog::Update();
 
 	NetSession* aSession = mApp->mOnlineSession;
+    mTransfer.Update();const auto pasted=mTransfer.TakePaste();if(!pasted.empty()){ApplyInvite(pasted);if(mServerInputError.empty()){if(mPage==OnlineRoomLayout::LOCAL)StartJoin();else StartRoomJoin();}}
+    RoomInvite::Intent typed;if(mPage==OnlineRoomLayout::SERVER&&mCodeEditWidget->mString!=mPastedCode&&RoomInvite::Parse(mCodeEditWidget->mString,typed))ApplyInvite(mCodeEditWidget->mString);
 	// 死了的会话（掉线 / 版本不符被拒）按"没连着"对待：Host/Join 直接给回来，
 	// 玩家不用先按一下 Disconnect 才能重开。死因不会因此丢掉——状态行照旧读
 	// GetStatusText()，小条也还把短标签挂着，直到下一次 Start 把会话复位。
@@ -226,16 +240,16 @@ void OnlineDialog::Update()
         const auto candidates=mAllocator.candidates;mAllocator.Cancel();
         if(mPage==OnlineRoomLayout::SERVER&&!RoomPresentation::Active(aSession))mCreation.Start(*aSession,candidates);
     }else if(mAllocator.state==RelayNodes::Allocator::UNAVAILABLE){
-        mAllocator.Cancel();mServerInputError=ModText::Tr("暂时无法创建房间，请稍后重试。","Could not create a room. Please retry shortly.");
+        mAllocator.Cancel();mServerInputError=ModText::Tr("建房失败，请再点「创建房间」。","Could not create a room. Choose Create room to retry.");
     }
     mCreation.Update(*aSession);mJoinLookup.Update();
     if(!mPendingJoinCode.empty()&&!mJoinLookup.loading){
-        RelayNodes::Endpoint target;std::string code;const auto input=mPendingJoinCode;mPendingJoinCode.clear();
-        if(RelayNodes::ResolveCode(input,RelayNodes::Defaults().front().endpoint,target,code))aSession->StartRoomJoin(target.host.c_str(),code.c_str(),target.port);
-        else mServerInputError=ModText::Tr("暂时无法识别这个房间码，请核对或稍后重试。","Could not resolve this room code. Check it or retry shortly.");
+        mPendingJoinCode.clear();
+        if(mJoinLookup.state==RoomInvite::AutoRoomLookup::READY)aSession->StartRoomJoin(mJoinLookup.target.host.c_str(),mJoinLookup.code.c_str(),mJoinLookup.target.port);
+        else mServerInputError=RoomShareUi::LookupError(mJoinLookup.state);
     }
     bool anActive=RoomPresentation::Active(aSession);
-    const bool allocating=(mAllocator.state==RelayNodes::Allocator::LOADING||mCreation.Active()||mJoinLookup.loading||mStartingLocalHost);
+    const bool allocating=(mAllocator.state==RelayNodes::Allocator::LOADING||mCreation.Active()||mJoinLookup.loading||mStartingLocalHost||mTransfer.Busy());
 
 	// 中继：房间码一回来就写进 Code 框。房主那格是自己没有的（由服务器生成），
 	// 面板上是"我在哪个房间"最直白的一处；按码加入的人也能看到自己的码归一化后的样子。
@@ -246,12 +260,14 @@ void OnlineDialog::Update()
         if (!aCode.empty() && aCode != mShownRoomCode)
 		{
 			mShownRoomCode = aCode;
-            mCodeEditWidget->SetText((aSession->IsPrivateRoom()?aCode:RelayNodes::ShareCode({aSession->GetRelayHost(),aSession->GetRelayPort()},aCode)).c_str(), true);
+            mCodeEditWidget->SetText(aCode.c_str(), true);
 		}
 	}
 
     const bool local=!anActive&&mPage==OnlineRoomLayout::LOCAL;
     const bool server=!anActive&&mPage==OnlineRoomLayout::SERVER;
+    mPasteButton->mVisible=local||server;mPasteButton->SetDisabled(allocating||mTransfer.Busy());mPasteButton->Resize(local?Rect(536,442,176,38):OnlineRoomLayout::Paste());
+    for(auto* button:{mCopyCodeButton,mCopyInviteButton,mShareButton}){button->mVisible=anActive&&aSession->IsRelay()&&!aSession->GetRoomCode().empty();button->SetDisabled(mTransfer.Busy());}
     mLocalPageButton->mVisible=!anActive;mServerPageButton->mVisible=!anActive;
     mSoloButton->mVisible=local||(anActive&&aSession->IsRelay()&&!aSession->IsPrivateRoom()&&!mApp->mBoard);
     mSoloButton->Resize(anActive?Rect(40,440,420,32):OnlineRoomLayout::Solo());
@@ -278,11 +294,11 @@ void OnlineDialog::Update()
     const bool localHost=LocalHostControl::Alive()||mStartingLocalHost;
     mDisconnectButton->mVisible=anActive||localHost;mSwapButton->mVisible=anActive;
     mDisconnectButton->SetLabel(localHost?ModText::Tr("结束托管并离开","End & leave"):
-        mApp->mBoard?ModText::Tr("保存并退房","Save and leave"):ModText::Tr("退出房间","Leave room"));
+        mApp->mBoard?ModText::Tr("保存并退房","Save & leave"):ModText::Tr("退出房间","Leave room"));
     mCloseButton->Resize(anActive?OnlineRoomLayout::Close():OnlineRoomLayout::Start());
     mStartButton->mVisible=anActive;
     const bool canStart=OnlineRoomLayout::CanStart(mApp);
-    mStartButton->SetLabel(OnlineRoomLayout::NeedsPlayers(aSession)?ModText::Tr("等待队友加入","Wait for players"):ModText::Tr("房主开始","Start run"));
+    mStartButton->SetLabel(PlayerRoomText::StartLabel(aSession->GetState(),OnlineRoomLayout::NeedsPlayers(aSession)));
     mStartButton->SetDisabled(!canStart);
     mSwapButton->SetDisabled(!anActive);
     mAcceptButton->mVisible=false;mRejectButton->mVisible=false;
@@ -294,16 +310,17 @@ void OnlineDialog::Draw(Graphics* g)
 {
     auto* session=mApp->mOnlineSession;
     std::string detail=session?session->GetStatusText():ModText::Tr("创建房间或输入房间码加入队友。","Create a room or enter a code to join your team.");
-    if(session&&session->HasIncomingSwapRequest())detail=ModText::Tr("收到换位申请；打开席位查看并答复。","Swap request received; open Seats to reply.");
-    else if(mApp->mOnlineWaitingStartAck)detail=RoomPresentation::WaitingSeats(session,true);
-    else if(session&&session->IsConnected()&&!session->IsHostSeat())detail=ModText::Tr("等待房主选择模式并开始；可先查看席位。","Waiting for the host to choose a mode; you can view Seats.");
+    if(session&&session->IsConnected()&&session->HasIncomingSwapRequest())detail=ModText::Tr("点「队友」答复换位申请。","Open Seats to answer the swap request.");
+    else if(session&&session->IsConnected()&&mApp->mOnlineWaitingStartAck)detail=RoomPresentation::WaitingSeats(session,true);
+    else if(session&&session->IsConnected()&&!session->IsHostSeat())detail=ModText::Tr("等房主选择玩法。","Wait for the host to choose a mode.");
     OnlineRoomLayout::Draw(g,mApp,detail,mLocalIpText,mPage);
+    if(!mTransfer.notice.empty())SeatUi::Text(g,mTransfer.notice,40,550,680,16,Color(245,230,165),true);
     if(session&&session->IsPrivateRoom()&&!session->GetRoomCode().empty()) {
         const auto host=session->GetRelayHost()=="127.0.0.1"?mLocalIpText:session->GetRelayHost();
         SeatUi::Text(g,PrivateEndpoint::Invite(host,session->GetRelayPort(),session->GetRoomCode()),40,450,420,16,Color(210,225,195));
     }
     if(!mServerInputError.empty()&&!RoomPresentation::Active(session))SeatUi::Text(g,mServerInputError,48,465,664,15,Color(255,175,120));
-    if((mAllocator.state==RelayNodes::Allocator::LOADING||mCreation.Active()||mJoinLookup.loading))SeatUi::Text(g,ModText::Tr("正在寻找可用房间…","Finding an available room..."),48,465,664,15,Color(210,220,195));
+    if((mAllocator.state==RelayNodes::Allocator::LOADING||mCreation.Active()||mJoinLookup.loading))SeatUi::Text(g,ModText::Tr("正在连接，请稍等…","Connecting. Please wait..."),48,465,664,15,Color(210,220,195));
     if(!RoomPresentation::Active(session)) {
         for(auto* edit:{mIpEditWidget,mCodeEditWidget})if(edit->mVisible)DrawEditBox(g,edit);
     }
@@ -314,9 +331,11 @@ void OnlineDialog::KeyDown(KeyCode key) {
 
 void OnlineDialog::ButtonDepress(int theId)
 {
+    if(theId==OnlineDialog_Paste){PasteInvite();return;}
+    if(theId>=OnlineDialog_CopyCode&&theId<=OnlineDialog_Share){const RoomShareUi::Action actions[]={RoomShareUi::Action::CopyCode,RoomShareUi::Action::CopyInvite,RoomShareUi::Action::Share};mTransfer.Start(actions[theId-OnlineDialog_CopyCode],mApp->mOnlineSession,mLocalIpText);return;}
     if(theId==OnlineDialog_LocalPage||theId==OnlineDialog_ServerPage) {
         if(RoomPresentation::Active(mApp->mOnlineSession))return;
-        mAllocator.Cancel();mCreation.Cancel(*mApp->mOnlineSession);mJoinLookup.Close();mPendingJoinCode.clear();mServerInputError.clear();
+        mAllocator.Cancel();mCreation.Cancel(*mApp->mOnlineSession);mJoinLookup.Close();mPendingJoinCode.clear();mServerInputError.clear();mTransfer.Cancel();mPastedText.clear();mPastedCode.clear();
         mPage=theId==OnlineDialog_LocalPage?OnlineRoomLayout::LOCAL:OnlineRoomLayout::SERVER;
         mConfirmSolo=false;Update();mWidgetManager->SetFocus(this);return;
     }
@@ -336,7 +355,7 @@ void OnlineDialog::ButtonDepress(int theId)
     case OnlineDialog_History:
         if(mApp->mOnlineSession->IsPrivateRoom()&&mApp->mOnlineSession->IsConnected()) {
             auto* session=mApp->mOnlineSession;
-            LocalHostControl::Copy(PrivateEndpoint::Invite(session->GetRelayHost()=="127.0.0.1"?mLocalIpText:session->GetRelayHost(),session->GetRelayPort(),session->GetRoomCode()));return;
+            mTransfer.Start(RoomShareUi::Action::CopyInvite,session,mLocalIpText);return;
         }
         mApp->AddDialog(DIALOG_RUN_HISTORY,new RunHistoryDialog(mApp));return;
     case OnlineDialog_Visibility:
@@ -414,6 +433,7 @@ void OnlineDialog::LeaveRoom()
     dialog->mStartingLocalHost=false;dialog->mLocalHostTicks=0;
     dialog->mAllocator.Cancel();dialog->mCreation.Cancel(*app->mOnlineSession);
     dialog->mJoinLookup.Close();dialog->mPendingJoinCode.clear();
+    dialog->mTransfer.Cancel();dialog->mPastedText.clear();dialog->mPastedCode.clear();
     dialog->mShownRoomCode.clear();dialog->mCodeEditWidget->SetText("",true);
     dialog->mServerInputError.clear();dialog->mConfirmSolo=false;dialog->mPage=page;
     dialog->Update();app->mWidgetManager->SetFocus(dialog);
@@ -487,13 +507,17 @@ void OnlineDialog::StartRoomHost()
 void OnlineDialog::StartRoomJoin()
 {
     if(mPage!=OnlineRoomLayout::SERVER||RoomPresentation::Active(mApp->mOnlineSession)||!mApp->mOnlineSession||(mAllocator.state==RelayNodes::Allocator::LOADING||mCreation.Active()||mJoinLookup.loading))return;
-    RelayNodes::Endpoint target;std::string code;
-    // Four-character codes from old clients retain their original destination.
-    if(!RelayNodes::ResolveCode(GetRoomCodeText(),RelayNodes::Defaults().front().endpoint,target,code)) {
-        if(mJoinLookup.Start(true)){mPendingJoinCode=GetRoomCodeText();mServerInputError.clear();return;}
-        mServerInputError=ModText::Tr("请填写队友显示的完整房间码，例如 2-ABCD。","Enter your teammate's full room code, for example 2-ABCD.");return;
-    }
     mShownRoomCode.clear();mServerInputError.clear();
-    mApp->mOnlineSession->StartRoomJoin(target.host.c_str(),code.c_str(),target.port);
+    const auto input=EffectiveInvite();
+    if(!mJoinLookup.Start(input)){mServerInputError=RoomShareUi::LookupError(mJoinLookup.state);return;}
+    mPendingJoinCode=input;
     mWidgetManager->SetFocus(this);
+}
+
+void OnlineDialog::PasteInvite(){if(RoomPresentation::Active(mApp->mOnlineSession)||mJoinLookup.loading)return;mTransfer.Start(RoomShareUi::Action::Paste,mApp->mOnlineSession);}
+std::string OnlineDialog::EffectiveInvite(){return mCodeEditWidget->mString==mPastedCode&&!mPastedText.empty()?mPastedText:mCodeEditWidget->mString;}
+void OnlineDialog::ApplyInvite(const std::string& input){
+    if(mPage==OnlineRoomLayout::LOCAL){PrivateEndpoint::Address address;if(PrivateEndpoint::Parse(input,"",address)&&!address.code.empty()){mIpEditWidget->SetText((address.host+":"+std::to_string(address.port)).c_str(),true);mCodeEditWidget->SetText(address.code.c_str(),true);mServerInputError.clear();return;}}
+    RoomInvite::Intent parsed;if(!RoomInvite::Parse(input,parsed)){mServerInputError=ModText::Tr("没读到邀请，请先复制队友发来的邀请。","No invite found. Copy your teammate's invite first.");return;}
+    mPastedText=input;mPastedCode=parsed.code;mCodeEditWidget->SetText(parsed.code.c_str(),true);mServerInputError.clear();
 }

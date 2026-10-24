@@ -27,7 +27,7 @@ ZombieVoteDialog::ZombieVoteDialog(LawnApp* theApp) : LawnDialog(
 	Dialog::BUTTONS_NONE)
 {
 	mTitle = ModText::Tr("僵尸强化", "ZOMBIE BOOSTS");
-	mHint = ModText::Tr("每进一个新场景全队投票，得票最多的强化生效。", "Vote for the boosts zombies get this scene.");
+	mHint = ModText::Tr("选择僵尸强化，票数最多的生效。", "Vote for a zombie boost; the most votes wins.");
 	mAreaTop = 0;
 	mAreaHeight = 0;
 	mColumnWidth = 0;
@@ -185,7 +185,7 @@ void ZombieVoteDialog::Draw(Graphics* g)
 		if (mApp->mRunState != nullptr)
 		{
 			char aCountUtf8[64];
-			snprintf(aCountUtf8, sizeof(aCountUtf8), ModText::Tr("已有 %d", "Owned %d"),
+			snprintf(aCountUtf8, sizeof(aCountUtf8), ModText::Tr("层数 %d", "Stacks %d"),
 				mApp->mRunState->ZombieBuffCount(aBuffId));
 			std::wstring aCountText = ModText::WideFromUtf8(aCountUtf8);
 			int aCountY = mAreaTop + mAreaHeight - aLineHeight;

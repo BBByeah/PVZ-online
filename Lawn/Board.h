@@ -37,6 +37,7 @@ using namespace Sexy;
 #define MAX_RENDER_ITEMS 2048
 #define PROGRESS_METER_COUNTER 150
 
+namespace Observer {class BoardView;}
 class LawnApp;
 class CursorObject;
 class CursorPreview;
@@ -118,6 +119,7 @@ struct BungeeDropGrid
 class Board : public Widget, public ButtonListener
 {
 public:
+    std::unique_ptr<Observer::BoardView> mObserverView;
     bool PlantHealthVisible() const;
     bool ZombieHealthVisible() const;
     void SetPlantHealthVisible(bool visible);
@@ -315,6 +317,7 @@ public:
 	void                            DrawKeyboardHint(Graphics* g, int theSlot, int theX, int theY);
 	virtual void					Update();
 	void							UpdateLayers();
+    void DrawAll(Sexy::ModalFlags*,Sexy::Graphics*) override;
 	virtual void					Draw(Graphics* g);
 	void							DrawBackdrop(Graphics* g);
 	virtual void					ButtonPress  	(int){}

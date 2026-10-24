@@ -4819,6 +4819,19 @@ void LawnApp::UpdatePlayTimeStats()
 //0x452650
 void LawnApp::UpdateFrames()
 {
+    // AI-generated: low-frequency diagnostics, no per-entity or per-frame disk logging.
+    static DWORD logAt=GetTickCount();
+    static unsigned logUpdates=0;
+    ++logUpdates;
+    DWORD logNow=GetTickCount();
+    if(logNow-logAt>=5000){
+        TodLog("[health] interval_ms=%lu updates=%u scene=%d observer=%d connected=%d watch=%d board_frame=%d paused=%d zombies=%u plants=%u projectiles=%u 3d=%d",
+            logNow-logAt,logUpdates,int(mGameScene),FullWatch::IsObserver(),
+            mOnlineSession&&mOnlineSession->IsConnected(),mOnlineSession&&mOnlineSession->IsWatchingV2(),
+            mBoard?mBoard->mMainCounter:0,mBoard&&mBoard->mPaused,
+            mBoard?mBoard->mZombies.mSize:0,mBoard?mBoard->mPlants.mSize:0,mBoard?mBoard->mProjectiles.mSize:0,Is3DAccelerated());
+        logAt=logNow;logUpdates=0;
+    }
     FullWatch::TickApp(this);
     if(auto* session=RoomPresentation::Session(this))session->SetLocalNameplate(mPlayerInfo?NameplateCatalog::Equipped(*mPlayerInfo):0);
     UpdateTeamProgressionUi();

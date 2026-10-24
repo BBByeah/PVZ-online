@@ -1,4 +1,5 @@
 #include <time.h>
+#include <mutex>
 #include "TodDebug.h"
 #include "TodCommon.h"
 #include "misc/Debug.h"
@@ -9,6 +10,32 @@ using namespace Sexy;
 
 static char gLogFileName[MAX_PATH];
 static char gDebugDataFolder[MAX_PATH];
+static std::wstring gSessionLogBase;
+static unsigned gSessionLogPart = 0;
+static size_t gSessionLogBytes = 0;
+static std::recursive_mutex gLogMutex;
+
+// AI-generated diagnostics: separate sessions/processes; never erase previous logs.
+static void InitSessionLog()
+{
+    wchar_t exe[32768]{};
+    GetModuleFileNameW(nullptr, exe, 32768);
+    std::wstring path(exe);
+    path = path.substr(0, path.find_last_of(L"\\/") + 1) + L"logs";
+    SYSTEMTIME t{}; GetLocalTime(&t);
+    wchar_t name[128];
+    swprintf_s(name, L"\\pvz-%04u%02u%02u-%02u%02u%02u-%03u-pid%lu", t.wYear,t.wMonth,t.wDay,t.wHour,t.wMinute,t.wSecond,t.wMilliseconds,GetCurrentProcessId());
+    for (int attempt=0; attempt<2; ++attempt) {
+        CreateDirectoryW(path.c_str(), nullptr);
+        gSessionLogBase=path+name;
+        FILE* f=_wfopen((gSessionLogBase+L"-0.log").c_str(),L"ab");
+        if(f){fclose(f);return;}
+        wchar_t fallback[32768]{};
+        if(!GetEnvironmentVariableW(L"LOCALAPPDATA",fallback,32768))break;
+        path=std::wstring(fallback)+L"\\PvZ-ByeahFeature-Logs";
+    }
+    gSessionLogBase.clear(); // Legacy writable save-directory log remains the fallback.
+}
 
 // @pvz-online: 最近日志环形缓冲（2026-10-13 崩溃取证批）——崩溃时把尾部拼进
 // crash.txt，让现场能回溯崩溃前发生了什么。写日志的线程不止一条（主线程 +
@@ -168,9 +195,12 @@ void TodLog(const char* theFormat, ...)
 
 void TodLogString(const char* theMsg)
 {
+	std::lock_guard<std::recursive_mutex> lock(gLogMutex);
 	TodRecentLogAppend(theMsg);
 
-	FILE* f = fopen(gLogFileName, "a");
+	if(gSessionLogBytes>=16*1024*1024){++gSessionLogPart;gSessionLogBytes=0;}
+	FILE* f = gSessionLogBase.empty() ? fopen(gLogFileName, "a") :
+        _wfopen((gSessionLogBase+L"-"+std::to_wstring(gSessionLogPart)+L".log").c_str(),L"ab");
 	if (f == nullptr)
 	{
 		// @pvz-online: 关键修复（2026-10-13）——以前这里不 return，fwrite(nullptr)
@@ -180,12 +210,15 @@ void TodLogString(const char* theMsg)
 		return;
 	}
 
+    SYSTEMTIME t{};GetLocalTime(&t);
+    int prefix=fprintf(f,"[%04u-%02u-%02u %02u:%02u:%02u.%03u tid=%lu] ",t.wYear,t.wMonth,t.wDay,t.wHour,t.wMinute,t.wSecond,t.wMilliseconds,GetCurrentThreadId());
 	if (fwrite(theMsg, strlen(theMsg), 1, f) != 1)
 	{
 		OutputDebugString(_S("Failed to write to log file\n"));
 	}
 
-	fclose(f);
+	gSessionLogBytes+=strlen(theMsg)+(prefix>0?prefix:0);
+	fclose(f); // Flush each event so a crash does not discard buffered diagnostics.
 }
 
 void TodTrace(const char* theFormat, ...)
@@ -317,6 +350,7 @@ long __stdcall TodUnhandledExceptionFilter(LPEXCEPTION_POINTERS exceptioninfo)
 
 void TodAssertInitForApp()
 {
+    InitSessionLog();
 	MkDir(GetAppDataFolder() + "userdata");
 	std::string aRelativeUserPath = GetAppDataFolder() + "userdata\\";
 	strcpy(gDebugDataFolder, GetFullPath(aRelativeUserPath).c_str());
@@ -326,6 +360,7 @@ void TodAssertInitForApp()
 
 	__time64_t aclock = _time64(nullptr);
 	TodLog("Started %s\n", asctime(_localtime64(&aclock)));
+    TodLog("[build] MOD95 ByeahFeature persistent-log-v1; pid=%lu; session logs split at 16 MiB; previous sessions retained",GetCurrentProcessId());
 
 	SetUnhandledExceptionFilter(TodUnhandledExceptionFilter);
 }

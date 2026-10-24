@@ -63,7 +63,7 @@ bool sSortByNonIncreasingHeight(const ReanimAtlasImage& image1, const ReanimAtla
 	else if (image1.mWidth != image2.mWidth)
 		return image1.mWidth > image2.mWidth;
 	else
-		return (uintptr_t)&image1 > (uintptr_t)&image2;
+		return false; // Equal sizes retain animation-definition order, independent of addresses.
 }
 
 static int GetClosestPowerOf2Above(int theNum)
@@ -170,7 +170,7 @@ bool ReanimAtlas::PlaceAtlasImage(ReanimAtlasImage* theAtlasImageToPlace, int th
 //0x470580
 void ReanimAtlas::ArrangeImages(int& theAtlasWidth, int& theAtlasHeight)
 {
-	std::sort(mImageArray, mImageArray + mImageCount, sSortByNonIncreasingHeight);  // 将所有图集图片按高度降序排序
+	std::stable_sort(mImageArray, mImageArray + mImageCount, sSortByNonIncreasingHeight);  // 将所有图集图片按高度降序排序
 	theAtlasWidth = PickAtlasWidth();
 	theAtlasHeight = 0;
 

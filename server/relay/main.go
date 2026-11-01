@@ -6,12 +6,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 )
@@ -40,24 +38,6 @@ func main() {
 
 	logger := log.New(os.Stdout, "", log.LstdFlags)
 	if *private {
-		// AI-generated: keep diagnostics from the hidden player-hosted helper.
-		exe, _ := os.Executable()
-		directory := filepath.Join(filepath.Dir(exe), "logs")
-		name := fmt.Sprintf("host-%s-pid%d.log", time.Now().Format("20060102-150405.000"), os.Getpid())
-		for attempt := 0; attempt < 2; attempt++ {
-			if err := os.MkdirAll(directory, 0755); err == nil {
-				if file, err := os.OpenFile(filepath.Join(directory, name), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600); err == nil {
-					defer file.Close()
-					logger.SetOutput(io.MultiWriter(os.Stdout, file))
-					break
-				}
-			}
-			cache, err := os.UserCacheDir()
-			if err != nil {
-				break
-			}
-			directory = filepath.Join(cache, "PvZ-ByeahFeature-Logs")
-		}
 		host, err := startHostedRelay(fmt.Sprintf(":%d", *port), true, logger.Printf)
 		if err != nil {
 			logger.Fatal(err)
@@ -98,6 +78,14 @@ func main() {
 	srv.startSampling(*configPath)
 	defer srv.stopSampling()
 	go srv.sweepLoop()
+	// P2P 打洞监听是冷配置：端口取启动时的运营配置，热改不重绑，重启生效。
+	if ops := srv.operations().Config; ops.PunchEnable {
+		if err := srv.startPunchUDP(ops.PunchUDPPort); err != nil {
+			logger.Fatalf("punch udp: %v", err)
+		}
+		go srv.punchSweepLoop()
+		logger.Printf("punch udp listening on :%d", ops.PunchUDPPort)
+	}
 
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
 	if err != nil {

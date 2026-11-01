@@ -2,8 +2,6 @@
 // Called before widget/global shortcut dispatch. The fence retains held releases
 // after exit, including a release delivered into a different scene.
 bool LawnApp::FilterObserverInput(int type,int code,int x,int y){
- // @pvz-online: PWV2 uses its own child window/input routing, not the drawing-stream fence.
- if(FullWatch::IsObserver() || (mOnlineSession && !mOnlineSession->IsWatchingV2()))return false;
  bool watching=mBoard&&mOnlineSession&&mOnlineSession->IsWatching()&&
 mBoard->IsWatchingView();
  if(watching&&!mObserverInput.Active()){
@@ -17,6 +15,7 @@ mBoard->IsWatchingView();
  if(type<0||type>7)return false;
  const Observer::Input kinds[]={Observer::Input::KeyDown,Observer::Input::KeyUp,Observer::Input::Character,Observer::Input::PointerDown,Observer::Input::PointerUp,Observer::Input::PointerMove,Observer::Input::Wheel,Observer::Input::Cancel};
  const int slot=(type>=3&&type<=5)?(code<0?1:code==3?2:0):code;
+ const bool wasHeld=code>=0&&code<255&&mWidgetManager->mKeyDown[code];
  bool consumed=mObserverInput.Consume(kinds[type],slot);
  if(type==2)return consumed||mObserverTextTail;
  if(type==0&&!consumed)mObserverTextTail=false;
@@ -24,6 +23,13 @@ mBoard->IsWatchingView();
  if(type==0||type==1){if(code>=0&&code<255)mWidgetManager->mKeyDown[code]=(type==0);}
  if(!watching)return true;
  if(type==0){
+  if(code=='P' || (code>=Sexy::KEYCODE_F1 && code<=Sexy::KEYCODE_F6)) {
+   if(!wasHeld) {
+    if(code=='P')HandleOnlinePauseKey(code);
+    else mBoard->HandleSunGiftKey(static_cast<Sexy::KeyCode>(code));
+   }
+   return true;
+  }
   mBoard->HandleBoardWatchKey(static_cast<Sexy::KeyCode>(code));
 
  }else if(type==1&&code=='V'){

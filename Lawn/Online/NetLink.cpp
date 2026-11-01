@@ -1,3 +1,4 @@
+#include "../Automation/Diagnostics.h"
 #include "NetLink.h"
 #include "NetOutbound.h"
 #include "LegacyObserverQueue.h"
@@ -41,6 +42,15 @@ struct NetLink::Impl
 {
     NetOutbound outbound;
     NetOutbound::Bytes outgoing;
+    static void LogFullWatchSent(const std::vector<uint8_t>& packet){
+        if(!LocalWatchPacket(packet.data(),packet.size()))return;
+        size_t start=(uint16_t(packet[0]|packet[1]<<8)==NetProto::MSG_BOARD_SNAPSHOT)?4:14;
+        if(packet.size()<start+17)return;auto*p=packet.data()+start;
+        auto u32=[](const uint8_t*q){return uint32_t(q[0])|uint32_t(q[1])<<8|uint32_t(q[2])<<16|uint32_t(q[3])<<24;};
+        if(p[2]!=0x53||p[3]!=0x57||u32(p+12)+packet.size()-start-16!=u32(p+8))return;
+        TestDiagnostics::Line("watch_tcp_sent","peer="+std::to_string(p[1])+" seq="+std::to_string(u32(p+4))+" envelope_bytes="+std::to_string(u32(p+8)));
+    }
+    static bool LocalWatchPacket(const uint8_t*p,size_t n){if(n<4)return false;auto u16=[](const uint8_t*q){return uint16_t(q[0]|q[1]<<8);};auto type=u16(p);if(type==NetProto::MSG_BOARD_SNAPSHOT)return true;return (type==NetProto::MSG_CLI_FLOW_GAME||type==NetProto::MSG_SRV_FLOW_GAME)&&n>=14&&u16(p+12)==NetProto::MSG_BOARD_SNAPSHOT;}
     size_t outgoingAt=0;bool outgoingDisplay=false;DWORD stalledSince=0;
     bool FlushWrites() {
         for(int count=0;count<8;++count) {
@@ -49,7 +59,7 @@ struct NetLink::Impl
                 outgoingAt=0;stalledSince=GetTickCount();
             }
             int n=send(mSocket,(const char*)outgoing.data()+outgoingAt,int(outgoing.size()-outgoingAt),0);
-            if(n>0){outgoingAt+=n;stalledSince=GetTickCount();if(outgoingAt==outgoing.size()){outbound.Completed(outgoingDisplay);bool optional=outgoingDisplay;outgoing.clear();/* Recheck critical before each of at most eight fragments per read slice. */}continue;}
+            if(n>0){TestDiagnostics::counters.tcpTx+=n;if(LocalWatchPacket(outgoing.data(),outgoing.size()))TestDiagnostics::counters.tcpLocalTx+=n;if(outgoingDisplay)TestDiagnostics::counters.tcpObserverTx+=n;outgoingAt+=n;stalledSince=GetTickCount();if(outgoingAt==outgoing.size()){LogFullWatchSent(outgoing);outbound.Completed(outgoingDisplay);bool optional=outgoingDisplay;outgoing.clear();/* Recheck critical before each of at most eight fragments per read slice. */}continue;}
             int error=WSAGetLastError();
             if(error==WSAETIMEDOUT||error==WSAEWOULDBLOCK||error==WSA_IO_PENDING){
                 if(DWORD(GetTickCount()-stalledSince)<5000)return true;
@@ -99,17 +109,17 @@ struct NetLink::Impl
 
 	void	SetupConnectedSocket(SOCKET theSocket)
 	{
-		// accept() 在 Windows 上会继承监听 socket 的非阻塞标志，connect 前也设过非阻塞，
-		// 所以这里必须显式改回阻塞 + 100ms 超时，否则收包线程会空转。
-		u_long aNonBlocking = 0;
+        // accept/connect may inherit different modes; use one explicit
+        // nonblocking mode for both directions of the connected socket.
+		u_long aNonBlocking = 1;
 		ioctlsocket(theSocket, FIONBIO, &aNonBlocking);
 
 		int aNoDelay = 1;
 		setsockopt(theSocket, IPPROTO_TCP, TCP_NODELAY, (const char*)&aNoDelay, sizeof(aNoDelay));
 
-		int aTimeout = 10;
-		setsockopt(theSocket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&aTimeout, sizeof(aTimeout));
-		setsockopt(theSocket, SOL_SOCKET, SO_SNDTIMEO, (const char*)&aTimeout, sizeof(aTimeout));
+        // Nonblocking I/O keeps partial progress explicit. A timed blocking
+        // Winsock receive must not be retried as if no bytes could be consumed.
+        // RecvExact uses select below; the outbound queue retains short writes.
 	}
 
 	bool	StartThread()
@@ -289,10 +299,16 @@ struct NetLink::Impl
 		{
 			if (mStop) return false;
             if(!FlushWrites())return false;
+            fd_set readable;FD_ZERO(&readable);FD_SET(mSocket,&readable);
+            timeval timeout{};timeout.tv_usec=10000;
+            const int ready=select(0,&readable,nullptr,nullptr,&timeout);
+            if(ready==0)continue;
+            if(ready==SOCKET_ERROR){if(mStop)return false;FailWithError("Connection lost while waiting",WSAGetLastError());return false;}
 
 			int aRead = recv(mSocket, (char*)theBuffer + aGot, theCount - aGot, 0);
 			if (aRead > 0)
 			{
+				TestDiagnostics::counters.tcpRx+=aRead;
 				aGot += aRead;
 				continue;
 			}
@@ -303,10 +319,6 @@ struct NetLink::Impl
 			}
 
 			int anError = WSAGetLastError();
-			// @pvz-online: 997（WSA_IO_PENDING）＝「内部 I/O 还挂着」，是重试类码不是断线码——
-			// 阻塞 socket + SO_RCVTIMEO 的超时竞态下会偶发（2026-10-04 实机日志：正常收包后读到）。
-			// 真断线不掩：没有包进账照样由上层 TIMEOUT_FRAMES 判「连接超时」。
-			if (anError == WSAETIMEDOUT || anError == WSA_IO_PENDING) continue;	// 只是暂时没数据
 			if (anError == WSAEWOULDBLOCK) { Sleep(1); continue; }
 			if (anError == WSAENOTSOCK || anError == WSAEINTR) return false;	// 正在 Close()
 			FailWithError("Connection lost", anError);
@@ -337,6 +349,7 @@ struct NetLink::Impl
 			aPacket.mSize += aPayloadSize;
 		}
 
+if(LocalWatchPacket(aPacket.mData,aPacket.mSize))TestDiagnostics::counters.tcpLocalRx+=aPacket.mSize;
 		PushPacket(aPacket);
 	}
 
@@ -559,13 +572,6 @@ int NetLink::GetConnectAttempts() const
 
 bool NetLink::Send(const void* data,int size) {
     if(!mImpl||mImpl->GetStateValue()!=State::CONNECTED)return false;
-    // @pvz-online: retain MOD95's sole socket writer; snapshot congestion must not kill gameplay.
-    if(data && size>=4){
-        const auto* p=static_cast<const uint8_t*>(data);int type=p[0]|(p[1]<<8),offset=4;
-        if(type==NetProto::MSG_CLI_FLOW_GAME && size>=14){type=p[12]|(p[13]<<8);offset=14;}
-        if(type==NetProto::MSG_BOARD_SNAPSHOT && size>=offset+16 && p[offset+2]==0x53 && p[offset+3]==0x57)
-            return mImpl->outbound.Snapshot(data,size);
-    }
     if(mImpl->outbound.Critical(data,size))return true;
     mImpl->Fail("Too many pending gameplay messages.");return false;
 }
@@ -656,4 +662,12 @@ std::string NetLink::GetLocalIPv4Text()
 	if (!aPreferred.empty()) return aPreferred;
 	if (!aFallback.empty()) return aFallback;
 	return "127.0.0.1";
+}
+
+std::string NetLink::GetPeerIPv4Text()const{
+ if(!IsConnected())return {};sockaddr_in address{};
+ int n=sizeof(address);
+ if(getpeername(mImpl->mSocket,reinterpret_cast<sockaddr*>(&address),&n)!=0||address.sin_family!=AF_INET)return {};
+ const auto*b=reinterpret_cast<const unsigned char*>(&address.sin_addr);
+ return std::to_string(b[0])+"."+std::to_string(b[1])+"."+std::to_string(b[2])+"."+std::to_string(b[3]);
 }

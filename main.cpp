@@ -1,7 +1,7 @@
 #include "LawnApp.h"
+#include "Lawn/Automation/Control.h"
 #include "Resources.h"
 #include "Sexy.TodLib/TodStringFile.h"
-#include "Sexy.TodLib/TodDebug.h"
 using namespace Sexy;
 
 bool (*gAppCloseRequest)();				//[0x69E6A0]
@@ -59,11 +59,10 @@ int WINAPI WinMain(_In_ HINSTANCE /* hInstance */, _In_opt_ HINSTANCE /* hPrevIn
 	gLawnApp->mChangeDirTo = (!Sexy::FileExists("properties\\resources.xml") && Sexy::FileExists("..\\properties\\resources.xml")) ? ".." : ".";
 	gLawnApp->Init();
 	gLawnApp->Start();
-	TodLog("[lifecycle] normal shutdown requested");
 	gLawnApp->Shutdown();
+    MachineControl::Stop();
 	if (gLawnApp)
 		delete gLawnApp;
-	TodLog("[lifecycle] normal shutdown complete");
 
 	return 0;
 };

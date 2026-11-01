@@ -1,3 +1,4 @@
+#include "Automation/Control.h"
 #include "Plant.h"
 #include "Board.h"
 #include "Zombie.h"
@@ -4954,6 +4955,7 @@ void Zombie::CheckForBoardEdge()
 
     if (mX <= aEdgeX && mHasHead)
     {
+        if(MachineControl::EdgeKill()){DieNoLoot();return;}
         if (mApp->IsIZombieLevel())
         {
             DieNoLoot();

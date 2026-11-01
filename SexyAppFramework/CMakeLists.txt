@@ -69,14 +69,14 @@ set(Lawn__Online__Online_Include
     "../Lawn/Online/NetProtocol.h"
     "../Lawn/Online/NetLink.h"
     "../Lawn/Online/NetSession.h"
+    "../Lawn/Online/ObserverDirectLink.h"
 )
 source_group("Lawn\\Online\\Online Include" FILES ${Lawn__Online__Online_Include})
 
 set(Lawn__Online__Online_Source
     "../Lawn/Online/NetLink.cpp"
+    "../Lawn/Online/ObserverDirectLink.cpp"
     "../Lawn/Online/NetSession.cpp"
-    "../Lawn/Online/FullWatch.cpp"
-    "../Lawn/Online/WatchState.cpp"
     "../Lawn/Online/RelayCatalog.cpp"
     "../third_party/ed25519/src/fe.c"
     "../third_party/ed25519/src/ge.c"
@@ -375,3 +375,8 @@ endif()
 target_sources(LawnProject PRIVATE ../Lawn/Observer/ObserverDrawScene.cpp ../Lawn/Observer/ObserverDrawCodec.cpp)
 
 target_include_directories(LawnProject PRIVATE "..")
+
+target_sources(LawnProject PRIVATE ../Lawn/Automation/Control.cpp ../Lawn/Automation/Diagnostics.cpp)
+target_link_libraries(LawnProject PRIVATE advapi32)
+
+target_sources(LawnProject PRIVATE ../Lawn/Online/FullWatch.cpp ../Lawn/Online/WatchState.cpp)

@@ -116,8 +116,7 @@ bool TeamProgressionDialog::CanSupport() const
 {
     const auto& support=mSnapshot.support;
     return CanTarget()&&support.enabled&&support.canConfirm&&!support.pending&&support.quoteId&&
-        support.target==mSelectedPeer&&support.cost>=0&&support.cooldownSeconds<=0&&
-        support.row==mDesiredRow&&support.column==mDesiredColumn&&support.row>=0&&support.row<6&&support.column>=0&&support.column<9;
+        support.target==mSelectedPeer&&support.cost>=0&&support.cooldownSeconds<=0;
 }
 
 int TeamProgressionDialog::EntryCount() const
@@ -129,7 +128,8 @@ int TeamProgressionDialog::EntryCount() const
 std::string TeamProgressionDialog::EntryText() const
 {
     const int index=std::clamp(mSelectedEntry,0,std::max(0,EntryCount()-1));
-    if(EntryCount()==0)return ModText::Tr("暂无此类记录。","No records in this category.");
+    if(EntryCount()==0)return mSnapshot.page==Page::TEAM_EFFECTS&&!mPersonal?
+        ModText::Tr("尚未获得全队增益。","No team buffs earned yet."):ModText::Tr("暂无此类记录。","No records in this category.");
     if(mSnapshot.page==Page::GOALS)
     {
         const auto& goal=mSnapshot.goals[index];
@@ -154,7 +154,7 @@ void TeamProgressionDialog::Layout()
 {
     mControls.clear();
     if(mClosed)return;
-    Add(ControlKind::CLOSE,Rect(660,36,92,48),ModText::Tr("收起","Close"));
+    if(!mSnapshot.voteOpen)Add(ControlKind::CLOSE,Rect(660,36,92,48),ModText::Tr("收起","Close"));
     const char* labels[]={ModText::Tr("团队投票","Vote"),ModText::Tr("全队增益","Effects"),ModText::Tr("队友协作","Team"),ModText::Tr("本关简报","Brief"),ModText::Tr("目标进度","Goals")};
     for(int index=0;index<5;++index)Add(ControlKind::PAGE,Rect(48+index*142,98,136,44),labels[index],index,true,0,0,0,static_cast<int>(mSnapshot.page)==index);
     if(mDetail)
@@ -183,11 +183,13 @@ void TeamProgressionDialog::Layout()
             for(int index=0;index<count;++index)
             {
                 const auto& choice=mSnapshot.choices[index];const int left=48+index*(width+16);
-                Add(ControlKind::VOTE,Rect(left+8,382,width-104,44),count==1?ModText::Tr("确认领取","Claim"):ModText::Tr("投票","Vote"),choice.id,
+                Add(ControlKind::VOTE,Rect(left+8,382,width-104,44),count==1?ModText::Tr("确认领取","Claim"):ModText::Tr("投票","Vote"),index,
                     mSnapshot.canAct&&mSnapshot.phase==Phase::VOTING&&choice.enabled);
                 Add(ControlKind::CHOICE_DETAILS,Rect(left+width-88,382,80,44),ModText::Tr("详情","Info"),index);
             }
         }
+        Add(ControlKind::VOTE,Rect(588,542,164,40),ModText::Tr("弃权","Abstain"),-1,
+            mSnapshot.canAct&&mSnapshot.canVote);
         return;
     }
     if(mSnapshot.page==Page::TEAM_EFFECTS||mSnapshot.page==Page::GOALS)
@@ -231,9 +233,8 @@ void TeamProgressionDialog::Layout()
         if(mMode==2)Add(ControlKind::WATCH,Rect(440,500,312,44),ModText::Tr("查看队友草坪","Watch teammate"),0,CanTarget(),mSelectedPeer);
         if(mMode==3)
         {
-            Add(ControlKind::PICK_CELL,Rect(48,500,196,44),ModText::Tr("选择格位","Choose cell"),0,CanTarget()&&!mSnapshot.support.pending);
             Add(ControlKind::SUPPORT_PREVIEW,Rect(256,500,196,44),ModText::Tr("核对花费","Check cost"),0,CanTarget()&&!mSnapshot.support.pending,mSelectedPeer);
-            Add(ControlKind::SUPPORT_CONFIRM,Rect(464,500,288,44),mSnapshot.support.pending?ModText::Tr("待确认","Pending"):ModText::Tr("确认支援","Confirm aid"),mSnapshot.support.cost,CanSupport(),mSelectedPeer,mSnapshot.support.quoteId,
+            Add(ControlKind::SUPPORT_CONFIRM,Rect(464,500,288,44),mSnapshot.support.pending?ModText::Tr("待确认","Pending"):ModText::Tr("赠送樱桃卡","Give Cherry card"),mSnapshot.support.cost,CanSupport(),mSelectedPeer,mSnapshot.support.quoteId,
                 std::clamp(mSnapshot.support.row,-1,5)*9+std::clamp(mSnapshot.support.column,-1,8));
             const auto own=std::find_if(mSnapshot.peers.begin(),mSnapshot.peers.end(),[this](const Peer& peer){return peer.player==mSnapshot.context.player;});
             if(own!=mSnapshot.peers.end())Add(ControlKind::PERMISSION,Rect(48,440,244,44),own->allowSupport?ModText::Tr("撤回我的许可","Revoke my consent"):ModText::Tr("允许支援我","Allow aid to me"),own->allowSupport?0:1,CanAct(),mSnapshot.context.player);
@@ -283,7 +284,7 @@ void TeamProgressionDialog::Activate(Control control)
     CancelInput();
     switch(control.kind)
     {
-    case ControlKind::CLOSE: mClosed=true;SetVisible(false);Submit(Action::CLOSE);return;
+    case ControlKind::CLOSE: if(mSnapshot.voteOpen)return;mClosed=true;SetVisible(false);Submit(Action::CLOSE);return;
     case ControlKind::PAGE: Submit(Action::SELECT_PAGE,control.value);return;
     case ControlKind::VOTE: Submit(Action::VOTE,control.value);return;
     case ControlKind::PEER: mSelectedPeer=control.target;mDesiredRow=mDesiredColumn=-1;Submit(Action::SELECT_PEER,0,control.target);return;
@@ -317,7 +318,7 @@ void TeamProgressionDialog::Activate(Control control)
     case ControlKind::WATCH:Submit(Action::WATCH,0,control.target);return;
     case ControlKind::SUPPORT_PREVIEW:Submit(Action::SUPPORT_PREVIEW,0,control.target,0,mDesiredRow,mDesiredColumn);return;
     case ControlKind::SUPPORT_CONFIRM:
-        Submit(Action::SUPPORT_CONFIRM,0,control.target,control.quote,mSnapshot.support.row,mSnapshot.support.column);return;
+        Submit(Action::SUPPORT_CONFIRM,0,control.target,control.quote,0,0);return;
     case ControlKind::PERMISSION:Submit(Action::SUPPORT_PERMISSION,control.value,control.target);return;
     }
     Layout();MarkDirty();
@@ -327,7 +328,10 @@ void TeamProgressionDialog::KeyDown(KeyCode key)
 {
     if(mClosed)return;
     Refresh();
-    if(key==KEYCODE_ESCAPE) {Control close;close.kind=ControlKind::CLOSE;Activate(close);return;}
+    if(key==KEYCODE_ESCAPE) {
+        if(mSnapshot.voteOpen){Submit(Action::SELECT_PAGE,int(Page::VOTE));return;}
+        Control close;close.kind=ControlKind::CLOSE;Activate(close);return;
+    }
     if(key==KEYCODE_TAB)
     {
         for(size_t count=0;count<mControls.size();++count)
@@ -394,8 +398,8 @@ void TeamProgressionDialog::DrawVote(Graphics* graphics) const
             // Full rules remain behind the existing Info button; keep this three-line preview visible.
             const char* previews[]={
                 ModText::Tr("共享植物与模仿者。\n不含个人增益或借卡。\n最多1层。", "Share plants + Imitater.\nNo personal buffs or loans.\nMax 1 stack."),
-                ModText::Tr("首人通关：每层+1000阳光。\n战斗队友刷新卡片。\n每关一次。", "First clear: 1000/stack.\nFighting allies: sun +\ncard refresh. Once/level."),
-                ModText::Tr("每层1爆，只付1次樱桃费。\n冷却20秒，须队友允许。\n使用本人伤害与增益。", "1 blast/stack; pay once.\nCherry, your dmg/buffs.\n20s CD; needs consent.")};
+                ModText::Tr("首人通关：每层+200阳光。\n战斗队友刷新卡片。\n每关一次。", "First clear: 200/stack.\nFighting allies: sun +\ncard refresh. Once/level."),
+                ModText::Tr("赠送免费一次性樱桃卡。\n队友选位，继承你的强化。\n付一次樱桃费，冷却20秒。", "Give a free one-use Cherry.\nTeammate plants; your buffs.\nPay once; 20s cooldown.")};
             const std::string preview=choice.id>=0&&choice.id<3?previews[choice.id]:choice.description;
             Lines(graphics,!choice.enabled&&!choice.unavailableReason.empty()?choice.unavailableReason:preview,
                 Rect(left+10,310,width-20,66),14,Color(235,230,210));
@@ -427,11 +431,11 @@ void TeamProgressionDialog::DrawPeers(Graphics* graphics) const
             ModText::Tr(" · 剩余冷却 "," · Cooldown ")+std::to_string(support.cooldownSeconds);
         Lines(graphics,quote,Rect(312,388,440,48),18,Color(245,230,165));
         Lines(graphics,support.reason,Rect(312,440,440,48),16,Color(225,225,205));
-        SeatUi::Text(graphics,mDesiredRow>=0&&mDesiredColumn>=0?ModText::Tr("格位 ","Cell ")+std::to_string(mDesiredRow+1)+"-"+std::to_string(mDesiredColumn+1):ModText::Tr("尚未选格位","No cell selected"),48,412,244,18,Color(235,230,210));
+        SeatUi::Text(graphics,ModText::Tr("队友自行放置支援卡","Teammate places the card"),48,412,244,18,Color(235,230,210));
     }
     else
     {
-        const char* descriptions[]={ModText::Tr("选队友再点“赠送阳光”：付100，预计到账90。也可点“请求阳光”。", "Choose a teammate and Give sun: pay 100, expected delivery 90. Or choose Request sun."),
+        const char* descriptions[]={ModText::Tr("选队友赠送阳光：付100，通常到账90；阳光接力提高到账量。赠送阳光不能再次赠送。", "Give sun: pay 100, normally receive 90; Sun relay increases delivery. Gifted sun cannot be gifted again."),
             ModText::Tr("选队友，再打开借用目录申请植物。", "Choose a teammate, then open the loan catalog."),
             ModText::Tr("选择队友查看草坪；你自己的战斗仍会继续。","Choose a teammate to watch. Your own battle continues.")};
         Lines(graphics,descriptions[mMode],Rect(48,404,704,80),20,Color(235,230,210));
@@ -442,7 +446,7 @@ void TeamProgressionDialog::Draw(Graphics* graphics)
 {
     if(mClosed)return;
     SeatUi::Panel(graphics,Rect(20,20,760,560));
-    const char* titles[]={ModText::Tr("团队成长","Team growth"),ModText::Tr("本局增益","Run effects"),ModText::Tr("队友协作","Teamwork"),ModText::Tr("本关简报","Stage brief"),ModText::Tr("目标进度","Goal progress")};
+    const char* titles[]={ModText::Tr("团队投票","Team vote"),ModText::Tr("本局增益","Run effects"),ModText::Tr("队友协作","Teamwork"),ModText::Tr("本关简报","Stage brief"),ModText::Tr("目标进度","Goal progress")};
     const int page=std::clamp(static_cast<int>(mSnapshot.page),0,4);
     SeatUi::Text(graphics,titles[page],48,70,588,27,Color(245,230,165));
     if(mDetail)
@@ -475,5 +479,7 @@ void TeamProgressionDialog::Draw(Graphics* graphics)
             control.selected||(mCaptured&&SameControl(mPressed,control))||static_cast<int>(index)==mKeyboard);
     }
     if(!mDetail&&!mCellPicker&&mSnapshot.page==Page::TEAMMATES)DrawMembers(graphics,false);
-    SeatUi::Text(graphics,ModText::Tr("查看时战斗继续", "Battle continues while viewing"),48,567,704,15,Color(185,185,170));
+    SeatUi::Text(graphics,mSnapshot.voteOpen?
+        ModText::Tr("全员投票或弃权后继续", "Continue after everyone votes or abstains"):
+        ModText::Tr("查看时战斗继续", "Battle continues while viewing"),48,567,mSnapshot.voteOpen?528:704,15,Color(185,185,170));
 }

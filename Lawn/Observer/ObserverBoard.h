@@ -1,6 +1,7 @@
+#include "../Automation/Diagnostics.h"
+#include <cstring>
 #pragma once
 #include "ObserverDrawScene.h"
-#include "ObserverTimeline.h"
 #include "../Online/NetSession.h"
 #include "../Board.h"
 #include "../../LawnApp.h"
@@ -8,51 +9,68 @@
 #include <chrono>
 #include <atomic>
 #include <cstdio>
-
 namespace Observer {
 inline uint64_t Milliseconds(){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 class BoardView {
- DrawScene scene;Timeline<DrawFrame,DrawScene> timeline;SourceClock clock;Identity identity;
- uint64_t captureAt=0;uint64_t instance=0;uint32_t failures=0;uint64_t interval=500;bool stopped=false,timelineStarted=false;
+ DrawScene scene;
+ Identity requested,visible;
+ uint64_t instance=0,receivedAt=0,serial=0,lastCapture=0,captureInterval=500,lastDirectAt=0;
+ bool have=false;
+ void Clear(){scene.Clear();requested=visible={};have=false;lastDirectAt=0;}
 public:
- explicit BoardView(LawnApp* app):scene(app),timeline(scene){static std::atomic<uint64_t> ids{0};instance=++ids;}
+ explicit BoardView(LawnApp*app):scene(app){static std::atomic<uint64_t> ids{0};instance=++ids;}
+ bool CanDraw(NetSession*s)const{
+  return s&&s->IsWatchingV2()&&have&&visible.Valid()&&s->CanWatchSeat(visible.seat)&&visible.generation==s->ObserverEpoch()&&
+   (!s->mCoopPeers[visible.seat]||visible.player==s->mCoopPeers[visible.seat])&&
+   visible.seat!=s->GetLocalSeat()&&(!s->mCoopToken||visible.player!=s->mCoopToken);
+ }
  void Update(Board*b,NetSession*s){
-  const auto now=Milliseconds();
-  s->SetObserverBoard(instance,
-    b->mApp->mGameScene==GameScenes::SCENE_PLAYING);
-  if(s->IsWatchingV2()&&s->ObserverAccepted()){
+  const auto now=Milliseconds();s->SetObserverBoard(instance,b->mApp->mGameScene==GameScenes::SCENE_PLAYING);
+  if(!s->IsWatchingV2())Clear();
+  else if(!s->CanWatchSeat(s->GetWatchTargetSeat())){s->EndWatch(true);Clear();}
+  else if(s->ObserverAccepted()){
    const uint8_t target=s->GetWatchTargetSeat();
-   Identity next{ s->ObserverWatch(),s->mCoopPeers[target]?s->mCoopPeers[target]:uint64_t(target),s->ObserverStream(),s->ObserverEpoch(),target};
-   if(!(next==identity)){timeline.End();timelineStarted=false;clock.Clear();identity=next;}
+   Identity next{s->ObserverWatch(),s->mCoopPeers[target]?s->mCoopPeers[target]:uint64_t(target),s->ObserverStream(),s->ObserverEpoch(),target};
+   if(!(next==requested)){
+    // Keep the last valid teammate picture while a refresh or switch is prepared.
+    if(visible.Valid()&&visible.generation!=next.generation)Clear();
+    requested=next;lastDirectAt=0;
+   }
    ObserverTransfer::Complete body;
    while(s->TakeObserverDisplay(body)){
-    SourceStamp stamp;DrawFrame frame;
-    if(clock.Peek(body.sequence,body.tick,stamp)&&DecodeDrawFrame(body.data.data(),body.data.size(),frame)){
-     frame.identity=identity;frame.sequence=stamp.sequence;
-     if(!timelineStarted){timeline.Begin(identity,now);timelineStarted=true;}
-     if(timeline.Accept(frame,stamp.milliseconds,now))clock.Commit(body.sequence,body.tick,stamp);
-    }
+    if(body.src!=target||body.dst!=s->GetLocalSeat()||body.watch!=next.subscription||body.stream!=next.run||body.epoch!=next.generation)continue;
+    // A late one-shot reply must not rewind a working direct stream.
+    if(!body.direct&&lastDirectAt&&now-lastDirectAt<5000)continue;
+    DrawFrame frame;
+    if(!DecodeDrawFrame(body.data.data(),body.data.size(),frame)||!(frame.flags&4)){++TestDiagnostics::counters.invalid;continue;}
+    frame.identity=next;frame.sequence=body.sequence;
+    // Prepare is transactional: a rejected frame cannot discard the visible one.
+    if(!scene.Prepare(frame)){++TestDiagnostics::counters.invalid;continue;}
+    s->ObserverPictureApplied(body.direct);++TestDiagnostics::counters.displayed;
+    visible=next;receivedAt=now;have=true;++serial;
+    if(body.direct)lastDirectAt=now;
    }
-   if(timeline.AcceptedSequence())timeline.Tick(now);
-   if(timelineStarted&&timeline.GetStatus()==Status::Closed){s->EndWatch(true);identity={};}
-  }else if(identity.Valid()){timeline.End();timelineStarted=false;identity={};clock.Clear();}
-  if(now<captureAt||now-captureAt<interval||!s->ObserverCanCapture())return;
-  captureAt=now;
-  DrawFrame frame;frame.identity={1,1,1,1,s->GetLocalSeat()};frame.sequence=1;
-  std::vector<uint8_t> bytes;
-  const auto started=Milliseconds();
-  if(CaptureDrawFrame(b,frame)&&EncodeDrawFrame(frame,bytes)){interval=std::clamp<uint64_t>((Milliseconds()-started)*100,500,2000);failures=0;stopped=false;s->SendObserverDisplay(bytes,uint32_t(now));}
-  else{++failures;if(!stopped){fprintf(stderr,"[observer] normal frame exceeded display budget or used an unavailable local resource; source paused\n");stopped=true;}}
+  }
+  if(have)scene.SetPredictionAge(double(now-receivedAt)/1000.0);
+  if(!s->ObserverCanCapture()||(!s->ObserverNeedsInitialCapture()&&now-lastCapture<captureInterval))return;
+  lastCapture=now;DrawFrame frame;frame.flags=4;frame.identity={1,1,1,1,s->GetLocalSeat()};frame.sequence=1;
+  std::vector<uint8_t> bytes;const auto start=Milliseconds();
+  if(CaptureDrawFrame(b,frame)&&EncodeDrawFrame(frame,bytes)){++TestDiagnostics::counters.captures;TestDiagnostics::counters.raw+=ObserverWireV2::Get32(bytes.data()+1);TestDiagnostics::counters.packed+=bytes.size();s->SendObserverDisplay(bytes,uint32_t(now));}
+  else{++TestDiagnostics::counters.captureFailed;s->ObserverCaptureFailed();fprintf(stderr,"[observer] source capture rejected\n");}
+  captureInterval=std::clamp<uint64_t>((Milliseconds()-start)*100,500,2000);
  }
- uint64_t VisibleSequence()const{return timeline.GetSequence();}
+ uint64_t VisibleSequence()const{return have?serial:0;}
  bool Draw(Sexy::Graphics*g,NetSession*s){
-  if(!s||!s->IsWatchingV2())return false;
-  g->SetColor(Sexy::Color(15,20,18));g->FillRect(0,0,800,600);
-  if(timeline.GetSequence())scene.Draw(g);
-  else SeatUi::Text(g,ModText::Tr("正在缓冲队友画面…","Buffering teammate view..."),220,300,400,22,Sexy::Color(245,230,165),true);
-  g->SetColor(Sexy::Color(0,0,0,180));g->FillRect(0,0,520,58);
-  SeatUi::Text(g,ModText::Tr("正在观看 P","Watching P")+std::to_string(s->GetWatchTargetSeat())+ModText::Tr(" · 延迟约1.5秒"," · 1.5s buffer"),12,34,500,20,Sexy::Color(245,230,165),true);
-  if(scene.Flags()&1)SeatUi::Text(g,ModText::Tr("对方已暂停","They paused"),300,330,300,24,Sexy::Color(245,230,165),true);
+  if(!CanDraw(s))return false;
+  scene.SetPredictionAge(double(Milliseconds()-receivedAt)/1000.0);scene.Draw(g);
+  g->SetColor(Sexy::Color(0,0,0,150));g->FillRect(0,0,395,58);
+  auto name=s->GetSeatName(visible.seat);if(name.empty())name="P"+std::to_string(visible.seat);
+  SeatUi::Text(g,ModText::Tr("正在观看：","Watching: ")+name,10,33,245,18,Sexy::Color(245,230,165),true);
+  const char* state=s->ObserverDiagnosticState();Sexy::Color color(130,130,130);const char* label="P2P off";
+  if(!strcmp(state,"direct")){color=Sexy::Color(70,220,80);label="P2P live";}
+  else if(!strcmp(state,"connecting")){color=Sexy::Color(240,210,65);label="P2P ...";}
+  else if(!strcmp(state,"fallback")){color=Sexy::Color(240,150,50);label="Snapshot";}
+  g->SetColor(color);for(int yy=-4;yy<=4;++yy){int dx=int(std::sqrt(double(16-yy*yy)));g->FillRect(269-dx,28+yy,dx*2+1,1);}SeatUi::Text(g,label,280,33,110,14,color,true);
   return true;
  }
 };

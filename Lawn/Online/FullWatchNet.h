@@ -7,6 +7,12 @@
 // @pvz-online: network buffers and per-viewer initialization acknowledgements
 // stay outside Board and never become part of player save files.
 struct FullWatchNet {
+    struct RoomPeer { uint64_t identity=0,started=0,requested=0,renew=0; bool present=false,failed=false,ready=false; };
+    RoomPeer peers[7]{};
+    uint32_t subscription=0,viewerSubscription[7]{},lastSequence=0,lastEpoch=0;
+    uint64_t requestedAt=0,pictureAt=0,directAt=0;
+    uint64_t pairWindow=0;unsigned pairRequests=0;
+    bool receivedDirect=false,forceRelay[7]{},urgent[7]{},fallbackRequested=false;
     snapshot::Reassembler assembly{};
     snapshot::Codec codec{};
     snapshot::Buffer outgoing[7]{};

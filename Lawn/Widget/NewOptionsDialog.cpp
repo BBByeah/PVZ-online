@@ -379,7 +379,7 @@ void NewOptionsDialog::CheckboxChecked(int theId, bool checked)
 //0x45D290
 void NewOptionsDialog::KeyDown(Sexy::KeyCode theKey)
 {
-    if(mApp->HandleOnlinePauseKey(theKey))return;
+ if(mApp->HandleOnlinePauseKey(theKey))return;
     if (mWidgetManager && mWidgetManager->mIsKeyRepeat &&
         (theKey == KEYCODE_ESCAPE || theKey == KEYCODE_SPACE || theKey == KEYCODE_RETURN)) return;
     if (mMusicOpen) {
@@ -633,6 +633,9 @@ void NewOptionsDialog::MouseUp(int x, int y, int theClickCount) {
             ModText::Tr("划取设置未保存，请重试。", "Collection setting was not saved. Retry."), "OK", "", Dialog::BUTTONS_FOOTER);
     }
     if (action == 504) { CloseRunInfo(); mApp->ShowCoopPlay(); return; }
+    if(action==505 && !mApp->SetObserverP2P(!mApp->mObserverP2P))
+        mApp->LawnMessageBox(DIALOG_MESSAGE,ModText::Tr("保存失败","Save failed"),
+            ModText::Tr("设置未保存，请重试。","Setting was not saved. Please retry."),"OK","",Dialog::BUTTONS_FOOTER);
     MarkDirty();
 }
 void NewOptionsDialog::OpenCreatorLink(int action) {
@@ -680,7 +683,7 @@ void NewOptionsDialog::DrawRunInfo(Sexy::Graphics* graphics) {
     mRunInfoView.Draw(graphics, mApp->IsRunMode() ? mApp->GetRunState() : nullptr,
         mApp->mBoard != nullptr, mApp->IsOnlineGame(),
         mApp->mBoard && mApp->mBoard->PlantHealthVisible(),
-        mApp->mBoard && mApp->mBoard->ZombieHealthVisible(), mApp->mSlideCollect, language, mRunInfoDown);
+        mApp->mBoard && mApp->mBoard->ZombieHealthVisible(), mApp->mSlideCollect, language, mRunInfoDown, false, false, mApp->mObserverP2P);
 }
 Sexy::Rect NewOptionsDialog::MusicEntryRect() {
     if (!mFromGameSelector) return Rect(mApp->IsRunMode() ? 54 : 132, 264, 156, 46);

@@ -69,6 +69,8 @@ public:
 class LawnApp : public SexyApp
 {
 public:
+    bool mObserverP2P = false;
+    bool SetObserverP2P(bool enabled);
     Observer::InputFence mObserverInput;bool mObserverTextTail=false;
     bool FilterObserverInput(int,int=0,int=0,int=0)override;
     std::unique_ptr<CoopPlay> mCoopPlay;
@@ -156,12 +158,16 @@ public:
 	// 上一帧是不是已连接：联机面板只在"刚连上"那一下自动收起，之后玩家再点开就留在
 	// 屏幕上（不然面板一开就被按回去，等于打不开）。
 	bool							mOnlineWasConnected;
+    bool mOnlineHoldPrompted = false;
 	// 主机广播完开局命令、正等队友 START_ACK 的那段时间。这期间玩家还留在主菜单上
 	// （参数已经按覆盖值定好），ACK 一到才 NewGame()——两边进场只差一个单程。
 	bool							mOnlineWaitingStartAck;
 	// 这次等待已经持续了多少帧。等太久（对面卡了/忙）就当这次开局作废，人留在菜单上，
 	// 总好过盯着一个点不动的界面。
 	int								mOnlineStartWaitFrames;
+	// 孤儿 setup 相自救的节拍器：房主停在菜单、房间却停在 setup 相（放弃时的 op5 丢了）
+	// 时，按这个计数每 200 帧重发一次「回菜单」。
+	int								mOrphanSetupTicks;
 	// 棋盘上那句"等队友们"是不是我们挂上去的。是的话状态一变要由我们收掉——
 	// 不记这一笔就会把别人（戴夫、波次提示）的 advice 一起擦掉。
 	bool							mOnlineWaitingAdviceOn;
@@ -250,6 +256,7 @@ public:
 	virtual void					LostFocus();
 	virtual void					InitHook();
 	virtual void					WriteToRegistry();
+	virtual bool DrawDirtyStuff() override;
 	virtual void					ReadFromRegistry();
 	virtual void					LoadingThreadProc();
 	virtual void					LoadingCompleted();
@@ -347,11 +354,10 @@ public:
 	// @pvz-online: 队友退关了我这边跟着退。theNotifyOnline=false 用于"是我先退的/我是被通知的"，
 	// 免得两边互相回话形成回声。
 	void							UpdateOnlineLevelExit();
-	// @pvz-online: 仅 P 键同步战场暂停；菜单开合留在本机，不互相弹窗。
-	// 任一方都能暂停、也任一方都能继续（共识模型，不搞请求/同意）。
+	// P controls shared battle pause; menus remain local.
 	void							UpdateOnlinePause();
-    bool UsesManualOnlinePause();
-    bool HandleOnlinePauseKey(int key);
+ bool UsesManualOnlinePause();
+ bool HandleOnlinePauseKey(int key);
 	// @pvz-online: 会话事件（连上了 / 掉线了）的收口。以前没人取，事件在队列里越堆越多。
 	void							UpdateOnlineEvents();
 	// @pvz-online: 这一关对全队结束没有——报"我清完了"、全队清完就一起回菜单、
@@ -390,7 +396,8 @@ public:
 	// theSpeedTier（2026-10-16）：僵尸移速成长档 0/1/2（无/×1.03/×1.05，每新场景复利）；
 	// 同日起 theBossFlag 升三档 0 关 / 1 仅末关 / 2 末关+场景 3（默认 2）。
 	void							StartRun(int theRunMode, int theRunDiff, int theRunScale = 1, int theRunTempo = 1, int theZombotany = 0, int theEndlessScene = 0, int theBossFlag = 2, int theBuffMult = 0, int theLadder = 0, int theZombieBuff = 1, int theSpeedTier = 0, int theFirstWave = 0, int theEndlessOptions = 141);	// theRunMode = RunState::RUN_MODE_*（时长档）、theRunDiff = RunState::RUN_DIFF_*（出怪难度档）
-	void							ContinueRun(int theMode=-1, int theScene=0);
+	void							ContinueRun(int theMode=-1, int theScene=0, uint64_t slot=0);
+    void ChooseEndlessSave();
 	void							EnterRunLevel();
 	// @pvz-online: 联机闯关（R5）：把本机进度对齐到主机点名的这一关。同一局种子就接着走
 	// （落后 = 从本地检查点续，欠的关靠补发追赶补回来）；对不上 / 没检查点 / 时长档或
@@ -407,7 +414,7 @@ public:
 	// （权威在主机，一律按快照覆盖）；非法档在实现里钳回现状档/关。
 	// theSpeedTier（2026-10-16）：僵尸移速成长档 0/1/2——房间级设置（只覆盖）。
 	// （默认参用字面量：头里对 RunState 只有前置声明。）
-	void							AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode, int theRunDiff,
+	bool							AlignRunToHost(int theRunSeed, int theTargetIndex, int theRunMode, int theRunDiff,
 							int theRunScale = 1, int theRunTempo = 1, int theZombotany = 0,
 							int theEndlessScene = 0, int theBossFlag = 0, int theBuffMult = 0,
 							int theLadder = 0, int theZombieBuff = 0, const uint8_t* theZombieStacks = nullptr,
@@ -545,7 +552,6 @@ public:
 	virtual void					ButtonMouseLeave(int theId);
 	virtual void					ButtonMouseMove(int theId, int theX, int theY);
 	virtual void					UpdateFrames();
-    bool DrawDirtyStuff() override;
 	virtual bool					UpdateApp();
 	/*inline*/ bool					IsAdventureMode();
 	/*inline*/ bool					IsSurvivalMode();

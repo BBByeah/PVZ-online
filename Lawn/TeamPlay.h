@@ -8,6 +8,8 @@ namespace TeamPlayUi {
 void Install(LawnApp*,TeamProgressionView::Controller*);
 void Show(LawnApp*,TeamProgressionView::Page);
 void Close(LawnApp*);
+bool QuickVisible(LawnApp*);
+bool OpenQuick(LawnApp*);
 }
 class TeamPlay final : public TeamProgressionView::Controller {
 public:
@@ -20,7 +22,15 @@ public:
     static bool NoteVictory(LawnApp*);
     static bool SaveCoopTransaction(LawnApp*,bool lawn=true);
     static void NoteSharedPlant(LawnApp*,int plant);
+    static float HealthMultiplier(LawnApp*);
+    static float SeedMultiplier(LawnApp*);
+    static bool IsSupportCard(LawnApp*,uint32_t coin);
+    static bool UseSupportCard(LawnApp*,uint32_t coin,int row,int column);
+    static void SpendRestrictedSun(LawnApp*,int amount);
     void Update();
+    TeamProgressionView::Snapshot ReadQuick() const;
+    TeamProgressionView::Snapshot ReadForUi(bool compact) const;
+    uint64_t PlayerPlantMask(uint64_t player) const;
     bool HoldPreparation();
     bool HoldPersonalRewards();
     void PrepareBattle();
@@ -35,27 +45,38 @@ private:
     uint64_t selected=0,quote=0;
     uint32_t viewRevision=1;
     uint32_t shownBallotRevision=0;
-    int quoteRow=-1,quoteColumn=-1,quoteCost=-1,reportTicks=0,voteTicks=0,saveTicks=0;
+    int quoteRow=-1,quoteColumn=-1,quoteCost=-1,reportTicks=0,saveTicks=0;
     bool wantsVote=false,dirty=false,reportedClear=false,baselineCaptured=false,recoverLawn=false;
     std::string notice;
+    std::string pendingGain;
     TeamGoals::Ledger goals;
     int goalsProfile=-1;
     bool goalsValid=true,goalsPending=false;
     bool SyncGoals();
     NetSession* Session()const;
     bool Host()const;
+    bool HasTeammates()const;
     uint32_t Attempt()const;
     TeamWire::Message Message(uint8_t)const;
     bool Send(TeamWire::Message,uint64_t target=0);
     void Handle(const TeamWire::Message&);
     void Broadcast();
     void Report();
+    bool LocalVoteReady()const;
+    bool VoteDue()const;
+    void TryBeginBallot();
+    void PresentVote();
+    void QueueGain(const TeamProgression::Shared&);
     bool Save(bool lawn=false);
     bool BattleCheckpointReady()const;
     void BeginContext();
     void GrantRelief();
     void Reply(const TeamProgression::Strike&,uint8_t);
     void Execute(TeamProgression::Receipt&);
+    void ExecuteBlast(TeamProgression::Receipt&);
+    bool HasSupportCard()const;
+    void ExpireSupportCard();
+    void GrantStageBuffs();
     bool Capture(std::vector<unsigned char>&)const;
     bool Restore(const std::vector<unsigned char>&);
     bool CanSupport(uint64_t target,int row,int col,std::string& why)const;

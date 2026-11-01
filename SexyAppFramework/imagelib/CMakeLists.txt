@@ -21,13 +21,8 @@ endif()
 # support for windows
 if(MSVC)
     set(libjpeg_binary "jpeg-static.lib")
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set(zlib_binary "zlibstaticd.lib")
-        set(libpng_binary "libpng16_staticd.lib")
-    else()
-        set(zlib_binary "zlibstatic.lib")
-        set(libpng_binary "libpng16_static.lib")
-    endif()
+    set(zlib_binary "zlibstatic.lib")
+    set(libpng_binary "libpng16_static.lib")
 else() # linux
     set(libjpeg_binary "libjpeg.a")
     set(zlib_binary "libzlibstatic.a")
@@ -41,8 +36,7 @@ ExternalProject_Add(libjpeg-src
     UPDATE_COMMAND      ""
     SOURCE_DIR          "${THIRD_PARTY_DIR}/libjpeg-turbo"
     BINARY_DIR          "${libjpeg_dir}"
-    CMAKE_ARGS          "-DCMAKE_TOOLCHAIN_FILE:FILEPATH=${CMAKE_TOOLCHAIN_FILE}"
-                        "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+    CMAKE_ARGS          "-DCMAKE_TOOLCHAIN_FILE:FILEPATH=${CMAKE_TOOLCHAIN_FILE}" "-DCMAKE_BUILD_TYPE=Release"
                         "-DCMAKE_INSTALL_PREFIX=${libjpeg_dir}/install" # unused, have to specify
                         "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
                         "-DCMAKE_C_FLAGS=${universal_cflags}"
@@ -79,8 +73,7 @@ ExternalProject_Add(zlib-src
     DOWNLOAD_COMMAND        ""
     UPDATE_COMMAND          ""
     SOURCE_DIR              "${THIRD_PARTY_DIR}/zlib"
-    CMAKE_ARGS              "-DCMAKE_TOOLCHAIN_FILE:FILEPATH=${CMAKE_TOOLCHAIN_FILE}"
-                        "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+    CMAKE_ARGS              "-DCMAKE_TOOLCHAIN_FILE:FILEPATH=${CMAKE_TOOLCHAIN_FILE}" "-DCMAKE_BUILD_TYPE=Release"
                             "-DCMAKE_INSTALL_PREFIX=${zlib_dir}"
                             "-DCMAKE_C_FLAGS=${universal_cflags}"
                             "-Wno-dev"
@@ -113,8 +106,7 @@ ExternalProject_Add(libpng-src
     UPDATE_COMMAND          ""
     DEPENDS                 zlib-src
     SOURCE_DIR              "${THIRD_PARTY_DIR}/libpng"
-    CMAKE_ARGS              "-DCMAKE_TOOLCHAIN_FILE:FILEPATH=${CMAKE_TOOLCHAIN_FILE}"
-                        "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+    CMAKE_ARGS              "-DCMAKE_TOOLCHAIN_FILE:FILEPATH=${CMAKE_TOOLCHAIN_FILE}" "-DCMAKE_BUILD_TYPE=Release"
                             "-DCMAKE_INSTALL_PREFIX=${libpng_dir}"
                             "-DCMAKE_C_FLAGS=${universal_cflags}"
                             "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"

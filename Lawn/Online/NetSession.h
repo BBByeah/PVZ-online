@@ -1,3 +1,4 @@
+#include "FullWatchNet.h"
 #include "CoopProtocol.h"
 #include "NameplateWire.h"
 #include "TeamProgressionWire.h"
@@ -6,6 +7,7 @@
 #include "AdmissionWire.h"
 #include "ObserverWireV2.h"
 #include "ObserverTransfer.h"
+#include "ObserverDirectLink.h"
 #include <deque>
 #ifndef __NETSESSION_H__
 #define __NETSESSION_H__
@@ -14,7 +16,6 @@
 #include <string>
 #include <vector>
 #include "NetLink.h"
-#include "FullWatchNet.h"
 
 // @pvz-online: M2/M3 会话层——"谁建房、谁坐哪个席位、握手、心跳、掉线"这套规矩收在这里，
 // 游戏代码只问状态、只收事件，不碰 socket。
@@ -32,7 +33,13 @@ public:
     std::unique_ptr<FullWatchNet> mFullWatch=std::make_unique<FullWatchNet>();
     bool TakeFullWatch(std::vector<unsigned char>& data);
     void PumpFullWatch();
-    void ReceiveFullWatch(const uint8_t* data, int size);
+    void ReceiveFullWatch(const uint8_t*,int);
+    void ReceiveFullEnvelope(const uint8_t*,int,bool);
+    void TickRoomDirect(uint64_t);
+    bool HandleRoomPunch(const uint8_t*,int);
+    bool RequestFullWatch(bool relay=false);
+    bool RoomPeerReady(uint8_t seat)const{return mPunchLink.RoomReady(seat);}
+    bool RoomPeerFailed(uint8_t seat)const{return seat<=6&&mFullWatch->peers[seat].failed;}
     void SetLocalNameplate(uint8_t id);
     uint8_t GetSeatNameplate(uint8_t seat) const;
     // Initial create retry information; never infer it from localized text.
@@ -58,15 +65,21 @@ public:
     void SetPersistentPlayer(uint64_t token){mPersistentPlayer=token;mCoopToken=token;}
     std::vector<AdmissionWire::Message> mAdmissionInbox;
     AdmissionWire::Message mAdmissionOffer;
+    // Unreleased MOD102: an endless START is paired with a durable run identity.
+    AdmissionWire::Message mEndlessStartContext,mLastEndlessStartContext;
+    uint64_t mEndlessStartRun=0;
+    bool mEndlessStartingResume=false,mEndlessStartingLegacy=false,mEndlessNeedsAdmission=false;
+    void PublishEndlessStartContext(uint8_t destination);
+
     int mAdmissionValues[NetProto::MAX_PLAYERS+1]{-1,-1,-1,-1,-1,-1,-1};
     uint32_t mAdmissionValuesEpoch=0;
-    uint8_t mAdmissionNewMask=0;
+    uint8_t mAdmissionNewMask=0,mAdmissionGrantMask=0;
     bool mHasCredential=false;
     uint8_t mCredential[16]{};
     int mGateWanted=-1,mGateRetry=0;
     uint32_t mGateEpoch=0,mGateRequest=0,mGateAck=0;
     bool HasAdmissionOffer(int level)const{return mAdmissionOffer.op==AdmissionWire::OFFER && mAdmissionOffer.run && mAdmissionOffer.level==uint32_t(level) && mAdmissionOffer.epoch==mReadyEpoch;}
-    bool SupportsAdmission() const{return mTransport==Transport::RELAY && mHasCredential;}
+    bool SupportsAdmission() const{return (mTransport==Transport::RELAY && mHasCredential) || (mTransport==Transport::DIRECT && IsConnected());}
     bool RequestRoomGate(bool open);
     void CancelPendingAdmissions();
     bool SendAdmission(AdmissionWire::Message message,uint8_t destination);
@@ -145,7 +158,6 @@ public:
 
 	// 一份快照解析后的样子（纯展示数据：接收端照它画，不建任何实体）。
 	// 数组定长给满协议上限——发送端已在源头截断，这里不可能更多。
-	// old: deprecated 15 Hz preview model; retained only for old code layout.
 	struct ViewSnapshot
 	{
 		struct Zombie
@@ -184,7 +196,7 @@ public:
 	static const int	RELAY_HANDSHAKE_FRAMES		= 1000;
 	// 观战（队友场地查看）的三个计时，同样 10ms 一拍：
 	static const int	WATCH_KEEPALIVE_FRAMES		= 200;	// 观看者每 2 秒一条保活
-	static const int	WATCH_SNAPSHOT_FRAMES		= 1500;	// @pvz-online: 15 s at 100 Hz; full generations arrive no faster than 5 s.
+	static const int	WATCH_SNAPSHOT_FRAMES		= 300;	// 观看者 3 秒没有快照 = 对面没响应，观看收场
 	static const int	WATCH_KEEPER_FRAMES			= 600;	// 被看方 6 秒收不到保活 = 观看者没了，停推
 	// @pvz-online MOD_BUILD 39：中继自动重连的三个计时（同样 10ms 一拍），和服务器侧
 	// （30 秒踢人 / 60 秒席位保留）配套成一个账：客户端最迟 15+45=60 秒就放弃，
@@ -303,6 +315,12 @@ public:
 	// 客户端侧：取出主机发来的开局命令（同时清掉）。没有就返回 false。
 	// 单槽而不是队列：开局命令只有"最新那条"有意义，堆着旧的开局命令没有用处。
 	bool			TakePendingStartLevel(NetProto::MsgStartLevel& theMsg);
+    bool IsPendingPreparationReplay() const {
+        return mHasPendingStart && mConsumedStartEpoch && mPendingStart.mReadyEpoch==mConsumedStartEpoch &&
+            mPendingStart.mReadyEpoch==mReadyEpoch &&
+            (!mFlowEnabled || (!mFlowLost && mFlowPhase==1 && mFlowEpoch==mReadyEpoch)) &&
+            !IsWaitingForNextRound(mLocalSeat);
+    }
 
 	// 客户端侧：告诉主机"开局命令收到、我进场了"（theAccepted=false 是"现在不行"，
 	// 比如人还在关卡里）。只在真的准备进场时发 true——不在主菜单（命令接不了）就别发 true，
@@ -321,6 +339,23 @@ public:
 	// 主机侧：有人回了"现在不行"。粘着的一条——TakeStartAck 是取一条清一条的，
 	// 细节会被取走，这条留着做"这次开不下去"的判断；下一次开局/回主菜单才清。
 	bool			AnyStartAckRejected() const { return mAnyAckRejected; }
+
+	// 主机侧：这次开局不干了（队友拒绝 / 超时 / 自己取消）。FLOW_START 一被中继收下
+	// 房间就进了 flowSetup 相，与成员答不答无关——不把它收回大厅，CanHostStart 会
+	// 一直停在假上，开局键就再也按不亮（2026-10-25 玩家报障）。
+	void			AbortFlowStartAttempt();
+
+	// 成员侧：房主刚才那条开局已被放弃、中继把房间收回大厅了——还挂着的"是否加入"
+	// 该收掉了，再点"加入"只会一个人进场。
+	bool			StartAttemptRolledBack() const;
+
+	// 主机侧：房间停在 setup 相、本机却没有任何在途的开局——上次放弃发出的「回菜单」
+	// 丢了（放弃的五条路里有一条是断线，那一下注定发不出去；重连归队后房间还停在 1 相，
+	// 中继对 setup 相没有服务端自救，开始键从此不亮）。
+	bool			IsOrphanFlowSetup() const;
+
+	// 孤儿 setup 相自救：重发一次「回菜单」，把房间收回大厅。
+	void			RecoverOrphanFlowSetup();
 
 	// 主机侧：全员都进场了——广播"各席位开始做自己的三选一"（闯关 R6 新时序的最后一环：
 	// 命令 → 各席位先进场并回 ACK → 收齐后 RUN_GO → 各席位在新草坪上放选项屏）。
@@ -404,8 +439,8 @@ public:
 
 	// 现在这个暂停是队友按的（菜单上据此注明"队友暂停了"）。
 	// 双方同时按的时候谁也不抢这个署名——只有"收到 0→1"才置真。
-	bool IsSharedPaused() const { return mSharedPaused; }
-	bool			IsPausedByPeer() const { return mSharedPaused && mPauseCameFromPeer; }
+	bool			IsSharedPaused() const { return mSharedPaused; }
+ bool IsPausedByPeer() const { return mSharedPaused && mPauseCameFromPeer; }
 
 	// 给玩家看的即时说明（几秒后自己消失）。握手/换位之外的地方也要能写一句，
 	// 所以把它开出来——UI 重建时说明不会跟着丢。
@@ -494,7 +529,7 @@ public:
 	// 一条保活，3 秒收不到快照就收场（WatchEnd::TIMEOUT）。没连上/席位越界/空位/
 	// 是我自己，都返回 false（看不成）。
 	bool			BeginWatch(uint8_t theSeat);
-    static constexpr uint32_t ObserverRevision=0x9402;
+    static constexpr uint32_t ObserverRevision=0x9603;
     void SetObserverBoard(uint64_t instance,bool active);
     bool IsWatchingV2()const{return mObserverWatch!=0;}
     bool ObserverAccepted()const{return mObserverAccepted;}
@@ -502,19 +537,48 @@ public:
     uint32_t ObserverStream()const{return mObserverRemoteStream;}
     uint32_t ObserverEpoch()const{return mReadyEpoch?mReadyEpoch:1;}
     bool HasObserverWatchers()const;
-    bool ObserverCanCapture()const{return HasObserverWatchers()&&mLink.ObserverWritable();}
+    bool ObserverCanCapture()const;
+    bool CanWatchSeat(uint8_t seat)const{return IsConnected()&&seat>=1&&seat<=NetProto::MAX_PLAYERS&&seat!=mLocalSeat&&IsSeatOccupied(seat)&&!IsSeatOffline(seat)&&!IsWaitingForNextRound(seat)&&(!mCoopToken||mCoopPeers[seat]!=mCoopToken);}
+    bool ObserverNeedsInitialCapture()const{for(const auto&v:mObserverViewers)if(v.watch&&v.pending)return true;return false;}
+
+    void SetObserverP2PEnabled(bool enabled);
+    bool ObserverP2PEnabled()const{return mObserverP2PEnabled;}
+    bool IsObserverDirect()const;
+    const char* ObserverDiagnosticState()const;
+    uint32_t ObserverRtt()const{return mFullWatch->subscription?mPunchLink.RoomRtt(mWatchTargetSeat):mPunchLink.Rtt(DirectContext(mWatchTargetSeat,false));}
+    int64_t ObserverPictureAge()const;
+    void ObserverPictureApplied(bool direct);
+    uint32_t mDiagnosticWatch=0,mDiagnosticStream=0,mDiagnosticEpoch=0;
+    uint64_t mDiagnosticPictureAt=0,mDiagnosticDirectAt=0,mDiagnosticConnectAt=0;
+    void StopObserverDirect(){mPunchLink.Cancel(mObserverWatch);mPunchFailedWatch=mObserverWatch;}
+    uint64_t ObserverDirectInterval()const;
+
     bool SendObserverDisplay(const std::vector<uint8_t>& body,uint32_t tick);
+    void ObserverCaptureFailed();
+    uint32_t ObserverRequestCooldown()const;
     bool TakeObserverDisplay(ObserverTransfer::Complete& out);
 private:
     void ObserverV2Tick();void HandleObserver(uint16_t,const uint8_t*,int);
+    void HandlePunchControl(const uint8_t*,int);   // @pvz-online P2P-a：0xF024 打洞控制面
     bool ObserverControl(uint8_t,ObserverWireV2::ControlOp,uint32_t,uint32_t);
     void ClearObserverV2();
-    struct ObserverViewer{uint32_t watch=0,stream=0;uint64_t touched=0;};
+    struct ObserverViewer{uint32_t watch=0,stream=0;uint64_t touched=0;bool pending=false;};
     ObserverViewer mObserverViewers[7]{};
-    uint64_t mObserverBoard=0,mObserverQueryAt=0,mObserverKeepAt=0,mObserverLast=0;
+    uint64_t mObserverBoard=0,mObserverQueryAt=0,mObserverKeepAt=0,mObserverLast=0,mObserverRequestAt=0,mObserverPendingAt=0;
     uint32_t mObserverLocalStream=0,mObserverRemoteStream=0,mObserverWatch=0,mObserverSeq=0;
     uint32_t mObserverEpoch=0,mObserverTerm=0;
-    bool mObserverBoardActive=false,mObserverRelay=false,mObserverAccepted=false;
+    bool mObserverBoardActive=false,mObserverRelay=false,mObserverAccepted=false,mObserverReceived=false;
+    // P2P 打洞（观战第二期 P2P-a）：问候/探测端点发现；画面直连数据通道是 P2P-b。
+    bool mObserverP2PEnabled=false;
+    ObserverDirect::DirectLink mPunchLink;
+    std::uint64_t mPunchQueryAt=0;
+    bool mPunchRelay=false,mPunchAdvertised=false;
+    uint64_t mPunchAttemptAt=0,mPunchRenewAt=0,mObserverDirectAt=0;
+    uint32_t mPunchAttemptWatch=0,mPunchFailedWatch=0;int mPunchAttempts=0;
+    uint64_t mDirectSentAt[7]{};
+    ObserverDirect::Context DirectContext(uint8_t peer,bool producer)const;
+    void TickObserverDirect(uint64_t now);
+
     ObserverTransfer::Assembler mObserverAssembler;
     std::deque<ObserverTransfer::Complete> mObserverInbox;
 public:
@@ -529,7 +593,7 @@ public:
 	WatchEnd		TakeWatchEnded();
 	// 观看端：最新一份快照到了没有（取一次就清；棋盘每帧问一次）。快照是"最新覆盖"的流，
 	// 只留一份不排队——过期的战场定格没有展示价值，丢了就丢了。
-	bool			TakeViewSnapshot(ViewSnapshot& theSnapshot); // old: deprecated, not compiled
+	bool			TakeViewSnapshot(ViewSnapshot& theSnapshot);
 
 	// 被看端：现在有人在看我吗（棋盘据此决定这一帧要不要打包快照）。
 	bool			HasBoardWatchers() const { return mBoardWatcherMask != 0; }
@@ -638,6 +702,7 @@ private:
     void HandlePreparation(const PreparationWire::Message& message);
     void PublishPreparation();
     void UpdatePreparation();
+    void RestorePreparedRejoin();
     void PreparationSeatSwapApplied(uint8_t a,uint8_t b);
     uint32_t mReadyEpoch=0;
     bool mSeedsReadySent=false;
@@ -765,6 +830,7 @@ private:
 	uint8_t				mSwapRequestSeat;	// 我发出的换位请求发给了谁（SEAT_UNSET = 没在等）
 	int					mSwapRequestTicks;	// 换位请求等答复的剩余帧数（2026-10-15：超时自己收摊，等答复不能没出路）
 	uint8_t				mSwapAskSeat;		// 哪个席位正问我换不换（SEAT_UNSET = 没有）
+	int mSwapAskTicks = 0; // Incoming consent expires independently of an outgoing request.
 	bool				mSwapCommitHandled;	// 中继：COMMIT 已经有人接手（我发的，或对面会发），等广播
 	bool				mAnyAckRejected;	// 收到过"现在不行"（粘着，直到下一次开局）
 	int					mFramesSinceRoomRequest;	// 中继：发了 CREATE/JOIN 之后等了多少帧（10 秒判死）

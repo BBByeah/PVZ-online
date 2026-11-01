@@ -636,19 +636,20 @@ public:
 	// 观看端按住 V 时整窗画队友场地（批③），自己的棋盘照跑不暂停。
 	// 挂在 Update 的 mPaused 早退之前：被看方暂停时也要推（快照带 PAUSED 位）。
 	void							UpdateBoardWatch();
-	int								BuildBoardSnapshot(uint8_t* theBuffer, int theCapacity); // old: deprecated, not compiled
+	int								BuildBoardSnapshot(uint8_t* theBuffer, int theCapacity);
 	bool							HandleBoardWatchKey(KeyCode theKey);	// KeyDown 钩子；true = 吞键
 	bool							IsWatchingView();						// V 按着 + 订阅在 + 局内
 	uint8_t							PickDefaultWatchSeat();
-	void							DrawBoardWatch(Graphics* g); // old: deprecated, not compiled			// 全屏观看层（只读快照）
+	void							DrawBoardWatch(Graphics* g);			// 全屏观看层（只读快照）
 	void							DrawWatchNotice(Graphics* g);			// 结束提示（超时/离开）
 
 	NetSession::ViewSnapshot		mRemoteSnapshot;		// 最新一份队友战场定格（观看端）
 	bool							mHasRemoteSnapshot;
 	NetSession::WatchEnd			mWatchEndSeen;			// 待展示的结束原因（TIMEOUT/TARGET_LEFT；展示完清回 NONE）
 	int								mWatchNoticeTimer;		// 结束提示残留帧数（~2 秒）
-	bool							mWatchKeyHeld;			// 本机 V 按住中（结束观看也要等松手再按）
+	bool							mWatchKeyHeld;			// 观看中（V 或按钮进入；按 Esc 退出）
 	bool							mWatchRearmBlocked;		// ESC 退场后压住重进，直到 V 真的松手（防自动重复）
+	bool							mWatchKeyHandled;		// 这次 V 按下已处理（按住期间的自动重复不算新的一下）
 	uint8_t							mWatchLastSeat;			// 上次看的席位（再按 V 还看他；SEAT_UNSET = 无）
 	int								mWatchSnapshotTicker;	// 被看端发送节拍（每 7 帧 ≈ 15Hz 一份）
 

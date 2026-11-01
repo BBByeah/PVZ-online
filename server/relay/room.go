@@ -106,6 +106,7 @@ func (r *Room) broadcast(s *Server, except *Conn, frame []byte) {
 type Server struct {
 	observerBusy        atomic.Bool
 	observerMemory      atomic.Int64
+	observerBudgetMu    sync.Mutex
 	observerBudgetAt    time.Time
 	observerBudgetBytes int
 	lookupRates         map[string]lookupRate
@@ -118,6 +119,7 @@ type Server struct {
 	stats               relayCounters
 	status              statusCache
 	ops                 operationsState
+	punch               punchHub
 	startedAt           time.Time
 	gamePort            int
 
@@ -288,8 +290,17 @@ func (s *Server) handleSwapCommitWithTerm(c *Conn, a, b uint8, term, epoch, requ
 	if r == nil || (r.flow.enabled && term != r.flow.term) {
 		return
 	}
-	if r.flow.enabled && (r.flow.phase != flowSetup || epoch != r.flow.epoch || request == 0 || request != r.flow.prepRequest || r.flow.prepPhase != 3 || r.flow.prepCommitted || !((a == r.flow.prepA && b == r.flow.prepB) || (a == r.flow.prepB && b == r.flow.prepA))) {
-		return
+	if r.flow.enabled {
+		if r.flow.phase == flowLobby {
+			// Lobby consent uses the legacy request/reply, without a preparation
+			// revision. Bind its commit to this round and the sender's old seat;
+			// a repeated commit cannot toggle the completed exchange back.
+			if epoch != r.flow.epoch || request != 0 || a != c.seat {
+				return
+			}
+		} else if r.flow.phase != flowSetup || epoch != r.flow.epoch || request == 0 || request != r.flow.prepRequest || r.flow.prepPhase != 3 || r.flow.prepCommitted || !((a == r.flow.prepA && b == r.flow.prepB) || (a == r.flow.prepB && b == r.flow.prepA)) {
+			return
+		}
 	}
 	if a < 1 || a > maxPlayers || b < 1 || b > maxPlayers || a == b {
 		return
@@ -302,7 +313,7 @@ func (s *Server) handleSwapCommitWithTerm(c *Conn, a, b uint8, term, epoch, requ
 		s.logf("room %s: seat %d tried to swap seats %d/%d it doesn't own - dropped", r.code, c.seat, a, b)
 		return
 	}
-	if r.flow.enabled {
+	if r.flow.enabled && r.flow.phase == flowSetup {
 		r.flow.prepCommitted = true
 	}
 	r.bySeat[a], r.bySeat[b] = cb, ca
@@ -508,6 +519,7 @@ func (s *Server) removeConn(c *Conn, reason uint8) {
 		return
 	}
 	s.clearObserverConn(r, c)
+	s.punchDrop(r, c)
 	c.room.Store(nil)
 	seat := c.seat
 	if seat >= 1 && seat <= maxPlayers && r.bySeat[seat] == c {
@@ -617,7 +629,7 @@ func (s *Server) sweepOnce(now time.Time) {
 func (s *Server) sweepRoom(r *Room, now time.Time) bool {
 	for i, v := range r.observer {
 		if v != nil {
-			if now.Sub(v.touched) > 4*time.Second || r.bySeat[v.source.seat] != v.source || r.bySeat[v.viewer.seat] != v.viewer || v.term != r.flow.term && r.flow.enabled || v.epoch != r.flow.epoch && r.flow.enabled {
+			if observerExpired(v, now) || r.bySeat[v.source.seat] != v.source || r.bySeat[v.viewer.seat] != v.viewer || v.term != r.flow.term && r.flow.enabled || v.epoch != r.flow.epoch && r.flow.enabled {
 				s.clearObserverAssembly(v)
 				v.viewer.observer.clear(s)
 				r.observer[i] = nil

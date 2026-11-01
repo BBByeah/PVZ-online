@@ -16,7 +16,11 @@ set(CMAKE_CXX_STANDARD 23)
 # @Patoke todo: probably add MSVC counterparts?
 if(MSVC)
     # @pvz-online: Ninja must parse the same /showIncludes language as cl; mismatches silently lose header dependencies.
-    set(CMAKE_CL_SHOWINCLUDES_PREFIX "Note: including file: ")
+    if(DEFINED PVZ_MSVC_SHOWINCLUDES_PREFIX)
+        set(CMAKE_CL_SHOWINCLUDES_PREFIX "${PVZ_MSVC_SHOWINCLUDES_PREFIX}")
+    else()
+        set(CMAKE_CL_SHOWINCLUDES_PREFIX "${CMAKE_CXX_CL_SHOWINCLUDES_PREFIX}")
+    endif()
     set(CMAKE_C_COMPILER_LAUNCHER "${CMAKE_COMMAND};-E;env;VSLANG=1033")
     set(CMAKE_CXX_COMPILER_LAUNCHER "${CMAKE_COMMAND};-E;env;VSLANG=1033")
     # sources are UTF-8 (no BOM); MSVC defaults to system codepage and misparses CJK comments

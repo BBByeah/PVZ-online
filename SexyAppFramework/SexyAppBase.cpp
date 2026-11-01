@@ -1,3 +1,6 @@
+#include "../Lawn/Online/FullWatch.h"
+#include "../Lawn/Automation/Control.h"
+#include "../LawnApp.h"
 //#define SEXY_TRACING_ENABLED
 //#define SEXY_PERF_ENABLED
 //#define SEXY_MEMTRACE
@@ -3835,6 +3838,7 @@ LRESULT CALLBACK SexyAppBase::WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
 
 void SexyAppBase::HandleNotifyGameMessage(int theType)
 {
+    if(MachineControl::Enabled()||FullWatch::IsObserver())return;
 	if (theType==0) // bring to front message
 	{
 		WINDOWPLACEMENT aWindowPlacement;
@@ -4896,7 +4900,8 @@ void SexyAppBase::MakeWindow()
 	sprintf(aStr, "HWND: %d\r\n", mHWnd);
 	OutputDebugString(aStr);*/
 
-	SetWindowLongPtr(mHWnd, GWLP_USERDATA, (intptr_t) this);	
+	SetWindowLongPtr(mHWnd, GWLP_USERDATA, (intptr_t) this);
+    FullWatch::AttachWindow(mHWnd);
 
 	if (mDDInterface == NULL)
 	{
@@ -5156,7 +5161,7 @@ void SexyAppBase::SwitchScreenMode(bool wantWindowed, bool is3d, bool force)
 	
 	// We need to do this check to allow IE to get focus instead of
 	//  stealing it away for ourselves
-	if (!mIsOpeningURL)
+	if (!mIsOpeningURL && !MachineControl::Enabled() && !FullWatch::IsObserver())
 	{
 		::ShowWindow(mHWnd, SW_NORMAL);
 		::SetForegroundWindow(mHWnd);
@@ -5164,7 +5169,7 @@ void SexyAppBase::SwitchScreenMode(bool wantWindowed, bool is3d, bool force)
 	else
 	{
 		// Show it but don't activate it
-		::ShowWindow(mHWnd, SW_SHOWNOACTIVATE);
+		::ShowWindow(mHWnd, FullWatch::IsObserver()?SW_HIDE:SW_SHOWNOACTIVATE);
 	}
 
 	if (mSoundManager!=NULL)
@@ -5648,6 +5653,7 @@ void SexyAppBase::DoMainLoop()
 
 bool SexyAppBase::UpdateAppStep(bool* updated)
 {
+    if(gLawnApp)MachineControl::Tick(gLawnApp);
 	// @pvz-online: gScreenSaverActive 置位期间 DoUpdateFrames/DrawDirtyStuff 全部拒绝工作，
 	// 而这里的循环没有节流——历史行为是全速空转（实测 50 万次/秒）烧核 + 窗口假死。
 	// 真屏保运行时小睡让出 CPU，输入回来后 ssi 清标志即自动恢复。
@@ -5871,8 +5877,8 @@ void SexyAppBase::Start()
 	if (mAutoStartLoadingThread)
 		StartLoadingThread();
 
-	::ShowWindow(mHWnd, SW_SHOW);	
-	::SetFocus(mHWnd);
+	::ShowWindow(mHWnd, FullWatch::IsObserver()?SW_HIDE:MachineControl::Enabled()?SW_SHOWNOACTIVATE:SW_SHOW);
+	if (!MachineControl::Enabled()&&!FullWatch::IsObserver()) ::SetFocus(mHWnd);
 
 	timeBeginPeriod(1);
 
@@ -6323,7 +6329,9 @@ void SexyAppBase::Init()
 	}
 
 	InitPropertiesHook();
-	ReadFromRegistry();	
+    MachineControl::Configure(gLawnApp);
+    if(FullWatch::IsObserver()){mIsWindowed=true;mFullScreenWindow=false;mAutoEnable3D=false;}
+    ReadFromRegistry();
 
 	if (CheckForVista())
 	{
@@ -6352,6 +6360,7 @@ void SexyAppBase::Init()
 		}
 	}
 	
+	if(FullWatch::IsObserver())SetAppDataFolder(FullWatch::ObserverDataRoot());
 	if (!mCmdLineParsed)
 		DoParseCmdLine();
 

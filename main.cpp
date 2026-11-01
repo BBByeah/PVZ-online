@@ -1,4 +1,5 @@
 #include "LawnApp.h"
+#include "Lawn/Automation/Control.h"
 #include "Resources.h"
 #include "Sexy.TodLib/TodStringFile.h"
 using namespace Sexy;
@@ -59,6 +60,7 @@ int WINAPI WinMain(_In_ HINSTANCE /* hInstance */, _In_opt_ HINSTANCE /* hPrevIn
 	gLawnApp->Init();
 	gLawnApp->Start();
 	gLawnApp->Shutdown();
+    MachineControl::Stop();
 	if (gLawnApp)
 		delete gLawnApp;
 

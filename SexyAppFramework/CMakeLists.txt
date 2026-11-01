@@ -375,3 +375,8 @@ endif()
 target_sources(LawnProject PRIVATE ../Lawn/Observer/ObserverDrawScene.cpp ../Lawn/Observer/ObserverDrawCodec.cpp)
 
 target_include_directories(LawnProject PRIVATE "..")
+
+target_sources(LawnProject PRIVATE ../Lawn/Automation/Control.cpp ../Lawn/Automation/Diagnostics.cpp)
+target_link_libraries(LawnProject PRIVATE advapi32)
+
+target_sources(LawnProject PRIVATE ../Lawn/Online/FullWatch.cpp ../Lawn/Online/WatchState.cpp)

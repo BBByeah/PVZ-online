@@ -1,3 +1,4 @@
+#include "../Automation/Diagnostics.h"
 #include "NetLink.h"
 #include "NetOutbound.h"
 #include "LegacyObserverQueue.h"
@@ -41,6 +42,15 @@ struct NetLink::Impl
 {
     NetOutbound outbound;
     NetOutbound::Bytes outgoing;
+    static void LogFullWatchSent(const std::vector<uint8_t>& packet){
+        if(!LocalWatchPacket(packet.data(),packet.size()))return;
+        size_t start=(uint16_t(packet[0]|packet[1]<<8)==NetProto::MSG_BOARD_SNAPSHOT)?4:14;
+        if(packet.size()<start+17)return;auto*p=packet.data()+start;
+        auto u32=[](const uint8_t*q){return uint32_t(q[0])|uint32_t(q[1])<<8|uint32_t(q[2])<<16|uint32_t(q[3])<<24;};
+        if(p[2]!=0x53||p[3]!=0x57||u32(p+12)+packet.size()-start-16!=u32(p+8))return;
+        TestDiagnostics::Line("watch_tcp_sent","peer="+std::to_string(p[1])+" seq="+std::to_string(u32(p+4))+" envelope_bytes="+std::to_string(u32(p+8)));
+    }
+    static bool LocalWatchPacket(const uint8_t*p,size_t n){if(n<4)return false;auto u16=[](const uint8_t*q){return uint16_t(q[0]|q[1]<<8);};auto type=u16(p);if(type==NetProto::MSG_BOARD_SNAPSHOT)return true;return (type==NetProto::MSG_CLI_FLOW_GAME||type==NetProto::MSG_SRV_FLOW_GAME)&&n>=14&&u16(p+12)==NetProto::MSG_BOARD_SNAPSHOT;}
     size_t outgoingAt=0;bool outgoingDisplay=false;DWORD stalledSince=0;
     bool FlushWrites() {
         for(int count=0;count<8;++count) {
@@ -49,7 +59,7 @@ struct NetLink::Impl
                 outgoingAt=0;stalledSince=GetTickCount();
             }
             int n=send(mSocket,(const char*)outgoing.data()+outgoingAt,int(outgoing.size()-outgoingAt),0);
-            if(n>0){outgoingAt+=n;stalledSince=GetTickCount();if(outgoingAt==outgoing.size()){outbound.Completed(outgoingDisplay);bool optional=outgoingDisplay;outgoing.clear();/* Recheck critical before each of at most eight fragments per read slice. */}continue;}
+            if(n>0){TestDiagnostics::counters.tcpTx+=n;if(LocalWatchPacket(outgoing.data(),outgoing.size()))TestDiagnostics::counters.tcpLocalTx+=n;if(outgoingDisplay)TestDiagnostics::counters.tcpObserverTx+=n;outgoingAt+=n;stalledSince=GetTickCount();if(outgoingAt==outgoing.size()){LogFullWatchSent(outgoing);outbound.Completed(outgoingDisplay);bool optional=outgoingDisplay;outgoing.clear();/* Recheck critical before each of at most eight fragments per read slice. */}continue;}
             int error=WSAGetLastError();
             if(error==WSAETIMEDOUT||error==WSAEWOULDBLOCK||error==WSA_IO_PENDING){
                 if(DWORD(GetTickCount()-stalledSince)<5000)return true;
@@ -298,6 +308,7 @@ struct NetLink::Impl
 			int aRead = recv(mSocket, (char*)theBuffer + aGot, theCount - aGot, 0);
 			if (aRead > 0)
 			{
+				TestDiagnostics::counters.tcpRx+=aRead;
 				aGot += aRead;
 				continue;
 			}
@@ -338,6 +349,7 @@ struct NetLink::Impl
 			aPacket.mSize += aPayloadSize;
 		}
 
+if(LocalWatchPacket(aPacket.mData,aPacket.mSize))TestDiagnostics::counters.tcpLocalRx+=aPacket.mSize;
 		PushPacket(aPacket);
 	}
 

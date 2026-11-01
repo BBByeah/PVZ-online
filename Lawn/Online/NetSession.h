@@ -1,3 +1,4 @@
+#include "FullWatchNet.h"
 #include "CoopProtocol.h"
 #include "NameplateWire.h"
 #include "TeamProgressionWire.h"
@@ -29,6 +30,16 @@
 class NetSession
 {
 public:
+    std::unique_ptr<FullWatchNet> mFullWatch=std::make_unique<FullWatchNet>();
+    bool TakeFullWatch(std::vector<unsigned char>& data);
+    void PumpFullWatch();
+    void ReceiveFullWatch(const uint8_t*,int);
+    void ReceiveFullEnvelope(const uint8_t*,int,bool);
+    void TickRoomDirect(uint64_t);
+    bool HandleRoomPunch(const uint8_t*,int);
+    bool RequestFullWatch(bool relay=false);
+    bool RoomPeerReady(uint8_t seat)const{return mPunchLink.RoomReady(seat);}
+    bool RoomPeerFailed(uint8_t seat)const{return seat<=6&&mFullWatch->peers[seat].failed;}
     void SetLocalNameplate(uint8_t id);
     uint8_t GetSeatNameplate(uint8_t seat) const;
     // Initial create retry information; never infer it from localized text.
@@ -428,7 +439,8 @@ public:
 
 	// 现在这个暂停是队友按的（菜单上据此注明"队友暂停了"）。
 	// 双方同时按的时候谁也不抢这个署名——只有"收到 0→1"才置真。
-	bool			IsPausedByPeer() const { return mSharedPaused && mPauseCameFromPeer; }
+	bool			IsSharedPaused() const { return mSharedPaused; }
+ bool IsPausedByPeer() const { return mSharedPaused && mPauseCameFromPeer; }
 
 	// 给玩家看的即时说明（几秒后自己消失）。握手/换位之外的地方也要能写一句，
 	// 所以把它开出来——UI 重建时说明不会跟着丢。
@@ -532,6 +544,12 @@ public:
     void SetObserverP2PEnabled(bool enabled);
     bool ObserverP2PEnabled()const{return mObserverP2PEnabled;}
     bool IsObserverDirect()const;
+    const char* ObserverDiagnosticState()const;
+    uint32_t ObserverRtt()const{return mFullWatch->subscription?mPunchLink.RoomRtt(mWatchTargetSeat):mPunchLink.Rtt(DirectContext(mWatchTargetSeat,false));}
+    int64_t ObserverPictureAge()const;
+    void ObserverPictureApplied(bool direct);
+    uint32_t mDiagnosticWatch=0,mDiagnosticStream=0,mDiagnosticEpoch=0;
+    uint64_t mDiagnosticPictureAt=0,mDiagnosticDirectAt=0,mDiagnosticConnectAt=0;
     void StopObserverDirect(){mPunchLink.Cancel(mObserverWatch);mPunchFailedWatch=mObserverWatch;}
     uint64_t ObserverDirectInterval()const;
 

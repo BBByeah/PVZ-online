@@ -1,3 +1,5 @@
+#include "Online/FullWatch.h"
+#include "Automation/Control.h"
 #include <climits>
 #include "Run/RunSpeciesRuntime.h"
 #include "TeamPlay.h"
@@ -93,6 +95,8 @@ static void QuickChatDrawEmote(Graphics* g, float theX, float theY, SeedType the
 // GOTY @Patoke: 0x40A3C0
 Board::Board(LawnApp* theApp)
 {
+FullWatch::BoardCreated(this);
+
     RunSpeciesRuntime::Reset(this);
 	mApp = theApp;
     NextWave::Reset(this);
@@ -2155,6 +2159,8 @@ LawnMower* Board::GetBottomLawnMower()
 // GOTY @Patoke: 0x40E860
 void Board::UpdateLevelEndSequence()
 {
+if(FullWatch::IsObserver())return;
+
 	if (HasLivingBoss()) return;
 	if (mNextSurvivalStageCounter > 0)
 	{
@@ -2454,6 +2460,7 @@ Coin* Board::AddCoin(int theX, int theY, CoinType theCoinType, CoinMotion theCoi
 {
 	Coin* aCoin = mCoins.DataArrayAlloc();
 	aCoin->CoinInitialize(theX, theY, theCoinType, theCoinMotion);
+    if(FullWatch::IsObserver()){aCoin->Die();return aCoin;}
 	if (mApp->IsFirstTimeAdventureMode() && mLevel == 1)
 	{
 		DisplayAdvice(_S("[ADVICE_CLICK_ON_SUN]"), MessageStyle::MESSAGE_STYLE_TUTORIAL_LEVEL1_STAY, AdviceType::ADVICE_CLICK_ON_SUN);
@@ -2543,6 +2550,8 @@ bool Board::PreparePlantAnimations(SeedType seed, unsigned int count)
 
 Plant* Board::NewPlant(int theGridX, int theGridY, SeedType theSeedType, SeedType theImitaterType)
 {
+FullWatch::BoardEdited(this);
+
 	if (!PreparePlantAnimations(theSeedType)) return nullptr;
 	Plant* aPlant = mPlants.DataArrayAlloc();
 	aPlant->mIsOnBoard = true;
@@ -3785,6 +3794,8 @@ void Board::UpdateCursor()
 //0x40E760
 void Board::MouseMove(int x, int y)
 {
+if(FullWatch::IsObserver())return;
+
     if(mApp->TeamProgressionInputBlocked())return;
 	Widget::MouseMove(x, y);
 	mChallenge->MouseMove(x, y);
@@ -4931,6 +4942,8 @@ void Board::TutorialArrowRemove()
 //0x411060
 void Board::MouseDownWithTool(int x, int y, int theClickCount, CursorType theCursorType)
 {
+FullWatch::BoardEdited(this);
+
     if(mApp->TeamProgressionInputBlocked())return;
 	if (theClickCount < 0)
 	{
@@ -5313,6 +5326,8 @@ void Board::PickUpTool(GameObjectType theObjectType)
 //0x411F20
 void Board::MouseDown(int x, int y, int theClickCount)
 {
+if(FullWatch::IsObserver()){FullWatch::Click(x,y);return;}
+
     if(mApp->TeamProgressionInputBlocked())return;
     if (mApp->mOnlineSession && mApp->mOnlineSession->RelayBattleHeld()) { CoopMouseDown(x,y,theClickCount); return; }
     if(AdmissionBoard::MouseDown(this,x,y,theClickCount))return;
@@ -5538,6 +5553,8 @@ bool Board::CanInteractWithBoardButtons()
 //0x412540
 void Board::MouseUp(int x, int y, int theClickCount)
 {
+if(FullWatch::IsObserver())return;
+
     if(mApp->TeamProgressionInputBlocked())return;
     if (mApp->mOnlineSession && mApp->mOnlineSession->RelayBattleHeld()) { CoopMouseUp(x,y,theClickCount); return; }
     if(AdmissionBoard::MouseUp(this,x,y,theClickCount))return;
@@ -6202,11 +6219,18 @@ bool Board::TrySendSunGift(uint8_t theTargetSeat)
 // 优先级，见 KeyDown 挂钩顺序），其余键不吞。
 bool Board::HandleSunGiftKey(KeyCode theKey)
 {
-	// 观看中不发阳光（2026-10-25 排查）：选择态面板被观看层盖住，看不见的点击会白扣阳光
-	if (mWatchKeyHeld) return false;
+ // Only direct F-key gifts are accepted while spectating.
+	const bool directGift = theKey >= KEYCODE_F1 && theKey <= KEYCODE_F6;
+ if (mWatchKeyHeld && !directGift) return false;
 	if (!mApp->IsOnlineGame() || !mApp->IsRunMode()) return false;
 	if (mApp->mOnlineSession == nullptr) return false;
 	bool aSelecting = mSunGiftSelectFrames > 0;
+ if (directGift) {
+  if(mWidgetManager->mIsKeyRepeat || mApp->GetDialogCount()>0 ||
+     mApp->mGameScene!=GameScenes::SCENE_PLAYING)return true;
+  theKey=static_cast<KeyCode>('1'+theKey-KEYCODE_F1);
+  aSelecting=true;
+ }
 
 	if (theKey == 'G')
 	{
@@ -6273,6 +6297,8 @@ void Board::GiveSunGift(int theAmount, uint8_t theFromSeat)
 // 单机、队友掉线、末席（没有下一席位）这几种情况都返回 false，调用处照原样判负。
 bool Board::TryRelayEscapedZombie(Zombie* theZombie)
 {
+if(FullWatch::IsRelayedExit(this)){theZombie->DieNoLoot();return true;}
+
 	if (!mApp->IsOnlineGame()) return false;
 
 	NetProto::MsgEscapedZombie aMsg;
@@ -6360,6 +6386,8 @@ Zombie* Board::AddRelayedZombie(int theRow, ZombieType theZombieType, int theBod
 //0x413400
 void Board::ZombiesWon(Zombie* theZombie, bool theFromPeer)
 {
+if(FullWatch::IsObserver())return;
+
 	if (mApp->mGameScene == GameScenes::SCENE_ZOMBIES_WON)
 		return;
 
@@ -6539,6 +6567,8 @@ bool Board::OnlineWaitingForTeam()
 //0x413A70
 void Board::UpdateSunSpawning()
 {
+if(FullWatch::IsObserver())return;
+
 	if ((StageIsNight() && !mApp->RunSkySunAtNight()) ||
 		(HasLevelAwardDropped() && !OnlineWaitingForTeam()) ||
 		mApp->mGameMode == GameMode::GAMEMODE_CHALLENGE_RAINING_SEEDS || 
@@ -7112,6 +7142,7 @@ void Board::UpdateGame()
 //0x415D40
 void Board::Update()
 {
+    if(FullWatch::IsObserver()&&FullWatch::ObserverPaused()){mPaused=true;MarkDirty();return;}
     if (mApp->mOnlineSession && mApp->mOnlineSession->RelayBattleHeld()) {
         Widget::Update();MarkDirty();UpdateQuickChat();UpdateBoardWatch();return;
     }
@@ -9014,6 +9045,8 @@ bool Board::IsScaryPotterDaveTalking()
 //0x41AA40
 void Board::DrawUITop(Graphics* g)
 {
+FullWatch::DrawControls(g);
+
 	if (StageHasFog())
 	{
 		DrawTopRightUI(g);
@@ -9103,6 +9136,7 @@ void Board::DrawAll(Sexy::ModalFlags* flags,Sexy::Graphics* g){
 
 void Board::Draw(Graphics* g)
 {
+    if(FullWatch::DrawLoading(this,g))return;
 	if (mApp->GetDialog(Dialogs::DIALOG_STORE) || mApp->GetDialog(Dialogs::DIALOG_ALMANAC))
 		return;
 
@@ -9775,13 +9809,15 @@ int Board::BuildBoardSnapshot(uint8_t* theBuffer, int theCapacity)
 
 void Board::UpdateBoardWatch()
 {
+if(FullWatch::Enabled()){FullWatch::TickBoard(this);return;}
+
     if(mApp->IsOnlineGame()&&mApp->mOnlineSession&&mApp->mOnlineSession->IsConnected()) {
         if(!mObserverView)mObserverView=std::make_unique<Observer::BoardView>(mApp);
         mObserverView->Update(this,
 mApp->mOnlineSession);
     }else mObserverView.reset();
 
-    if(mCoopWatchLatched&&(!mApp->mActive||mApp->mMinimized||CoopHud::PauseStopsWatch(this)))CoopHud::StopWatch(this);
+    if(mCoopWatchLatched&&((!mApp->mActive&&!MachineControl::Enabled())||mApp->mMinimized||CoopHud::PauseStopsWatch(this)))CoopHud::StopWatch(this);
 	NetSession* aSession = mApp->mOnlineSession;
 	if (!mApp->IsOnlineGame() || aSession == nullptr || !aSession->IsConnected())
 	{
@@ -9876,6 +9912,7 @@ mApp->mOnlineSession);
 
 bool Board::IsWatchingView()
 {
+    if(FullWatch::Enabled()&&!FullWatch::IsObserver())return mApp->mOnlineSession&&mApp->mOnlineSession->IsWatching();
 	NetSession* aSession = mApp->mOnlineSession;
 	return mWatchKeyHeld
 		&& mApp->mGameScene == GameScenes::SCENE_PLAYING
@@ -9916,6 +9953,8 @@ static uint8_t NextWatchSeat(const NetSession* theSession, uint8_t theAfter)
 // KeyDown 钩子。返回 true = 这个键被观看功能吃掉（不落给血量键/暂停/ESC 链）。
 bool Board::HandleBoardWatchKey(KeyCode theKey)
 {
+if(FullWatch::Enabled())return FullWatch::Key(theKey);
+
 	NetSession* aSession = mApp->mOnlineSession;
 
 	if (theKey == 'V')
@@ -10066,6 +10105,9 @@ void Board::DrawKeyboardHint(Graphics* g, int theSlot, int theX, int theY)
 //0x41B820
 void Board::KeyDown(KeyCode theKey)
 {
+if(FullWatch::IsObserver()){FullWatch::Key(theKey);return;}
+ if(mApp->HandleOnlinePauseKey(theKey))return;
+
     if(mApp->TeamProgressionInputBlocked())return;
     if (mApp->mOnlineSession && mApp->mOnlineSession->RelayBattleHeld()) {
         if(CoopHud::WaitingObserver(this)) {
@@ -10172,6 +10214,8 @@ static void TodCrash()
 //0x41B950（原版中废弃）
 void Board::KeyChar(SexyChar theChar)
 {
+if(FullWatch::IsObserver())return;
+
     if(mApp->TeamProgressionInputBlocked())return;
     if(mApp->IsRunMode() && (theChar=='n' || theChar=='N'))return;
     // @pvz-online: H/J are display keys, including with -tod; do not also spawn debug zombies.

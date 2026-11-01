@@ -5,7 +5,7 @@ bool NetSession::ObserverControl(uint8_t dst,ObserverWireV2::ControlOp op,uint32
  std::vector<uint8_t> p;if(!ObserverWireV2::EncodeControl(c,p))return false;p.insert(p.begin(),{mLocalSeat,dst});return Dispatch(30,p.data(),int(p.size()),dst);
 }
 void NetSession::ClearObserverV2(){
- mPunchLink.ClearPeers();mPunchAttemptWatch=mPunchFailedWatch=0;mPunchAttempts=0;mObserverDirectAt=0;
+ if(!FullWatch::Enabled())mPunchLink.ClearPeers();mPunchAttemptWatch=mPunchFailedWatch=0;mPunchAttempts=0;mObserverDirectAt=0;
  for(auto&v:mObserverViewers)v={};mLink.ClearObserverOutput();mObserverAssembler.Context(0,0,0,0,0);mObserverInbox.clear();
  if(mObserverWatch)ClearWatchState(WatchEnd::SILENT);
 }
@@ -42,7 +42,7 @@ void NetSession::HandleObserver(uint16_t type,const uint8_t*p,int n){
     (mTransport==Transport::DIRECT&&p[0]!=DirectPeerSeat())||(IsRelay()&&!mObserverRelay))return;
  const uint8_t src=p[0];const auto now=ObserverNow();
  if(type==31){if(!mObserverWatch||!mObserverAccepted||src!=mWatchTargetSeat)return;ObserverTransfer::Complete complete;
-  const auto progress=mObserverAssembler.Progress();if(mObserverAssembler.Accept(p,n,now,complete)){mObserverLast=now;mObserverReceived=true;if(mObserverInbox.size()>=2)mObserverInbox.pop_front();mObserverInbox.push_back(std::move(complete));}if(mObserverAssembler.Progress()!=progress)mObserverLast=now;return;}
+  const auto progress=mObserverAssembler.Progress();if(mObserverAssembler.Accept(p,n,now,complete)){mObserverLast=now;mObserverReceived=true;if(mObserverInbox.size()>=2)mObserverInbox.pop_front();++TestDiagnostics::counters.complete;mObserverInbox.push_back(std::move(complete));}if(mObserverAssembler.Progress()!=progress)mObserverLast=now;return;}
  ObserverWireV2::Control c;if(!ObserverWireV2::DecodeControl(p+2,n-2,c)||c.roundEpoch!=ObserverEpoch()||c.features!=ObserverRevision||c.flags||c.budgetKbps!=24*1024)return;
  using Op=ObserverWireV2::ControlOp;
  if(c.op==Op::BEGIN){
@@ -70,7 +70,7 @@ bool NetSession::SendObserverDisplay(const std::vector<uint8_t>&body,uint32_t ti
   if(!ObserverTransfer::Fragment(mLocalSeat,s,v.watch,v.stream,mObserverSeq,tick,ObserverEpoch(),body,parts))return false;
   for(auto&part:parts){std::vector<uint8_t> packet;const bool flow=mFlowEnabled&&IsRelay();packet.resize(4+(flow?10:0)+part.size());ObserverWireV2::Put16(packet.data(),flow?NetProto::MSG_CLI_FLOW_GAME:31);ObserverWireV2::Put16(packet.data()+2,uint16_t(packet.size()-4));size_t at=4;
    if(flow){ObserverWireV2::Put32(packet.data()+at,mFlowTerm);ObserverWireV2::Put32(packet.data()+at+4,mReadyEpoch);ObserverWireV2::Put16(packet.data()+at+8,31);at+=10;}std::copy(part.begin(),part.end(),packet.begin()+at);part=std::move(packet);}
-  sent=mLink.OfferObserver(s,std::move(parts))||sent;
+  bool queued=mLink.OfferObserver(s,std::move(parts));if(queued)TestDiagnostics::counters.queued+=body.size();sent=queued||sent;
   if(sent){
    if(IsRelay()){for(auto&viewer:mObserverViewers)viewer.pending=false;break;}
    v.pending=false;
@@ -103,6 +103,7 @@ bool NetSession::ObserverCanCapture()const{
  return false;
 }
 void NetSession::TickObserverDirect(uint64_t now){
+ if(FullWatch::Enabled()){TickRoomDirect(now);return;}
  if(!mObserverP2PEnabled)return;
  if(IsRelay()&&mPunchAdvertised&&(!mPunchRelay||(mObserverWatch&&now-mPunchRenewAt>=120000))&&now-mPunchQueryAt>=2000){
   uint8_t p[5];p[0]=ObserverDirect::OP_CAPABLE;ObserverWireV2::Put32(p+1,ObserverDirect::REVISION);SendRaw(ObserverDirect::CONTROL_TYPE,p,5);mPunchQueryAt=now;
@@ -139,6 +140,7 @@ void NetSession::TickObserverDirect(uint64_t now){
  }
 }
 void NetSession::HandlePunchControl(const uint8_t*p,int n){
+ if(FullWatch::Enabled()){HandleRoomPunch(p,n);return;}
  if(!mObserverP2PEnabled||!IsConnected()||!p||n<1)return;
  if(mTransport==Transport::DIRECT){
   const uint8_t peer=DirectPeerSeat();if(n!=35||p[0]!=4||GetSeatBuild(peer)<97||!ObserverDirect::Get16(p+1))return;
@@ -167,6 +169,7 @@ void NetSession::HandlePunchControl(const uint8_t*p,int n){
 
 void NetSession::SetObserverP2PEnabled(bool enabled) {
     if(mObserverP2PEnabled==enabled)return;
+    mDiagnosticDirectAt=0;mDiagnosticConnectAt=ObserverNow();
     // Stop only UDP peers. Keep the accepted one-shot subscription and picture:
     // recreating BEGIN here would hit the relay's existing five-second limit.
     if(!enabled){
@@ -174,9 +177,34 @@ void NetSession::SetObserverP2PEnabled(bool enabled) {
         for(uint8_t seat=1;seat<=6;++seat)
             if(mObserverViewers[seat].watch)mPunchLink.Cancel(DirectContext(seat,true));
     }
-    mObserverP2PEnabled=enabled;mPunchLink.Close();mPunchRelay=false;
+    mObserverP2PEnabled=enabled;for(auto& p:mFullWatch->peers)p={};mFullWatch->directAt=0;mPunchLink.Close();mPunchRelay=false;
     mPunchQueryAt=mPunchAttemptAt=mPunchRenewAt=mObserverDirectAt=0;
     mPunchAttemptWatch=mPunchFailedWatch=0;mPunchAttempts=0;
     for(auto& at:mDirectSentAt)at=0;
     mObserverInbox.erase(std::remove_if(mObserverInbox.begin(),mObserverInbox.end(),[](const ObserverTransfer::Complete& frame){return frame.direct;}),mObserverInbox.end());
+}
+
+void NetSession::ObserverPictureApplied(bool direct){
+ if(!mObserverWatch)return;
+ if(mDiagnosticWatch!=mObserverWatch||mDiagnosticStream!=mObserverRemoteStream||mDiagnosticEpoch!=ObserverEpoch())mDiagnosticDirectAt=0;
+ mDiagnosticWatch=mObserverWatch;mDiagnosticStream=mObserverRemoteStream;mDiagnosticEpoch=ObserverEpoch();mDiagnosticPictureAt=ObserverNow();if(direct)mDiagnosticDirectAt=mDiagnosticPictureAt;
+}
+int64_t NetSession::ObserverPictureAge()const{
+ if(FullWatch::Enabled())return IsWatching()&&mFullWatch->pictureAt?int64_t(ObserverNow()-mFullWatch->pictureAt):-1;
+ if(!mObserverWatch||mDiagnosticWatch!=mObserverWatch||mDiagnosticStream!=mObserverRemoteStream||mDiagnosticEpoch!=ObserverEpoch()||!mDiagnosticPictureAt)return -1;
+ return int64_t(ObserverNow()-mDiagnosticPictureAt);
+}
+const char* NetSession::ObserverDiagnosticState()const{
+ if(FullWatch::Enabled()){
+  if(!IsWatching())return "idle";if(!mObserverP2PEnabled)return "disabled";
+  if(mFullWatch->receivedDirect&&mFullWatch->directAt&&mPunchLink.RoomReady(mWatchTargetSeat))return "direct";
+  if((mFullWatch->pictureAt&&!mFullWatch->receivedDirect)||mFullWatch->peers[mWatchTargetSeat].failed||mFullWatch->fallbackRequested)return "fallback";
+  return "connecting";
+ }
+ if(!mObserverWatch)return "idle";
+ if(!mObserverP2PEnabled)return "disabled";
+ auto age=ObserverPictureAge();
+ if(IsObserverDirect()&&age>=0&&mDiagnosticDirectAt&&ObserverNow()-mDiagnosticDirectAt<5000)return "direct";
+ if(mPunchFailedWatch==mObserverWatch||(mDiagnosticWatch==mObserverWatch&&mDiagnosticDirectAt&&ObserverNow()-mDiagnosticDirectAt>=5000)||ObserverNow()-std::max(mObserverPendingAt,mDiagnosticConnectAt)>12000)return "fallback";
+ return "connecting";
 }

@@ -430,3 +430,5 @@ server/relay/pvz-relay
 server/relay/pvz-relay.exe
 server/relay/pvz-relay-*
 server/relay/*.test
+
+/build-test*/

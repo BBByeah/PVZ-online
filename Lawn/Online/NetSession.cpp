@@ -1,3 +1,5 @@
+#include "FullWatch.h"
+#include "../Automation/Diagnostics.h"
 #include <chrono>
 #include <atomic>
 #include "NetSession.h"
@@ -513,6 +515,7 @@ void NetSession::AbortReconnect()
 // 回来时全队还等着这些记忆接着跑。
 void NetSession::EnterReconnecting()
 {
+    for(auto& p:mFullWatch->peers)p={};
     ClearObserverV2();mObserverRelay=false;mObserverQueryAt=0;mPunchRelay=mPunchAdvertised=false;mPunchQueryAt=0;mPunchLink.Close();
 	if (mState != State::RECONNECTING)
 	{
@@ -738,6 +741,7 @@ void NetSession::Update()
         }
 
 	    ObserverV2Tick();
+    PumpFullWatch();
 		// ---- 观战：观看端补保活/掐超时，被看端删掉哑巴观众 ----
 		if (IsWatching() && !IsWatchingV2())
 		{
@@ -758,7 +762,7 @@ void NetSession::Update()
 					mFramesSinceWatchKeepalive = 0;
 					SendBoardWatchMsg(mWatchTargetSeat, NetProto::WATCH_KEEPALIVE);
 				}
-				if (++mFramesSinceWatchSnapshot >= WATCH_SNAPSHOT_FRAMES)
+				if (++mFramesSinceWatchSnapshot >= (FullWatch::Enabled()?1500:WATCH_SNAPSHOT_FRAMES))
 				{
 					// 3 秒一份快照都没有：对面是旧构建（把快照帧当没见过的帧丢了）或者卡住了。
 					// 先补一条 END 让对面别白推，再收场——棋盘据此提示"没有响应"。
@@ -1520,6 +1524,41 @@ bool NetSession::SendBoardWatchMsg(uint8_t theSeat, uint8_t theOp)
 
 bool NetSession::BeginWatch(uint8_t theSeat)
 {
+    if(FullWatch::Enabled()) {
+
+	if (!IsConnected()) return false;
+	// 席位得是个真上座的号、而且不能是自己——看自己场地没有意义（屏幕本来就在）
+	if (theSeat < 1 || theSeat > NetProto::MAX_PLAYERS
+		|| theSeat == mLocalSeat || !IsSeatOccupied(theSeat))
+		return false;
+
+	// 换目标（按住 V 期间按 1-6 切人就走这条路）：先跟旧目标打声招呼，别让他白推
+	// EndWatch below sends a subscription-scoped stop.
+
+    if(IsWatching())EndWatch(true);
+	mFullWatch->assembly.reset();mFullWatch->received.clear();mFullWatch->configCache.Reset();
+
+	mWatchTargetSeat = theSeat;
+	mFramesSinceWatchKeepalive = 0;
+	mFramesSinceWatchSnapshot = 0;
+	mWatchAssemblyParts = 0;
+	mWatchAssemblySize = 0;
+	mWatchEndPending = WatchEnd::NONE;
+
+	mFullWatch->subscription=uint32_t(ObserverNow()) ^ ++mSnapshotSeq;if(!mFullWatch->subscription)++mFullWatch->subscription;
+    mFullWatch->requestedAt=ObserverNow();mFullWatch->pictureAt=mFullWatch->directAt=0;
+    mFullWatch->lastSequence=mFullWatch->lastEpoch=0;mFullWatch->fallbackRequested=false;
+    if (!RequestFullWatch())
+	{
+		// 发都没发出去（对面恰好在上一帧走了）：别干等 3 秒超时，直接收场
+		ClearWatchState(WatchEnd::TARGET_LEFT);
+		return false;
+	}
+	TodLog("[net] watching seat %u's board", (unsigned)theSeat);
+	return true;
+
+    }
+
     if(!CanWatchSeat(theSeat)||ObserverRequestCooldown())return false;
     if(GetSeatBuild(theSeat)<96 || (mTransport!=Transport::DIRECT&&!mObserverRelay))return false;
     if(IsWatching())EndWatch(true);
@@ -1541,7 +1580,8 @@ void NetSession::EndWatch(bool theNotify)
 	if (!IsWatching()) return;
 
 	if (theNotify) {
-        if(IsWatchingV2())ObserverControl(mWatchTargetSeat,ObserverWireV2::ControlOp::STOP,mObserverWatch,mObserverRemoteStream);
+        if(FullWatch::Enabled()){WatchWire::Bytes stop{mLocalSeat,mWatchTargetSeat,0x86};WatchWire::Put(stop,mFullWatch->subscription);Dispatch(NetProto::MSG_BOARD_WATCH,stop.data(),int(stop.size()),mWatchTargetSeat);}
+        else if(IsWatchingV2())ObserverControl(mWatchTargetSeat,ObserverWireV2::ControlOp::STOP,mObserverWatch,mObserverRemoteStream);
         else SendBoardWatchMsg(mWatchTargetSeat, NetProto::WATCH_END);
     }
 	ClearWatchState(WatchEnd::USER);
@@ -1549,8 +1589,11 @@ void NetSession::EndWatch(bool theNotify)
 
 void NetSession::ClearWatchState(WatchEnd theReason)
 {
+    mFullWatch->assembly.reset();mFullWatch->received.clear();mFullWatch->configCache.Reset();
+
+	mDiagnosticWatch=mDiagnosticStream=mDiagnosticEpoch=0;mDiagnosticPictureAt=mDiagnosticDirectAt=0;
 	bool aWasWatching = IsWatching();
-    mPunchLink.Cancel(DirectContext(mWatchTargetSeat,false));mPunchAttemptWatch=mPunchFailedWatch=0;mPunchAttempts=0;mObserverDirectAt=0;
+    if(!FullWatch::Enabled())mPunchLink.Cancel(DirectContext(mWatchTargetSeat,false));mFullWatch->subscription=0;mFullWatch->pictureAt=mFullWatch->directAt=0;mPunchAttemptWatch=mPunchFailedWatch=0;mPunchAttempts=0;mObserverDirectAt=0;
     mObserverWatch=0;mObserverAccepted=false;mObserverReceived=false;mObserverRemoteStream=0;mObserverInbox.clear();mObserverAssembler.Context(0,0,0,0,0);
 	mWatchTargetSeat = NetProto::SEAT_UNSET;
 	mFramesSinceWatchKeepalive = 0;
@@ -1591,6 +1634,15 @@ int NetSession::GetBoardWatcherSeats(uint8_t* theSeats, int theMax) const
 
 bool NetSession::SendBoardSnapshot(uint8_t theViewerSeat, const uint8_t* theBody, int theSize)
 {
+    if(FullWatch::Enabled()){
+        if(!IsConnected()||!theBody||theSize<=0||theSize>int(snapshot::MaxEnvelope)||theViewerSeat<1||theViewerSeat>6||!(mBoardWatcherMask&(1u<<theViewerSeat)))return false;
+        if(mObserverP2PEnabled&&!mFullWatch->forceRelay[theViewerSeat]&&mPunchLink.RoomReady(theViewerSeat)){
+            ObserverDirect::Context c{mFullWatch->viewerSubscription[theViewerSeat],1,ObserverEpoch()?ObserverEpoch():1,mFlowTerm,mLocalSeat,theViewerSeat};
+            if(mPunchLink.QueueRoom(theViewerSeat,c,std::vector<uint8_t>(theBody,theBody+theSize),GetTickCount(),ObserverNow()))return true;
+        }
+        return mFullWatch->QueueSnapshot(theViewerSeat,theBody,DWORD(theSize));
+    }
+
 	if (!IsConnected()) return false;
 	if (!theBody || theSize < 0) return false;
 	if (theViewerSeat < 1 || theViewerSeat > NetProto::MAX_PLAYERS) return false;
@@ -1632,6 +1684,7 @@ bool NetSession::SendBoardSnapshot(uint8_t theViewerSeat, const uint8_t* theBody
 bool NetSession::SendObserverV2Control(uint8_t viewer,const ObserverWireV2::Control& c){return ObserverControl(viewer,c.op,c.watchId,c.boardStream);}
 bool NetSession::SendObserverV2Frame(uint8_t,const ObserverWireV2::Frame&){return false;}
 #include "ObserverSession.inl"
+#include "RoomWatch.inl"
 
 // ====================================================================================================
 // ★ 状态与文案
@@ -1639,6 +1692,7 @@ bool NetSession::SendObserverV2Frame(uint8_t,const ObserverWireV2::Frame&){retur
 
 void NetSession::ResetToOff()
 {
+    for(auto& p:mFullWatch->peers)p={};
     ClearObserverV2();mObserverRelay=false;mObserverQueryAt=0;mPunchRelay=mPunchAdvertised=false;mPunchQueryAt=0;mPunchLink.Close();
 	mDiagnosticStatusText.clear();
     mPrivateRoom=false;
@@ -2570,6 +2624,29 @@ void NetSession::HandlePacket(const NetLink::Packet& thePacket)
 
 	case NetProto::MSG_BOARD_WATCH:
 		{
+            if(FullWatch::Enabled()&&aPayloadSize==7&&aPayload[2]==0x86){
+                auto seat=aPayload[0];if(seat>=1&&seat<=6&&aPayload[1]==mLocalSeat&&WatchWire::Get(aPayload+3)==mFullWatch->viewerSubscription[seat]){
+                    mBoardWatcherMask&=uint8_t(~(1u<<seat));mFullWatch->viewerSubscription[seat]=0;mFullWatch->ClearSend(seat);
+                }break;
+            }
+            if(FullWatch::Enabled()&&aPayloadSize==8&&aPayload[2]==0x85){
+                const auto seat=aPayload[0];if(seat<1||seat>6||seat==mLocalSeat||aPayload[1]!=mLocalSeat||!IsSeatOccupied(seat))break;
+                const auto id=WatchWire::Get(aPayload+3);if(!id)break;
+                mFullWatch->viewerSubscription[seat]=id;mFullWatch->forceRelay[seat]=aPayload[7]!=0;
+                mFullWatch->ClearSend(seat);mFullWatch->ackEpoch[seat]=mFullWatch->ackRevision[seat]=0;
+                mFullWatch->urgent[seat]=true;mBoardWatcherMask|=uint8_t(1u<<seat);mBoardWatcherFrames[seat]=0;
+                TodLog("[watch] request seat=%u subscription=%u relay=%u",seat,id,aPayload[7]);break;
+            }
+            // PWV2 initialization acknowledgement, independent for every viewer.
+            if(aPayloadSize==15 && aPayload[2]==WatchWire::Ack){
+                BYTE seat=aPayload[0];
+                if(seat>=1 && seat<=NetProto::MAX_PLAYERS && seat!=mLocalSeat && aPayload[1]==mLocalSeat && IsSeatOccupied(seat)&&WatchWire::Get(aPayload+11)==mFullWatch->viewerSubscription[seat]){
+                    mFullWatch->ackEpoch[seat]=WatchWire::Get(aPayload+3);
+                    mFullWatch->ackRevision[seat]=WatchWire::Get(aPayload+7);
+                }
+                break;
+            }
+
 			// 观战点播/保活/收播（op 见 WatchOp）。**被看端和观看端的收件都在这里**：
 			// BEGIN/KEEPALIVE 落在被看端的观众表上；END 落在被看端（停推）或观看端
 			//（被看方离开关卡时的"别看了"，观看起来是对方主动停推）。
@@ -2596,7 +2673,8 @@ void NetSession::HandlePacket(const NetLink::Packet& thePacket)
 					mBoardWatcherMask |= (uint8_t)(1u << aMsg.mSrcSeat);
 					TodLog("[net] seat %u starts watching my board", (unsigned)aMsg.mSrcSeat);
 				}
-				mBoardWatcherFrames[aMsg.mSrcSeat] = 0;
+				if(FullWatch::Enabled()&&aMsg.mOp==NetProto::WATCH_BEGIN){mFullWatch->ClearSend(aMsg.mSrcSeat);mFullWatch->ackEpoch[aMsg.mSrcSeat]=mFullWatch->ackRevision[aMsg.mSrcSeat]=0;}
+                mBoardWatcherFrames[aMsg.mSrcSeat] = 0;
 			}
 			else if (aMsg.mOp == NetProto::WATCH_END)
 			{
@@ -2621,6 +2699,7 @@ void NetSession::HandlePacket(const NetLink::Packet& thePacket)
 		break;
 
 	case NetProto::MSG_BOARD_SNAPSHOT:
+        if(FullWatch::Enabled()){ReceiveFullWatch(aPayload,aPayloadSize);break;}
 		{
 			// 观战快照（分片到达）。这一族全部**宽松处置**：坏帧丢帧、半份作废、等下一份自愈。
 			// 理由是它和其他帧不同——快照是显示层的附加流，长度又天然变长（最后一片不满），
@@ -3712,4 +3791,56 @@ void NetSession::PublishEndlessStartContext(uint8_t destination) {
     if(!mLastEndlessStartContext.run || mLastEndlessStartContext.epoch!=mReadyEpoch)return;
     for(uint8_t seat=1;seat<=NetProto::MAX_PLAYERS;++seat)if(seat!=mLocalSeat && IsSeatOccupied(seat) &&
         (destination==NetProto::SEAT_UNSET || destination==seat))SendAdmission(mLastEndlessStartContext,seat);
+}
+
+void NetSession::PumpFullWatch() {
+    if(!FullWatch::Enabled())return;
+    if(!IsConnected())return;
+    const int allowance=mFullWatch->PumpBudget(GetTickCount());
+    for(int budget=0;budget<allowance;++budget) {
+        BYTE seat=0;
+        for(int attempt=0;attempt<NetProto::MAX_PLAYERS;++attempt) {
+            BYTE next=mFullWatch->nextSeat;
+            mFullWatch->nextSeat=next==NetProto::MAX_PLAYERS?1:next+1;
+            if(!(mBoardWatcherMask&(1u<<next))){mFullWatch->ClearSend(next);continue;}
+            mFullWatch->Promote(next);
+            if((mBoardWatcherMask&(1u<<next)) && mFullWatch->outgoing[next].data &&
+               mFullWatch->offsets[next]<mFullWatch->outgoing[next].size){seat=next;break;}
+        }
+        if(!seat)break;
+        auto& packet=mFullWatch->outgoing[seat];BYTE frame[256];
+        DWORD sequence=reinterpret_cast<const snapshot::Header*>(packet.data)->sequence;
+        DWORD count=snapshot::fragment(packet,sequence,mLocalSeat,seat,mFullWatch->offsets[seat],frame);
+        if(!count){mFullWatch->ClearSend(seat);continue;}
+        if(!Dispatch(NetProto::MSG_BOARD_SNAPSHOT,frame,count,seat))break;
+        mFullWatch->offsets[seat]+=count-sizeof(snapshot::FragmentHeader);
+        if(mFullWatch->offsets[seat]>=packet.size)TodLog("[watch] tcp_queued_complete peer=%u seq=%u bytes=%u",seat,sequence,packet.size);
+    }
+}
+void NetSession::ReceiveFullWatch(const uint8_t* bytes,int count) {
+    if(!IsWatching() || count<=0)return;
+    snapshot::Buffer complete{},raw{};
+    auto state=mFullWatch->assembly.accept(bytes,count,mWatchTargetSeat,mLocalSeat,GetTickCount(),complete);
+    if(state!=snapshot::Receive::Complete)return;
+    ReceiveFullEnvelope(complete.data,int(complete.size),false);snapshot::release(complete);
+}
+void NetSession::ReceiveFullEnvelope(const uint8_t* bytes,int count,bool direct){
+    if(!IsWatching())return;snapshot::Buffer raw{};
+    if(mFullWatch->codec.decode(bytes,count,raw)) {
+        WatchWire::Bytes wire(raw.data,raw.data+raw.size),completeState;WatchWire::Header h;
+        if(WatchWire::Parse(wire,h) && h.seat==mWatchTargetSeat && h.subscription==mFullWatch->subscription &&
+          (!mFullWatch->lastEpoch||int32_t(h.epoch-mFullWatch->lastEpoch)>0||(h.epoch==mFullWatch->lastEpoch&&int32_t(h.sequence-mFullWatch->lastSequence)>0))&&mFullWatch->configCache.Accept(wire,completeState,h)){
+            mFullWatch->lastEpoch=h.epoch;mFullWatch->lastSequence=h.sequence;
+            mFullWatch->pictureAt=ObserverNow();mFullWatch->receivedDirect=direct;if(direct)mFullWatch->directAt=ObserverNow();
+            TodLog("[watch] complete subscription=%u seq=%u direct=%d bytes=%d",h.subscription,h.sequence,direct,count);
+            ++TestDiagnostics::counters.complete;mFullWatch->received=std::move(completeState);mFramesSinceWatchSnapshot=0;
+            if(h.configBytes){WatchWire::Bytes ack{mLocalSeat,mWatchTargetSeat,WatchWire::Ack};WatchWire::Put(ack,h.epoch);WatchWire::Put(ack,h.revision);WatchWire::Put(ack,h.subscription);
+                Dispatch(NetProto::MSG_BOARD_WATCH,ack.data(),static_cast<int>(ack.size()),mWatchTargetSeat);}
+        }
+    }
+    snapshot::release(raw);
+}
+bool NetSession::TakeFullWatch(std::vector<unsigned char>& data) {
+    if(mFullWatch->received.empty())return false;
+    data.swap(mFullWatch->received);mFullWatch->received.clear();return true;
 }

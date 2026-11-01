@@ -1,3 +1,4 @@
+#include "../Lawn/Automation/Diagnostics.h"
 #include <time.h>
 #include "TodDebug.h"
 #include "TodCommon.h"
@@ -169,6 +170,7 @@ void TodLog(const char* theFormat, ...)
 void TodLogString(const char* theMsg)
 {
 	TodRecentLogAppend(theMsg);
+    TestDiagnostics::Line("game",theMsg);
 
 	FILE* f = fopen(gLogFileName, "a");
 	if (f == nullptr)

@@ -1,3 +1,4 @@
+#include "Lawn/Online/FullWatch.h"
 #include "Lawn/Run/EndlessSaves.h"
 #include "Lawn/Widget/EndlessSaveDialog.h"
 #include "Lawn/Widget/PlayerMessageBox.h"
@@ -9,6 +10,7 @@
 #include <corecrt.h>
 #include <time.h>
 #include "LawnApp.h"
+#include "Lawn/Automation/Control.h"
 #include "Lawn/System/NameplateCatalog.h"
 #include "Lawn/Online/RoomPresentation.h"
 #include "Lawn/Run/RunHistory.h"
@@ -182,8 +184,6 @@ LawnApp::LawnApp()
 	mOnlineWaitingStartAck = false;
 	mOnlineStartWaitFrames = 0;
 	mOrphanSetupTicks = 0;
-	mPauseMenuWasOpen = false;
-	mPauseMenuFromPeer = false;
 	mOnlineWaitingAdviceOn = false;
 	mRunState = nullptr;
 	mPendingAdventure = false;
@@ -226,6 +226,8 @@ LawnApp::LawnApp()
 //0x44EDD0、0x44EDF0
 LawnApp::~LawnApp()
 {
+if(!FullWatch::IsObserver())FullWatch::StopChild();
+
     TeamPlay::Detach(this);
 	if (mBoard)
 	{
@@ -461,6 +463,8 @@ void LawnApp::GotFocus()
 //0x44F460
 void LawnApp::LostFocus()
 {
+if(FullWatch::IsObserver())return;
+
     if(TeamProgressionInputBlocked())return;
     NextWaveControl::Suspend(mBoard);
 	// @pvz-online: 联机环境里切出去一律不暂停——建房等待、连接中、已连上都算（用户拍板：
@@ -478,13 +482,15 @@ void LawnApp::LostFocus()
 //0x44F480
 void LawnApp::WriteToRegistry()
 {
+if(FullWatch::IsObserver())return;
+
 	if (mPlayerInfo)
 	{
 		ModText::RegWriteString("CurUser", SexyStringToStringFast(mPlayerInfo->mName));
 		mPlayerInfo->SaveDetails();
 	}
 
-    RegistryWriteBoolean("ObserverP2PEnabled",mObserverP2P);
+    RegistryWriteBoolean(MachineControl::LocalWatch()?"RoomWatchP2PEnabled":"ObserverP2PEnabled",mObserverP2P);
 	SexyAppBase::WriteToRegistry();
 }
 
@@ -492,7 +498,9 @@ void LawnApp::WriteToRegistry()
 void LawnApp::ReadFromRegistry()
 {
 	SexyApp::ReadFromRegistry();
-    mObserverP2P=false;RegistryReadBoolean("ObserverP2PEnabled",&mObserverP2P);
+    if(FullWatch::IsObserver()){mMuteCount=std::max(mMuteCount,1);SetMusicVolume(0.0);SetSfxVolume(0.0);mIsWindowed=true;mAutoEnable3D=false;}
+    if(MachineControl::Enabled()){mMusicVolume=0;mIsWindowed=true;mAutoEnable3D=false;}
+    mObserverP2P=MachineControl::LocalWatch();RegistryReadBoolean(MachineControl::LocalWatch()?"RoomWatchP2PEnabled":"ObserverP2PEnabled",&mObserverP2P);
 }
 
 //0x44F540
@@ -1386,66 +1394,32 @@ void LawnApp::UpdateOnlineLevelExit()
 	mOnlineSession->PostNotice(ModText::Tr("队友离开了关卡。", "A teammate left the level."));
 }
 
-// @pvz-online: 暂停同步。规则（已拍板）：任一方都能暂停，也任一方都能继续。
-//
-// 本机"我暂停了/我继续了"不挂钩子，看状态：暂停菜单（DIALOG_NEWOPTIONS）开着没有，
-// 与上一帧比。这样 ESC、右上角 Menu、选卡界面的 Menu、Back to Game、Main Menu……
-// 所有开合路径一网打尽，不用在六处调用点各加一行，也不会漏。
-// 刻意不参与同步的是 DoPauseDialog 那个简化框（现在就剩空格键开的——联机环境下
-// 切出去不再开它，见 LostFocus）：自己切出去不该把队友强按进暂停菜单。
+// Only P changes shared pause; local menus never open on a teammate.
+bool LawnApp::UsesManualOnlinePause()
+{
+ return !FullWatch::IsObserver() && mBoard && !IsLocalOnlyMode(mGameMode) &&
+  mGameScene == GameScenes::SCENE_PLAYING && mOnlineSession && mOnlineSession->IsConnected();
+}
+bool LawnApp::HandleOnlinePauseKey(int key)
+{
+ if (key != 'P' || !UsesManualOnlinePause()) return false;
+ if (mWidgetManager->mIsKeyRepeat) return true;
+ if (mOnlineSession->IsWaitingForNextRound(mOnlineSession->GetLocalSeat()) ||
+     mOnlineSession->NeedsRoundRejoin() || mOnlineSession->RelayBattleHeld()) return true;
+ if (mOnlineSession->SendPauseState(!mOnlineSession->IsSharedPaused())) {
+  mBoard->Pause(mOnlineSession->IsSharedPaused());
+  TodLog("[pause] manual shared=%d", mOnlineSession->IsSharedPaused());
+ }
+ return true;
+}
 void LawnApp::UpdateOnlinePause()
 {
-    if (mBoard && IsLocalOnlyMode(mGameMode)) return; // @pvz-online: local garden/tree only.
-	if (!mOnlineSession) return;
-
-	// ① 队友按了暂停 / 继续
-	bool aPaused = false;
-	if (mOnlineSession->TakePauseState(aPaused))
-	{
-		if (aPaused)
-		{
-			// 绝不直写 mBoard->mPaused：走 DoNewOptions 自己的模态链，让 ModalOpen 去停棋盘
-			// （音效/音乐也跟着停）。已经有暂停框就只记状态，不叠第二个。
-			if (mBoard != nullptr && GetDialog(Dialogs::DIALOG_NEWOPTIONS) == nullptr)
-			{
-				DoNewOptions(false);
-				// 这一步是替队友做的，不算本机操作：下一段的检测器不该把它当成"我按的"
-				mPauseMenuWasOpen = true;
-				mPauseMenuFromPeer = true;
-			}
-		}
-		else if (GetDialog(Dialogs::DIALOG_NEWOPTIONS) != nullptr)
-		{
-			// 任一方都能继续：不管这菜单是谁开的都收掉
-			KillNewOptionsDialog();
-		}
-	}
-
-	// ② 本机自己开/关了暂停菜单 → 告诉队友（SendPauseState 自己会做去重，没连上会返回 false）
-	bool aNowOpen = mBoard != nullptr && GetDialog(Dialogs::DIALOG_NEWOPTIONS) != nullptr;
-	if (aNowOpen != mPauseMenuWasOpen)
-	{
-		mPauseMenuWasOpen = aNowOpen;
-		mPauseMenuFromPeer = false;
-		// A waiting spectator's local menu must not pause the fighting team.
-        if (!mOnlineSession->IsWaitingForNextRound(mOnlineSession->GetLocalSeat()) && !mOnlineSession->NeedsRoundRejoin())
-            mOnlineSession->SendPauseState(aNowOpen);
-	}
-
-	// ③ 队友掉线了：他那张"替队友弹的"暂停菜单没人能解（玩家自己没按过），收掉；
-	// 玩家自己按出来的暂停菜单不动——那是他的操作，掉不掉线都该留着。
-	if (mPauseMenuFromPeer && !mOnlineSession->IsConnected()
-		&& GetDialog(Dialogs::DIALOG_NEWOPTIONS) != nullptr)
-	{
-		TodLog("[net] the teammate vanished while the pause menu was theirs - closing it");
-		KillNewOptionsDialog();
-		mPauseMenuWasOpen = false;
-		mPauseMenuFromPeer = false;
-	}
+ if (!mOnlineSession || FullWatch::IsObserver()) return;
+ bool paused=false;
+ mOnlineSession->TakePauseState(paused);
+ if (UsesManualOnlinePause()) mBoard->Pause(mOnlineSession->IsSharedPaused());
 }
 
-// @pvz-online: 会话事件的收口。以前没人取 PollEvent，事件在队列里越堆越多，掉线这件事
-// 就只写在状态行上。
 void LawnApp::UpdateOnlineEvents()
 {
 	if (!mOnlineSession) return;
@@ -1663,6 +1637,16 @@ void LawnApp::UpdateOnlineEnd()
 
     NetProto::MsgEscapedZombie pendingRelay;
     const bool hasPendingRelay=mOnlineSession->PeekPendingEscapedZombie(pendingRelay);
+    // Recheck the award gate after deferred last-wave spawns have drained.
+    if (canComplete && IsOnlineGame() && IsRunMode() && !hasPendingRelay &&
+        !mBoard->mLevelAwardSpawned && mBoard->mNumWaves > 0 &&
+        mBoard->mCurrentWave >= mBoard->mNumWaves &&
+        !mBoard->AreEnemyZombiesOnScreen() && !mBoard->HasLivingBoss() &&
+        mBoardResult != BoardResult::BOARDRESULT_LOST)
+    {
+        mBoard->mLevelAwardSpawned = true;
+        mBoardResult = BoardResult::BOARDRESULT_WON;
+    }
     // A delayed team-complete message cannot overrule the current local board.
     const bool localClear = canComplete && !hasPendingRelay && mBoard->mLevelAwardSpawned &&
         !mBoard->AreEnemyZombiesOnScreen();
@@ -2532,6 +2516,8 @@ void LawnApp::ReleaseRunIntro()
 // （打赢的完胜场面、打输的吃脑子场面各自都说得通），等待提示挂在上面。
 void LawnApp::UpdateRunPick()
 {
+if(FullWatch::IsObserver())return;
+
     if(mOnlineSession && mOnlineSession->mEndlessNeedsAdmission)return;
 	if (mRunState == nullptr || (mOnlineSession && mOnlineSession->IsReconnecting())) return;
     if(mRunState->mAdmission.fast || AdmissionBuilding())return;
@@ -3892,6 +3878,7 @@ void LawnApp::DoContinueDialog()
 //0x4502C0
 void LawnApp::DoPauseDialog()
 {
+ if(UsesManualOnlinePause())return;
 	mBoard->Pause(true);
 	//FinishModelessDialogs();
 
@@ -4331,6 +4318,9 @@ bool LawnApp::KillAlmanacDialog()
 //0x4516F0
 bool LawnApp::NeedPauseGame()
 {
+if(FullWatch::IsObserver())return FullWatch::ObserverPaused();
+ if(UsesManualOnlinePause())return mOnlineSession->IsSharedPaused();
+
 	if (mDialogList.size() == 0)
 		return false;
 
@@ -4454,8 +4444,10 @@ std::string LawnApp::GetGameSEHInfo()
 // GOTY @Patoke: 0x454C60
 void LawnApp::Init()
 {
+FullWatch::PrepareApp(this);
+
 	DoParseCmdLine();
-	if (!mTodCheatKeys)
+	if (!mTodCheatKeys && !FullWatch::IsObserver())
 	{
 		mOnlyAllowOneCopyToRun = true;
 	}
@@ -4642,6 +4634,7 @@ bool LawnApp::DebugKeyDown(int theKey)
 //0x4522E0
 void LawnApp::HandleCmdLineParam(const std::string& theParamName, const std::string& theParamValue)
 {
+	if (MachineControl::Parameter(theParamName,theParamValue)) return;
 	if (theParamName == "-tod")
 	{
 #ifdef _DEBUG
@@ -4751,6 +4744,8 @@ bool LawnApp::UpdatePlayerProfileForFinishingLevel()
 // GOTY @Patoke: 0x4558E0
 void LawnApp::CheckForGameEnd()
 {
+if(FullWatch::IsObserver())return;
+
 	if (mBoard == nullptr || !mBoard->mLevelComplete)
 		return;
 
@@ -4906,6 +4901,8 @@ void LawnApp::UpdatePlayTimeStats()
 //0x452650
 void LawnApp::UpdateFrames()
 {
+FullWatch::TickApp(this);
+
     if(auto* session=RoomPresentation::Session(this))session->SetLocalNameplate(mPlayerInfo?NameplateCatalog::Equipped(*mPlayerInfo):0);
     UpdateTeamProgressionUi();
     mDamageStats.Update(this);
@@ -5174,7 +5171,7 @@ void LawnApp::LoadingCompleted()
 	mResourceManager->DeleteImage("IMAGE_TITLESCREEN");
 
 	TodTrace("LawnApp::LoadingCompleted -> ShowGameSelector");
-	ShowGameSelector();
+	if(!FullWatch::IsObserver())ShowGameSelector();
 	TodTrace("LawnApp::LoadingCompleted done");
 }
 
@@ -7008,7 +7005,9 @@ void LawnApp::UpdateRegisterInfo()
 
 
 
-void LawnApp::UpdateCoopPlay(){if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->Update();}
+void LawnApp::UpdateCoopPlay(){
+if(FullWatch::IsObserver())return;
+if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->Update();}
 void LawnApp::ShowCoopPlay(){if(TeamPlayUi::OpenQuick(this))return;if(TeamProgressionAvailable()&&GetDialogCount()==0){ShowTeamProgression(TeamProgressionView::Page::TEAMMATES);return;}ShowCoopPlayLegacy();}
 void LawnApp::ShowCoopPlayLegacy(){if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->Show();}
 void LawnApp::ExpireCoopLoan(){if(!mCoopPlay)mCoopPlay=std::make_unique<CoopPlay>(this);mCoopPlay->ExpireLoan();}
@@ -7022,8 +7021,10 @@ void LawnApp::ChooseEndlessSave(){auto* d=new EndlessSaveDialog(this,true);AddDi
 
 // General local option: persist before changing active observation transport.
 bool LawnApp::SetObserverP2P(bool enabled) {
-    if(!RegistryWriteBoolean("ObserverP2PEnabled",enabled))return false;
+    if(!RegistryWriteBoolean(MachineControl::LocalWatch()?"RoomWatchP2PEnabled":"ObserverP2PEnabled",enabled))return false;
     mObserverP2P=enabled;
     if(mOnlineSession)mOnlineSession->SetObserverP2PEnabled(enabled);
     return true;
 }
+
+bool LawnApp::DrawDirtyStuff(){if(FullWatch::CoversParent()){mHasPendingDraw=false;mLastDrawWasEmpty=true;return false;}return SexyApp::DrawDirtyStuff();}

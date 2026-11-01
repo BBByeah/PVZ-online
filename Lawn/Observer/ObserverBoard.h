@@ -1,3 +1,5 @@
+#include "../Automation/Diagnostics.h"
+#include <cstring>
 #pragma once
 #include "ObserverDrawScene.h"
 #include "../Online/NetSession.h"
@@ -40,10 +42,11 @@ public:
     // A late one-shot reply must not rewind a working direct stream.
     if(!body.direct&&lastDirectAt&&now-lastDirectAt<5000)continue;
     DrawFrame frame;
-    if(!DecodeDrawFrame(body.data.data(),body.data.size(),frame)||!(frame.flags&4))continue;
+    if(!DecodeDrawFrame(body.data.data(),body.data.size(),frame)||!(frame.flags&4)){++TestDiagnostics::counters.invalid;continue;}
     frame.identity=next;frame.sequence=body.sequence;
     // Prepare is transactional: a rejected frame cannot discard the visible one.
-    if(!scene.Prepare(frame))continue;
+    if(!scene.Prepare(frame)){++TestDiagnostics::counters.invalid;continue;}
+    s->ObserverPictureApplied(body.direct);++TestDiagnostics::counters.displayed;
     visible=next;receivedAt=now;have=true;++serial;
     if(body.direct)lastDirectAt=now;
    }
@@ -52,8 +55,8 @@ public:
   if(!s->ObserverCanCapture()||(!s->ObserverNeedsInitialCapture()&&now-lastCapture<captureInterval))return;
   lastCapture=now;DrawFrame frame;frame.flags=4;frame.identity={1,1,1,1,s->GetLocalSeat()};frame.sequence=1;
   std::vector<uint8_t> bytes;const auto start=Milliseconds();
-  if(CaptureDrawFrame(b,frame)&&EncodeDrawFrame(frame,bytes))s->SendObserverDisplay(bytes,uint32_t(now));
-  else{s->ObserverCaptureFailed();fprintf(stderr,"[observer] source capture rejected\n");}
+  if(CaptureDrawFrame(b,frame)&&EncodeDrawFrame(frame,bytes)){++TestDiagnostics::counters.captures;TestDiagnostics::counters.raw+=ObserverWireV2::Get32(bytes.data()+1);TestDiagnostics::counters.packed+=bytes.size();s->SendObserverDisplay(bytes,uint32_t(now));}
+  else{++TestDiagnostics::counters.captureFailed;s->ObserverCaptureFailed();fprintf(stderr,"[observer] source capture rejected\n");}
   captureInterval=std::clamp<uint64_t>((Milliseconds()-start)*100,500,2000);
  }
  uint64_t VisibleSequence()const{return have?serial:0;}
@@ -62,7 +65,12 @@ public:
   scene.SetPredictionAge(double(Milliseconds()-receivedAt)/1000.0);scene.Draw(g);
   g->SetColor(Sexy::Color(0,0,0,150));g->FillRect(0,0,395,58);
   auto name=s->GetSeatName(visible.seat);if(name.empty())name="P"+std::to_string(visible.seat);
-  SeatUi::Text(g,ModText::Tr("正在观看：","Watching: ")+name,10,33,380,18,Sexy::Color(245,230,165),true);
+  SeatUi::Text(g,ModText::Tr("正在观看：","Watching: ")+name,10,33,245,18,Sexy::Color(245,230,165),true);
+  const char* state=s->ObserverDiagnosticState();Sexy::Color color(130,130,130);const char* label="P2P off";
+  if(!strcmp(state,"direct")){color=Sexy::Color(70,220,80);label="P2P live";}
+  else if(!strcmp(state,"connecting")){color=Sexy::Color(240,210,65);label="P2P ...";}
+  else if(!strcmp(state,"fallback")){color=Sexy::Color(240,150,50);label="Snapshot";}
+  g->SetColor(color);for(int yy=-4;yy<=4;++yy){int dx=int(std::sqrt(double(16-yy*yy)));g->FillRect(269-dx,28+yy,dx*2+1,1);}SeatUi::Text(g,label,280,33,110,14,color,true);
   return true;
  }
 };

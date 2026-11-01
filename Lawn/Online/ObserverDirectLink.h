@@ -9,8 +9,8 @@ namespace ObserverDirect {
 constexpr uint16_t CONTROL_TYPE=0xF024;
 constexpr uint32_t REVISION=2;
 constexpr int PACKET_SIZE=32,ACK_SIZE=24,OFFER_SIZE=26,BOUND_OFFER_SIZE=42;
-constexpr int PROBE_INTERVAL_MS=150,PROBE_MAX_SENDS=20,HELLO_INTERVAL_MS=500,HELLO_MAX_SENDS=6,MAX_PROBES=4;
-constexpr size_t DATAGRAM_SIZE=1200,DATA_HEADER=64,DATA_BYTES=DATAGRAM_SIZE-DATA_HEADER,MAX_FRAME=65536;
+constexpr int PROBE_INTERVAL_MS=150,PROBE_MAX_SENDS=20,HELLO_INTERVAL_MS=500,HELLO_MAX_SENDS=6,MAX_PROBES=10;
+constexpr size_t DATAGRAM_SIZE=1200,DATA_HEADER=64,DATA_BYTES=DATAGRAM_SIZE-DATA_HEADER,MAX_FRAME=1024*1024+40;
 enum UDPOp:uint8_t{UDP_HELLO=1,UDP_HELLO_ACK=2,UDP_PROBE=3,UDP_PROBE_ACK=4,UDP_PING=5,UDP_PONG=6,UDP_DATA=7,UDP_FRAME_ACK=8,UDP_STOP=9};
 enum CtrlOp:uint8_t{OP_CAPABLE=1,OP_BEGIN=2,OP_RESULT=3};
 inline void Put16(uint8_t*p,uint16_t v){p[0]=uint8_t(v);p[1]=uint8_t(v>>8);}
@@ -38,7 +38,10 @@ public:
  bool HasEndpoint()const;uint32_t PublicIp()const;uint16_t PublicPort()const;
  bool StartProbe(uint8_t,uint32_t,uint16_t,const uint8_t*,uint64_t,const Context*context=nullptr,bool producer=false,uint16_t ttl=120);
  void Pump(uint64_t,std::vector<Result>*);
- bool Ready(const Context&)const;bool Writable(const Context&)const;uint64_t Interval(const Context&)const;
+ bool RoomReady(uint8_t)const;uint32_t RoomRtt(uint8_t)const;
+ void DropRoomPeer(uint8_t);
+ bool QueueRoom(uint8_t,const Context&,const std::vector<uint8_t>&,uint32_t,uint64_t);
+ bool Ready(const Context&)const;bool Writable(const Context&)const;uint64_t Interval(const Context&)const;uint32_t Rtt(const Context&)const;
  bool Queue(const Context&,const std::vector<uint8_t>&,uint32_t tick,uint64_t now);
  bool Take(Frame&);size_t ActiveProducers()const;
 private:struct State;std::unique_ptr<State> state;
